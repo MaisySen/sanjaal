@@ -77,7 +77,16 @@ class ChatController extends Controller
         $convo = $this->authorized($request, $id);
         $q = $convo->messages()->with('user', 'conversation');
         if ($request->filled('after_seq')) {
-            $msgs = $q->where('id', '>', (int) $request->after_seq)->orderBy('id')->limit(100)->get();
+            $after = (int) $request->after_seq;
+            // Long poll: hold the request open (up to 20 s) until a newer message exists.
+            $deadline = microtime(true) + min(max((int) $request->query('wait', 0), 0), 20);
+            do {
+                $msgs = (clone $q)->where('id', '>', $after)->orderBy('id')->limit(100)->get();
+                if ($msgs->isNotEmpty() || microtime(true) >= $deadline) {
+                    break;
+                }
+                usleep(400000);
+            } while (true);
         } else {
             if ($request->filled('before_seq')) {
                 $q->where('id', '<', (int) $request->before_seq);

@@ -18,7 +18,7 @@ jobs:
           extensions: mbstring, pdo_sqlite, sqlite3, bcmath, gd
           coverage: none
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: php artisan test
+      - run: touch .env && php artisan test
         env:
           APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
 

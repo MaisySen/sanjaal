@@ -176,12 +176,27 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    _fetch();
-    timer = Timer.periodic(const Duration(seconds: 4), (_) => _fetch());
+    _loop();
+  }
+
+  bool _closed = false;
+
+  // Realtime by long poll: the server holds each request until a new message
+  // arrives, so delivery is near instant without a separate socket server.
+  Future<void> _loop() async {
+    await _fetch();
+    while (mounted && !_closed) {
+      final before = DateTime.now();
+      await _fetch(wait: true);
+      if (DateTime.now().difference(before) < const Duration(seconds: 2)) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    }
   }
 
   @override
   void dispose() {
+    _closed = true;
     timer?.cancel();
     scroll.dispose();
     super.dispose();
@@ -193,12 +208,12 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
-  Future<void> _fetch() async {
+  Future<void> _fetch({bool wait = false}) async {
     if (fetching) return;
     fetching = true;
     try {
       final first = msgs.isEmpty;
-      final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq'}) as Map<String, dynamic>;
+      final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20'}) as Map<String, dynamic>;
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       final known = msgs.map((m) => m['public_id']).toSet();

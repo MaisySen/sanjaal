@@ -58,4 +58,18 @@ class ChatTest extends TestCase
         $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'asha'], $ha)->assertUnprocessable();
         $this->postJson('/api/v1/conversations', ['type' => 'group', 'title' => 'X', 'usernames' => ['ghost']], $ha)->assertUnprocessable();
     }
+
+    public function test_long_poll_returns_empty_after_wait_when_nothing_new(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        $this->member('bina');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->json('conversation.public_id');
+        $m1 = $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi', 'client_id' => 'p1'], $ha)->json('message.seq');
+        $t = microtime(true);
+        $this->getJson("/api/v1/conversations/$cid/messages?after_seq=$m1&wait=1", $ha)->assertOk()->assertJsonCount(0, 'data');
+        $this->assertGreaterThan(0.8, microtime(true) - $t);
+        $t = microtime(true);
+        $this->getJson("/api/v1/conversations/$cid/messages?after_seq=0&wait=5", $ha)->assertJsonCount(1, 'data');
+        $this->assertLessThan(1.0, microtime(true) - $t);
+    }
 }

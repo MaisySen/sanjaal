@@ -12,3 +12,4 @@
 - Added the iOS platform (bundle id au.fintex.sanjaal) with photo, camera and microphone permission strings.
 - Chat: realtime by long poll. The server holds a request open for up to 20 seconds until a new message arrives, so messages show up almost instantly with no extra socket server. The app loops on this call. API server workers raised from 4 to 12 to carry open requests. Added a long poll test (19 API tests, 72 assertions).
 - API download route for the Android build at /sanjaal-arm64.apk (image v2).
+- Wallet: internal coin ledger (1 coin = NPR 1 of verified top up), member to member transfers, history, and eSewa ePay v2 top up against the eSewa test environment. Coins are credited only after the signed return payload and the eSewa status API both confirm the payment, and only once per payment. No cash out. Khalti is not built (needs Khalti merchant test keys). Flutter wallet screen under Me. API tests: 26 passing (109 assertions).

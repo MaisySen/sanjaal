@@ -3,6 +3,7 @@ import 'api.dart';
 import 'auth_page.dart';
 import 'chat_pages.dart';
 import 'feed_page.dart';
+import 'wallet_page.dart';
 
 void main() => runApp(const SanjaalApp());
 
@@ -100,7 +101,14 @@ class ProfilePage extends StatelessWidget {
           const SizedBox(height: 16),
           Center(child: Text(username.isEmpty ? name : '@$username', style: Theme.of(context).textTheme.titleLarge)),
           if (name.isNotEmpty && name != username) Center(child: Text(name)),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          ListTile(
+            leading: const Icon(Icons.account_balance_wallet),
+            title: const Text('Coin wallet'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalletPage(session: session))),
+          ),
+          const SizedBox(height: 24),
           FilledButton.tonalIcon(
             onPressed: () => session.logout(),
             icon: const Icon(Icons.logout),

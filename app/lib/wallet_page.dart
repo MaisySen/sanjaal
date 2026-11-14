@@ -1,0 +1,195 @@
+import 'package:material_ui/material_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'api.dart';
+import 'feed_page.dart' show ago, showError;
+
+/// Coin wallet. 1 coin = NPR 1 of verified top up. Coins move between members. There is no cash out.
+class WalletPage extends StatefulWidget {
+  const WalletPage({super.key, required this.session});
+  final Session session;
+
+  @override
+  State<WalletPage> createState() => _WalletPageState();
+}
+
+class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
+  int balance = 0;
+  List<Map<String, dynamic>> entries = [];
+  Map<String, dynamic> topup = {};
+  bool loading = true;
+  String? error;
+  String? pendingTopup;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Back from the payment page in the browser.
+    if (state == AppLifecycleState.resumed && pendingTopup != null) _checkTopup();
+  }
+
+  Future<void> _load() async {
+    try {
+      final j = await widget.session.call('GET', '/wallet') as Map<String, dynamic>;
+      if (!mounted) return;
+      setState(() {
+        balance = (j['balance'] as num).toInt();
+        entries = (j['entries'] as List).cast<Map<String, dynamic>>();
+        topup = (j['topup'] as Map).cast<String, dynamic>();
+        error = null;
+        loading = false;
+      });
+    } on ApiError catch (e) {
+      if (mounted) {
+        setState(() {
+          error = e.message;
+          loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkTopup() async {
+    final id = pendingTopup;
+    if (id == null) return;
+    try {
+      final j = await widget.session.call('GET', '/wallet/topups/$id') as Map<String, dynamic>;
+      if (!mounted) return;
+      if (j['status'] == 'completed') {
+        pendingTopup = null;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Added ${j['amount']} coins.')));
+      } else if (j['status'] == 'failed') {
+        pendingTopup = null;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('The payment did not go through. No coins were added.')));
+      }
+      await _load();
+    } on ApiError catch (_) {}
+  }
+
+  Future<void> _topup() async {
+    final c = TextEditingController(text: '100');
+    final amount = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add coins'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: c,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Amount in NPR', helperText: '1 rupee = 1 coin. Minimum 10.'),
+          ),
+          if (topup['esewa_mode'] == 'test') const Padding(padding: EdgeInsets.only(top: 8), child: Text('Test mode: no real money moves.')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, int.tryParse(c.text.trim())), child: const Text('Pay with eSewa')),
+        ],
+      ),
+    );
+    if (amount == null) return;
+    try {
+      final j = await widget.session.call('POST', '/wallet/topups', body: {'amount': amount}) as Map<String, dynamic>;
+      pendingTopup = j['topup_id'] as String;
+      final ok = await launchUrl(Uri.parse(j['pay_url'] as String), mode: LaunchMode.externalApplication);
+      if (!ok && mounted) showError(context, 'Could not open the browser.');
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
+  Future<void> _send() async {
+    final user = TextEditingController();
+    final amt = TextEditingController();
+    final note = TextEditingController();
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send coins'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: user, decoration: const InputDecoration(labelText: 'Username')),
+          TextField(controller: amt, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Coins')),
+          TextField(controller: note, decoration: const InputDecoration(labelText: 'Note (optional)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    if (go != true) return;
+    try {
+      await widget.session.call('POST', '/wallet/transfer', body: {
+        'username': user.text.trim(),
+        'amount': int.tryParse(amt.text.trim()) ?? 0,
+        if (note.text.trim().isNotEmpty) 'note': note.text.trim(),
+      });
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent.')));
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
+  String _label(Map<String, dynamic> e) {
+    final who = e['counterparty'] == null ? '' : '@${e['counterparty']}';
+    return switch (e['kind']) {
+      'topup' => 'eSewa top up',
+      'transfer_in' => 'From $who',
+      'transfer_out' => 'To $who',
+      _ => e['kind'].toString(),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final esewa = topup['esewa'] == true;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Coin wallet')),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(padding: const EdgeInsets.all(16), children: [
+                if (error != null) Text(error!),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(children: [
+                      const Text('Balance'),
+                      Text('$balance coins', style: Theme.of(context).textTheme.headlineMedium),
+                      const SizedBox(height: 12),
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add), label: const Text('Add coins')),
+                        const SizedBox(width: 12),
+                        FilledButton.tonalIcon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.send), label: const Text('Send')),
+                      ]),
+                      if (!esewa) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Adding coins is not switched on yet.')),
+                      const Padding(padding: EdgeInsets.only(top: 8), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('History', style: Theme.of(context).textTheme.titleMedium),
+                if (entries.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('No activity yet.')),
+                for (final e in entries)
+                  ListTile(
+                    title: Text(_label(e)),
+                    subtitle: Text([ago((e['created_at'] ?? '').toString()), if (e['note'] != null) e['note']].join('  ')),
+                    trailing: Text('${(e['amount'] as num) > 0 ? '+' : ''}${e['amount']}'),
+                  ),
+              ]),
+            ),
+    );
+  }
+}

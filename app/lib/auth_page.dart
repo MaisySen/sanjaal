@@ -119,8 +119,6 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 8),
                     const Divider(),
                     OutlinedButton(onPressed: busy ? null : () => _social('google-oauth2'), child: const Text('Continue with Google')),
-                    const SizedBox(height: 8),
-                    OutlinedButton(onPressed: busy ? null : () => _social('facebook'), child: const Text('Continue with Facebook')),
                     const Padding(
                       padding: EdgeInsets.only(top: 6),
                       child: Text('Social sign in is in testing.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),

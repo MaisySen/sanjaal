@@ -36,6 +36,12 @@ return [
     ],
 
 
+    'esewa' => [
+        'env' => env('ESEWA_ENV', 'test'),
+        'product_code' => env('ESEWA_PRODUCT_CODE'),
+        'secret' => env('ESEWA_SECRET'),
+    ],
+
     'auth0' => [
         'domain' => env('AUTH0_DOMAIN'),
         'audience' => env('AUTH0_AUDIENCE'),

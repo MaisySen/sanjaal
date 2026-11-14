@@ -15,3 +15,7 @@ Route::get('/sanjaal-arm64.apk', function () {
     );
 });
 Route::redirect('/download', '/sanjaal-arm64.apk');
+
+// eSewa top up pages (public, tied to an unguessable top up id).
+Route::get('/pay/esewa/{id}', [\App\Http\Controllers\WalletController::class, 'payPage'])->whereUuid('id');
+Route::get('/pay/esewa/{id}/{result}', [\App\Http\Controllers\WalletController::class, 'payReturn'])->whereUuid('id')->whereIn('result', ['success', 'failure']);

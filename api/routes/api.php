@@ -34,4 +34,10 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/conversations/{conversation}/messages', [ChatController::class, 'messages']);
     Route::post('/conversations/{conversation}/messages', [ChatController::class, 'send'])->middleware('throttle:120,1');
     Route::post('/conversations/{conversation}/read', [ChatController::class, 'read']);
+
+    Route::get('/wallet', [\App\Http\Controllers\WalletController::class, 'show']);
+    Route::get('/wallet/entries', [\App\Http\Controllers\WalletController::class, 'entriesList']);
+    Route::post('/wallet/transfer', [\App\Http\Controllers\WalletController::class, 'transfer'])->middleware('throttle:30,1');
+    Route::post('/wallet/topups', [\App\Http\Controllers\WalletController::class, 'startTopup'])->middleware('throttle:10,1');
+    Route::get('/wallet/topups/{id}', [\App\Http\Controllers\WalletController::class, 'topupStatus']);
 });

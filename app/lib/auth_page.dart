@@ -36,6 +36,20 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _social(String connection) async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await widget.session.loginSocial(connection);
+    } on ApiError catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -101,6 +115,15 @@ class _AuthPageState extends State<AuthPage> {
                         error = null;
                       }),
                       child: Text(register ? 'I already have an account' : 'Create an account'),
+                    ),
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    OutlinedButton(onPressed: busy ? null : () => _social('google-oauth2'), child: const Text('Continue with Google')),
+                    const SizedBox(height: 8),
+                    OutlinedButton(onPressed: busy ? null : () => _social('facebook'), child: const Text('Continue with Facebook')),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text('Social sign in is in testing.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
                     ),
                     if (busy) const Padding(
                       padding: EdgeInsets.only(top: 8),

@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
+import 'package:crypto/crypto.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -10,6 +13,8 @@ const apiBase = String.fromEnvironment('API_BASE_URL',
 const auth0Domain = 'dev-rymtbo3wlo3tzsxv.us.auth0.com';
 const auth0ClientId = 'fKyNH32VRbrAFF1DUX3GRhKRW7gMR8yT';
 const auth0Audience = 'https://api.sanjaal.app';
+const socialScheme = 'au.fintex.sanjaal';
+const socialRedirect = '$socialScheme://login-callback';
 const _wait = Duration(seconds: 90); // free hosts sleep and need about a minute to wake
 
 class ApiError implements Exception {
@@ -97,6 +102,46 @@ class Session extends ChangeNotifier {
       'password': password,
       'audience': auth0Audience,
       'scope': 'openid profile email offline_access',
+    });
+    await _loadMe();
+    notifyListeners();
+  }
+
+  /// Social sign in through Auth0 with PKCE. [connection] is an Auth0 connection name,
+  /// for example google-oauth2 or facebook. Uses Auth0 development keys until we have our own.
+  Future<void> loginSocial(String connection) async {
+    final rnd = Random.secure();
+    final verifier = base64UrlEncode(List<int>.generate(48, (_) => rnd.nextInt(256))).replaceAll('=', '');
+    final challenge = base64UrlEncode(sha256.convert(utf8.encode(verifier)).bytes).replaceAll('=', '');
+    final state = base64UrlEncode(List<int>.generate(16, (_) => rnd.nextInt(256))).replaceAll('=', '');
+    final url = Uri.https(auth0Domain, '/authorize', {
+      'response_type': 'code',
+      'client_id': auth0ClientId,
+      'redirect_uri': socialRedirect,
+      'scope': 'openid profile email offline_access',
+      'audience': auth0Audience,
+      'connection': connection,
+      'state': state,
+      'code_challenge': challenge,
+      'code_challenge_method': 'S256',
+    });
+    final String result;
+    try {
+      result = await FlutterWebAuth2.authenticate(url: url.toString(), callbackUrlScheme: socialScheme);
+    } catch (_) {
+      throw ApiError('Sign in was cancelled.');
+    }
+    final back = Uri.parse(result);
+    if (back.queryParameters['state'] != state) throw ApiError('Sign in failed. Try again.');
+    final err = back.queryParameters['error_description'] ?? back.queryParameters['error'];
+    if (err != null) throw ApiError(err);
+    final code = back.queryParameters['code'];
+    if (code == null) throw ApiError('Sign in failed. Try again.');
+    await _grant({
+      'grant_type': 'authorization_code',
+      'code': code,
+      'code_verifier': verifier,
+      'redirect_uri': socialRedirect,
     });
     await _loadMe();
     notifyListeners();

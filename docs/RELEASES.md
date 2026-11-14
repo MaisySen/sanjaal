@@ -17,3 +17,7 @@ Built with Flutter release mode, arm64, signed with the Flutter debug key (sidel
 Verified: `flutter analyze` clean; the app's own Session client passed a live run against the hosted API (sign-up, sign-in, post, invalid image refused, like, comment, direct chat send and read, delete, sign-out). The APK has not been run on a device (none available in the build environment).
 
 Not built: calls, coin wallet, social login, video playback, push notifications. Chat polls every 4 seconds.
+
+## Video reels status
+
+Video posting with streaming playback is on branch `video-reels` (commit f963bad). The release APK is built from main without it, because the video_player plugin build exceeds the memory of the small build host (three attempts killed by the OOM killer). Build it on a larger machine to ship video. The API already supports video upload and Range streaming.

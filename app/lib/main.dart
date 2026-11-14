@@ -1,0 +1,116 @@
+import 'package:material_ui/material_ui.dart';
+import 'api.dart';
+import 'auth_page.dart';
+import 'chat_pages.dart';
+import 'feed_page.dart';
+
+void main() => runApp(const SanjaalApp());
+
+class SanjaalApp extends StatefulWidget {
+  const SanjaalApp({super.key});
+  @override
+  State<SanjaalApp> createState() => _SanjaalAppState();
+}
+
+class _SanjaalAppState extends State<SanjaalApp> {
+  final session = Session();
+
+  @override
+  void initState() {
+    super.initState();
+    session.restore();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Sanjaal',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFC8102E)),
+        useMaterial3: true,
+      ),
+      home: ListenableBuilder(
+        listenable: session,
+        builder: (context, _) {
+          if (session.loading) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          if (session.user == null) return AuthPage(session: session);
+          return HomeShell(session: session);
+        },
+      ),
+    );
+  }
+}
+
+class HomeShell extends StatefulWidget {
+  const HomeShell({super.key, required this.session});
+  final Session session;
+  @override
+  State<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends State<HomeShell> {
+  int tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      FeedPage(session: widget.session),
+      ChatsPage(session: widget.session),
+      ProfilePage(session: widget.session),
+    ];
+    return Scaffold(
+      body: IndexedStack(index: tab, children: pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: tab,
+        onDestinationSelected: (i) => setState(() => tab = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dynamic_feed_outlined), selectedIcon: Icon(Icons.dynamic_feed), label: 'Feed'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chats'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Me'),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key, required this.session});
+  final Session session;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = session.user!;
+    final name = (u['name'] ?? '').toString();
+    final username = (u['username'] ?? '').toString();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Me')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Center(
+            child: CircleAvatar(
+              radius: 40,
+              child: Text((username.isEmpty ? name : username).characters.firstOrNull?.toUpperCase() ?? '?',
+                  style: const TextStyle(fontSize: 32)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Center(child: Text(username.isEmpty ? name : '@$username', style: Theme.of(context).textTheme.titleLarge)),
+          if (name.isNotEmpty && name != username) Center(child: Text(name)),
+          const SizedBox(height: 32),
+          FilledButton.tonalIcon(
+            onPressed: () => session.logout(),
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign out'),
+          ),
+          const SizedBox(height: 32),
+          const Text('Sanjaal 0.1.1\nPublished by Fintex Australia Pty Ltd (ABN 60 688 406 108)\ncontact@fintex.au',
+              textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}

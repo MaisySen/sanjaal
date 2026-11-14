@@ -1,0 +1,220 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const apiBase = String.fromEnvironment('API_BASE_URL',
+    defaultValue: 'https://sanjaal-api.onrender.com/api/v1');
+const auth0Domain = 'dev-rymtbo3wlo3tzsxv.us.auth0.com';
+const auth0ClientId = 'fKyNH32VRbrAFF1DUX3GRhKRW7gMR8yT';
+const auth0Audience = 'https://api.sanjaal.app';
+const _wait = Duration(seconds: 90); // free hosts sleep and need about a minute to wake
+
+class ApiError implements Exception {
+  ApiError(this.message, [this.status]);
+  final String message;
+  final int? status;
+  @override
+  String toString() => message;
+}
+
+String _errorText(http.Response r) {
+  try {
+    final j = jsonDecode(r.body);
+    if (j is Map) {
+      final errs = j['errors'];
+      if (errs is Map && errs.isNotEmpty) {
+        final first = errs.values.first;
+        if (first is List && first.isNotEmpty) return first.first.toString();
+      }
+      for (final k in ['message', 'error_description', 'description', 'error']) {
+        if (j[k] is String && (j[k] as String).isNotEmpty) return j[k] as String;
+      }
+    }
+  } catch (_) {}
+  return 'Request failed (${r.statusCode})';
+}
+
+/// Holds the Auth0 session and makes authenticated API calls.
+class Session extends ChangeNotifier {
+  String? _access;
+  String? _refresh;
+  DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
+  Map<String, dynamic>? user;
+  bool loading = true;
+
+  Future<void> restore() async {
+    final p = await SharedPreferences.getInstance();
+    _refresh = p.getString('refresh_token');
+    if (_refresh != null) {
+      try {
+        await _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
+        await _loadMe();
+      } on ApiError catch (e) {
+        // Only a rejected refresh token ends the session. A network error keeps it.
+        if (e.status == 400 || e.status == 401 || e.status == 403) {
+          await _clear();
+        }
+      } catch (_) {}
+    }
+    loading = false;
+    notifyListeners();
+  }
+
+  Future<void> _grant(Map<String, String> form) async {
+    final http.Response r;
+    try {
+      r = await http
+          .post(Uri.https(auth0Domain, '/oauth/token'), body: {...form, 'client_id': auth0ClientId})
+          .timeout(_wait);
+    } on TimeoutException {
+      throw ApiError('The server took too long. Try again.');
+    } catch (_) {
+      throw ApiError('No connection. Check your internet and try again.');
+    }
+    if (r.statusCode != 200) {
+      var msg = _errorText(r);
+      if (msg.toLowerCase().contains('wrong email or password')) msg = 'Wrong email or password.';
+      throw ApiError(msg, r.statusCode);
+    }
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    _access = j['access_token'] as String;
+    _expires = DateTime.now().add(Duration(seconds: (j['expires_in'] as num?)?.toInt() ?? 3600));
+    final rt = j['refresh_token'] as String?;
+    if (rt != null) {
+      _refresh = rt;
+      final p = await SharedPreferences.getInstance();
+      await p.setString('refresh_token', rt);
+    }
+  }
+
+  Future<void> login(String id, String password) async {
+    await _grant({
+      'grant_type': 'password',
+      'username': id,
+      'password': password,
+      'audience': auth0Audience,
+      'scope': 'openid profile email offline_access',
+    });
+    await _loadMe();
+    notifyListeners();
+  }
+
+  Future<void> register(String email, String username, String password) async {
+    final http.Response r;
+    try {
+      r = await http
+          .post(Uri.https(auth0Domain, '/dbconnections/signup'),
+              headers: {'content-type': 'application/json'},
+              body: jsonEncode({
+                'client_id': auth0ClientId,
+                'email': email,
+                'username': username,
+                'password': password,
+                'connection': 'Username-Password-Authentication',
+              }))
+          .timeout(_wait);
+    } catch (_) {
+      throw ApiError('No connection. Check your internet and try again.');
+    }
+    if (r.statusCode != 200) {
+      var msg = _errorText(r);
+      if (msg.contains('user already exists') || msg.contains('already exists')) {
+        msg = 'That email or username is already taken.';
+      }
+      throw ApiError(msg, r.statusCode);
+    }
+    await login(email, password);
+  }
+
+  Future<void> _loadMe() async {
+    final j = await call('GET', '/auth/me') as Map<String, dynamic>;
+    user = (j['user'] ?? j) as Map<String, dynamic>;
+  }
+
+  Future<void> logout() async {
+    await _clear();
+    notifyListeners();
+  }
+
+  Future<void> _clear() async {
+    _access = null;
+    _refresh = null;
+    user = null;
+    final p = await SharedPreferences.getInstance();
+    await p.remove('refresh_token');
+  }
+
+  Future<String> _token() async {
+    if (_access != null && DateTime.now().isBefore(_expires.subtract(const Duration(seconds: 60)))) {
+      return _access!;
+    }
+    if (_refresh == null) throw ApiError('Please sign in again.', 401);
+    await _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
+    return _access!;
+  }
+
+  Future<dynamic> call(String method, String path,
+      {Map<String, dynamic>? body, Map<String, String>? query}) async {
+    final uri = Uri.parse('$apiBase$path').replace(queryParameters: query);
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final token = await _token();
+      final headers = {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+        if (body != null) 'Content-Type': 'application/json',
+      };
+      final http.Response r;
+      try {
+        final enc = body == null ? null : jsonEncode(body);
+        final f = switch (method) {
+          'GET' => http.get(uri, headers: headers),
+          'POST' => http.post(uri, headers: headers, body: enc),
+          'PATCH' => http.patch(uri, headers: headers, body: enc),
+          'DELETE' => http.delete(uri, headers: headers),
+          _ => throw ArgumentError(method),
+        };
+        r = await f.timeout(_wait);
+      } on ApiError {
+        rethrow;
+      } on TimeoutException {
+        throw ApiError('The server took too long. Try again.');
+      } catch (_) {
+        throw ApiError('No connection. Check your internet and try again.');
+      }
+      if (r.statusCode == 401 && attempt == 0) {
+        _expires = DateTime.fromMillisecondsSinceEpoch(0);
+        continue;
+      }
+      if (r.statusCode >= 200 && r.statusCode < 300) {
+        return r.body.isEmpty ? null : jsonDecode(r.body);
+      }
+      throw ApiError(_errorText(r), r.statusCode);
+    }
+    throw ApiError('Please sign in again.', 401);
+  }
+
+  Future<Map<String, dynamic>> createPost(String body, {List<int>? image, String? mime, String? filename}) async {
+    final token = await _token();
+    final req = http.MultipartRequest('POST', Uri.parse('$apiBase/posts'))
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Accept'] = 'application/json'
+      ..fields['kind'] = 'post';
+    if (body.isNotEmpty) req.fields['body'] = body;
+    if (image != null) {
+      req.files.add(http.MultipartFile.fromBytes('media[]', image,
+          filename: filename ?? 'photo', contentType: MediaType.parse(mime ?? 'image/jpeg')));
+    }
+    final http.Response r;
+    try {
+      r = await http.Response.fromStream(await req.send().timeout(_wait));
+    } catch (_) {
+      throw ApiError('Upload failed. Check your connection and try again.');
+    }
+    if (r.statusCode != 201 && r.statusCode != 200) throw ApiError(_errorText(r), r.statusCode);
+    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    return (j['post'] ?? j) as Map<String, dynamic>;
+  }
+}

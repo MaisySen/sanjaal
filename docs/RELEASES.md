@@ -20,4 +20,4 @@ Not built: calls, coin wallet, social login, video playback, push notifications.
 
 ## Video reels status
 
-Video posting with streaming playback is on branch `video-reels` (commit f963bad). The release APK is built from main without it, because the video_player plugin build exceeds the memory of the small build host (three attempts killed by the OOM killer). Build it on a larger machine to ship video. The API already supports video upload and Range streaming.
+Video reels are merged into main (f963bad restored). The 2 GB build host cannot compile the video_player plugin, so release APKs with video are built by CI (see .github/workflows).

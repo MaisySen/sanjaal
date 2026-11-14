@@ -1,6 +1,5 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:video_player/video_player.dart';
 import 'api.dart';
 
 String ago(String iso) {
@@ -229,7 +228,7 @@ class _PostCardState extends State<PostCard> {
                 errorBuilder: (c, e, s) => const SizedBox(height: 80, child: Center(child: Text('Image could not load'))),
               )
             else
-              VideoTile(url: m['url'] as String),
+              const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Text('Video attached. Playback is not available in this version.')),
           Row(
             children: [
               TextButton.icon(
@@ -350,52 +349,31 @@ class ComposePage extends StatefulWidget {
 class _ComposePageState extends State<ComposePage> {
   final text = TextEditingController();
   XFile? picked;
-  bool pickedVideo = false;
   bool busy = false;
 
   Future<void> _pick() async {
     final f = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
-    if (f != null) {
-      setState(() {
-        picked = f;
-        pickedVideo = false;
-      });
-    }
-  }
-
-  Future<void> _pickVideo() async {
-    final f = await ImagePicker().pickVideo(source: ImageSource.gallery, maxDuration: const Duration(minutes: 2));
-    if (f == null) return;
-    if (await f.length() > 25 * 1024 * 1024) {
-      if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');
-      return;
-    }
-    setState(() {
-      picked = f;
-      pickedVideo = true;
-    });
+    if (f != null) setState(() => picked = f);
   }
 
   String _mime(String name) {
     final n = name.toLowerCase();
     if (n.endsWith('.png')) return 'image/png';
     if (n.endsWith('.webp')) return 'image/webp';
-    if (n.endsWith('.mp4')) return 'video/mp4';
-    if (n.endsWith('.mov')) return 'video/quicktime';
-    return pickedVideo ? 'video/mp4' : 'image/jpeg';
+    return 'image/jpeg';
   }
 
   Future<void> _post() async {
     final body = text.text.trim();
     if (body.isEmpty && picked == null) {
-      showError(context, 'Write something or add a photo or video.');
+      showError(context, 'Write something or add a photo.');
       return;
     }
     setState(() => busy = true);
     try {
       final bytes = picked == null ? null : await picked!.readAsBytes();
       final name = picked?.name ?? 'photo.jpg';
-      final post = await widget.session.createPost(body, image: bytes, mime: _mime(name), filename: name, reel: pickedVideo);
+      final post = await widget.session.createPost(body, image: bytes, mime: _mime(name), filename: name);
       if (mounted) Navigator.of(context).pop(post);
     } catch (e) {
       if (mounted) {
@@ -419,66 +397,17 @@ class _ComposePageState extends State<ComposePage> {
         children: [
           TextField(controller: text, maxLines: 6, maxLength: 2000, decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: OutlineInputBorder())),
           const SizedBox(height: 12),
-          if (picked != null && pickedVideo)
-            Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [const Icon(Icons.videocam), const SizedBox(width: 8), Expanded(child: Text(picked!.name, overflow: TextOverflow.ellipsis))])),
-          if (picked != null && !pickedVideo)
+          if (picked != null)
             FutureBuilder(
               future: picked!.readAsBytes(),
               builder: (c, s) => s.hasData ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(s.data!, height: 220, fit: BoxFit.cover)) : const SizedBox(height: 220),
             ),
           Row(children: [
-            TextButton.icon(onPressed: busy ? null : _pick, icon: const Icon(Icons.photo_outlined), label: Text(picked == null || pickedVideo ? 'Add photo' : 'Change photo')),
-            TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const Icon(Icons.videocam_outlined), label: Text(pickedVideo ? 'Change video' : 'Add video')),
+            TextButton.icon(onPressed: busy ? null : _pick, icon: const Icon(Icons.photo_outlined), label: Text(picked == null ? 'Add photo' : 'Change photo')),
             if (picked != null) TextButton(onPressed: busy ? null : () => setState(() => picked = null), child: const Text('Remove')),
           ]),
         ],
       ),
-    );
-  }
-}
-
-/// Streams a video from the media endpoint. Tap to play or pause.
-class VideoTile extends StatefulWidget {
-  const VideoTile({super.key, required this.url});
-  final String url;
-  @override
-  State<VideoTile> createState() => _VideoTileState();
-}
-
-class _VideoTileState extends State<VideoTile> {
-  late final VideoPlayerController c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-  bool ready = false;
-  bool failed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    c.initialize().then((_) {
-      if (mounted) setState(() => ready = true);
-    }).catchError((_) {
-      if (mounted) setState(() => failed = true);
-    });
-    c.addListener(() {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (failed) return const SizedBox(height: 80, child: Center(child: Text('Video could not load')));
-    if (!ready) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
-    return GestureDetector(
-      onTap: () => c.value.isPlaying ? c.pause() : c.play(),
-      child: Stack(alignment: Alignment.center, children: [
-        AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c)),
-        if (!c.value.isPlaying) const Icon(Icons.play_circle_fill, size: 64, color: Colors.white70),
-      ]),
     );
   }
 }

@@ -196,12 +196,12 @@ class Session extends ChangeNotifier {
     throw ApiError('Please sign in again.', 401);
   }
 
-  Future<Map<String, dynamic>> createPost(String body, {List<int>? image, String? mime, String? filename, bool reel = false}) async {
+  Future<Map<String, dynamic>> createPost(String body, {List<int>? image, String? mime, String? filename}) async {
     final token = await _token();
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/posts'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
-      ..fields['kind'] = reel ? 'reel' : 'post';
+      ..fields['kind'] = 'post';
     if (body.isNotEmpty) req.fields['body'] = body;
     if (image != null) {
       req.files.add(http.MultipartFile.fromBytes('media[]', image,

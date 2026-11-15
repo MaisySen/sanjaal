@@ -20,7 +20,10 @@ class NepaliCalendarPage extends StatefulWidget {
 }
 
 class _NepaliCalendarPageState extends State<NepaliCalendarPage> {
-  final BsDate? today = adToBs(DateTime.now());
+  // Nepal time (UTC+5:45), not the phone clock, so people abroad still see the date in Nepal.
+  static DateTime _nepalNow() => DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 45));
+  final DateTime nepalNow = _nepalNow();
+  late final BsDate? today = adToBs(nepalNow);
   late int year = today?.year ?? 2083;
   late int month = today?.month ?? 1;
 
@@ -45,7 +48,7 @@ class _NepaliCalendarPageState extends State<NepaliCalendarPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final t = Theme.of(context).textTheme;
-    final now = DateTime.now();
+    final now = nepalNow;
     final first = bsToAd(year, month, 1)!;
     final offset = first.weekday % 7; // Sunday first
     final days = daysInBsMonth(year, month);
@@ -54,7 +57,7 @@ class _NepaliCalendarPageState extends State<NepaliCalendarPage> {
       appBar: AppBar(title: const Text('Nepali calendar')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         if (today != null) ...[
-          Text('Today', style: t.labelLarge),
+          Text('Today in Nepal', style: t.labelLarge),
           Text(today!.nepali, style: t.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
           Text('${weekdaysNepali[now.weekday - 1]} . ${today!.roman}', style: t.bodyMedium),
           const SizedBox(height: 16),
@@ -90,7 +93,7 @@ class _NepaliCalendarPageState extends State<NepaliCalendarPage> {
         else
           Text(year == 2083 ? 'No named public days listed this month.' : 'Named days are listed for 2083 BS only. Festival dates that follow the moon change every year.', style: t.bodySmall),
         const SizedBox(height: 16),
-        Text('Dates follow published Nepal embassy holiday lists. Always check the official notice for the day.', style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+        Text('Named days come from holiday lists that Nepal embassies publish for their own offices. They are not a Nepal-wide official notice, and the embassy lists do not always agree. Check the official notice for the day.', style: t.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
       ]),
     );
   }

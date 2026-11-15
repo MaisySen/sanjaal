@@ -68,3 +68,4 @@
 - Live rooms: chat, raise hand, host lets a listener speak (server permission change). Member display names never fall back to an email address (API presenters, rooms, chat titles, sign-up, and a one-time scrub of stored names).
 - Reels: follow button on each reel, progress bar with scrubbing, next and previous reels preload. API: feed authors carry a following flag (one extra query per page).
 - Nepali calendar (Settings): Bikram Sambat today, month grid, and named public days for 2083 BS from Nepal embassy lists. Converter tested against 30 published date pairs (CI).
+- Calendar shows today in Nepal time (UTC+5:45), says embassy lists are not a Nepal-wide notice, and docs/THIRD_PARTY.md records the data source and its open licence question.

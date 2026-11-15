@@ -27,53 +27,69 @@ void main() {
     expect(find.textContaining('Sunrise over Phewa'), findsWidgets);
     await binding.takeScreenshot('flow1_feed');
 
-    // Like a post.
-    await tester.tap(find.byIcon(Icons.favorite_border).first);
-    await _settle(tester, 4);
-    expect(find.byIcon(Icons.favorite_border), findsWidgets);
-    await binding.takeScreenshot('flow2_after_like');
+    final failed = <String>[];
+    Future<void> step(String name, Future<void> Function() f) async {
+      try {
+        await f();
+      } catch (e) {
+        failed.add(name);
+        // ignore: avoid_print
+        print('Error-diag step $name: ${e.toString().split('\n').take(3).join(' | ')}');
+        try {
+          await binding.takeScreenshot('fail_$name');
+        } catch (_) {}
+      }
+    }
 
-    // Compose a post.
-    await tester.tap(find.byTooltip('Post'));
-    await _settle(tester, 4);
-    await tester.enterText(find.byType(TextField).first, 'Posted from the emulator run #sanjaal');
-    await tester.pump();
-    await binding.takeScreenshot('flow3_compose');
-    await tester.tap(find.widgetWithText(FilledButton, 'Post'));
-    await _settle(tester, 8);
-    expect(find.textContaining('Posted from the emulator run'), findsWidgets);
-    await binding.takeScreenshot('flow4_post_in_feed');
-
-    // Start a chat and send a message.
-    await tester.tap(find.text('Chats'));
-    await _settle(tester, 4);
-    await tester.tap(find.text('New chat'));
-    await _settle(tester, 3);
-    await tester.enterText(find.byType(TextField).first, 'asha');
-    await _settle(tester, 4);
-    await binding.takeScreenshot('flow5_find_member');
-    await tester.tap(find.text('Asha Gurung').first);
-    await _settle(tester, 6);
-    await tester.enterText(find.byType(TextField).last, 'Hello from the emulator run');
-    await tester.pump();
-    await tester.tap(find.byIcon(Icons.send));
-    await _settle(tester, 6);
-    expect(find.text('Hello from the emulator run'), findsWidgets);
-    await binding.takeScreenshot('flow6_chat_sent');
-    await tester.pageBack();
-    await _settle(tester, 4);
-    await binding.takeScreenshot('flow7_chat_list');
-
-    // Live rooms list (list only; no room is joined, no LiveKit).
-    await tester.tap(find.byTooltip('Live rooms'));
-    await _settle(tester, 6);
-    await binding.takeScreenshot('flow8_rooms_list');
-    await tester.pageBack();
-    await _settle(tester, 3);
-
-    // Wallet.
-    await tester.tap(find.text('Wallet'));
-    await _settle(tester, 8);
-    await binding.takeScreenshot('flow9_wallet');
+    await step('s0', () async {
+      await tester.tap(find.byIcon(Icons.favorite_border).first);
+      await _settle(tester, 4);
+      expect(find.byIcon(Icons.favorite_border), findsWidgets);
+      await binding.takeScreenshot('flow2_after_like');
+    });
+    await step('s1', () async {
+      await tester.tap(find.byTooltip('Post'));
+      await _settle(tester, 4);
+      await tester.enterText(find.byType(TextField).first, 'Posted from the emulator run #sanjaal');
+      await tester.pump();
+      await binding.takeScreenshot('flow3_compose');
+      await tester.tap(find.widgetWithText(FilledButton, 'Post'));
+      await _settle(tester, 8);
+      expect(find.textContaining('Posted from the emulator run'), findsWidgets);
+      await binding.takeScreenshot('flow4_post_in_feed');
+    });
+    await step('s2', () async {
+      await tester.tap(find.text('Chats'));
+      await _settle(tester, 4);
+      await tester.tap(find.text('New chat'));
+      await _settle(tester, 3);
+      await tester.enterText(find.byType(TextField).first, 'asha');
+      await _settle(tester, 4);
+      await binding.takeScreenshot('flow5_find_member');
+      await tester.tap(find.text('Asha Gurung').first);
+      await _settle(tester, 6);
+      await tester.enterText(find.byType(TextField).last, 'Hello from the emulator run');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send));
+      await _settle(tester, 6);
+      expect(find.text('Hello from the emulator run'), findsWidgets);
+      await binding.takeScreenshot('flow6_chat_sent');
+      await tester.pageBack();
+      await _settle(tester, 4);
+      await binding.takeScreenshot('flow7_chat_list');
+    });
+    await step('s3', () async {
+      await tester.tap(find.byTooltip('Live rooms'));
+      await _settle(tester, 6);
+      await binding.takeScreenshot('flow8_rooms_list');
+      await tester.pageBack();
+      await _settle(tester, 3);
+    });
+    await step('s4', () async {
+      await tester.tap(find.text('Wallet'));
+      await _settle(tester, 8);
+      await binding.takeScreenshot('flow9_wallet');
+    });
+    expect(failed, isEmpty, reason: 'failed steps: $failed');
   });
 }

@@ -118,7 +118,7 @@ jobs:
           arch: x86_64
           target: google_apis
           working-directory: app
-          script: flutter test integration_test/smoke_test.dart --reporter expanded 2>&1 | tee /tmp/emu.log
+          script: flutter test integration_test/smoke_test.dart --reporter expanded
 
   ios:
     runs-on: macos-latest

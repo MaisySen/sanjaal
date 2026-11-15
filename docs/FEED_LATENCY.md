@@ -35,3 +35,11 @@ GET /api/v1/ping runs zero queries and still reports app time of 695, 695 and 90
 ## Next step (not done)
 
 Option 1 in a v30 image, measured with GET /ping (app time, 10 requests before and after). Nothing is deployed for this yet.
+
+## Result of the route and event cache change (Nov 16, v30, live at 09:51)
+
+GET /ping app time, 10 requests each, same hour:
+- before (v29): 519, 542, 543, 546, 602, 606, 691, 699, 705, 810 ms (median about 600)
+- after (v30): 433, 449, 449, 450, 452, 454, 463, 518, 540, 555 ms (median about 450)
+
+About 25 percent lower, but the free instance's CPU share is shared and noisy and the earlier run was trending down during the sample, so the gain is probably real but not proven to come from the cache. Database round trips are untouched. Unauthenticated routes (auth/me, rooms, posts, wallet, conversations) still return 401, a bad token returns 401 and an unknown route returns 404 on v30. The API test suite ran with routes and events cached in CI. Authenticated live behaviour was not exercised.

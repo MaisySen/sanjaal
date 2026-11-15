@@ -1,5 +1,9 @@
 # Changelog
 
+## v30 deployed
+
+- v30 is live: route and event cache at start, plus the repo API code (including the inert media:move-to-b2 command, never run). config/cache.php was left as in v29 to avoid a second change. Rollback target: v29.
+
 ## Route and event cache at start
 
 - The image start script now also caches routes and events (config was already cached). CI runs the whole API test suite a second time with both caches on. The 68 routes list identically with and without the cache (method, uri, action, middleware). Not deployed. Effect on speed is not measured yet.

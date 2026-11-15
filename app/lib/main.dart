@@ -14,7 +14,7 @@ import 'wallet_page.dart';
 
 void main() => runApp(const SanjaalApp());
 
-ThemeData _theme(Brightness b) {
+ThemeData buildTheme(Brightness b) {
   final scheme = ColorScheme.fromSeed(seedColor: brandRed, secondary: brandBlue, brightness: b);
   const pill = StadiumBorder();
   const buttonSize = Size(64, 48);
@@ -88,8 +88,8 @@ class _SanjaalAppState extends State<SanjaalApp> {
       builder: (context, _) => MaterialApp(
         title: 'Sanjaal',
         debugShowCheckedModeBanner: false,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
         themeMode: prefs.mode,
         home: KeyedSubtree(
           key: ValueKey(prefs.lang),

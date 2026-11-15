@@ -50,10 +50,11 @@ class EngagementController extends Controller
 
     public function comment(Request $request, string $postId): JsonResponse
     {
-        $data = $request->validate(['body' => ['required', 'string', 'max:1000']]);
+        $data = $request->validate(['body' => ['required', 'string', 'max:1000'], 'parent_id' => ['nullable', 'uuid']]);
         $post = Post::where('public_id', $postId)->firstOrFail();
         $comment = DB::transaction(function () use ($request, $post, $data) {
-            $c = $post->comments()->create(['user_id' => $request->user()->id, 'body' => $data['body']]);
+            $parent = isset($data['parent_id']) ? $post->comments()->where('public_id', $data['parent_id'])->whereNull('parent_id')->first() : null;
+            $c = $post->comments()->create(['user_id' => $request->user()->id, 'body' => $data['body'], 'parent_id' => $parent?->id]);
             $post->increment('comments_count');
 
             return $c;

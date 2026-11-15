@@ -13,6 +13,7 @@ Route::get('/v1/ping', fn () => response()->json(['app' => 'sanjaal', 'status' =
 Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::patch('/me', [AuthController::class, 'update']);
+    Route::post('/me/avatar', [\App\Http\Controllers\SocialController::class, 'avatar'])->middleware('throttle:10,1');
 });
 
 Route::prefix('v1')->middleware('auth:auth0')->group(function () {
@@ -28,6 +29,16 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/posts/{post}/comments', [EngagementController::class, 'comment'])->middleware('throttle:30,1');
     Route::post('/users/{username}/follow', [EngagementController::class, 'follow']);
     Route::delete('/users/{username}/follow', [EngagementController::class, 'unfollow']);
+
+    $s = \App\Http\Controllers\SocialController::class;
+    Route::get('/users/search', [$s, 'search']);
+    Route::get('/users/blocked', [$s, 'blocks']);
+    Route::get('/users/{username}', [$s, 'profile']);
+    Route::post('/users/{username}/block', [$s, 'block']);
+    Route::delete('/users/{username}/block', [$s, 'unblock']);
+    Route::get('/notifications', [$s, 'notifications']);
+    Route::post('/reports', [$s, 'report'])->middleware('throttle:20,1');
+    Route::delete('/comments/{commentId}', [$s, 'deleteComment']);
 
     Route::get('/conversations', [ChatController::class, 'index']);
     Route::post('/conversations', [ChatController::class, 'store']);

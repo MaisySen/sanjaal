@@ -13,7 +13,11 @@ class Present
 {
     public static function user(User $u): array
     {
-        return ['public_id' => $u->public_id, 'name' => $u->name, 'username' => $u->username];
+        return [
+            'public_id' => $u->public_id, 'name' => $u->name, 'username' => $u->username,
+            'bio' => $u->bio,
+            'avatar_url' => $u->avatar ? url('/api/v1/media/'.$u->avatar) : null,
+        ];
     }
 
     public static function post(Post $p, ?User $viewer = null): array
@@ -42,6 +46,7 @@ class Present
             'public_id' => $c->public_id,
             'body' => $c->body,
             'author' => self::user($c->user),
+            'parent_id' => $c->parent_id ? Comment::whereKey($c->parent_id)->value('public_id') : null,
             'created_at' => $c->created_at->toIso8601String(),
         ];
     }

@@ -14,7 +14,7 @@ class AuthController extends Controller
 {
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['user' => $request->user()]);
+        return response()->json(['user' => \App\Http\Resources\Present::user($request->user()) + ['phone' => $request->user()->phone, 'email' => $request->user()->email]]);
     }
 
     public function update(Request $request): JsonResponse
@@ -23,10 +23,11 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:80'],
             'username' => ['sometimes', 'string', 'min:3', 'max:30', 'regex:/^[A-Za-z0-9_.]+$/', Rule::unique('users', 'username')->ignore($user->id)],
+            'bio' => ['sometimes', 'nullable', 'string', 'max:160'],
             'phone' => ['sometimes', 'nullable', 'string', 'regex:/^\+[1-9][0-9]{7,14}$/', Rule::unique('users', 'phone')->ignore($user->id)],
         ]);
         $user->update($data);
 
-        return response()->json(['user' => $user->fresh()]);
+        return response()->json(['user' => \App\Http\Resources\Present::user($user->fresh())]);
     }
 }

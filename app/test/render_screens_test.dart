@@ -50,8 +50,8 @@ Future<http.Response> _reply(http.Request r) async {
       'balance': 135,
       'entries': [
         {'kind': 'topup', 'amount': 100, 'created_at': _ago(240), 'counterparty': null, 'note': null},
-        {'kind': 'gift_sent', 'amount': -20, 'created_at': _ago(90), 'counterparty': 'asha', 'note': 'Khada'},
-        {'kind': 'gift_received', 'amount': 55, 'created_at': _ago(30), 'counterparty': 'bikash', 'note': null},
+        {'kind': 'gift_out', 'amount': -20, 'created_at': _ago(90), 'counterparty': 'asha', 'note': 'Khada'},
+        {'kind': 'gift_in', 'amount': 55, 'created_at': _ago(30), 'counterparty': 'bikash', 'note': null},
       ],
       'topup': {'esewa': true, 'esewa_mode': 'test'},
     });

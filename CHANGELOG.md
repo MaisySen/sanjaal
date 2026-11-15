@@ -1,5 +1,9 @@
 # Changelog
 
+## Render tests for wallet, gift sheet, chat
+
+- CI now renders the real wallet, gift sheet and chat widgets with canned API replies (light and dark). Layout check only, not device behaviour.
+
 ## media:move-to-b2
 
 - New artisan command moves database-stored media to B2 per row, verifies recorded size first, reads the file back from B2 and compares size and SHA1 before emptying the database copy, keeps the row on any failure. Tested with a faked B2 in CI. Not yet run against live data.

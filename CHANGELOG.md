@@ -1,5 +1,9 @@
 # Changelog
 
+## Feed latency notes updated
+
+- Added the earlier select-1 probe result (about 230 ms per trivial query) and a live check showing a zero-query route still takes 0.7 to 0.9 s. Doc only.
+
 ## Android adaptive icon
 
 - Adaptive launcher icon (red background colour plus mark layer kept in the safe zone) for Android 8 and up. Older devices keep the existing icons. iOS icon sizes were already complete. Checked as a flat preview with a circle mask; not yet seen on a launcher.

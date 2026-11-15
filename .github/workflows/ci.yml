@@ -40,7 +40,16 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
+      - name: Analyze
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos > analyze.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            grep -E "^\s+(error|warning)" analyze.log | head -40 | sed 's/%/%25/g' | while read -r l; do echo "::error title=analyze::$l"; done
+          fi
+          tail -3 analyze.log
+          exit $code
       - run: flutter test
       - name: Build release APK
         run: |

@@ -50,7 +50,11 @@ class PostController extends Controller
         $page = $q->cursorPaginate(15)->withQueryString();
 
         return response()->json([
-            'data' => collect($page->items())->map(fn ($p) => Present::post($p, $viewer))->values(),
+            'data' => (function () use ($page, $viewer) {
+                Present::preload($page->items(), $viewer);
+
+                return collect($page->items())->map(fn ($p) => Present::post($p, $viewer))->values();
+            })(),
             'next_cursor' => $page->nextCursor()?->encode(),
         ]);
     }

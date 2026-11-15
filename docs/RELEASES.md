@@ -4,7 +4,7 @@ Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
 ## Unreleased (API image v9)
 
-Media route fix after the free database hit its transfer cap: byte-range reads, ETag 304 without reading the file, 2 MB cap per range response. See docs/SCALING.md. Database moved to Aiven free Postgres, persistent connections (API image v10). No app release.
+Media route fix after the free database hit its transfer cap: byte-range reads, ETag 304 without reading the file, 2 MB cap per range response. See docs/SCALING.md. Database moved to Aiven free Postgres, persistent connections (API image v10). Feed queries batched (API image v11). No app release.
 
 ## 0.4.0 reactions, stories, chat depth, calls, 2026-11-15
 

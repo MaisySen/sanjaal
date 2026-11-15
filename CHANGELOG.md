@@ -9,6 +9,8 @@
 
 - API: persistent database connections per server worker (database now in another region). Free Postgres moved from Neon to Aiven; see docs/SCALING.md.
 
+- API: feed reaction counts and the viewer's reaction load in two queries per page instead of three per post (feed went from 13 to 9 queries for two posts, flat after that).
+
 - API: media route reads only the requested byte range from the database, answers 304 from the ETag without reading the file, and caps one range response at 2 MB. docs/SCALING.md added with the scaling path and cost estimates. Tests: 36 passing.
 
 - 0.4.0: six reactions, 24 hour stories, chat photos, replies, typing, pin, mute, archive, incoming call alert and call history. API: POST/DELETE /posts/{id}/reaction, /stories routes, PATCH /conversations/{id}/settings, POST /conversations/{id}/typing, /calls routes, message kind, media and reply fields. Tests: 34 passing.

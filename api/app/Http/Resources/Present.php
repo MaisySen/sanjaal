@@ -20,8 +20,29 @@ class Present
         ];
     }
 
+    /** Load reaction counts and the viewer's own reaction for a page of posts in two queries. */
+    public static function preload(iterable $posts, ?User $viewer = null): void
+    {
+        $posts = collect($posts);
+        if ($posts->isEmpty()) {
+            return;
+        }
+        $ids = $posts->pluck('id')->all();
+        $counts = \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)
+            ->selectRaw('post_id, reaction, count(*) as n')->groupBy('post_id', 'reaction')->get()->groupBy('post_id');
+        $mine = $viewer
+            ? \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)->where('user_id', $viewer->id)->pluck('reaction', 'post_id')
+            : collect();
+        foreach ($posts as $p) {
+            $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
+            $p->setAttribute('_mine', $mine->has($p->id) ? ($mine[$p->id] ?? '') : false);
+        }
+    }
+
     public static function post(Post $p, ?User $viewer = null): array
     {
+        $pre = array_key_exists('_mine', $p->getAttributes());
+
         return [
             'public_id' => $p->public_id,
             'kind' => $p->kind,
@@ -35,9 +56,9 @@ class Present
             'hashtags' => $p->hashtags->pluck('tag')->values(),
             'likes_count' => $p->likes_count,
             'comments_count' => $p->comments_count,
-            'liked' => $viewer ? $p->likes()->where('user_id', $viewer->id)->exists() : false,
-            'my_reaction' => $viewer ? $p->likes()->where('user_id', $viewer->id)->value('reaction') : null,
-            'reactions' => $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),
+            'liked' => $pre ? $p->getAttribute('_mine') !== false : ($viewer ? $p->likes()->where('user_id', $viewer->id)->exists() : false),
+            'my_reaction' => $pre ? ($p->getAttribute('_mine') === false ? null : $p->getAttribute('_mine')) : ($viewer ? $p->likes()->where('user_id', $viewer->id)->value('reaction') : null),
+            'reactions' => $pre ? $p->getAttribute('_reactions') : $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),
             'created_at' => $p->created_at->toIso8601String(),
         ];
     }

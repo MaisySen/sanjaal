@@ -36,6 +36,12 @@ return [
     ],
 
 
+    'livekit' => [
+        'url' => env('LIVEKIT_URL'),
+        'key' => env('LIVEKIT_API_KEY'),
+        'secret' => env('LIVEKIT_API_SECRET'),
+    ],
+
     'esewa' => [
         'env' => env('ESEWA_ENV', 'test'),
         'product_code' => env('ESEWA_PRODUCT_CODE'),

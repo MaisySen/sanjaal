@@ -74,4 +74,23 @@ class ChatTest extends TestCase
         $this->getJson("/api/v1/conversations/$cid/messages?after_seq=0&wait=5", $ha)->assertJsonCount(1, 'data');
         $this->assertLessThan(1.0, microtime(true) - $t);
     }
+    public function test_call_token_needs_membership_and_config(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chet');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->assertCreated()->json('conversation.public_id');
+
+        $this->postJson("/api/v1/conversations/$cid/call-token", [], $ha)->assertStatus(503);
+
+        config(['services.livekit' => ['url' => 'wss://example.livekit.cloud', 'key' => 'APItest', 'secret' => 'secret-for-tests-only-0123456789abcdef']]);
+        $r = $this->postJson("/api/v1/conversations/$cid/call-token", [], $ha)->assertOk()->assertJsonPath('room', "convo-$cid");
+        [$h, $p, $sig] = explode('.', $r->json('token'));
+        $claims = json_decode(base64_decode(strtr($p, '-_', '+/')), true);
+        $this->assertSame('APItest', $claims['iss']);
+        $this->assertSame("convo-$cid", $claims['video']['room']);
+        $this->assertSame(rtrim(strtr(base64_encode(hash_hmac('sha256', "$h.$p", 'secret-for-tests-only-0123456789abcdef', true)), '+/', '-_'), '='), $sig);
+        $this->postJson("/api/v1/conversations/$cid/call-token", [], $hc)->assertStatus(404);
+    }
+
 }

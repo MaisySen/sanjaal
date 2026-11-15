@@ -22,6 +22,22 @@ class ChatController extends Controller
         return response()->json(['data' => $convos->map(fn ($c) => $this->present($c, $me))->values()]);
     }
 
+    /** Join token for a voice or video call in a conversation the caller belongs to. */
+    public function callToken(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if (! \App\Services\LiveKit::configured()) {
+            return response()->json(['message' => 'Calls are not available yet.'], 503);
+        }
+        $me = $request->user();
+
+        return response()->json([
+            'url' => config('services.livekit.url'),
+            'room' => 'convo-'.$convo->public_id,
+            'token' => \App\Services\LiveKit::token('u'.$me->id, $me->name ?: $me->username, 'convo-'.$convo->public_id),
+        ]);
+    }
+
     /** Cheap poll target for the app badge: unread chat messages across all conversations. */
     public function summary(Request $request): JsonResponse
     {

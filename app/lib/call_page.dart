@@ -4,11 +4,12 @@ import 'api.dart';
 
 /// Voice or video call for one conversation, over LiveKit.
 class CallPage extends StatefulWidget {
-  const CallPage({super.key, required this.session, required this.conversationId, required this.title, required this.video});
+  const CallPage({super.key, required this.session, required this.conversationId, required this.title, required this.video, this.callId});
   final Session session;
   final String conversationId;
   final String title;
   final bool video;
+  final String? callId;
 
   @override
   State<CallPage> createState() => _CallPageState();
@@ -20,6 +21,8 @@ class _CallPageState extends State<CallPage> {
   bool muted = false;
   bool camOn = false;
   bool failed = false;
+  String? _callId;
+  bool _ended = false;
 
   @override
   void initState() {
@@ -34,7 +37,9 @@ class _CallPageState extends State<CallPage> {
 
   Future<void> _join() async {
     try {
-      final j = await widget.session.call('POST', '/conversations/${widget.conversationId}/call-token') as Map<String, dynamic>;
+      final qs = widget.callId != null ? '?call=${widget.callId}' : '?kind=${widget.video ? 'video' : 'voice'}';
+      final j = await widget.session.call('POST', '/conversations/${widget.conversationId}/call-token$qs') as Map<String, dynamic>;
+      _callId = j['call_id'] as String?;
       await room.connect(j['url'] as String, j['token'] as String);
       await room.localParticipant?.setMicrophoneEnabled(true);
       if (widget.video) {
@@ -59,8 +64,15 @@ class _CallPageState extends State<CallPage> {
     }
   }
 
+  void _endCall() {
+    if (_ended || _callId == null) return;
+    _ended = true;
+    widget.session.call('POST', '/calls/$_callId/action', body: {'action': 'end'}).catchError((_) => null);
+  }
+
   @override
   void dispose() {
+    _endCall();
     room.removeListener(_changed);
     room.disconnect();
     room.dispose();

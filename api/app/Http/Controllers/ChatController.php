@@ -35,7 +35,8 @@ class ChatController extends Controller
             return response()->json(['message' => 'Calls are not available yet.'], 503);
         }
         $me = $request->user();
-        $call = \App\Http\Controllers\ExtrasController::ring($convo, $me, $request->query('kind') === 'video' ? 'video' : 'voice');
+        $existing = $request->query('call') ? DB::table('calls')->where('public_id', $request->query('call'))->where('conversation_id', $convo->id)->value('public_id') : null;
+        $call = $existing ?: \App\Http\Controllers\ExtrasController::ring($convo, $me, $request->query('kind') === 'video' ? 'video' : 'voice');
 
         return response()->json([
             'call_id' => $call,
@@ -117,9 +118,12 @@ class ChatController extends Controller
             $after = (int) $request->after_seq;
             // Long poll: hold the request open (up to 20 s) until a newer message exists.
             $deadline = microtime(true) + min(max((int) $request->query('wait', 0), 0), 20);
+            $convo->loadMissing('members');
+            $shown = array_filter(explode(',', (string) $request->query('typing', '')));
             do {
                 $msgs = (clone $q)->where('id', '>', $after)->orderBy('id')->limit(100)->get();
-                if ($msgs->isNotEmpty() || microtime(true) >= $deadline) {
+                $nowTyping = ExtrasController::typingUsers($convo, $request->user());
+                if ($msgs->isNotEmpty() || $nowTyping != $shown || microtime(true) >= $deadline) {
                     break;
                 }
                 usleep(400000);

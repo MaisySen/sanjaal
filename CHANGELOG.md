@@ -7,6 +7,8 @@
 
 ## Unreleased
 
+- 0.4.0: six reactions, 24 hour stories, chat photos, replies, typing, pin, mute, archive, incoming call alert and call history. API: POST/DELETE /posts/{id}/reaction, /stories routes, PATCH /conversations/{id}/settings, POST /conversations/{id}/typing, /calls routes, message kind, media and reply fields. Tests: 34 passing.
+
 - 0.3.0 rebuild of the Flutter app: five tab shell, onboarding, brand theme with dark mode, English and Nepali labels, reels pager, profiles with avatars and follow, search, hashtag pages, notifications screen, settings, comment replies, multi photo posts, report and block, member picker for new chats.
 - API: GET /users/{username}, /users/search, POST /auth/me/avatar, bio on PATCH /auth/me, GET /notifications, block and report routes, comment replies and delete. Feeds hide blocked members. API tests: 30 passing.
 

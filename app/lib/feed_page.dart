@@ -6,6 +6,8 @@ import 'api.dart';
 import 'notifications_page.dart';
 import 'profile_pages.dart';
 import 'search_page.dart';
+import 'reactions.dart';
+import 'stories_page.dart';
 import 'ui.dart';
 
 /// Home tab: For you and Following, with search and notifications on top.
@@ -33,6 +35,7 @@ class FeedPage extends StatelessWidget {
             key: const PageStorageKey('forYou'),
             session: session,
             query: const {'kind': 'post'},
+            header: StoriesBar(session: session),
             emptyIcon: Icons.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
             emptyHint: 'Be the first. Tap + to share a photo or a thought.',
@@ -174,42 +177,10 @@ class PostCard extends StatefulWidget {
 }
 
 class _PostCardState extends State<PostCard> {
-  late bool liked = widget.post['liked'] == true;
-  late int likes = (widget.post['likes_count'] as num?)?.toInt() ?? 0;
   late int comments = (widget.post['comments_count'] as num?)?.toInt() ?? 0;
-  bool busy = false;
 
   String get id => widget.post['public_id'] as String;
   Map<String, dynamic> get author => (widget.post['author'] as Map).cast<String, dynamic>();
-
-  Future<void> _like() async {
-    if (busy) return;
-    busy = true;
-    final was = liked;
-    setState(() {
-      liked = !was;
-      likes += was ? -1 : 1;
-    });
-    try {
-      final j = await widget.session.call(was ? 'DELETE' : 'POST', '/posts/$id/like') as Map<String, dynamic>;
-      if (mounted) {
-        setState(() {
-          liked = j['liked'] == true;
-          likes = (j['likes_count'] as num?)?.toInt() ?? likes;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          liked = was;
-          likes += was ? 1 : -1;
-        });
-        showError(context, e);
-      }
-    } finally {
-      busy = false;
-    }
-  }
 
   Future<void> _delete() async {
     final ok = await showDialog<bool>(
@@ -298,11 +269,7 @@ class _PostCardState extends State<PostCard> {
           for (final v in videos) VideoTile(url: v['url'] as String),
           Row(
             children: [
-              TextButton.icon(
-                onPressed: _like,
-                icon: Icon(liked ? Icons.favorite : Icons.favorite_border, color: liked ? brandRed : null),
-                label: Text('$likes'),
-              ),
+              ReactionButton(session: widget.session, post: widget.post),
               TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined), label: Text('$comments')),
             ],
           ),

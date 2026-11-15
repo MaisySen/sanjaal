@@ -263,6 +263,26 @@ class Session extends ChangeNotifier {
     return (j['post'] ?? j) as Map<String, dynamic>;
   }
 
+  /// Multipart POST with one optional file. Returns the decoded JSON object.
+  Future<Map<String, dynamic>> upload(String path, {Map<String, String> fields = const {}, String field = 'media', UploadFile? file}) async {
+    final token = await _token();
+    final req = http.MultipartRequest('POST', Uri.parse('$apiBase$path'))
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Accept'] = 'application/json'
+      ..fields.addAll(fields);
+    if (file != null) {
+      req.files.add(http.MultipartFile.fromBytes(field, file.bytes, filename: file.name, contentType: MediaType.parse(file.mime)));
+    }
+    final http.Response r;
+    try {
+      r = await http.Response.fromStream(await req.send().timeout(_wait));
+    } catch (_) {
+      throw ApiError('Upload failed. Check your connection and try again.');
+    }
+    if (r.statusCode != 200 && r.statusCode != 201) throw ApiError(_errorText(r), r.statusCode);
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
   Future<void> uploadAvatar(UploadFile f) async {
     final token = await _token();
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/auth/me/avatar'))

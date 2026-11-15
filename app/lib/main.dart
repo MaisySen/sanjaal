@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'auth_page.dart';
+import 'calls_page.dart';
 import 'chat_pages.dart';
 import 'feed_page.dart';
 import 'onboarding_page.dart';
@@ -82,6 +84,9 @@ class _HomeShellState extends State<HomeShell> {
   int tab = 0;
   int unread = 0;
   Timer? _poll;
+  Timer? _ring;
+  bool _ringing = false;
+  String? _lastCall;
   final feedKey = GlobalKey<FeedListState>();
 
   @override
@@ -89,11 +94,30 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     _refreshUnread();
     _poll = Timer.periodic(const Duration(seconds: 30), (_) => _refreshUnread());
+    _ring = Timer.periodic(const Duration(seconds: 5), (_) => _checkIncoming());
+  }
+
+  Future<void> _checkIncoming() async {
+    if (_ringing || !mounted) return;
+    try {
+      final j = await widget.session.call('GET', '/calls/incoming') as Map<String, dynamic>;
+      final list = (j['data'] as List).cast<Map<String, dynamic>>();
+      if (list.isEmpty || !mounted) return;
+      if (list.first['public_id'] == _lastCall) return;
+      _lastCall = list.first['public_id'] as String;
+      _ringing = true;
+      HapticFeedback.heavyImpact();
+      await Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => IncomingCallPage(session: widget.session, call: list.first)));
+    } catch (_) {
+    } finally {
+      _ringing = false;
+    }
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _ring?.cancel();
     super.dispose();
   }
 

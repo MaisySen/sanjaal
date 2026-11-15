@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_page.dart';
+import 'calls_page.dart';
 import 'ui.dart';
 
 class ChatsPage extends StatefulWidget {
@@ -16,6 +19,7 @@ class _ChatsPageState extends State<ChatsPage> {
   bool loading = true;
   String? error;
   Timer? timer;
+  bool showArchived = false;
 
   @override
   void initState() {
@@ -32,7 +36,7 @@ class _ChatsPageState extends State<ChatsPage> {
 
   Future<void> _load({bool quiet = false}) async {
     try {
-      final j = await widget.session.call('GET', '/conversations') as Map<String, dynamic>;
+      final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
       if (!mounted) return;
       setState(() {
         convos = (j['data'] as List).cast<Map<String, dynamic>>();
@@ -42,6 +46,41 @@ class _ChatsPageState extends State<ChatsPage> {
       if (mounted && !quiet) setState(() => error = e.message);
     }
     if (mounted && loading) setState(() => loading = false);
+  }
+
+  String _preview(Map<String, dynamic>? last) {
+    if (last == null) return 'No messages yet';
+    switch (last['kind']) {
+      case 'image':
+        return 'Photo';
+      case 'voice':
+        return 'Voice message';
+    }
+    return last['body'].toString();
+  }
+
+  Future<void> _menu(Map<String, dynamic> c) async {
+    final id = c['public_id'];
+    Future<void> set(Map<String, dynamic> body) async {
+      Navigator.pop(context);
+      try {
+        await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
+        await _load(quiet: true);
+      } catch (e) {
+        if (mounted) showError(context, e);
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: Icon(c['pinned'] == true ? Icons.push_pin : Icons.push_pin_outlined), title: Text(c['pinned'] == true ? 'Unpin' : 'Pin to top'), onTap: () => set({'pinned': c['pinned'] != true})),
+          ListTile(leading: Icon(c['muted'] == true ? Icons.notifications_off : Icons.notifications_off_outlined), title: Text(c['muted'] == true ? 'Unmute' : 'Mute'), onTap: () => set({'muted': c['muted'] != true})),
+          ListTile(leading: Icon(c['archived'] == true ? Icons.unarchive_outlined : Icons.archive_outlined), title: Text(c['archived'] == true ? 'Unarchive' : 'Archive'), onTap: () => set({'archived': c['archived'] != true})),
+        ]),
+      ),
+    );
   }
 
   Future<void> _open(Map<String, dynamic> c) async {
@@ -60,7 +99,27 @@ class _ChatsPageState extends State<ChatsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Chats'))),
+      appBar: AppBar(
+        title: Text(showArchived ? 'Archived' : t_('Chats')),
+        actions: [
+          IconButton(
+            tooltip: 'Call history',
+            icon: const Icon(Icons.call_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session))),
+          ),
+          IconButton(
+            tooltip: showArchived ? 'Back to chats' : 'Archived chats',
+            icon: Icon(showArchived ? Icons.chat_outlined : Icons.archive_outlined),
+            onPressed: () {
+              setState(() {
+                showArchived = !showArchived;
+                loading = true;
+              });
+              _load();
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.add_comment), label: Text(t_('New chat'))),
       body: RefreshIndicator(
         onRefresh: _load,
@@ -78,11 +137,16 @@ class _ChatsPageState extends State<ChatsPage> {
                       final title = (c['title'] ?? 'Chat').toString();
                       return ListTile(
                         leading: CircleAvatar(child: Icon(c['type'] == 'group' ? Icons.groups : Icons.person)),
-                        title: Text(title, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : null)),
-                        subtitle: Text(last == null ? 'No messages yet' : last['body'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        title: Row(children: [
+                          Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : null))),
+                          if (c['pinned'] == true) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.push_pin, size: 14)),
+                          if (c['muted'] == true) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.notifications_off, size: 14)),
+                        ]),
+                        subtitle: Text(_preview(last), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        onLongPress: () => _menu(c),
                         trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           if (last != null) Text(ago(last['created_at'].toString()), style: const TextStyle(fontSize: 12)),
-                          if (unread > 0) Badge(label: Text('$unread')),
+                          if (unread > 0) Badge(label: Text('$unread'), backgroundColor: c['muted'] == true ? Colors.grey : null),
                         ]),
                         onTap: () => _open(c),
                       );
@@ -253,6 +317,9 @@ class _ChatPageState extends State<ChatPage> {
   bool fetching = false;
   String? error;
   int _n = 0;
+  Map<String, dynamic>? replyTo;
+  List<String> typing = [];
+  DateTime _lastTypingPing = DateTime.fromMillisecondsSinceEpoch(0);
 
   String get id => widget.convo['public_id'] as String;
   int get lastSeq => msgs.where((m) => m['seq'] != null).fold(0, (a, m) => (m['seq'] as num).toInt() > a ? (m['seq'] as num).toInt() : a);
@@ -297,7 +364,9 @@ class _ChatPageState extends State<ChatPage> {
     fetching = true;
     try {
       final first = msgs.isEmpty;
-      final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20'}) as Map<String, dynamic>;
+      final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20', 'typing': typing.join(',')}) as Map<String, dynamic>;
+      final nowTyping = ((j['typing'] as List?) ?? const []).map((e) => e.toString()).toList();
+      if (mounted && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       final known = msgs.map((m) => m['public_id']).toSet();
@@ -333,11 +402,15 @@ class _ChatPageState extends State<ChatPage> {
       'pending': true,
       'sender': {'public_id': me['public_id'], 'username': me['username']},
       'created_at': DateTime.now().toUtc().toIso8601String(),
+      'kind': 'text',
+      if (replyTo != null) 'reply_to': {'public_id': replyTo!['public_id'], 'sender': ((replyTo!['sender'] as Map)['username']).toString(), 'kind': replyTo!['kind'] ?? 'text', 'body': replyTo!['body']},
     };
+    final replyId = replyTo?['public_id'];
+    replyTo = null;
     setState(() => msgs.add(local));
     _toEnd();
     try {
-      final j = await widget.session.call('POST', '/conversations/$id/messages', body: {'body': t, 'client_id': cid}) as Map<String, dynamic>;
+      final j = await widget.session.call('POST', '/conversations/$id/messages', body: {'body': t, 'client_id': cid, if (replyId != null) 'reply_to': replyId}) as Map<String, dynamic>;
       final server = (j['message'] as Map).cast<String, dynamic>();
       if (!mounted) return;
       setState(() {
@@ -353,6 +426,63 @@ class _ChatPageState extends State<ChatPage> {
       });
       showError(context, e);
     }
+  }
+
+  Future<void> _attach() async {
+    final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+    if (x == null || !mounted) return;
+    final bytes = await x.readAsBytes();
+    final cid = '${DateTime.now().microsecondsSinceEpoch}-${_n++}';
+    final replyId = replyTo?['public_id'];
+    setState(() => replyTo = null);
+    try {
+      final j = await widget.session.upload('/conversations/$id/messages',
+          fields: {'client_id': cid, if (replyId != null) 'reply_to': '$replyId'}, file: UploadFile(bytes, mimeFor(x.name), x.name));
+      final server = (j['message'] as Map).cast<String, dynamic>();
+      if (!mounted) return;
+      setState(() {
+        if (!msgs.any((m) => m['public_id'] == server['public_id'])) msgs.add(server);
+      });
+      _toEnd();
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
+  void _typingPing() {
+    final now = DateTime.now();
+    if (now.difference(_lastTypingPing) < const Duration(seconds: 4)) return;
+    _lastTypingPing = now;
+    widget.session.call('POST', '/conversations/$id/typing').catchError((_) => null);
+  }
+
+  Future<void> _messageMenu(Map<String, dynamic> m) async {
+    if (m['pending'] == true || m['failed'] == true) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.reply),
+            title: const Text('Reply'),
+            onTap: () {
+              Navigator.pop(ctx);
+              setState(() => replyTo = m);
+            },
+          ),
+          if ((m['body'] ?? '').toString().isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Clipboard.setData(ClipboardData(text: m['body'].toString()));
+                showInfo(context, 'Copied');
+              },
+            ),
+        ]),
+      ),
+    );
   }
 
   Future<void> _retry(Map<String, dynamic> m) async {
@@ -373,7 +503,10 @@ class _ChatPageState extends State<ChatPage> {
     final group = widget.convo['type'] == 'group';
     return Scaffold(
       appBar: AppBar(
-        title: Text((widget.convo['title'] ?? 'Chat').toString()),
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text((widget.convo['title'] ?? 'Chat').toString()),
+          if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
+        ]),
         actions: [
           IconButton(tooltip: 'Voice call', icon: const Icon(Icons.call), onPressed: () => _call(false)),
           IconButton(tooltip: 'Video call', icon: const Icon(Icons.videocam), onPressed: () => _call(true)),
@@ -398,6 +531,7 @@ class _ChatPageState extends State<ChatPage> {
                           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                           child: GestureDetector(
                             onTap: failed ? () => _retry(m) : null,
+                            onLongPress: () => _messageMenu(m),
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 3),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -405,7 +539,25 @@ class _ChatPageState extends State<ChatPage> {
                               decoration: BoxDecoration(color: mine ? scheme.primaryContainer : scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                Text(m['body'].toString()),
+                                if (m['reply_to'] is Map)
+                                  Container(
+                                    margin: const EdgeInsets.only(bottom: 4),
+                                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                                    decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                      Text((m['reply_to'] as Map)['kind'] == 'image' ? 'Photo' : '${(m['reply_to'] as Map)['body']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                                    ]),
+                                  ),
+                                if (m['kind'] == 'image' && m['media_url'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: GestureDetector(
+                                      onTap: () => openImage(context, m['media_url'] as String),
+                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))),
+                                    ),
+                                  ),
+                                if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
                                 Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? scheme.error : null)),
                               ]),
                             ),
@@ -417,9 +569,23 @@ class _ChatPageState extends State<ChatPage> {
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: Row(children: [
-              Expanded(child: TextField(controller: input, minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder()))),
-              IconButton(onPressed: _send, icon: const Icon(Icons.send)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (replyTo != null)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
+                  child: Row(children: [
+                    Expanded(child: Text('Replying to @${(replyTo!['sender'] as Map)['username']}: ${replyTo!['kind'] == 'image' ? 'Photo' : replyTo!['body']}', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => replyTo = null), icon: const Icon(Icons.close, size: 18)),
+                  ]),
+                ),
+              Row(children: [
+                IconButton(onPressed: _attach, icon: const Icon(Icons.image_outlined)),
+                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder()))),
+                IconButton(onPressed: _send, icon: const Icon(Icons.send)),
+              ]),
             ]),
           ),
         ),

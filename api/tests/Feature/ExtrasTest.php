@@ -54,6 +54,9 @@ class ExtrasTest extends TestCase
         $this->getJson('/api/v1/conversations?archived=1', $hb)->assertJsonCount(1, 'data');
         $this->postJson("/api/v1/conversations/$cid/typing", [], $ha)->assertOk();
         $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonPath('typing.0', 'asha');
+        $seq = $this->getJson("/api/v1/conversations/$cid/messages", $hb)->json('data.2.seq');
+        $this->getJson("/api/v1/conversations/$cid/messages?after_seq=$seq&wait=5", $hb)->assertJsonPath('typing.0', 'asha');
+        $this->postJson("/api/v1/conversations/$cid/call-token?call=nope", [], $hb)->assertStatus(503);
     }
 
     public function test_call_history_and_incoming(): void

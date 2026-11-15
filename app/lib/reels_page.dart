@@ -1,9 +1,9 @@
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'api.dart';
 import 'feed_page.dart' show CommentsSheet;
 import 'profile_pages.dart';
+import 'reactions.dart';
 import 'ui.dart';
 
 /// Full screen vertical reels. Swipe up for the next one.
@@ -126,10 +126,7 @@ class _ReelItemState extends State<ReelItem> {
   VideoPlayerController? c;
   bool ready = false;
   bool failed = false;
-  late bool liked = widget.reel['liked'] == true;
-  late int likes = (widget.reel['likes_count'] as num?)?.toInt() ?? 0;
   late int comments = (widget.reel['comments_count'] as num?)?.toInt() ?? 0;
-  bool busy = false;
 
   Map<String, dynamic> get author => (widget.reel['author'] as Map).cast<String, dynamic>();
   String get id => widget.reel['public_id'] as String;
@@ -171,31 +168,6 @@ class _ReelItemState extends State<ReelItem> {
   void dispose() {
     c?.dispose();
     super.dispose();
-  }
-
-  Future<void> _like() async {
-    if (busy) return;
-    busy = true;
-    HapticFeedback.lightImpact();
-    final was = liked;
-    setState(() {
-      liked = !was;
-      likes += was ? -1 : 1;
-    });
-    try {
-      final j = await widget.session.call(was ? 'DELETE' : 'POST', '/posts/$id/like') as Map<String, dynamic>;
-      if (mounted) setState(() => likes = (j['likes_count'] as num?)?.toInt() ?? likes);
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          liked = was;
-          likes += was ? 1 : -1;
-        });
-        showError(context, e);
-      }
-    } finally {
-      busy = false;
-    }
   }
 
   void _comments() async {
@@ -255,7 +227,7 @@ class _ReelItemState extends State<ReelItem> {
         right: 4,
         bottom: 24,
         child: Column(children: [
-          _side(liked ? Icons.favorite : Icons.favorite_border, '$likes', _like, color: liked ? brandRed : Colors.white),
+          ReactionButton(session: widget.session, post: widget.reel, dark: true),
           _side(Icons.mode_comment_outlined, '$comments', _comments),
           _side(widget.muted ? Icons.volume_off : Icons.volume_up, widget.muted ? 'Muted' : 'Sound', widget.onToggleMute),
         ]),

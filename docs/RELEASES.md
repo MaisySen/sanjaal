@@ -2,6 +2,14 @@
 
 Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
+## 0.4.0 reactions, stories, chat depth, calls, 2026-11-15
+
+Six reactions on posts and reels (tap for a heart, long press for like, love, laugh, wow, sad, angry) with counts. Stories that last 24 hours: photo or video, a ring row above the feed, full screen viewer with tap to move, viewer list and delete for your own. Chat: photo messages, reply to a message, typing indicator, pin, mute and archive from a long press, archived list. Calls: full screen incoming call alert with accept and decline (checked every 5 seconds while the app is open, no push yet) and a call history screen with missed calls and call back. API image v8 adds these routes (34 tests passing).
+
+Release assets are built by CI from tag v0.4.0, debug-signed like earlier builds.
+
+Not in 0.4.0: voice messages, push notifications, Khalti, Facebook and Apple sign in, cash out. Not tested on a physical device.
+
 ## 0.3.0 full app rebuild, 2026-11-15
 
 New app shell and the missing v1 screens. Home (For you and Following, search, notifications), full screen Reels pager, Chats (with a member picker and groups), Wallet and Me as five tabs; onboarding; Sanjaal brand, light and dark theme, English and Nepali for the main labels; profiles with avatar upload, bio, follow counts, follow and message buttons; search for people and hashtags; hashtag pages; notifications for likes, comments and follows; comment replies and delete; up to four photos per post with full screen viewing; report and block; settings with blocked list, contact and account deletion request. API image v7 adds the matching routes.

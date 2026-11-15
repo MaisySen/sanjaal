@@ -9,6 +9,8 @@
 
 - API: persistent database connections per server worker (database now in another region). Free Postgres moved from Neon to Aiven; see docs/SCALING.md.
 
+- API: cache moved from the database to local files (each request was paying a cross-region query for the Auth0 key cache). Requests without a token now return 401 instead of 500.
+
 - API: feed reaction counts and the viewer's reaction load in two queries per page instead of three per post (feed went from 13 to 9 queries for two posts, flat after that).
 
 - API: media route reads only the requested byte range from the database, answers 304 from the ETag without reading the file, and caps one range response at 2 MB. docs/SCALING.md added with the scaling path and cost estimates. Tests: 36 passing.

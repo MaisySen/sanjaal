@@ -2,7 +2,7 @@
 
 ## media:move-to-b2
 
-- New artisan command moves database-stored media to B2 per row, verifies recorded size first, keeps the row on any failure. Tested with a faked B2 in CI. Not yet run against live data.
+- New artisan command moves database-stored media to B2 per row, verifies recorded size first, reads the file back from B2 and compares size and SHA1 before emptying the database copy, keeps the row on any failure. Tested with a faked B2 in CI. Not yet run against live data.
 
 ## Calendar excluded from builds
 

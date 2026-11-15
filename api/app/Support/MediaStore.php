@@ -98,6 +98,18 @@ class MediaStore
         self::upload($name, $mime, $bytes);
     }
 
+    /** Read the file back from B2 through the normal download link and confirm its size and SHA1 match. */
+    public static function verifyRemote(string $name, string $bytes): bool
+    {
+        $r = Http::timeout(60)->get(self::url($name));
+        if (! $r->successful()) {
+            return false;
+        }
+        $body = $r->body();
+
+        return strlen($body) === strlen($bytes) && hash_equals(sha1($bytes), sha1($body));
+    }
+
     private static function upload(string $name, string $mime, string $bytes): void
     {
         $a = self::account();

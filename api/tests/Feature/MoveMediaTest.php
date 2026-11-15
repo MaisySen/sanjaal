@@ -17,13 +17,19 @@ class MoveMediaTest extends TestCase
             'data' => base64_encode($bytes), 'created_at' => now(), 'updated_at' => now()]);
     }
 
+    private string $served = 'hello';
+
+    private int $servedStatus = 200;
+
     private function b2(int $uploadStatus = 200): void
     {
         config(['services.b2.key_id' => 'k', 'services.b2.key' => 's', 'services.b2.bucket' => 'b', 'services.b2.bucket_id' => 'bid']);
         Http::fake([
             '*b2_authorize_account*' => Http::response(['authorizationToken' => 't', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.test', 'downloadUrl' => 'https://dl.test']]]),
             '*b2_get_upload_url*' => Http::response(['authorizationToken' => 'u', 'uploadUrl' => 'https://up.test/x']),
+            '*b2_get_download_authorization*' => Http::response(['authorizationToken' => 'd']),
             'https://up.test/*' => Http::response([], $uploadStatus),
+            'https://dl.test/*' => Http::response($this->served, $this->servedStatus),
         ]);
     }
 
@@ -38,8 +44,18 @@ class MoveMediaTest extends TestCase
         Http::assertSent(fn ($req) => $req->url() === 'https://up.test/x' && $req->body() === 'hello' && $req->header('X-Bz-Content-Sha1')[0] === sha1('hello'));
     }
 
+    public function test_read_back_mismatch_keeps_the_database_copy(): void
+    {
+        $this->served = 'HELLO';
+        $this->b2();
+        $this->row('a5', 'hello');
+        $this->artisan('media:move-to-b2')->assertFailed();
+        $this->assertSame('db', DB::table('media_blobs')->where('public_id', 'a5')->value('storage'));
+    }
+
     public function test_failed_upload_keeps_the_database_copy(): void
     {
+        $this->served = 'bytes';
         $this->b2(500);
         $this->row('a2', 'bytes');
         $this->artisan('media:move-to-b2')->assertFailed();

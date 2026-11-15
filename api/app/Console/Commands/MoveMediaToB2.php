@@ -38,6 +38,12 @@ class MoveMediaToB2 extends Command
             }
             try {
                 MediaStore::uploadExisting($row->public_id, $row->mime, $bytes);
+                if (! MediaStore::verifyRemote($row->public_id, $bytes)) {
+                    $this->warn("read-back mismatch {$row->public_id}: database copy kept");
+                    $failed++;
+
+                    continue;
+                }
                 DB::table('media_blobs')->where('public_id', $row->public_id)->where('storage', 'db')
                     ->update(['storage' => 'b2', 'data' => '', 'updated_at' => now()]);
                 $moved++;

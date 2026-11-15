@@ -1,5 +1,9 @@
 # Changelog
 
+## Rooms list render
+
+- CI also renders the live rooms list (mock-backed layout only). The room screen itself needs the LiveKit native library and is not covered by widget tests.
+
 ## Render tests for wallet, gift sheet, chat
 
 - CI now renders the real wallet, gift sheet and chat widgets with canned API replies (light and dark). Layout check only, not device behaviour.

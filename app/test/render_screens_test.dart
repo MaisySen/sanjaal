@@ -14,6 +14,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/chat_pages.dart' show ChatPage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
+import 'package:sanjaal/rooms_page.dart' show RoomsPage;
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:sanjaal/wallet_page.dart' show WalletPage;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,6 +45,15 @@ Future<http.Response> _reply(http.Request r) async {
         {'key': 'crown', 'name': 'Crown', 'coins': 50},
         {'key': 'himal', 'name': 'Himal', 'coins': 100},
         {'key': 'rocket', 'name': 'Rocket', 'coins': 500},
+      ]
+    });
+  }
+  if (p.endsWith('/rooms')) {
+    return _json({
+      'data': [
+        {'public_id': 'r1', 'title': 'Dashain bhajan night', 'host_name': 'Asha Gurung'},
+        {'public_id': 'r2', 'title': 'Learn Nepali with Bikash', 'host_username': 'bikash'},
+        {'public_id': 'r3', 'title': 'Sydney Nepali meetup planning', 'host_name': 'Sunita Rai'},
       ]
     });
   }
@@ -84,7 +94,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['wallet', 'gift', 'chat']) {
+    for (final name in ['wallet', 'gift', 'chat', 'rooms']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -97,6 +107,7 @@ void main() {
           final theme = buildTheme(b, fontFamily: 'Roboto');
           final Widget home = switch (name) {
             'wallet' => WalletPage(session: s),
+            'rooms' => RoomsPage(session: s),
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };

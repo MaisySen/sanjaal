@@ -3,8 +3,8 @@ from PIL import Image, ImageDraw
 import os
 RED=(200,16,46); BLUE=(0,56,147); WHITE=(255,255,255)
 S=4096
-def draw(size, rounded):
-    im=Image.new('RGB',(S,S),RED)
+def draw(size, rounded, fg=False):
+    im=Image.new('RGBA' if fg else 'RGB',(S,S),(0,0,0,0) if fg else RED)
     d=ImageDraw.Draw(im)
     # big peak and small peak, white, flat base
     base=0.70*S
@@ -22,9 +22,23 @@ def draw(size, rounded):
         c=BLUE if i==1 else WHITE
         rr=int(r*1.35) if i==1 else r
         d.ellipse([x-rr,y-rr,x+rr,y+rr],fill=c,outline=WHITE,width=int(0.012*S))
+    if fg:
+        # Adaptive icon layer: art kept inside the central safe zone, transparent elsewhere.
+        k=0.60
+        small_=im.resize((int(S*k),int(S*k)),Image.LANCZOS)
+        canvas=Image.new('RGBA',(S,S),(0,0,0,0))
+        canvas.paste(small_,((S-small_.width)//2,(S-small_.height)//2),small_)
+        im=canvas
     return im.resize((size,size),Image.LANCZOS)
 root=os.path.join(os.path.dirname(__file__),'..','..','app')
 draw(1024,False).save(os.path.join(root,'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png'))
 for d,px in {'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}.items():
     draw(px,False).save(os.path.join(root,f'android/app/src/main/res/mipmap-{d}/ic_launcher.png'))
 draw(512,False).save(os.path.join(os.path.dirname(__file__),'logo-512.png'))
+
+res=os.path.join(root,'android/app/src/main/res')
+for d,px in {'mdpi':108,'hdpi':162,'xhdpi':216,'xxhdpi':324,'xxxhdpi':432}.items():
+    draw(px,False,True).save(os.path.join(res,f'mipmap-{d}/ic_launcher_foreground.png'))
+os.makedirs(os.path.join(res,'mipmap-anydpi-v26'),exist_ok=True)
+open(os.path.join(res,'mipmap-anydpi-v26/ic_launcher.xml'),'w').write('<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n')
+open(os.path.join(res,'values/ic_launcher_background.xml'),'w').write('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#C8102E</color>\n</resources>\n')

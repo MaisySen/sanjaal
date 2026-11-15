@@ -1,5 +1,9 @@
 # Changelog
 
+## Android adaptive icon
+
+- Adaptive launcher icon (red background colour plus mark layer kept in the safe zone) for Android 8 and up. Older devices keep the existing icons. iOS icon sizes were already complete. Checked as a flat preview with a circle mask; not yet seen on a launcher.
+
 ## Feed latency notes
 
 - docs/FEED_LATENCY.md records the 7 queries per feed page, measured timings and the untested causes. No code change.

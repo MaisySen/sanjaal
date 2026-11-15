@@ -6,15 +6,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// Public Android build download (debug-signed, arm64).
-Route::get('/sanjaal-arm64.apk', function () {
-    return response()->download(
-        storage_path('dist/sanjaal-arm64.apk'),
-        'sanjaal-arm64.apk',
-        ['Content-Type' => 'application/vnd.android.package-archive']
-    );
-});
-Route::redirect('/download', '/sanjaal-arm64.apk');
+// One current Android download: the latest CI release (debug-signed for now). Change APK_URL to move it.
+$apk = fn () => redirect()->away(env('APK_URL', 'https://github.com/MaisySen/sanjaal/releases/download/v0.2.0/app-arm64-v8a-release.apk'));
+Route::get('/sanjaal-arm64.apk', $apk);
+Route::get('/download', $apk);
 
 // eSewa top up pages (public, tied to an unguessable top up id).
 Route::get('/pay/esewa/{id}', [\App\Http\Controllers\WalletController::class, 'payPage'])->whereUuid('id');

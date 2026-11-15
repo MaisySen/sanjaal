@@ -2,6 +2,14 @@
 
 Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
+## 0.2.0 Android and iOS, 2026-11-15
+
+Built by CI from tag v0.2.0 and published at https://github.com/MaisySen/sanjaal/releases/tag/v0.2.0 with SHA256SUMS.txt. Most phones need app-arm64-v8a-release.apk. The IPA is unsigned and cannot be installed on a phone until it is signed with an Apple account.
+
+Signing caveat: these Android builds are signed with the Flutter debug key. When we switch to our own upload key, Android will refuse to update over a build signed with a different key, so everyone must uninstall the app first and sign in again. An upload keystore exists and is kept in the vault, not in the repo. Switching CI to it needs repository secrets that the repo owner adds.
+
+Contents: video reels, long poll chat, coin wallet with eSewa test mode, Google sign in (Auth0 development keys), voice and video calls over LiveKit, about and privacy screen, unread badge by polling. Not tested on a physical device yet.
+
 ## 0.1.1 hosted API, 2026-11-15
 
 Live at https://sanjaal-api.onrender.com (Render free web service, Docker Hub image sanjaalapp/sanjaal-api, Neon free Postgres). Free instances sleep after 15 minutes idle.

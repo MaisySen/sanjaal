@@ -11,6 +11,8 @@
 
 - API: media now goes to a private Backblaze B2 bucket (free 10 GB, no card) when B2 settings are present. The database keeps only a metadata row, reads redirect to B2 with a cached week long download token so video seeking and caching are served by B2, not by the API. Falls back to database storage when B2 is not configured (tests). New column media_blobs.storage.
 
+- API: database connections are now really reused inside each server worker (the earlier setting never reached the running image; checked live). A warm request skips the roughly 0.5 second connect cost. Responses carry a Server-Timing header with app time, database time and query count.
+
 - API: the feed makes two fewer database round trips (blocks in one query, reactions and your own reaction in one query).
 
 - API: a token that already passed RS256 verification is remembered for up to five minutes (never past its expiry), cutting per-request CPU.

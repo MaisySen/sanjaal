@@ -17,6 +17,14 @@ const auth0Domain = 'dev-rymtbo3wlo3tzsxv.us.auth0.com';
 /// local fixture). Empty in every normal and release build. It is a client setting; the API still checks
 /// every token's signature, issuer, audience and expiry.
 const _tokenBase = String.fromEnvironment('E2E_TOKEN_BASE');
+
+/// Compile-time check: a release or profile build with E2E_TOKEN_BASE set does not compile.
+class _TestOnlySetting {
+  const _TestOnlySetting()
+      : assert(_tokenBase == '' || !bool.fromEnvironment('dart.vm.product'), 'E2E_TOKEN_BASE is for test builds only and is refused in release builds');
+}
+
+const _testOnlySetting = _TestOnlySetting();
 const auth0ClientId = 'fKyNH32VRbrAFF1DUX3GRhKRW7gMR8yT';
 const auth0Audience = 'https://api.sanjaal.app';
 const socialScheme = 'au.fintex.sanjaal';
@@ -75,6 +83,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> _grant(Map<String, String> form) async {
+    assert(identical(_testOnlySetting, _testOnlySetting));
     final http.Response r;
     try {
       r = await http

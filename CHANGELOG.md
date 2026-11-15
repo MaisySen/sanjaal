@@ -1,5 +1,9 @@
 # Changelog
 
+## Release builds refuse E2E_TOKEN_BASE
+
+- Compile-time assert plus a CI step that a release build with the setting fails for that reason.
+
 ## Test-only token base
 
 - The app accepts an E2E_TOKEN_BASE build setting (empty in all normal and release builds) so the emulator test can get its token from a local fixture. The API still verifies every token.

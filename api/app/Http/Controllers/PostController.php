@@ -28,8 +28,11 @@ class PostController extends Controller
         $viewer = $request->user();
         $q = Post::with(self::WITH)->orderByDesc('id');
 
-        $hidden = \Illuminate\Support\Facades\DB::table('blocks')->where('blocker_id', $viewer->id)->pluck('blocked_id')
-            ->merge(\Illuminate\Support\Facades\DB::table('blocks')->where('blocked_id', $viewer->id)->pluck('blocker_id'));
+        $hidden = \Illuminate\Support\Facades\DB::table('blocks')
+            ->where(fn ($b) => $b->where('blocker_id', $viewer->id)->orWhere('blocked_id', $viewer->id))
+            ->get(['blocker_id', 'blocked_id'])
+            ->flatMap(fn ($r) => [$r->blocker_id, $r->blocked_id])
+            ->reject(fn ($id) => $id === $viewer->id)->unique()->values();
         if ($hidden->isNotEmpty()) {
             $q->whereNotIn('user_id', $hidden);
         }

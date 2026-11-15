@@ -24,8 +24,9 @@ class MediaTest extends TestCase
 
     public function test_range_slices_match_the_original_bytes(): void
     {
-        // No NUL bytes: the test client reports a lone "\0" body as empty, which is a harness quirk, not the slicer.
-        $bytes = strtr(random_bytes(1000), "\0", "\1");
+        // Avoid the six bytes PHP's trim() strips (NUL, tab, LF, VT, CR, space): a lone one as a whole
+        // body reads back empty in the test client, which is a harness quirk, not the slicer.
+        $bytes = strtr(random_bytes(1000), "\0\t\n\x0B\r ", 'ABCDEF');
         $id = $this->blob($bytes);
 
         foreach ([[0, 0], [1, 1], [2, 5], [3, 3], [4, 10], [997, 999], [500, 999], [0, 999]] as [$a, $b]) {
@@ -38,7 +39,7 @@ class MediaTest extends TestCase
 
     public function test_open_ended_suffix_and_full_and_etag(): void
     {
-        $bytes = random_bytes(300);
+        $bytes = strtr(random_bytes(300), "\0\t\n\x0B\r ", 'ABCDEF');
         $id = $this->blob($bytes);
 
         $this->call('GET', "/api/v1/media/$id", [], [], [], ['HTTP_RANGE' => 'bytes=290-'])

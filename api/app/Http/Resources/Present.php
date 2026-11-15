@@ -20,7 +20,7 @@ class Present
         ];
     }
 
-    /** Load reaction counts and the viewer's own reaction for a page of posts in two queries. */
+    /** Load reaction counts and the viewer's own reaction for a page of posts in one query. */
     public static function preload(iterable $posts, ?User $viewer = null): void
     {
         $posts = collect($posts);
@@ -28,11 +28,19 @@ class Present
             return;
         }
         $ids = $posts->pluck('id')->all();
-        $counts = \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)
-            ->selectRaw('post_id, reaction, count(*) as n')->groupBy('post_id', 'reaction')->get()->groupBy('post_id');
-        $mine = $viewer
-            ? \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)->where('user_id', $viewer->id)->pluck('reaction', 'post_id')
-            : collect();
+        $uid = $viewer?->id ?? 0;
+        $rows = \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)
+            ->selectRaw('post_id, reaction, count(*) as n, sum(case when user_id = ? then 1 else 0 end) as mine', [$uid])
+            ->groupBy('post_id', 'reaction')->get()->groupBy('post_id');
+        $counts = $rows;
+        $mine = collect();
+        foreach ($rows as $postId => $list) {
+            foreach ($list as $r) {
+                if ((int) $r->mine > 0) {
+                    $mine[$postId] = $r->reaction;
+                }
+            }
+        }
         foreach ($posts as $p) {
             $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
             $p->setAttribute('_mine', $mine->has($p->id) ? ($mine[$p->id] ?? '') : false);

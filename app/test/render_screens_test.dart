@@ -85,7 +85,7 @@ Future<http.Response> _reply(http.Request r) async {
   return _json({'data': []});
 }
 
-Widget _room({bool isHost = false, bool speaker = false, bool handUp = false, bool failed = false, String status = 'Live', Map<String, String> hands = const {}, List<({String id, String name})> speakers = const []}) {
+Widget _room({bool isHost = false, bool speaker = false, bool handUp = false, bool failed = false, String status = 'Live', Map<String, String> hands = const {}, List<({String id, String name, bool host, bool you, bool muted, bool speaking})> stage = const []}) {
   return RoomView(
     title: 'Dashain bhajan night',
     status: status,
@@ -96,7 +96,8 @@ Widget _room({bool isHost = false, bool speaker = false, bool handUp = false, bo
     handUp: handUp,
     inRoom: 14,
     hands: hands,
-    speakers: speakers,
+    stage: stage,
+    onDismissHand: (id) {},
     messages: [
       {'from': 'Asha', 'text': 'Namaste everyone'},
       {'from': 'Bikash', 'text': 'Beautiful song, please play another'},
@@ -135,8 +136,8 @@ void main() {
           final Widget home = switch (name) {
             'wallet' => WalletPage(session: s),
             'rooms' => RoomsPage(session: s),
-            'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, speakers: [(id: 'u3', name: 'Sunita Rai')]),
-            'room_listener' => _room(isHost: false, speaker: false, handUp: true),
+            'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, stage: [(id: 'me', name: 'Bidur Khatri', host: true, you: true, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false), (id: 'u4', name: 'Asha Gurung', host: false, you: false, muted: false, speaking: false)]),
+            'room_listener' => _room(isHost: false, speaker: false, handUp: true, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),

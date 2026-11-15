@@ -288,7 +288,11 @@ class _RoomPageState extends State<RoomPage> {
       handUp: handUp,
       inRoom: room.remoteParticipants.length + (failed ? 0 : 1),
       hands: hands,
-      speakers: [for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish)) (id: p.identity, name: p.name)],
+      stage: [
+        if (!failed && speaker) (id: myId ?? 'me', name: (widget.session.user?['name'] ?? widget.session.user?['username'] ?? 'You').toString(), host: isHost, you: true, muted: muted, speaking: !muted && (room.localParticipant?.isSpeaking ?? false)),
+        for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish))
+          (id: p.identity, name: p.name.isEmpty ? 'Member' : p.name, host: !isHost && p.name == hostName, you: false, muted: p.isMuted, speaking: p.isSpeaking),
+      ],
       messages: messages,
       chat: _chat,
       onEnd: _end,
@@ -296,6 +300,7 @@ class _RoomPageState extends State<RoomPage> {
       onRaise: _raise,
       onGift: _gift,
       onAllow: _allow,
+      onDismissHand: (id) => setState(() => hands.remove(id)),
       onSend: _sendChat,
     );
   }
@@ -314,7 +319,7 @@ class RoomView extends StatelessWidget {
     required this.handUp,
     required this.inRoom,
     required this.hands,
-    required this.speakers,
+    required this.stage,
     required this.messages,
     required this.chat,
     required this.onEnd,
@@ -322,6 +327,7 @@ class RoomView extends StatelessWidget {
     required this.onRaise,
     required this.onGift,
     required this.onAllow,
+    required this.onDismissHand,
     required this.onSend,
   });
   final String title;
@@ -333,7 +339,7 @@ class RoomView extends StatelessWidget {
   final bool handUp;
   final int inRoom;
   final Map<String, String> hands;
-  final List<({String id, String name})> speakers;
+  final List<({String id, String name, bool host, bool you, bool muted, bool speaking})> stage;
   final List<Map<String, String>> messages;
   final TextEditingController chat;
   final VoidCallback onEnd;
@@ -341,6 +347,7 @@ class RoomView extends StatelessWidget {
   final VoidCallback onRaise;
   final VoidCallback onGift;
   final void Function(String id, bool allow) onAllow;
+  final void Function(String id) onDismissHand;
   final VoidCallback onSend;
 
   @override
@@ -383,20 +390,33 @@ class RoomView extends StatelessWidget {
                         leading: const Icon(Icons.back_hand_outlined),
                         title: Text(h.value.isEmpty ? 'Member' : h.value),
                         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          TextButton(onPressed: () => onAllow(h.key, false), child: const Text('Dismiss')),
+                          TextButton(onPressed: () => onDismissHand(h.key), child: const Text('Dismiss')),
                           FilledButton(onPressed: () => onAllow(h.key, true), child: const Text('Let speak')),
                         ]),
                       ),
                   ]),
                 ),
-              if (isHost && speakers.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                  child: Wrap(spacing: 8, children: [
-                    for (final p in speakers)
-                      ActionChip(avatar: const Icon(Icons.mic, size: 16), label: Text('${p.name.isEmpty ? 'Member' : p.name}  take mic'), onPressed: () => onAllow(p.id, false)),
-                  ]),
-                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Align(alignment: Alignment.centerLeft, child: Text('On stage', style: Theme.of(context).textTheme.labelLarge)),
+              ),
+              if (stage.isEmpty)
+                const Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text('Nobody is speaking yet.')))
+              else
+                for (final m in stage)
+                  ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: m.speaking ? scheme.primary : scheme.surfaceContainerHighest,
+                      child: Icon(m.muted ? Icons.mic_off : Icons.mic, size: 16, color: m.speaking ? scheme.onPrimary : scheme.onSurfaceVariant),
+                    ),
+                    title: Text([m.name, if (m.host) '(host)', if (m.you) '(you)'].join(' ')),
+                    subtitle: Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on')),
+                    trailing: isHost && !m.you && !m.host
+                        ? TextButton(onPressed: () => onAllow(m.id, false), child: const Text('Move to listeners'))
+                        : null,
+                  ),
               const Divider(height: 16),
               Expanded(
                 child: messages.isEmpty

@@ -1,5 +1,9 @@
 # Changelog
 
+## Room stage list
+
+- The room now shows who is on stage with host and you labels and speaking or muted state; the host can move a speaker back to listeners (the same take-mic-back action as before). Dismissing a raised hand now only clears it locally and no longer sends a take-back notice to a member who never had the mic. Layout rendered in CI; real room, audio and token flow still unverified.
+
 ## RoomView split
 
 - The room screen is now a RoomView widget that takes plain data and callbacks; RoomPage feeds it from LiveKit. CI renders host, listener and failed states. Layout only, no audio.

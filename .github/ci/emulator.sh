@@ -10,7 +10,7 @@ for t in smoke signed_in flows; do
   mkdir -p build/screenshots
   adb shell "screenrecord --bit-rate 1500000 --time-limit 170 /sdcard/rec_$t.mp4" > /dev/null 2>&1 &
   sleep 2
-  flutter drive --driver=test_driver/integration_test.dart --target=integration_test/${t}_test.dart --no-pub $extra > /tmp/drive_$t.log 2>&1
+  timeout 600 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/${t}_test.dart --no-pub $extra > /tmp/drive_$t.log 2>&1
   code=$?
   adb shell pkill -2 screenrecord > /dev/null 2>&1; sleep 3
   adb pull /sdcard/rec_$t.mp4 build/screenshots/rec_$t.mp4 > /dev/null 2>&1

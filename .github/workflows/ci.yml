@@ -102,6 +102,7 @@ jobs:
   emulator:
     runs-on: ubuntu-latest
     continue-on-error: true
+    timeout-minutes: 40
     permissions:
       contents: write
     steps:

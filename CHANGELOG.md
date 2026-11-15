@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator CI timeouts
+
+- Emulator drive runs are capped at 10 minutes each and the job at 40.
+
 ## Emulator interaction run
 
 - New emulator test: like, compose post, start chat and send, rooms list, wallet, with screenshots and screen recordings (local fixture API, synthetic member, not live services).

@@ -5,7 +5,7 @@ rc=0
 for t in smoke signed_in; do
   extra=""
   if [ "$t" = signed_in ]; then
-    extra="--dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
+    extra="--dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8000 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
   fi
   flutter drive --driver=test_driver/integration_test.dart --target=integration_test/${t}_test.dart --no-pub $extra > /tmp/drive_$t.log 2>&1
   code=$?

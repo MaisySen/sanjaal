@@ -8,6 +8,12 @@ if ($uri !== '/' && file_exists(__DIR__.'/../../public'.$uri)) {
 }
 require __DIR__.'/../../vendor/autoload.php';
 $app = require_once __DIR__.'/../../bootstrap/app.php';
+if ($uri === '/oauth/token') {
+    // CI fixture stand-in for the identity provider's token endpoint: hands out the throwaway token.
+    header('Content-Type: application/json');
+    echo json_encode(['access_token' => trim((string) @file_get_contents(dirname((string) getenv('E2E_JWKS_FILE')).'/token.txt')), 'expires_in' => 3000, 'refresh_token' => 'local-e2e']);
+    exit;
+}
 $file = getenv('E2E_JWKS_FILE');
 if (! $file || ! is_file($file)) {
     http_response_code(500);

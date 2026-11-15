@@ -1,5 +1,9 @@
 # Changelog
 
+## Test-only token base
+
+- The app accepts an E2E_TOKEN_BASE build setting (empty in all normal and release builds) so the emulator test can get its token from a local fixture. The API still verifies every token.
+
 ## Signed-in emulator test against a local API
 
 - Emulator job also boots this API locally (sqlite, throwaway key, synthetic member, tests/E2E, not in the image) and drives the app signed in: feed and profile screenshots. Isolated app-to-local-API evidence only, not Auth0 or live. Debug builds allow cleartext for it; release builds do not.

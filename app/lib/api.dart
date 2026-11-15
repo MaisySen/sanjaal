@@ -12,6 +12,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 const apiBase = String.fromEnvironment('API_BASE_URL',
     defaultValue: 'https://sanjaal-api.onrender.com/api/v1');
 const auth0Domain = 'dev-rymtbo3wlo3tzsxv.us.auth0.com';
+
+/// Test builds only: a base URL that answers the token request instead of Auth0 (the emulator test uses a
+/// local fixture). Empty in every normal and release build. It is a client setting; the API still checks
+/// every token's signature, issuer, audience and expiry.
+const _tokenBase = String.fromEnvironment('E2E_TOKEN_BASE');
 const auth0ClientId = 'fKyNH32VRbrAFF1DUX3GRhKRW7gMR8yT';
 const auth0Audience = 'https://api.sanjaal.app';
 const socialScheme = 'au.fintex.sanjaal';
@@ -73,7 +78,7 @@ class Session extends ChangeNotifier {
     final http.Response r;
     try {
       r = await http
-          .post(Uri.https(auth0Domain, '/oauth/token'), body: {...form, 'client_id': auth0ClientId})
+          .post(_tokenBase.isEmpty ? Uri.https(auth0Domain, '/oauth/token') : Uri.parse('$_tokenBase/oauth/token'), body: {...form, 'client_id': auth0ClientId})
           .timeout(_wait);
     } on TimeoutException {
       throw ApiError('The server took too long. Try again.');

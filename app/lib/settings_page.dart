@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'about_page.dart';
 import 'api.dart';
+import 'push.dart';
 import 'ui.dart';
 import 'wallet_page.dart';
 
@@ -40,6 +41,10 @@ class SettingsPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Divider(),
+          ValueListenableBuilder<String>(
+            valueListenable: Push.status,
+            builder: (context, v, child) => ListTile(leading: const Icon(Icons.notifications_outlined), title: Text(t_('Push notifications')), subtitle: Text(v)),
+          ),
           ListTile(
             leading: const Icon(Icons.account_balance_wallet_outlined),
             title: Text(t_('Coin wallet')),

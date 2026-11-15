@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api.dart';
@@ -14,6 +15,8 @@ const _options = FirebaseOptions(
 
 /// Registers this device for push. Every failure is swallowed: push is an extra, the app works without it.
 class Push {
+  /// Shown in Settings so people know whether push is really on. Never holds tokens.
+  static final status = ValueNotifier<String>('Not set up yet');
   static bool _ready = false;
   static String? _token;
   static StreamSubscription<String>? _refreshSub;
@@ -25,16 +28,26 @@ class Push {
         _ready = true;
       }
       final m = FirebaseMessaging.instance;
-      await m.requestPermission();
+      final perm = await m.requestPermission();
+      if (perm.authorizationStatus == AuthorizationStatus.denied) {
+        status.value = 'Off: allow notifications in system settings';
+        return;
+      }
       final t = await m.getToken();
-      if (t == null) return;
+      if (t == null) {
+        status.value = 'Off: no device token. Will retry next time you open the app';
+        return;
+      }
       _token = t;
       await s.call('POST', '/devices', body: {'token': t, 'platform': 'android'});
+      status.value = 'Registered. Delivery starts once the server side is switched on';
       _refreshSub ??= m.onTokenRefresh.listen((n) {
         _token = n;
         unawaited(s.call('POST', '/devices', body: {'token': n, 'platform': 'android'}).then((_) {}, onError: (_) {}));
       });
-    } catch (_) {}
+    } catch (e) {
+      status.value = 'Off: could not register (${e.runtimeType}). Will retry next time you open the app';
+    }
   }
 
   static Future<void> unregister(Session s) async {

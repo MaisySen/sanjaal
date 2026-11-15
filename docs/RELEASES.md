@@ -59,3 +59,4 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - Reels depth in app: CI compile only, not run on a device. Feed following flag tested in PHPUnit.
 - Nepali calendar: BS month table from an open source project (2000 to 2099), checked against embassy holiday pairs. Canberra list has one internal conflict (29 Asoj), left out. Lunar festival dates beyond 2083 not provided. Device check pending.
 - Licence of the BS month table is unconfirmed (docs/THIRD_PARTY.md). Do not ship to a public store until settled.
+- BLOCKER: Nepali calendar table has an unresolved provenance gap (docs/THIRD_PARTY.md). Remove or replace before any APK.

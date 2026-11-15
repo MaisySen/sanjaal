@@ -11,7 +11,7 @@ class AboutPage extends StatelessWidget {
     final t = Theme.of(context).textTheme;
     Widget h(String s) => Padding(padding: const EdgeInsets.only(top: 20, bottom: 6), child: Text(s, style: t.titleMedium));
     return Scaffold(
-      appBar: AppBar(title: const Text('About Sanjaal')),
+      appBar: AppBar(title: Text(t_('About Sanjaal'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Text('Sanjaal', style: t.headlineSmall),
         const Text('Version $appVersion'),

@@ -1,5 +1,9 @@
 # Changelog
 
+## Nepali coverage
+
+- 21 more UI strings (rooms, gifts, calls, wallet, about) go through the Nepali map. Translations were written by the build agent and need review by a native Nepali speaker before release. Many screens, errors and server messages are still English only.
+
 ## Short follower counts
 
 - Profile counts show 1.2K and 2.5M style from 1000 up. Unit tested.

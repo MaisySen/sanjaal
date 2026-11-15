@@ -73,7 +73,7 @@ class _ReelsPageState extends State<ReelsPage> {
                 icon: Icons.movie_outlined,
                 title: error ?? 'No reels yet',
                 hint: error == null ? 'Tap + on Home, add a video and it shows up here.' : null,
-                action: OutlinedButton(onPressed: () => _load(refresh: true), child: const Text('Refresh')),
+                action: OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Refresh'))),
               ),
       );
     }

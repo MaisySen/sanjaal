@@ -35,7 +35,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     if (items == null && error == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (items == null) {
-      body = EmptyState(icon: Icons.cloud_off, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: const Text('Try again')));
+      body = EmptyState(icon: Icons.cloud_off, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: Text(t_('Try again'))));
     } else if (items!.isEmpty) {
       body = const EmptyState(icon: Icons.notifications_none, title: 'Nothing yet', hint: 'Likes, comments and new followers show up here.');
     } else {

@@ -49,7 +49,7 @@ class _CallsPageState extends State<CallsPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Calls')),
+      appBar: AppBar(title: Text(t_('Calls'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: loading

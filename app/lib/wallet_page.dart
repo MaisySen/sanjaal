@@ -82,7 +82,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
     final amount = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add coins'),
+        title: Text(t_('Add coins')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: c,
@@ -115,7 +115,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Send coins'),
+        title: Text(t_('Send coins')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: user, decoration: const InputDecoration(labelText: 'Username')),
           TextField(controller: amt, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Coins')),
@@ -123,7 +123,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t_('Send'))),
         ],
       ),
     );
@@ -168,13 +168,13 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                   child: Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(children: [
-                      const Text('Balance'),
+                      Text(t_('Balance')),
                       Text('$balance coins', style: Theme.of(context).textTheme.headlineMedium),
                       const SizedBox(height: 12),
                       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add), label: const Text('Add coins')),
+                        FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add), label: Text(t_('Add coins'))),
                         const SizedBox(width: 12),
-                        FilledButton.tonalIcon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.send), label: const Text('Send')),
+                        FilledButton.tonalIcon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.send), label: Text(t_('Send'))),
                       ]),
                       if (!esewa) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Adding coins is not switched on yet.')),
                       const Padding(padding: EdgeInsets.only(top: 8), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),

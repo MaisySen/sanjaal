@@ -495,7 +495,7 @@ class _ChatPageState extends State<ChatPage> {
           if ((m['body'] ?? '').toString().isNotEmpty)
             ListTile(
               leading: const Icon(Icons.copy),
-              title: const Text('Copy'),
+              title: Text(t_('Copy')),
               onTap: () {
                 Navigator.pop(ctx);
                 Clipboard.setData(ClipboardData(text: m['body'].toString()));

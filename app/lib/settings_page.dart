@@ -66,7 +66,7 @@ class SettingsPage extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.mail_outline),
-            title: const Text('Contact us'),
+            title: Text(t_('Contact us')),
             subtitle: const Text('contact@fintex.au'),
             onTap: () => launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal')),
           ),
@@ -146,7 +146,7 @@ class _BlockedPageState extends State<BlockedPage> {
                             if (context.mounted) showError(context, e);
                           }
                         },
-                        child: const Text('Unblock'),
+                        child: Text(t_('Unblock')),
                       ),
                     ),
                 ]),

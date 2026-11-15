@@ -53,11 +53,11 @@ class _RoomsPageState extends State<RoomsPage> {
     final title = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Go live'),
+        title: Text(t_('Go live')),
         content: TextField(controller: c, autofocus: true, maxLength: 80, decoration: const InputDecoration(hintText: 'What is your room about?')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Start')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: Text(t_('Start'))),
         ],
       ),
     );
@@ -74,8 +74,8 @@ class _RoomsPageState extends State<RoomsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Live rooms')),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _start, icon: const Icon(Icons.mic), label: const Text('Go live')),
+      appBar: AppBar(title: Text(t_('Live rooms'))),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _start, icon: const Icon(Icons.mic), label: Text(t_('Go live'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: loading
@@ -382,7 +382,7 @@ class RoomView extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: [if (isHost && !failed) TextButton(onPressed: onEnd, child: const Text('End'))]),
+      appBar: AppBar(title: Text(title), actions: [if (isHost && !failed) TextButton(onPressed: onEnd, child: Text(t_('End')))]),
       body: failed
           ? Center(
               child: Padding(
@@ -392,7 +392,7 @@ class RoomView extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(status, textAlign: TextAlign.center),
                   const SizedBox(height: 20),
-                  FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back')),
+                  FilledButton(onPressed: () => Navigator.pop(context), child: Text(t_('Back'))),
                 ]),
               ),
             )
@@ -418,8 +418,8 @@ class RoomView extends StatelessWidget {
                         leading: const Icon(Icons.back_hand_outlined),
                         title: Text(h.value.isEmpty ? 'Member' : h.value),
                         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          TextButton(onPressed: () => onDismissHand(h.key), child: const Text('Dismiss')),
-                          FilledButton(onPressed: () => onAllow(h.key, true), child: const Text('Let speak')),
+                          TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
+                          FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
                         ]),
                       ),
                   ]),
@@ -442,7 +442,7 @@ class RoomView extends StatelessWidget {
                     title: Text([m.name, if (m.host) '(host)', if (m.you) '(you)'].join(' ')),
                     subtitle: Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on')),
                     trailing: isHost && !m.you && !m.host
-                        ? TextButton(onPressed: () => onAllow(m.id, false), child: const Text('Move to listeners'))
+                        ? TextButton(onPressed: () => onAllow(m.id, false), child: Text(t_('Move to listeners')))
                         : null,
                   ),
               const Divider(height: 16),

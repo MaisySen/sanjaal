@@ -144,7 +144,7 @@ class FeedListState extends State<FeedList> {
               return EmptyState(
                 icon: Icons.cloud_off,
                 title: error!,
-                action: OutlinedButton(onPressed: () => load(refresh: true), child: const Text('Try again')),
+                action: OutlinedButton(onPressed: () => load(refresh: true), child: Text(t_('Try again'))),
               );
             }
             return Padding(padding: const EdgeInsets.only(top: 40), child: EmptyState(icon: widget.emptyIcon, title: widget.emptyTitle, hint: widget.emptyHint));
@@ -276,7 +276,7 @@ class _PostCardState extends State<PostCard> {
                 TextButton.icon(
                   onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
                   icon: const Icon(Icons.card_giftcard),
-                  label: const Text('Gift'),
+                  label: Text(t_('Gift')),
                 ),
             ],
           ),
@@ -506,7 +506,7 @@ class _ComposePageState extends State<ComposePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New post'), actions: [
+      appBar: AppBar(title: Text(t_('New post')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
           child: FilledButton(onPressed: busy ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),

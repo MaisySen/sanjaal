@@ -102,6 +102,27 @@ class _RoomsPageState extends State<RoomsPage> {
 }
 
 /// One live room. The host speaks. Listeners chat, raise a hand and send gifts. The host can let a listener speak.
+typedef StageMember = ({String id, String name, bool host, bool you, bool muted, bool speaking});
+
+/// Who is on stage. The host label comes only from the stable identity the API returned at join,
+/// never from a display name, so two members with the same name cannot be mixed up.
+List<StageMember> buildStage({
+  required String? meId,
+  required String meName,
+  required bool meOnStage,
+  required bool meMuted,
+  required bool meSpeaking,
+  required bool iAmHost,
+  required String? hostIdentity,
+  required List<({String id, String name, bool muted, bool speaking})> remote,
+}) {
+  return [
+    if (meOnStage) (id: meId ?? 'me', name: meName, host: iAmHost, you: true, muted: meMuted, speaking: !meMuted && meSpeaking),
+    for (final p in remote)
+      (id: p.id, name: p.name.isEmpty ? 'Member' : p.name, host: hostIdentity != null && p.id == hostIdentity, you: false, muted: p.muted, speaking: p.speaking),
+  ];
+}
+
 class RoomPage extends StatefulWidget {
   const RoomPage({super.key, required this.session, required this.roomId, this.joined});
   final Session session;
@@ -122,6 +143,7 @@ class _RoomPageState extends State<RoomPage> {
   String status = 'Connecting...';
   String? myId;
   String hostName = 'the host';
+  String? hostIdentity;
   bool isHost = false;
   bool speaker = false;
   bool muted = false;
@@ -191,6 +213,7 @@ class _RoomPageState extends State<RoomPage> {
       isHost = j['is_host'] == true;
       myId = j['identity']?.toString();
       hostName = (j['host_name'] ?? hostName).toString();
+      hostIdentity = j['host_identity']?.toString();
       await room.connect(j['url'] as String, j['token'] as String);
       if (isHost) {
         await room.localParticipant?.setMicrophoneEnabled(true);
@@ -288,11 +311,16 @@ class _RoomPageState extends State<RoomPage> {
       handUp: handUp,
       inRoom: room.remoteParticipants.length + (failed ? 0 : 1),
       hands: hands,
-      stage: [
-        if (!failed && speaker) (id: myId ?? 'me', name: (widget.session.user?['name'] ?? widget.session.user?['username'] ?? 'You').toString(), host: isHost, you: true, muted: muted, speaking: !muted && (room.localParticipant?.isSpeaking ?? false)),
-        for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish))
-          (id: p.identity, name: p.name.isEmpty ? 'Member' : p.name, host: !isHost && p.name == hostName, you: false, muted: p.isMuted, speaking: p.isSpeaking),
-      ],
+      stage: buildStage(
+        meId: myId,
+        meName: (widget.session.user?['name'] ?? widget.session.user?['username'] ?? 'You').toString(),
+        meOnStage: !failed && speaker,
+        meMuted: muted,
+        meSpeaking: room.localParticipant?.isSpeaking ?? false,
+        iAmHost: isHost,
+        hostIdentity: hostIdentity,
+        remote: [for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish)) (id: p.identity, name: p.name, muted: p.isMuted, speaking: p.isSpeaking)],
+      ),
       messages: messages,
       chat: _chat,
       onEnd: _end,
@@ -339,7 +367,7 @@ class RoomView extends StatelessWidget {
   final bool handUp;
   final int inRoom;
   final Map<String, String> hands;
-  final List<({String id, String name, bool host, bool you, bool muted, bool speaking})> stage;
+  final List<StageMember> stage;
   final List<Map<String, String>> messages;
   final TextEditingController chat;
   final VoidCallback onEnd;

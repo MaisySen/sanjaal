@@ -154,6 +154,10 @@ class WalletTest extends TestCase
         $j = $this->postJson('/api/v1/rooms/'.$r['room_id'].'/join', [], $hf)->assertOk()->assertJsonPath('is_host', false)->json();
         $claims = json_decode(base64_decode(strtr(explode('.', $j['token'])[1], '-_', '+/')), true);
         $this->assertFalse($claims['video']['canPublish']);
+        // The join reply names the host by stable identity, and it differs from the listener's own identity.
+        $hostClaims = json_decode(base64_decode(strtr(explode('.', $r['token'])[1], '-_', '+/')), true);
+        $this->assertSame($hostClaims['sub'], $j['host_identity']);
+        $this->assertNotSame($j['identity'], $j['host_identity']);
         $hc = json_decode(base64_decode(strtr(explode('.', $r['token'])[1], '-_', '+/')), true);
         $this->assertTrue($hc['video']['canPublish']);
 

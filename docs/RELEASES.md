@@ -62,3 +62,4 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - BLOCKER: Nepali calendar table has an unresolved provenance gap (docs/THIRD_PARTY.md). Remove or replace before any APK.
 - Security review (Nov 2026): runtime PHP 8.4.23 is behind, Alpine 3.20 base is EOL, built-in server in production. Fixes tracked in docs/SECURITY.md.
 - SECURITY: v26 and v27 ran PHP 8.4.23 (PHP2Shell affected). v28 fixes the runtime. Possible exposure window 21 Oct to 15 Nov 2026. Secret rotation pending approval.
+- v29 adds a boot-time runtime version log line.

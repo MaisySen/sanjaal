@@ -142,7 +142,7 @@ void main() {
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = name != 'gift' && !name.startsWith('room_');
+          final pushed = name != 'gift';
           await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));

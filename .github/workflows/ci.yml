@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    tags: ['v*']
+    branches: ['**']
   pull_request:
 
 jobs:
@@ -82,3 +84,28 @@ jobs:
         with:
           name: sanjaal-ios-unsigned
           path: app/sanjaal-unsigned.ipa
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [api, app, ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cd dist
+          mkdir out
+          cp sanjaal-apk/*.apk out/
+          cp sanjaal-ios-unsigned/*.ipa out/
+          cd out
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Sanjaal ${GITHUB_REF_NAME#v}" \
+            --notes "Android APKs per CPU type (arm64-v8a for most phones) and an unsigned iOS build that cannot be installed on a phone until it is signed. Check the SHA256SUMS.txt file." *

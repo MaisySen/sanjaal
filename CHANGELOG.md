@@ -22,3 +22,4 @@
 - CI: API job uses PHP 8.4, matching the container image and the locked Symfony 8 packages.
 - CI: the APK step now reports build errors as annotations.
 - Android build: Gradle memory raised for CI runners (the first CI build ran out of Metaspace compiling plugins). Local builds on small machines will need less.
+- CI: pushing a v* tag builds everything and publishes a GitHub release with the APKs, the unsigned IPA and SHA256SUMS.txt.

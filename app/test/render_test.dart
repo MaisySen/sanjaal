@@ -47,7 +47,7 @@ Widget _screen(Session s, int tab) {
     _post('p1', 'Asha Gurung', 'asha', 'Sunrise over Phewa lake this morning. Dal bhat after the boat ride. #pokhara', 128, 14),
     _post('p2', 'Bikash Thapa', 'bikash', 'New song from the studio in Kathmandu. Tell me what you think of the chorus.', 54, 9),
   ];
-  final profile = {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 42, 'followers_count': 1280, 'following_count': 310};
+  final profile = {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 0, 'followers_count': 0, 'following_count': 0};
   return Scaffold(
     appBar: AppBar(title: Text(tab == 0 ? 'Sanjaal' : 'Profile'), actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search)), IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none))]),
     body: tab == 0

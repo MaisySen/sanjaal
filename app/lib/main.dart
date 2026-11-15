@@ -22,7 +22,7 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
       : seeded.copyWith(primary: const Color(0xFFFF8A94), onPrimary: const Color(0xFF55000F), primaryContainer: const Color(0xFF8C0A22), onPrimaryContainer: const Color(0xFFFFDAD9), secondary: const Color(0xFFA8C0FF), onSecondary: const Color(0xFF00205F));
   const pill = StadiumBorder();
   const buttonSize = Size(64, 48);
-  const labelStyle = TextStyle(fontWeight: FontWeight.w700, fontSize: 15);
+  final labelStyle = TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w700, fontSize: 15);
   return ThemeData(
     fontFamily: fontFamily,
     colorScheme: scheme,
@@ -32,7 +32,7 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
       centerTitle: false,
       backgroundColor: scheme.surface,
       scrolledUnderElevation: 0.5,
-      titleTextStyle: TextStyle(color: scheme.onSurface, fontSize: 20, fontWeight: FontWeight.w800),
+      titleTextStyle: TextStyle(fontFamily: fontFamily, color: scheme.onSurface, fontSize: 20, fontWeight: FontWeight.w800),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -47,7 +47,7 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
     ),
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: pill, minimumSize: buttonSize, textStyle: labelStyle)),
     outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(shape: pill, minimumSize: buttonSize, textStyle: labelStyle)),
-    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: pill, textStyle: const TextStyle(fontWeight: FontWeight.w600))),
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: pill, textStyle: TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w600))),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.5),

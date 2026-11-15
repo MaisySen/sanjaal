@@ -62,3 +62,4 @@
 - Render preview fix: buildTheme takes an optional fontFamily.
 - Push: device token registration (app and API). Sending is pending a server credential.
 - Settings shows push status (registered, or why it is off).
+- Button, app bar and text button styles carry the theme font family.

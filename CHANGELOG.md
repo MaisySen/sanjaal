@@ -2,7 +2,7 @@
 
 ## Calendar excluded from builds
 
-- Nepali calendar screen is off by default (SANJAAL_CALENDAR flag) until the month table has clear provenance.
+- Nepali calendar screen and its month table removed from the source tree until provenance is settled; replacement tracked as open.
 
 ## Nov 16 capacity doc correction
 

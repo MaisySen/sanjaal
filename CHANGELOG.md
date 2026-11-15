@@ -11,6 +11,8 @@
 
 - API: media now goes to a private Backblaze B2 bucket (free 10 GB, no card) when B2 settings are present. The database keeps only a metadata row, reads redirect to B2 with a cached week long download token so video seeking and caching are served by B2, not by the API. Falls back to database storage when B2 is not configured (tests). New column media_blobs.storage.
 
+- Design pass, step 1: one theme for light and dark with pill buttons, filled inputs, rounded cards, sheets and dialogs, floating snack bars. Not yet checked on a device.
+
 - Gifts with coins. A Gift button on posts and reels opens a sheet with six gifts (Rose 5, Heart 10, Momo 20, Crown 50, Himal 100, Rocket 500 coins). Coins move from sender to creator in one locked transaction, both ledger sides are written, and gifts show in the wallet history. No cash out.
 
 - App: voice messages in chat. Tap the mic, record up to 2 minutes with a timer, discard or send. Voice bubbles play and pause with a progress bar. Uses AAC at low bitrate (about 360 KB per minute). Reply previews say Voice message.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Feed latency notes
+
+- docs/FEED_LATENCY.md records the 7 queries per feed page, measured timings and the untested causes. No code change.
+
 ## Nepali coverage
 
 - 21 more UI strings (rooms, gifts, calls, wallet, about) go through the Nepali map. Translations were written by the build agent and need review by a native Nepali speaker before release. Many screens, errors and server messages are still English only.

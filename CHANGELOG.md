@@ -1,5 +1,9 @@
 # Changelog
 
+## Account deletion design
+
+- Added docs/ACCOUNT_DELETION_DESIGN.md: store requirements from official sources, proposed flow, and open decisions. Nothing implemented, nothing promised to users.
+
 ## Release builds refuse E2E_TOKEN_BASE
 
 - Runtime guard: a release or profile build with the setting refuses to sign in. The first compile-time attempt did not compile and was removed.

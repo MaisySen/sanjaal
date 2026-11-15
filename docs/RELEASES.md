@@ -61,6 +61,6 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - Licence of the BS month table is unconfirmed (docs/THIRD_PARTY.md). Do not ship to a public store until settled.
 - BLOCKER: Nepali calendar table has an unresolved provenance gap (docs/THIRD_PARTY.md). Remove or replace before any APK.
 - Security review (Nov 2026): runtime PHP 8.4.23 is behind, Alpine 3.20 base is EOL, built-in server in production. Fixes tracked in docs/SECURITY.md.
-- SECURITY: v26 and v27 ran PHP 8.4.23 (PHP2Shell affected). v28 fixes the runtime. Possible exposure window 21 Oct to 15 Nov 2026. Secret rotation pending approval.
+- SECURITY: v26 and v27 ran PHP 8.4.23 (PHP2Shell affected). v28 fixes the runtime. Exposure window on the affected build was about 21 hours on 15 Nov 2026. Credentials rotated, see docs/SECURITY.md.
 - v29 adds a boot-time runtime version log line.
 - 2026-11-15 security: credentials rotated (APP_KEY, database, LiveKit, B2), eSewa confirmed as test values, Neon recovery and its old credential still open. Details in docs/SECURITY.md.

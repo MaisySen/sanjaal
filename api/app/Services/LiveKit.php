@@ -10,7 +10,7 @@ class LiveKit
         return config('services.livekit.url') && config('services.livekit.key') && config('services.livekit.secret');
     }
 
-    public static function token(string $identity, string $name, string $room, int $ttl = 3600): string
+    public static function token(string $identity, string $name, string $room, int $ttl = 3600, bool $publish = true): string
     {
         $now = time();
         $claims = [
@@ -22,7 +22,7 @@ class LiveKit
             'video' => [
                 'room' => $room,
                 'roomJoin' => true,
-                'canPublish' => true,
+                'canPublish' => $publish,
                 'canSubscribe' => true,
                 'canPublishData' => true,
             ],

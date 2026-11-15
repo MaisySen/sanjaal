@@ -138,4 +138,31 @@ class WalletTest extends TestCase
         $this->postJson('/api/v1/devices/remove', ['token' => 'tok-1'], $ha)->assertOk();
         $this->assertSame(0, \DB::table('device_tokens')->count());
     }
+
+    public function test_live_room_lifecycle_with_gift(): void
+    {
+        config(['services.livekit' => ['url' => 'wss://example.livekit.cloud', 'key' => 'APItest', 'secret' => 'secret-for-tests-only-0123456789abcdef']]);
+        [$host, $hh] = $this->member('hosta');
+        [$fan, $hf] = $this->member('fana');
+        Wallet::credit($fan, 500, 'topup', 'seed-room');
+
+        $r = $this->postJson('/api/v1/rooms', ['title' => 'Friday dohori'], $hh)->assertCreated()->json();
+        $this->assertNotEmpty($r['token']);
+        $this->postJson('/api/v1/rooms', ['title' => 'Second'], $hh)->assertStatus(422);
+        $this->getJson('/api/v1/rooms', $hf)->assertOk()->assertJsonPath('data.0.title', 'Friday dohori');
+
+        $j = $this->postJson('/api/v1/rooms/'.$r['room_id'].'/join', [], $hf)->assertOk()->assertJsonPath('is_host', false)->json();
+        $claims = json_decode(base64_decode(strtr(explode('.', $j['token'])[1], '-_', '+/')), true);
+        $this->assertFalse($claims['video']['canPublish']);
+        $hc = json_decode(base64_decode(strtr(explode('.', $r['token'])[1], '-_', '+/')), true);
+        $this->assertTrue($hc['video']['canPublish']);
+
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/gifts', ['gift' => 'rose'], $hf)->assertCreated()->assertJsonPath('balance', 495);
+        $this->assertSame(1, \DB::table('gifts')->whereNotNull('room_id')->count());
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/gifts', ['gift' => 'nope'], $hf)->assertStatus(422);
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/end', [], $hf)->assertStatus(404);
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/end', [], $hh)->assertOk();
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/join', [], $hf)->assertStatus(410);
+        $this->getJson('/api/v1/rooms', $hf)->assertJsonCount(0, 'data');
+    }
 }

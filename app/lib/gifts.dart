@@ -12,16 +12,18 @@ const _giftIcons = <String, IconData>{
 };
 
 /// Bottom sheet that lists gifts and sends one to the creator of a post or reel.
-Future<void> showGiftSheet(BuildContext context, Session session, String postId, String username) {
+Future<void> showGiftSheet(BuildContext context, Session session, String postId, String username, {String? path, void Function(Map<String, dynamic> gift)? onSent}) {
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    builder: (_) => _GiftSheet(session: session, postId: postId, username: username),
+    builder: (_) => _GiftSheet(session: session, postId: postId, username: username, path: path ?? '/posts/$postId/gifts', onSent: onSent),
   );
 }
 
 class _GiftSheet extends StatefulWidget {
-  const _GiftSheet({required this.session, required this.postId, required this.username});
+  const _GiftSheet({required this.session, required this.postId, required this.username, required this.path, this.onSent});
+  final String path;
+  final void Function(Map<String, dynamic> gift)? onSent;
   final Session session;
   final String postId;
   final String username;
@@ -62,9 +64,10 @@ class _GiftSheetState extends State<_GiftSheet> {
     if (sending != null) return;
     setState(() => sending = g['key'] as String);
     try {
-      final r = await widget.session.call('POST', '/posts/${widget.postId}/gifts', body: {'gift': g['key']});
+      final r = await widget.session.call('POST', widget.path, body: {'gift': g['key']});
       if (!mounted) return;
       setState(() => balance = (r['balance'] as num).toInt());
+      widget.onSent?.call((r['gift'] as Map).cast<String, dynamic>());
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent ${g['name']} to @${widget.username}')));
     } catch (e) {
       if (mounted) showError(context, e);

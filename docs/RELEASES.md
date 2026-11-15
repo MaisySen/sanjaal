@@ -53,3 +53,5 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - Render previews: component text styles now resolve the test font, so button and app bar labels show in CI renders.
 
 - Push (client half): firebase_core and firebase_messaging, device token registered after sign in and removed on sign out. API: device_tokens table, POST /devices, POST /devices/remove. The sender is not built yet: it needs a Firebase service account key stored in the vault.
+
+- Live rooms (API plus app). CI and API tests only. Needs a two-device check: host audio reaching a listener, gift notice, end room.

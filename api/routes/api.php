@@ -64,6 +64,11 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/notifications/summary', [ChatController::class, 'summary']);
     Route::get('/gifts', [\App\Http\Controllers\WalletController::class, 'gifts']);
     Route::post('/posts/{postId}/gifts', [\App\Http\Controllers\WalletController::class, 'sendGift'])->middleware('throttle:60,1');
+    Route::get('/rooms', [\App\Http\Controllers\RoomController::class, 'index']);
+    Route::post('/rooms', [\App\Http\Controllers\RoomController::class, 'store'])->middleware('throttle:10,1');
+    Route::post('/rooms/{id}/join', [\App\Http\Controllers\RoomController::class, 'joinRoom'])->middleware('throttle:60,1');
+    Route::post('/rooms/{id}/end', [\App\Http\Controllers\RoomController::class, 'end']);
+    Route::post('/rooms/{id}/gifts', [\App\Http\Controllers\RoomController::class, 'gift'])->middleware('throttle:60,1');
     Route::post('/devices', [\App\Http\Controllers\WalletController::class, 'registerDevice'])->middleware('throttle:30,1');
     Route::post('/devices/remove', [\App\Http\Controllers\WalletController::class, 'unregisterDevice'])->middleware('throttle:30,1');
     Route::get('/wallet', [\App\Http\Controllers\WalletController::class, 'show']);

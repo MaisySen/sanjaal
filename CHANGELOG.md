@@ -64,3 +64,4 @@
 - Settings shows push status (registered, or why it is off).
 - Button, app bar and text button styles carry the theme font family.
 - Push status wording: registered device is not working delivery.
+- Live audio rooms: host speaks, listeners join subscribe-only, gifts to the host with an in-room notice. API: rooms table, /rooms endpoints.

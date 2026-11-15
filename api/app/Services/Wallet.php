@@ -64,7 +64,7 @@ class Wallet
         'rocket' => ['name' => 'Rocket', 'coins' => 500],
     ];
 
-    public static function gift(User $from, User $to, string $giftKey, ?int $postId): array
+    public static function gift(User $from, User $to, string $giftKey, ?int $postId, ?int $roomId = null): array
     {
         $gift = self::GIFTS[$giftKey] ?? null;
         if (! $gift) {
@@ -73,7 +73,7 @@ class Wallet
         self::transfer($from, $to, $gift['coins'], 'Gift: '.$gift['name'], 'gift_out', 'gift_in');
         DB::table('gifts')->insert([
             'public_id' => (string) Str::uuid(), 'sender_id' => $from->id, 'receiver_id' => $to->id,
-            'post_id' => $postId, 'gift' => $giftKey, 'coins' => $gift['coins'],
+            'post_id' => $postId, 'room_id' => $roomId, 'gift' => $giftKey, 'coins' => $gift['coins'],
             'created_at' => now(), 'updated_at' => now(),
         ]);
 

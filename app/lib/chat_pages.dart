@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_page.dart';
 import 'calls_page.dart';
+import 'rooms_page.dart';
 import 'ui.dart';
 import 'voice.dart';
 
@@ -109,6 +110,11 @@ class _ChatsPageState extends State<ChatsPage> {
       appBar: AppBar(
         title: Text(showArchived ? 'Archived' : t_('Chats')),
         actions: [
+          IconButton(
+            tooltip: 'Live rooms',
+            icon: const Icon(Icons.podcasts),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session))),
+          ),
           IconButton(
             tooltip: 'Call history',
             icon: const Icon(Icons.call_outlined),

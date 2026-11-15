@@ -15,7 +15,11 @@ import 'wallet_page.dart';
 void main() => runApp(const SanjaalApp());
 
 ThemeData buildTheme(Brightness b) {
-  final scheme = ColorScheme.fromSeed(seedColor: brandRed, secondary: brandBlue, brightness: b);
+  final seeded = ColorScheme.fromSeed(seedColor: brandRed, secondary: brandBlue, brightness: b);
+  // fromSeed alone turns the crimson into a muted brown. Pin the brand colours so buttons read as Sanjaal red.
+  final scheme = b == Brightness.light
+      ? seeded.copyWith(primary: brandRed, onPrimary: Colors.white, primaryContainer: const Color(0xFFFFDAD9), onPrimaryContainer: const Color(0xFF410008), secondary: brandBlue, onSecondary: Colors.white)
+      : seeded.copyWith(primary: const Color(0xFFFF8A94), onPrimary: const Color(0xFF55000F), primaryContainer: const Color(0xFF8C0A22), onPrimaryContainer: const Color(0xFFFFDAD9), secondary: const Color(0xFFA8C0FF), onSecondary: const Color(0xFF00205F));
   const pill = StadiumBorder();
   const buttonSize = Size(64, 48);
   const labelStyle = TextStyle(fontWeight: FontWeight.w700, fontSize: 15);

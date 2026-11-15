@@ -83,6 +83,7 @@ class _ReelsPageState extends State<ReelsPage> {
         PageView.builder(
           controller: pager,
           scrollDirection: Axis.vertical,
+          allowImplicitScrolling: true,
           itemCount: reels.length,
           onPageChanged: (i) {
             setState(() => index = i);
@@ -128,6 +129,8 @@ class _ReelItemState extends State<ReelItem> {
   bool ready = false;
   bool failed = false;
   late int comments = (widget.reel['comments_count'] as num?)?.toInt() ?? 0;
+  late bool following = (widget.reel['author'] as Map)['following'] == true;
+  bool followBusy = false;
 
   Map<String, dynamic> get author => (widget.reel['author'] as Map).cast<String, dynamic>();
   String get id => widget.reel['public_id'] as String;
@@ -181,6 +184,27 @@ class _ReelItemState extends State<ReelItem> {
     if (added != null && added != 0 && mounted) setState(() => comments += added);
   }
 
+  Future<void> _follow() async {
+    if (followBusy) return;
+    final was = following;
+    setState(() {
+      followBusy = true;
+      following = !was;
+    });
+    try {
+      await widget.session.call(was ? 'DELETE' : 'POST', '/users/${author['username']}/follow');
+    } catch (e) {
+      if (mounted) {
+        setState(() => following = was);
+        showError(context, e);
+      }
+    } finally {
+      if (mounted) setState(() => followBusy = false);
+    }
+  }
+
+  bool get _mine => widget.session.user?['username'] == author['username'];
+
   Widget _side(IconData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
         padding: const EdgeInsets.only(bottom: 18),
         child: Column(children: [
@@ -207,6 +231,8 @@ class _ReelItemState extends State<ReelItem> {
           ),
         ),
       if (ready && ctl != null && !ctl.value.isPlaying) const Center(child: IgnorePointer(child: Icon(Icons.play_arrow_rounded, size: 88, color: Colors.white54))),
+      if (ready && ctl != null)
+        Positioned(left: 0, right: 0, bottom: 0, child: VideoProgressIndicator(ctl, allowScrubbing: true, padding: EdgeInsets.zero, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
       const Positioned(left: 0, right: 0, bottom: 0, height: 220, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xCC000000), Color(0x00000000)]))))),
       Positioned(
         left: 16,
@@ -221,6 +247,16 @@ class _ReelItemState extends State<ReelItem> {
               Flexible(child: Text('@${author['username']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
             ]),
           ),
+          if (!_mine)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                height: 32,
+                child: following
+                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 32), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: const Text('Following'))
+                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 32)), onPressed: _follow, child: const Text('Follow')),
+              ),
+            ),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white))),
         ]),
       ),

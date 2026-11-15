@@ -56,7 +56,15 @@ class PostController extends Controller
             'data' => (function () use ($page, $viewer) {
                 Present::preload($page->items(), $viewer);
 
-                return collect($page->items())->map(fn ($p) => Present::post($p, $viewer))->values();
+                $items = collect($page->items());
+                $followed = $viewer->following()->whereIn('users.id', $items->pluck('user_id')->unique()->all())->pluck('users.id')->all();
+
+                return $items->map(function ($p) use ($viewer, $followed) {
+                    $a = Present::post($p, $viewer);
+                    $a['author']['following'] = in_array($p->user_id, $followed, true);
+
+                    return $a;
+                })->values();
             })(),
             'next_cursor' => $page->nextCursor()?->encode(),
         ]);

@@ -66,3 +66,4 @@
 - Push status wording: registered device is not working delivery.
 - Live audio rooms: host speaks, listeners join subscribe-only, gifts to the host with an in-room notice. API: rooms table, /rooms endpoints.
 - Live rooms: chat, raise hand, host lets a listener speak (server permission change). Member display names never fall back to an email address (API presenters, rooms, chat titles, sign-up, and a one-time scrub of stored names).
+- Reels: follow button on each reel, progress bar with scrubbing, next and previous reels preload. API: feed authors carry a following flag (one extra query per page).

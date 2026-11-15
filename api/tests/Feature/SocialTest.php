@@ -49,4 +49,14 @@ class SocialTest extends TestCase
         $res = $this->post('/api/v1/auth/me/avatar', ['avatar' => UploadedFile::fake()->image('a.jpg', 50, 50)], $ha + ['Accept' => 'application/json'])->assertOk();
         $this->assertNotNull($res->json('user.avatar_url'));
     }
+
+    public function test_feed_marks_authors_the_viewer_follows(): void
+    {
+        [$a, $ha] = $this->member('authora');
+        [$b, $hb] = $this->member('viewerb');
+        $this->postJson('/api/v1/posts', ['body' => 'hello world'], $ha);
+        $this->getJson('/api/v1/posts', $hb)->assertOk()->assertJsonPath('data.0.author.following', false);
+        $this->postJson('/api/v1/users/'.$a->username.'/follow', [], $hb)->assertOk();
+        $this->getJson('/api/v1/posts', $hb)->assertOk()->assertJsonPath('data.0.author.following', true);
+    }
 }

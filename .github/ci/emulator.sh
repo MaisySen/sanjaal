@@ -15,5 +15,5 @@ for t in smoke signed_in; do
     grep -n -E "EXCEPTION|Exception|Expected|Actual|Error|error:|FAILURE|\[E\]|Could not|failed" /tmp/drive_$t.log | head -25 | cut -c1-280 | sed 's/%/%25/g' | while read -r l; do echo "::error title=emulator $t::$l"; done
   fi
 done
-echo "--- local API log tail ---"; tail -5 /tmp/e2e/server.log | cut -c1-200
+if [ $rc -ne 0 ]; then tail -8 /tmp/e2e/server.log | cut -c1-240 | sed 's/%/%25/g' | while read -r l; do echo "::error title=local api log::$l"; done; fi
 exit $rc

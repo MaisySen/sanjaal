@@ -19,7 +19,12 @@ class ChatController extends Controller
         $convos = Conversation::whereHas('members', fn ($m) => $m->where('users.id', $me->id))
             ->with('members')->orderByDesc('last_message_at')->orderByDesc('id')->limit(100)->get();
 
-        return response()->json(['data' => $convos->map(fn ($c) => $this->present($c, $me))->values()]);
+        $rows = $convos->map(fn ($c) => $this->present($c, $me))->values();
+        $rows = $request->boolean('archived') ? $rows->where('archived', true) : $rows->where('archived', false);
+        // Pinned chats first, otherwise keep newest-first order.
+        $rows = $rows->sortBy(fn ($r) => $r['pinned'] ? 0 : 1)->values();
+
+        return response()->json(['data' => $rows]);
     }
 
     /** Join token for a voice or video call in a conversation the caller belongs to. */
@@ -30,8 +35,10 @@ class ChatController extends Controller
             return response()->json(['message' => 'Calls are not available yet.'], 503);
         }
         $me = $request->user();
+        $call = \App\Http\Controllers\ExtrasController::ring($convo, $me, $request->query('kind') === 'video' ? 'video' : 'voice');
 
         return response()->json([
+            'call_id' => $call,
             'url' => config('services.livekit.url'),
             'room' => 'convo-'.$convo->public_id,
             'token' => \App\Services\LiveKit::token('u'.$me->id, $me->name ?: $me->username, 'convo-'.$convo->public_id),
@@ -124,17 +131,39 @@ class ChatController extends Controller
             $msgs = $q->orderByDesc('id')->limit(50)->get()->reverse()->values();
         }
 
-        return response()->json(['data' => $msgs->map(fn ($m) => Present::message($m))->values()]);
+        $convo->load('members');
+
+        return response()->json([
+            'data' => $msgs->map(fn ($m) => Present::message($m))->values(),
+            'typing' => ExtrasController::typingUsers($convo, $request->user()),
+        ]);
     }
 
     public function send(Request $request, string $id): JsonResponse
     {
         $convo = $this->authorized($request, $id);
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:4000'],
+            'body' => ['required_without:media', 'nullable', 'string', 'max:4000'],
             'client_id' => ['nullable', 'string', 'max:64'],
+            'media' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,m4a,aac,mp3,ogg,wav,mp4', 'max:10240'],
+            'duration_ms' => ['nullable', 'integer', 'min:0', 'max:600000'],
+            'reply_to' => ['nullable', 'uuid'],
         ]);
         $me = $request->user();
+        $kind = 'text';
+        $mediaId = null;
+        $mediaMime = null;
+        if ($file = $request->file('media')) {
+            $mediaMime = $file->getMimeType();
+            $kind = str_starts_with($mediaMime, 'image/') ? 'image' : 'voice';
+            $mediaId = (string) \Illuminate\Support\Str::uuid();
+            DB::table('media_blobs')->insert([
+                'public_id' => $mediaId, 'mime' => $mediaMime, 'size' => $file->getSize(),
+                'data' => base64_encode(file_get_contents($file->getRealPath())),
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->value('id') : null;
 
         if (! empty($data['client_id'])) {
             $dupe = $convo->messages()->where('user_id', $me->id)->where('client_id', $data['client_id'])->first();
@@ -143,8 +172,12 @@ class ChatController extends Controller
             }
         }
 
-        $msg = DB::transaction(function () use ($convo, $me, $data) {
-            $m = $convo->messages()->create(['user_id' => $me->id, 'body' => $data['body'], 'client_id' => $data['client_id'] ?? null]);
+        $msg = DB::transaction(function () use ($convo, $me, $data, $kind, $mediaId, $mediaMime, $replyTo) {
+            $m = $convo->messages()->create([
+                'user_id' => $me->id, 'body' => $data['body'] ?? '', 'client_id' => $data['client_id'] ?? null,
+                'kind' => $kind, 'media_id' => $mediaId, 'media_mime' => $mediaMime,
+                'duration_ms' => $data['duration_ms'] ?? null, 'reply_to_id' => $replyTo,
+            ]);
             $convo->update(['last_message_at' => $m->created_at]);
             $convo->members()->updateExistingPivot($me->id, ['last_read_message_id' => $m->id]);
 
@@ -190,6 +223,7 @@ class ChatController extends Controller
             'title' => $c->type === 'group' ? $c->title : $other?->name,
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
             'last_message' => $last ? Present::message($last) : null,
+            'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
             'unread' => $c->messages()->where('id', '>', $pivot?->last_read_message_id ?? 0)->where('user_id', '!=', $me->id)->count(),
         ];
     }

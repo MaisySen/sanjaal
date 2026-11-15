@@ -40,6 +40,20 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/reports', [$s, 'report'])->middleware('throttle:20,1');
     Route::delete('/comments/{commentId}', [$s, 'deleteComment']);
 
+    $x = \App\Http\Controllers\ExtrasController::class;
+    Route::post('/posts/{post}/reaction', [$x, 'react']);
+    Route::delete('/posts/{post}/reaction', [$x, 'unreact']);
+    Route::get('/stories', [$x, 'stories']);
+    Route::post('/stories', [$x, 'storeStory'])->middleware('throttle:20,1');
+    Route::post('/stories/{id}/view', [$x, 'viewStory']);
+    Route::get('/stories/{id}/viewers', [$x, 'storyViewers']);
+    Route::delete('/stories/{id}', [$x, 'destroyStory']);
+    Route::patch('/conversations/{id}/settings', [$x, 'settings']);
+    Route::post('/conversations/{id}/typing', [$x, 'typing'])->middleware('throttle:120,1');
+    Route::get('/calls/incoming', [$x, 'incoming']);
+    Route::get('/calls', [$x, 'history']);
+    Route::post('/calls/{id}/action', [$x, 'callStatus']);
+
     Route::get('/conversations', [ChatController::class, 'index']);
     Route::post('/conversations', [ChatController::class, 'store']);
     Route::get('/conversations/{conversation}/messages', [ChatController::class, 'messages']);

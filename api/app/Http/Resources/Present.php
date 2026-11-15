@@ -36,7 +36,19 @@ class Present
             'likes_count' => $p->likes_count,
             'comments_count' => $p->comments_count,
             'liked' => $viewer ? $p->likes()->where('user_id', $viewer->id)->exists() : false,
+            'my_reaction' => $viewer ? $p->likes()->where('user_id', $viewer->id)->value('reaction') : null,
+            'reactions' => $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),
             'created_at' => $p->created_at->toIso8601String(),
+        ];
+    }
+
+    public static function reactionState(Post $p, User $viewer): array
+    {
+        return [
+            'likes_count' => $p->likes_count,
+            'liked' => $p->likes()->where('user_id', $viewer->id)->exists(),
+            'my_reaction' => $p->likes()->where('user_id', $viewer->id)->value('reaction'),
+            'reactions' => $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),
         ];
     }
 
@@ -57,10 +69,22 @@ class Present
             'public_id' => $m->public_id,
             'conversation_id' => $m->conversation->public_id,
             'body' => $m->body,
+            'kind' => $m->kind ?? 'text',
+            'media_url' => $m->media_id ? url('/api/v1/media/'.$m->media_id) : null,
+            'media_mime' => $m->media_mime,
+            'duration_ms' => $m->duration_ms,
+            'reply_to' => $m->reply_to_id ? self::replyPreview($m->reply_to_id) : null,
             'sender' => self::user($m->user),
             'client_id' => $m->client_id,
             'created_at' => $m->created_at->toIso8601String(),
             'seq' => $m->id,
         ];
+    }
+
+    private static function replyPreview(int $id): ?array
+    {
+        $r = Message::with('user')->find($id);
+
+        return $r ? ['public_id' => $r->public_id, 'sender' => $r->user->name ?: $r->user->username, 'kind' => $r->kind ?? 'text', 'body' => mb_substr((string) $r->body, 0, 80)] : null;
     }
 }

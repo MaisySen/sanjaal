@@ -23,7 +23,7 @@ class Conversation extends Model
 
     public function members(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'conversation_members')->withPivot('role', 'last_read_message_id')->withTimestamps();
+        return $this->belongsToMany(User::class, 'conversation_members')->withPivot('role', 'last_read_message_id', 'pinned', 'muted', 'archived')->withTimestamps();
     }
 
     public function messages(): HasMany { return $this->hasMany(Message::class); }

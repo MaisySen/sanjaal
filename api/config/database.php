@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Reuse the connection across requests inside each server worker: the database is
+            // in another region, and a new TLS connection per request costs several round trips.
+            'options' => [\PDO::ATTR_PERSISTENT => (bool) env('DB_PERSISTENT', true)],
         ],
 
         'sqlsrv' => [

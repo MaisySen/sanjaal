@@ -42,3 +42,13 @@ Notes:
 - Live video rooms (LiveKit) have their own free tier. At 2,000 members with regular rooms we expect to need its paid plan. We will measure minutes first and bring the number before spending.
 - Coin and gift income should cover this range long before 2,000 members if even a few percent of members buy coins.
 - The first free-tier limit we expect to meet is the Render free instance sleeping, not the database.
+
+## Database host (updated 2026-11-15)
+
+The free database moved from Neon to Aiven for PostgreSQL (free plan, no card): 1 CPU, 1 GB RAM, 1 GB disk, 20 connections, hosted in California. Reasons: Neon's free plan stops the database at 5 GB of transfer or 100 compute hours a month, and our chat long poll keeps compute awake all day. Aiven has no such caps.
+
+Things to know:
+
+- Aiven powers the free service off after a period of no activity and emails first. To restart it, open the service in the Aiven console and press Power on. Real traffic keeps it awake.
+- The API host is in Ohio, so each query crosses the country. The API keeps database connections open per worker and we cut queries per request. Moving the API to the Render Oregon region would remove most of the delay.
+- Free plan has no connection pooling. Keep the API at 12 workers or fewer so we stay under 20 connections.

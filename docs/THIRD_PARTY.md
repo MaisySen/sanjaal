@@ -33,3 +33,7 @@ provisional (it has a 367 day year). Neither table is confirmed against an offic
 Decision: the calendar table stays a RELEASE BLOCKER for any APK or store build until the data comes from a source
 with clear permission (for example an official Nepal government calendar we may reuse, or a table we build and check
 ourselves from dated official notices), or is removed from the build.
+
+## Handling (Nov 16)
+
+The calendar screen is hidden unless a build sets --dart-define=SANJAAL_CALENDAR=true, so no distributable build offers it or ships the table (the unused code is tree-shaken out of release builds). A replacement stays tracked as unfinished work. Status: feature excluded, replacement open.

@@ -3,6 +3,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'about_page.dart';
 import 'api.dart';
 import 'nepali_calendar_page.dart';
+
+/// Off in every distributable build until the month table has clear provenance (docs/THIRD_PARTY.md).
+const bool kNepaliCalendar = bool.fromEnvironment('SANJAAL_CALENDAR', defaultValue: false);
 import 'push.dart';
 import 'ui.dart';
 import 'wallet_page.dart';
@@ -46,7 +49,7 @@ class SettingsPage extends StatelessWidget {
             valueListenable: Push.status,
             builder: (context, v, child) => ListTile(leading: const Icon(Icons.notifications_outlined), title: Text(t_('Push notifications')), subtitle: Text(v)),
           ),
-          ListTile(
+          if (kNepaliCalendar) ListTile(
             leading: const Icon(Icons.calendar_month_outlined),
             title: Text(t_('Nepali calendar')),
             trailing: const Icon(Icons.chevron_right),

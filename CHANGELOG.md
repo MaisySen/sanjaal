@@ -1,5 +1,9 @@
 # Changelog
 
+## Calendar excluded from builds
+
+- Nepali calendar screen is off by default (SANJAAL_CALENDAR flag) until the month table has clear provenance.
+
 ## Nov 16 capacity doc correction
 
 - CAPACITY_MODEL.md now uses measured Server-Timing figures and labels the knee numbers illustrative.

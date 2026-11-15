@@ -191,7 +191,7 @@ class ExtrasController extends Controller
         return [
             'public_id' => $c->public_id,
             'conversation_id' => $convo->public_id,
-            'title' => $convo->type === 'group' ? $convo->title : $other?->name,
+            'title' => $convo->type === 'group' ? $convo->title : $other?->publicName(),
             'caller' => Present::user($caller),
             'direction' => $c->caller_id === $me->id ? 'outgoing' : 'incoming',
             'kind' => $c->kind,

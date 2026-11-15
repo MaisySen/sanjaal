@@ -101,7 +101,7 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 }
 
-/// One live room. The host can speak. Everyone else listens and can send the host a gift.
+/// One live room. The host speaks. Listeners chat, raise a hand and send gifts. The host can let a listener speak.
 class RoomPage extends StatefulWidget {
   const RoomPage({super.key, required this.session, required this.roomId, this.joined});
   final Session session;
@@ -115,26 +115,25 @@ class RoomPage extends StatefulWidget {
 class _RoomPageState extends State<RoomPage> {
   final Room room = Room();
   late final EventsListener<RoomEvent> _events = room.createListener();
+  final _chat = TextEditingController();
+  final List<Map<String, String>> messages = [];
+  final Map<String, String> hands = {};
   String title = 'Live room';
   String status = 'Connecting...';
+  String? myId;
+  String hostName = 'the host';
   bool isHost = false;
+  bool speaker = false;
   bool muted = false;
+  bool handUp = false;
   bool failed = false;
   bool ended = false;
-  String? hostName;
 
   @override
   void initState() {
     super.initState();
     room.addListener(_changed);
-    _events.on<DataReceivedEvent>((e) {
-      try {
-        final m = jsonDecode(utf8.decode(e.data)) as Map<String, dynamic>;
-        if (m['t'] == 'gift' && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${m['from']} sent a ${m['name']}')));
-        }
-      } catch (_) {}
-    });
+    _events.on<DataReceivedEvent>(_onData);
     _events.on<RoomDisconnectedEvent>((_) {
       if (mounted && !ended) setState(() => status = 'Disconnected');
     });
@@ -145,13 +144,58 @@ class _RoomPageState extends State<RoomPage> {
     if (mounted) setState(() {});
   }
 
+  void _onData(DataReceivedEvent e) {
+    if (!mounted) return;
+    try {
+      final m = jsonDecode(utf8.decode(e.data)) as Map<String, dynamic>;
+      final from = e.participant?.name ?? '';
+      final fromId = e.participant?.identity ?? '';
+      switch (m['t']) {
+        case 'gift':
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${m['from']} sent a ${m['name']}')));
+        case 'chat':
+          setState(() {
+            final text = '${m['text']}';
+            messages.add({'from': from, 'text': text.length > 300 ? text.substring(0, 300) : text});
+            if (messages.length > 100) messages.removeAt(0);
+          });
+        case 'hand':
+          if (isHost) setState(() => hands[fromId] = from);
+        case 'mic':
+          if (m['to'] == myId) _setSpeaker(m['allow'] == true);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _setSpeaker(bool on) async {
+    try {
+      await room.localParticipant?.setMicrophoneEnabled(on);
+      if (!mounted) return;
+      setState(() {
+        speaker = on;
+        handUp = false;
+        muted = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(on ? 'The host let you speak' : 'The host took the mic back')));
+    } catch (_) {}
+  }
+
+  Future<void> _send(Map<String, dynamic> m) async {
+    await room.localParticipant?.publishData(utf8.encode(jsonEncode(m)), reliable: true);
+  }
+
   Future<void> _join() async {
     try {
       final j = widget.joined ?? await widget.session.call('POST', '/rooms/${widget.roomId}/join') as Map<String, dynamic>;
       title = (j['title'] ?? title).toString();
       isHost = j['is_host'] == true;
+      myId = j['identity']?.toString();
+      hostName = (j['host_name'] ?? hostName).toString();
       await room.connect(j['url'] as String, j['token'] as String);
-      if (isHost) await room.localParticipant?.setMicrophoneEnabled(true);
+      if (isHost) {
+        await room.localParticipant?.setMicrophoneEnabled(true);
+        speaker = true;
+      }
       if (mounted) setState(() => status = 'Live');
     } on ApiError catch (e) {
       if (mounted) {
@@ -184,18 +228,40 @@ class _RoomPageState extends State<RoomPage> {
     if (mounted) Navigator.pop(context);
   }
 
+  Future<void> _sendChat() async {
+    final t = _chat.text.trim();
+    if (t.isEmpty) return;
+    _chat.clear();
+    final me = widget.session.user?['name'] ?? widget.session.user?['username'] ?? 'Me';
+    setState(() => messages.add({'from': '$me', 'text': t}));
+    await _send({'t': 'chat', 'text': t});
+  }
+
+  Future<void> _raise() async {
+    setState(() => handUp = true);
+    await _send({'t': 'hand'});
+  }
+
+  Future<void> _allow(String id, bool allow) async {
+    try {
+      await widget.session.call('POST', '/rooms/${widget.roomId}/speaker', body: {'identity': id, 'allow': allow});
+      await _send({'t': 'mic', 'to': id, 'allow': allow});
+      if (mounted) setState(() => hands.remove(id));
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
   void _gift() {
-    final host = room.remoteParticipants.values.isNotEmpty ? room.remoteParticipants.values.first : null;
-    hostName = host?.name;
     showGiftSheet(
       context,
       widget.session,
       widget.roomId,
-      hostName ?? 'the host',
+      hostName,
       path: '/rooms/${widget.roomId}/gifts',
       onSent: (g) {
         final me = widget.session.user?['name'] ?? widget.session.user?['username'] ?? 'Someone';
-        room.localParticipant?.publishData(utf8.encode(jsonEncode({'t': 'gift', 'from': me, 'name': g['name']})), reliable: true);
+        _send({'t': 'gift', 'from': '$me', 'name': g['name']});
       },
     );
   }
@@ -203,6 +269,7 @@ class _RoomPageState extends State<RoomPage> {
   @override
   void dispose() {
     _events.dispose();
+    _chat.dispose();
     room.removeListener(_changed);
     room.disconnect();
     room.dispose();
@@ -211,29 +278,90 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   Widget build(BuildContext context) {
-    final listeners = room.remoteParticipants.length + (failed ? 0 : 1);
+    final scheme = Theme.of(context).colorScheme;
+    final inRoom = room.remoteParticipants.length + (failed ? 0 : 1);
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(failed ? Icons.error_outline : Icons.graphic_eq, size: 72, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 16),
-            Text(status, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            if (!failed) Text('$listeners in the room'),
-            const SizedBox(height: 32),
-            if (!failed && isHost) ...[
-              FilledButton.icon(onPressed: _toggleMic, icon: Icon(muted ? Icons.mic_off : Icons.mic), label: Text(muted ? 'Unmute' : 'Mute')),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(onPressed: _end, icon: const Icon(Icons.stop_circle_outlined), label: const Text('End room')),
-            ],
-            if (!failed && !isHost) FilledButton.icon(onPressed: _gift, icon: const Icon(Icons.card_giftcard), label: const Text('Send a gift')),
-            if (failed) FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back')),
-          ]),
-        ),
-      ),
+      appBar: AppBar(title: Text(title), actions: [if (isHost && !failed) TextButton(onPressed: _end, child: const Text('End'))]),
+      body: failed
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.error_outline, size: 64, color: scheme.error),
+                  const SizedBox(height: 12),
+                  Text(status, textAlign: TextAlign.center),
+                  const SizedBox(height: 20),
+                  FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Back')),
+                ]),
+              ),
+            )
+          : Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(children: [
+                  Icon(Icons.graphic_eq, color: scheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('$status . $inRoom in the room')),
+                  if (speaker) IconButton.filledTonal(tooltip: muted ? 'Unmute' : 'Mute', onPressed: _toggleMic, icon: Icon(muted ? Icons.mic_off : Icons.mic)),
+                  if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : _raise, icon: const Icon(Icons.back_hand_outlined), label: Text(handUp ? 'Hand raised' : 'Raise hand')),
+                  if (!isHost) IconButton(tooltip: 'Send a gift', onPressed: _gift, icon: const Icon(Icons.card_giftcard)),
+                ]),
+              ),
+              if (isHost && hands.isNotEmpty)
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(children: [
+                    for (final h in hands.entries)
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.back_hand_outlined),
+                        title: Text(h.value.isEmpty ? 'Member' : h.value),
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          TextButton(onPressed: () => _allow(h.key, false), child: const Text('Dismiss')),
+                          FilledButton(onPressed: () => _allow(h.key, true), child: const Text('Let speak')),
+                        ]),
+                      ),
+                  ]),
+                ),
+              if (isHost && room.remoteParticipants.values.any((p) => p.permissions.canPublish))
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Wrap(spacing: 8, children: [
+                    for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish))
+                      ActionChip(avatar: const Icon(Icons.mic, size: 16), label: Text('${p.name.isEmpty ? 'Member' : p.name}  take mic'), onPressed: () => _allow(p.identity, false)),
+                  ]),
+                ),
+              const Divider(height: 16),
+              Expanded(
+                child: messages.isEmpty
+                    ? const Center(child: Text('No messages yet. Say hello.'))
+                    : ListView.builder(
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: messages.length,
+                        itemBuilder: (_, i) {
+                          final m = messages[messages.length - 1 - i];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Text.rich(TextSpan(children: [
+                              TextSpan(text: '${m['from']}  ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                              TextSpan(text: m['text']),
+                            ])),
+                          );
+                        },
+                      ),
+              ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  child: Row(children: [
+                    Expanded(child: TextField(controller: _chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => _sendChat())),
+                    const SizedBox(width: 8),
+                    IconButton.filled(onPressed: _sendChat, icon: const Icon(Icons.send)),
+                  ]),
+                ),
+              ),
+            ]),
     );
   }
 }

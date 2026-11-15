@@ -31,6 +31,20 @@ class LiveKit
         return self::jwt($claims, (string) config('services.livekit.secret'));
     }
 
+    /** Lets one listener speak (or stops them) by changing their permissions on the LiveKit server. */
+    public static function setCanPublish(string $room, string $identity, bool $can): bool
+    {
+        $now = time();
+        $admin = self::jwt(['iss' => config('services.livekit.key'), 'nbf' => $now, 'exp' => $now + 60, 'video' => ['roomAdmin' => true, 'room' => $room]], (string) config('services.livekit.secret'));
+        $base = preg_replace('#^wss?://#', 'https://', (string) config('services.livekit.url'));
+        $r = \Illuminate\Support\Facades\Http::withToken($admin)->timeout(10)->post(rtrim($base, '/').'/twirp/livekit.RoomService/UpdateParticipant', [
+            'room' => $room, 'identity' => $identity,
+            'permission' => ['can_subscribe' => true, 'can_publish' => $can, 'can_publish_data' => true],
+        ]);
+
+        return $r->successful();
+    }
+
     public static function jwt(array $claims, string $secret): string
     {
         $b64 = fn (string $s) => rtrim(strtr(base64_encode($s), '+/', '-_'), '=');

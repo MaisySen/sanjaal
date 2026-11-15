@@ -55,3 +55,4 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - Push (client half): firebase_core and firebase_messaging, device token registered after sign in and removed on sign out. API: device_tokens table, POST /devices, POST /devices/remove. The sender is not built yet: it needs a Firebase service account key stored in the vault.
 
 - Live rooms (API plus app). CI and API tests only. Needs a two-device check: host audio reaching a listener, gift notice, end room.
+- Rooms chat and hand raise run over the LiveKit data channel. API lifecycle and privacy tested in PHPUnit. Not verified: audio, multi-device gifts and chat, the live speaker grant against LiveKit, app compile.

@@ -42,4 +42,20 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /** A name that is safe to show to other members. Never an email address. */
+    public static function safeName(?string $name, ?string $username): string
+    {
+        $name = trim((string) $name);
+        if ($name === '' || str_contains($name, '@')) {
+            return (string) ($username ?: 'Sanjaal member');
+        }
+
+        return $name;
+    }
+
+    public function publicName(): string
+    {
+        return self::safeName($this->name, $this->username);
+    }
 }

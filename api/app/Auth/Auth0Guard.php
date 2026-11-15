@@ -110,7 +110,7 @@ class Auth0Guard
         }
 
         return User::create([
-            'name' => Str::limit($info->json('name') ?: $info->json('nickname') ?: 'Sanjaal member', 80, ''),
+            'name' => Str::limit(\App\Models\User::safeName($info->json('name') ?: $info->json('nickname'), $info->json('nickname') ?: Str::before($email, '@')), 80, ''),
             'username' => $this->freshUsername($info->json('nickname') ?: Str::before($email, '@')),
             'email' => $email,
             'auth0_sub' => $sub,

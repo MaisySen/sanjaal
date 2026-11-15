@@ -14,7 +14,7 @@ class Present
     public static function user(User $u): array
     {
         return [
-            'public_id' => $u->public_id, 'name' => $u->name, 'username' => $u->username,
+            'public_id' => $u->public_id, 'name' => $u->publicName(), 'username' => $u->username,
             'bio' => $u->bio,
             'avatar_url' => $u->avatar ? url('/api/v1/media/'.$u->avatar) : null,
         ];
@@ -114,6 +114,6 @@ class Present
     {
         $r = Message::with('user')->find($id);
 
-        return $r ? ['public_id' => $r->public_id, 'sender' => $r->user->name ?: $r->user->username, 'kind' => $r->kind ?? 'text', 'body' => mb_substr((string) $r->body, 0, 80)] : null;
+        return $r ? ['public_id' => $r->public_id, 'sender' => $r->user->publicName(), 'kind' => $r->kind ?? 'text', 'body' => mb_substr((string) $r->body, 0, 80)] : null;
     }
 }

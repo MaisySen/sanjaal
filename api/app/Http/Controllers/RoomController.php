@@ -21,6 +21,11 @@ class RoomController extends Controller
         $rows = DB::table('rooms')->join('users', 'users.id', '=', 'rooms.host_id')
             ->where('rooms.status', 'live')->orderByDesc('rooms.id')->limit(30)
             ->get(['rooms.public_id', 'rooms.title', 'rooms.created_at', 'users.username as host_username', 'users.name as host_name']);
+        $rows->transform(function ($r) {
+            $r->host_name = User::safeName($r->host_name, $r->host_username);
+
+            return $r;
+        });
 
         return response()->json(['data' => $rows]);
     }
@@ -52,7 +57,7 @@ class RoomController extends Controller
         }
         $me = $request->user();
 
-        return response()->json($this->join($me, $id, $room->host_id === $me->id) + ['room_id' => $id, 'title' => $room->title, 'is_host' => $room->host_id === $me->id]);
+        return response()->json($this->join($me, $id, $room->host_id === $me->id) + ['room_id' => $id, 'title' => $room->title, 'is_host' => $room->host_id === $me->id, 'host_name' => User::safeName(User::find($room->host_id)?->name, User::find($room->host_id)?->username), 'host_identity' => 'u'.$room->host_id]);
     }
 
     public function end(Request $request, string $id): JsonResponse
@@ -61,6 +66,19 @@ class RoomController extends Controller
             ->update(['status' => 'ended', 'ended_at' => now(), 'updated_at' => now()]);
 
         return response()->json(['ended' => $n === 1], $n === 1 ? 200 : 404);
+    }
+
+    /** Host lets a listener who raised a hand speak, or takes the mic back. */
+    public function speaker(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate(['identity' => ['required', 'string', 'max:40', 'regex:/^u[0-9]+$/'], 'allow' => ['required', 'boolean']]);
+        $room = DB::table('rooms')->where('public_id', $id)->where('host_id', $request->user()->id)->where('status', 'live')->first();
+        if (! $room) {
+            return response()->json(['message' => 'Only the host of a live room can do that.'], 404);
+        }
+        $ok = LiveKit::setCanPublish('room-'.$id, $data['identity'], (bool) $data['allow']);
+
+        return response()->json(['ok' => $ok], $ok ? 200 : 502);
     }
 
     public function gift(Request $request, string $id): JsonResponse
@@ -83,11 +101,12 @@ class RoomController extends Controller
 
     private function join(User $me, string $id, bool $host): array
     {
-        $name = $me->name ?: $me->username;
+        $name = $me->publicName();
 
         return [
             'url' => config('services.livekit.url'),
             'room' => 'room-'.$id,
+            'identity' => 'u'.$me->id,
             'token' => LiveKit::token('u'.$me->id, $name, 'room-'.$id, 3600, $host),
         ];
     }

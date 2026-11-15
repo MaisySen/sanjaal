@@ -165,4 +165,26 @@ class WalletTest extends TestCase
         $this->postJson('/api/v1/rooms/'.$r['room_id'].'/join', [], $hf)->assertStatus(410);
         $this->getJson('/api/v1/rooms', $hf)->assertJsonCount(0, 'data');
     }
+
+    public function test_email_is_never_shown_as_a_name_and_host_can_grant_the_mic(): void
+    {
+        config(['services.livekit' => ['url' => 'wss://example.livekit.cloud', 'key' => 'APItest', 'secret' => 'secret-for-tests-only-0123456789abcdef']]);
+        [$host, $hh] = $this->member('hostb');
+        [$fan, $hf] = $this->member('fanb');
+        $host->forceFill(['name' => 'private@example.com'])->save();
+
+        $r = $this->postJson('/api/v1/rooms', ['title' => 'Privacy check'], $hh)->assertCreated()->json();
+        $list = $this->getJson('/api/v1/rooms', $hf)->assertOk()->json('data.0');
+        $this->assertStringNotContainsString('@', $list['host_name']);
+        $this->assertSame($host->username, $list['host_name']);
+        $j = $this->postJson('/api/v1/rooms/'.$r['room_id'].'/join', [], $hf)->assertOk()->json();
+        $this->assertStringNotContainsString('@', $j['host_name']);
+        $this->assertSame('u'.$fan->id, $j['identity']);
+
+        \Illuminate\Support\Facades\Http::fake(['*' => \Illuminate\Support\Facades\Http::response('{}', 200)]);
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/speaker', ['identity' => 'u'.$fan->id, 'allow' => true], $hf)->assertStatus(404);
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/speaker', ['identity' => 'u'.$fan->id, 'allow' => true], $hh)->assertOk();
+        \Illuminate\Support\Facades\Http::assertSent(fn ($req) => str_contains($req->url(), 'UpdateParticipant') && $req['permission']['can_publish'] === true);
+        $this->postJson('/api/v1/rooms/'.$r['room_id'].'/speaker', ['identity' => 'bad', 'allow' => true], $hh)->assertStatus(422);
+    }
 }

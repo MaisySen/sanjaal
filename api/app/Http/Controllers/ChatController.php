@@ -42,7 +42,7 @@ class ChatController extends Controller
             'call_id' => $call,
             'url' => config('services.livekit.url'),
             'room' => 'convo-'.$convo->public_id,
-            'token' => \App\Services\LiveKit::token('u'.$me->id, $me->name ?: $me->username, 'convo-'.$convo->public_id),
+            'token' => \App\Services\LiveKit::token('u'.$me->id, $me->publicName(), 'convo-'.$convo->public_id),
         ]);
     }
 
@@ -220,7 +220,7 @@ class ChatController extends Controller
         return [
             'public_id' => $c->public_id,
             'type' => $c->type,
-            'title' => $c->type === 'group' ? $c->title : $other?->name,
+            'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
             'last_message' => $last ? Present::message($last) : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),

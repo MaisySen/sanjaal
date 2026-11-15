@@ -39,9 +39,11 @@ Future<http.Response> _reply(http.Request r) async {
     return _json({
       'data': [
         {'key': 'rose', 'name': 'Rose', 'coins': 5},
-        {'key': 'momo', 'name': 'Momo', 'coins': 10},
-        {'key': 'khada', 'name': 'Khada', 'coins': 20},
-        {'key': 'mountain', 'name': 'Himal', 'coins': 50},
+        {'key': 'heart', 'name': 'Heart', 'coins': 10},
+        {'key': 'momo', 'name': 'Momo', 'coins': 20},
+        {'key': 'crown', 'name': 'Crown', 'coins': 50},
+        {'key': 'himal', 'name': 'Himal', 'coins': 100},
+        {'key': 'rocket', 'name': 'Rocket', 'coins': 500},
       ]
     });
   }
@@ -98,7 +100,11 @@ void main() {
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
-          await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(theme: theme, debugShowCheckedModeBanner: false, home: home)));
+          final nav = GlobalKey<NavigatorState>();
+          final pushed = name != 'gift';
+          await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
+          // The real app opens these screens with Navigator.push, so the app bar shows a back button.
+          if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
           if (name == 'gift') {
             await tester.tap(find.text('Send a gift'));
           }

@@ -113,6 +113,30 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - run: flutter pub get
         working-directory: app
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, gd
+          coverage: none
+      - name: Start local API with a synthetic member (isolated, no Auth0, no live data)
+        working-directory: api
+        env:
+          APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+          APP_ENV: local
+          DB_CONNECTION: sqlite
+          DB_DATABASE: /tmp/e2e/db.sqlite
+          CACHE_STORE: file
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+        run: |
+          set -e
+          composer install --no-interaction --prefer-dist --no-progress
+          mkdir -p /tmp/e2e && touch /tmp/e2e/db.sqlite .env
+          php artisan migrate --force
+          php tests/E2E/prepare.php /tmp/e2e
+          E2E_JWKS_FILE=/tmp/e2e/jwks.json nohup php -S 0.0.0.0:8000 -t public tests/E2E/server.php > /tmp/e2e/server.log 2>&1 &
+          sleep 3
+          curl -s -o /dev/null -w "unauthenticated /me status %{http_code}\n" http://127.0.0.1:8000/api/v1/auth/me -H 'Accept: application/json'
       - name: Smoke test on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -120,7 +144,9 @@ jobs:
           arch: x86_64
           target: google_apis
           working-directory: app
-          script: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/smoke_test.dart --no-pub
+          script: |
+            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/smoke_test.dart --no-pub
+            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/signed_in_test.dart --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)
       - uses: actions/upload-artifact@v4
         if: always()
         with:

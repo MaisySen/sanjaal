@@ -1,5 +1,9 @@
 # Changelog
 
+## Signed-in emulator test against a local API
+
+- Emulator job also boots this API locally (sqlite, throwaway key, synthetic member, tests/E2E, not in the image) and drives the app signed in: feed and profile screenshots. Isolated app-to-local-API evidence only, not Auth0 or live. Debug builds allow cleartext for it; release builds do not.
+
 ## Emulator screenshots
 
 - Emulator job now runs through flutter drive and publishes its screenshot to the emulator-shots branch. Public repo, standard runners, no cost.

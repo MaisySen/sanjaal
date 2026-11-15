@@ -71,3 +71,4 @@
 - Calendar shows today in Nepal time (UTC+5:45), says embassy lists are not a Nepal-wide notice, and docs/THIRD_PARTY.md records the data source and its open licence question.
 - Recorded the provenance review of the calendar table as an open release blocker.
 - API: removed the X-Powered-By version header (expose_php off), added nosniff, no-referrer, HSTS and frame-deny headers, closed the CORS wildcard (native app needs no browser origin).
+- Security: API image v28 runs PHP 8.4.27 on Alpine 3.24 with Caddy and php-fpm (PHP2Shell CVE-2026-109618/109619 fixed). See docs/SECURITY.md.

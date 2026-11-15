@@ -1,0 +1,22 @@
+{
+	admin off
+	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+:{$PORT} {
+	root * /app/public
+	request_body {
+		max_size 64MB
+	}
+	header -Server
+	@blocked path /.* /storage/* /vendor/* /composer.* /artisan /.env*
+	handle @blocked {
+		respond 404
+	}
+	php_fastcgi 127.0.0.1:9000 {
+		trusted_proxies private_ranges
+	}
+	file_server
+}

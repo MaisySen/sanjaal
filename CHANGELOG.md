@@ -20,3 +20,4 @@
 - Calls backend: POST /conversations/{id}/call-token returns a LiveKit room join token for members only (503 until LiveKit is configured). LiveKit Cloud Build plan: no card, 5,000 WebRTC minutes a month, 100 concurrent connections. Config via LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET. API tests: 27 passing.
 - Calls in the app: voice and video call buttons in every chat, over LiveKit (livekit_client). Camera, microphone and Bluetooth permissions added on Android. The release build runs in CI, so the call screen is analyzed but not yet run on a device.
 - CI: API job uses PHP 8.4, matching the container image and the locked Symfony 8 packages.
+- CI: the APK step now reports build errors as annotations.

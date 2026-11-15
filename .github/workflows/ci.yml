@@ -41,10 +41,17 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - name: Build release APK
-        run: >
-          flutter build apk --release --split-per-abi --obfuscate
-          --split-debug-info=build/debug-info
-          --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://sanjaal-api.onrender.com/api/v1' }}
+        run: |
+          set +e
+          flutter build apk --release --split-per-abi --obfuscate \
+            --split-debug-info=build/debug-info \
+            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://sanjaal-api.onrender.com/api/v1' }} > build.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            grep -nE "error:|FAILURE|What went wrong|Execution failed|Caused by|minSdk|Could not" -A2 build.log | head -40 | tr '\n' ' ' | sed 's/%/%25/g' | cut -c1-3500 | while read -r l; do echo "::error title=APK build::$l"; done
+          fi
+          tail -5 build.log
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
           name: sanjaal-apk

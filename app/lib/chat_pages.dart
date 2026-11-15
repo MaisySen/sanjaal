@@ -6,6 +6,13 @@ import 'api.dart';
 import 'call_page.dart';
 import 'calls_page.dart';
 import 'ui.dart';
+import 'voice.dart';
+
+String kindLabel(Object? kind, Object? body) {
+  if (kind == 'image') return 'Photo';
+  if (kind == 'voice') return 'Voice message';
+  return '${body ?? ''}';
+}
 
 class ChatsPage extends StatefulWidget {
   const ChatsPage({super.key, required this.session});
@@ -318,6 +325,7 @@ class _ChatPageState extends State<ChatPage> {
   String? error;
   int _n = 0;
   Map<String, dynamic>? replyTo;
+  bool recording = false;
   List<String> typing = [];
   DateTime _lastTypingPing = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -432,12 +440,20 @@ class _ChatPageState extends State<ChatPage> {
     final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78);
     if (x == null || !mounted) return;
     final bytes = await x.readAsBytes();
+    await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));
+  }
+
+  Future<void> _sendVoice(List<int> bytes) async {
+    setState(() => recording = false);
+    await _sendFile(UploadFile(bytes, 'audio/mp4', 'voice.m4a'));
+  }
+
+  Future<void> _sendFile(UploadFile file) async {
     final cid = '${DateTime.now().microsecondsSinceEpoch}-${_n++}';
     final replyId = replyTo?['public_id'];
     setState(() => replyTo = null);
     try {
-      final j = await widget.session.upload('/conversations/$id/messages',
-          fields: {'client_id': cid, if (replyId != null) 'reply_to': '$replyId'}, file: UploadFile(bytes, mimeFor(x.name), x.name));
+      final j = await widget.session.upload('/conversations/$id/messages', fields: {'client_id': cid, if (replyId != null) 'reply_to': '$replyId'}, file: file);
       final server = (j['message'] as Map).cast<String, dynamic>();
       if (!mounted) return;
       setState(() {
@@ -546,7 +562,7 @@ class _ChatPageState extends State<ChatPage> {
                                     decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
                                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                       Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                      Text((m['reply_to'] as Map)['kind'] == 'image' ? 'Photo' : '${(m['reply_to'] as Map)['body']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                                      Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
                                     ]),
                                   ),
                                 if (m['kind'] == 'image' && m['media_url'] != null)
@@ -557,6 +573,7 @@ class _ChatPageState extends State<ChatPage> {
                                       child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))),
                                     ),
                                   ),
+                                if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String),
                                 if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
                                 Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? scheme.error : null)),
                               ]),
@@ -577,13 +594,25 @@ class _ChatPageState extends State<ChatPage> {
                   padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
                   decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
                   child: Row(children: [
-                    Expanded(child: Text('Replying to @${(replyTo!['sender'] as Map)['username']}: ${replyTo!['kind'] == 'image' ? 'Photo' : replyTo!['body']}', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(child: Text('Replying to @${(replyTo!['sender'] as Map)['username']}: ${kindLabel(replyTo!['kind'], replyTo!['body'])}', maxLines: 1, overflow: TextOverflow.ellipsis)),
                     IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => replyTo = null), icon: const Icon(Icons.close, size: 18)),
                   ]),
                 ),
+              if (recording)
+                VoiceRecorderBar(
+                  onDone: _sendVoice,
+                  onCancel: () {
+                    if (mounted) setState(() => recording = false);
+                  },
+                  onError: (msg) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                  },
+                )
+              else
               Row(children: [
                 IconButton(onPressed: _attach, icon: const Icon(Icons.image_outlined)),
                 Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder()))),
+                IconButton(onPressed: () => setState(() => recording = true), icon: const Icon(Icons.mic_none), tooltip: 'Voice message'),
                 IconButton(onPressed: _send, icon: const Icon(Icons.send)),
               ]),
             ]),

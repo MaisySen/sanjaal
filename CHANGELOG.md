@@ -11,6 +11,8 @@
 
 - API: media now goes to a private Backblaze B2 bucket (free 10 GB, no card) when B2 settings are present. The database keeps only a metadata row, reads redirect to B2 with a cached week long download token so video seeking and caching are served by B2, not by the API. Falls back to database storage when B2 is not configured (tests). New column media_blobs.storage.
 
+- App: voice messages in chat. Tap the mic, record up to 2 minutes with a timer, discard or send. Voice bubbles play and pause with a progress bar. Uses AAC at low bitrate (about 360 KB per minute). Reply previews say Voice message.
+
 - App: smaller uploads (photos 1280 px at quality 78, avatars 640 px, stories up to 20 s, reels up to 60 s) to stay inside free storage and delivery limits.
 
 - API: cache moved from the database to local files (each request was paying a cross-region query for the Auth0 key cache). Requests without a token now return 401 instead of 500.

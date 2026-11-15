@@ -22,6 +22,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final p = await SharedPreferences.getInstance();
     await p.setString('refresh_token', 'local-e2e');
+    // Created outside runWithClient so forwarding does not call the mock again (that recursed and ran out of memory).
+    final real = http.Client();
     await http.runWithClient(() async {
       try {
         final r = await http.get(Uri.parse('${const String.fromEnvironment('API_BASE_URL')}/auth/me'), headers: {'Authorization': 'Bearer $_token', 'Accept': 'application/json'});
@@ -51,7 +53,6 @@ void main() {
         final b = utf8.encode(jsonEncode({'access_token': _token, 'expires_in': 3000, 'refresh_token': 'local-e2e'}));
         return http.StreamedResponse(Stream.value(b), 200, headers: {'content-type': 'application/json'});
       }
-      final real = http.Client();
       final r = await real.send(http.Request(req.method, req.url)
         ..headers.addAll(req.headers)
         ..bodyBytes = await body.toBytes());

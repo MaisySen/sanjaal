@@ -1,5 +1,9 @@
 # Changelog
 
+## Gift sheet test
+
+- Widget test: tapping a gift the balance cannot cover sends no request and shows the shortfall.
+
 ## Room host label from stable identity
 
 - The host label on the stage list uses the host identity the API returns at join, not the display name. Unit tests cover two members with the same name and a missing host identity. The server already restricts the speaker action to the room host by account id.

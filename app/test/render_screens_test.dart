@@ -168,4 +168,31 @@ void main() {
       });
     }
   }
+
+  testWidgets('gift sheet: unaffordable gift sends nothing and explains', (tester) async {
+    var posts = 0;
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: Builder(builder: (c) => Scaffold(body: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))));
+      await tester.tap(find.text('Send a gift'));
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Rocket'));
+      await tester.pump();
+      expect(find.textContaining('Not enough coins. You need 365 more'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+    }, () => MockClient((r) async {
+      if (r.method == 'POST') posts++;
+      return _reply(r);
+    }));
+    expect(posts, 0);
+  });
 }

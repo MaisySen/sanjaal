@@ -128,4 +128,14 @@ class WalletTest extends TestCase
         $this->postJson("/api/v1/posts/$post/gifts", ['gift' => 'rose'], $hb)->assertStatus(422);
         $this->assertDatabaseCount('gifts', 1);
     }
+
+    public function test_device_token_registers_once_and_can_be_removed(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        $this->postJson('/api/v1/devices', ['token' => 'tok-1'], $ha)->assertCreated();
+        $this->postJson('/api/v1/devices', ['token' => 'tok-1'], $ha)->assertCreated();
+        $this->assertSame(1, \DB::table('device_tokens')->where('user_id', $a->id)->count());
+        $this->postJson('/api/v1/devices/remove', ['token' => 'tok-1'], $ha)->assertOk();
+        $this->assertSame(0, \DB::table('device_tokens')->count());
+    }
 }

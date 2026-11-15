@@ -168,4 +168,23 @@ class WalletController extends Controller
 
         return response()->json(['gift' => $gift, 'balance' => (int) $me->fresh()->coin_balance, 'post_gift_coins' => $total], 201);
     }
+
+    public function registerDevice(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'max:512'], 'platform' => ['nullable', 'in:android,ios']]);
+        DB::table('device_tokens')->updateOrInsert(
+            ['token' => $data['token']],
+            ['user_id' => $request->user()->id, 'platform' => $data['platform'] ?? 'android', 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['ok' => true], 201);
+    }
+
+    public function unregisterDevice(Request $request): JsonResponse
+    {
+        $data = $request->validate(['token' => ['required', 'string', 'max:512']]);
+        DB::table('device_tokens')->where('token', $data['token'])->where('user_id', $request->user()->id)->delete();
+
+        return response()->json(['ok' => true]);
+    }
 }

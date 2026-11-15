@@ -1,5 +1,9 @@
 # Changelog
 
+## Route and event cache at start
+
+- The image start script now also caches routes and events (config was already cached). CI runs the whole API test suite a second time with both caches on. The 68 routes list identically with and without the cache (method, uri, action, middleware). Not deployed. Effect on speed is not measured yet.
+
 ## Feed latency notes updated
 
 - Added the earlier select-1 probe result (about 230 ms per trivial query) and a live check showing a zero-query route still takes 0.7 to 0.9 s. Doc only.

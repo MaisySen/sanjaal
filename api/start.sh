@@ -5,6 +5,8 @@ PORT=${PORT:-10000}; export PORT
 echo "runtime: alpine $(cat /etc/alpine-release) | $(php -r 'echo "php ".PHP_VERSION." ".php_sapi_name();') | $(php-fpm84 -v | head -1) | caddy $(caddy version | cut -d" " -f1)"
 php artisan migrate --force || exit 1
 php artisan config:cache
+php artisan route:cache || echo "route cache skipped"
+php artisan event:cache || echo "event cache skipped"
 chown -R nobody:nobody /app/storage /app/bootstrap/cache 2>/dev/null
 php-fpm84 --nodaemonize &
 FPM=$!

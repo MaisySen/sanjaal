@@ -23,6 +23,14 @@ jobs:
       - run: touch .env && php artisan test
         env:
           APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+      # The deployed image caches routes and events at start. Run the whole suite again that way.
+      - run: |
+          touch .env
+          php artisan route:cache && php artisan event:cache
+          php artisan test
+          php artisan route:clear && php artisan event:clear
+        env:
+          APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
 
   app:
     runs-on: ubuntu-latest

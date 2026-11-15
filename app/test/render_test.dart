@@ -81,7 +81,7 @@ void main() {
         tester.view.physicalSize = const Size(1080, 2160);
         tester.view.devicePixelRatio = 3;
         addTearDown(tester.view.reset);
-        final theme = buildTheme(b).copyWith(textTheme: buildTheme(b).textTheme.apply(fontFamily: 'Roboto'));
+        final theme = buildTheme(b, fontFamily: 'Roboto');
         await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(theme: theme, debugShowCheckedModeBanner: false, home: _screen(Session(), tab))));
         await tester.pump(const Duration(milliseconds: 300));
         await tester.runAsync(() async {

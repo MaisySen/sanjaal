@@ -49,3 +49,5 @@ Not built yet: Khalti, Facebook and Apple sign in, push notifications. Calls (vo
 ## Video reels status
 
 Video reels are merged into main (f963bad restored). The 2 GB build host cannot compile the video_player plugin, so release APKs with video are built by CI (see .github/workflows).
+
+- Render previews: component text styles now resolve the test font, so button and app bar labels show in CI renders.

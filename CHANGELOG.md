@@ -57,3 +57,6 @@
 - Android build: Gradle memory raised for CI runners (the first CI build ran out of Metaspace compiling plugins). Local builds on small machines will need less.
 - CI: pushing a v* tag builds everything and publishes a GitHub release with the APKs, the unsigned IPA and SHA256SUMS.txt.
 - The API host download links (/download and /sanjaal-arm64.apk) redirect to the latest release APK. Set APK_URL to change the target.
+
+## Unreleased (batch)
+- Render preview fix: buildTheme takes an optional fontFamily.

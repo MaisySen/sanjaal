@@ -14,7 +14,7 @@ import 'wallet_page.dart';
 
 void main() => runApp(const SanjaalApp());
 
-ThemeData buildTheme(Brightness b) {
+ThemeData buildTheme(Brightness b, {String? fontFamily}) {
   final seeded = ColorScheme.fromSeed(seedColor: brandRed, secondary: brandBlue, brightness: b);
   // fromSeed alone turns the crimson into a muted brown. Pin the brand colours so buttons read as Sanjaal red.
   final scheme = b == Brightness.light
@@ -24,6 +24,7 @@ ThemeData buildTheme(Brightness b) {
   const buttonSize = Size(64, 48);
   const labelStyle = TextStyle(fontWeight: FontWeight.w700, fontSize: 15);
   return ThemeData(
+    fontFamily: fontFamily,
     colorScheme: scheme,
     useMaterial3: true,
     scaffoldBackgroundColor: scheme.surface,

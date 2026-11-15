@@ -1,5 +1,9 @@
 # Changelog
 
+## Short follower counts
+
+- Profile counts show 1.2K and 2.5M style from 1000 up. Unit tested.
+
 ## Populated profile render
 
 - Render test for a member profile with counts and two posts (mock data, layout only).

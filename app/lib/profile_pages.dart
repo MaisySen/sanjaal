@@ -7,6 +7,18 @@ import 'feed_page.dart' show FeedList;
 import 'settings_page.dart';
 import 'ui.dart';
 
+/// 999 stays 999, 1240 becomes 1.2K, 2500000 becomes 2.5M.
+String shortCount(int v) {
+  String f(double x, String u) {
+    final t = (x * 10).floor() / 10;
+    return (t == t.roundToDouble() ? t.toInt().toString() : t.toStringAsFixed(1)) + u;
+  }
+
+  if (v >= 1000000) return f(v / 1000000, 'M');
+  if (v >= 1000) return f(v / 1000, 'K');
+  return v.toString();
+}
+
 Widget _stat(BuildContext context, String n, String label) => Column(children: [
       Text(n, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
       Text(label, style: Theme.of(context).textTheme.bodySmall),
@@ -21,7 +33,7 @@ class ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = (user['name'] ?? '').toString();
     final bio = (user['bio'] ?? '').toString();
-    String n(String k) => ((user[k] as num?)?.toInt() ?? 0).toString();
+    String n(String k) => shortCount((user[k] as num?)?.toInt() ?? 0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
       child: Column(children: [

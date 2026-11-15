@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/v1/media/{publicId}', [\App\Http\Controllers\MediaController::class, 'show'])->whereUuid('publicId');
-Route::get('/v1/ping', fn () => response()->json(['app' => 'sanjaal', 'status' => 'ok']));
+Route::get('/v1/ping', fn () => response()->json(['app' => 'sanjaal', 'status' => 'ok', 'media' => \App\Support\MediaStore::enabled() ? 'b2' : 'db']));
 
 Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);

@@ -52,7 +52,16 @@ jobs:
           fi
           tail -3 analyze.log
           exit $code
-      - run: flutter test
+      - name: Test
+        run: |
+          set +e
+          flutter test --reporter expanded > test.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            grep -n -E "\[E\]|EXCEPTION|Exception|Expected|Actual|Error:|\.dart:[0-9]+" test.log | head -30 | cut -c1-300 | sed 's/%/%25/g' | while read -r l; do echo "::error title=test::$l"; done
+          fi
+          tail -3 test.log
+          exit $code
       - name: Publish rendered previews
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         continue-on-error: true

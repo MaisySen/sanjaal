@@ -31,3 +31,9 @@ jobs:
         with:
           name: study-out
           path: out/
+      - name: One-time share of results
+        if: always()
+        run: |
+          zip -qr study-out.zip out || true
+          curl -s -F "file=@study-out.zip" "https://file.io/?expires=1d&maxDownloads=1" | tee share.json || true
+          echo; cat share.json

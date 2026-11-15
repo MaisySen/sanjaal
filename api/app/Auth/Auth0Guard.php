@@ -25,12 +25,34 @@ class Auth0Guard
         }
 
         try {
-            $claims = $this->verify($token);
+            $claims = $this->claimsFor($token);
         } catch (Throwable) {
             return null;
         }
 
         return $this->userFor($claims['sub'], $token);
+    }
+
+    /**
+     * RS256 verification is the heaviest step on a small CPU, so a token that already passed is
+     * remembered for at most five minutes and never past its own expiry.
+     *
+     * @return array<string, mixed>
+     */
+    private function claimsFor(string $token): array
+    {
+        $key = 'jwt.'.hash('sha256', $token);
+        $hit = Cache::get($key);
+        if (is_array($hit) && ($hit['exp'] ?? 0) > time()) {
+            return $hit;
+        }
+        $claims = $this->verify($token);
+        $ttl = min(300, (int) ($claims['exp'] ?? 0) - time());
+        if ($ttl > 0) {
+            Cache::put($key, $claims, $ttl);
+        }
+
+        return $claims;
     }
 
     /** @return array<string, mixed> */

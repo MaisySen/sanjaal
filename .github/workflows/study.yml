@@ -2,6 +2,8 @@ name: Study run
 on:
   push:
     branches: ['thopla-study']
+permissions:
+  contents: write
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -31,10 +33,11 @@ jobs:
         with:
           name: study-out
           path: out/
-      - name: One-time share of results
+      - name: Temporary results branch
         if: always()
         run: |
-          zip -qr study-out.zip out || true
-          curl -s -F "file=@study-out.zip" "https://file.io/?expires=1d&maxDownloads=1" | tee share.json || true
-          echo; cat share.json
-          echo "::notice title=share::$(cat share.json)"
+          mkdir -p /tmp/res && cp out/*.png out/*.xml /tmp/res/ 2>/dev/null || true
+          ls /tmp/res | head -50
+          cd /tmp/res && git init -q -b study-tmp && git config user.email ci@example.com && git config user.name ci
+          git add -A && git commit -qm results || true
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" study-tmp

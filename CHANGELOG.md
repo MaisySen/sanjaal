@@ -21,3 +21,4 @@
 - Calls in the app: voice and video call buttons in every chat, over LiveKit (livekit_client). Camera, microphone and Bluetooth permissions added on Android. The release build runs in CI, so the call screen is analyzed but not yet run on a device.
 - CI: API job uses PHP 8.4, matching the container image and the locked Symfony 8 packages.
 - CI: the APK step now reports build errors as annotations.
+- Android build: Gradle memory raised for CI runners (the first CI build ran out of Metaspace compiling plugins). Local builds on small machines will need less.

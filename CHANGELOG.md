@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator screenshots
+
+- Emulator job now runs through flutter drive and publishes its screenshot to the emulator-shots branch. Public repo, standard runners, no cost.
+
 ## Emulator smoke test in CI
 
 - New CI job starts the app on an Android emulator and checks the first screen draws (no sign in, no API calls). Allowed to fail while it is proven. Does not cover audio, calls, push or playback.

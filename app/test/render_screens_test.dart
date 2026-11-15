@@ -122,14 +122,14 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed']) {
+    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
           final key = GlobalKey();
-          tester.view.physicalSize = const Size(1080, 2160);
+          tester.view.physicalSize = name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
           final theme = buildTheme(b, fontFamily: 'Roboto');
@@ -143,11 +143,11 @@ void main() {
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = name != 'gift';
+          final pushed = name != 'gift' && name != 'gift_short';
           await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
-          if (name == 'gift') {
+          if (name == 'gift' || name == 'gift_short') {
             await tester.tap(find.text('Send a gift'));
           }
           for (var i = 0; i < 6; i++) {

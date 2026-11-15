@@ -60,6 +60,13 @@ class _GiftSheetState extends State<_GiftSheet> {
     }
   }
 
+  bool _affords(Map<String, dynamic> g) => balance == null || (g['coins'] as num) <= balance!;
+
+  void _short(Map<String, dynamic> g) {
+    final need = (g['coins'] as num).toInt() - (balance ?? 0);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Not enough coins. You need $need more. Add coins from your wallet.')));
+  }
+
   Future<void> _send(Map<String, dynamic> g) async {
     if (sending != null) return;
     setState(() => sending = g['key'] as String);
@@ -79,7 +86,7 @@ class _GiftSheetState extends State<_GiftSheet> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Send a gift to @${widget.username}', style: Theme.of(context).textTheme.titleMedium),
@@ -91,15 +98,18 @@ class _GiftSheetState extends State<_GiftSheet> {
           else
             GridView.count(
               shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: 3,
               mainAxisSpacing: 8,
               crossAxisSpacing: 8,
               childAspectRatio: 1.1,
               children: [
                 for (final g in gifts)
-                  Card(
+                  Opacity(
+                    opacity: _affords(g) ? 1 : 0.45,
+                    child: Card(
                     child: InkWell(
-                      onTap: () => _send(g),
+                      onTap: _affords(g) ? () => _send(g) : () => _short(g),
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         sending == g['key']
                             ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))
@@ -109,6 +119,7 @@ class _GiftSheetState extends State<_GiftSheet> {
                         Text('${g['coins']} coins', style: Theme.of(context).textTheme.bodySmall),
                       ]),
                     ),
+                  ),
                   ),
               ],
             ),

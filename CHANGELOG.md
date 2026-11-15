@@ -1,5 +1,9 @@
 # Changelog
 
+## Gift sheet edges
+
+- Gift sheet scrolls on short screens and dims gifts the balance cannot cover, with a clear message on tap. Rendered in CI (mock data).
+
 ## Room stage list
 
 - The room now shows who is on stage with host and you labels and speaking or muted state; the host can move a speaker back to listeners (the same take-mic-back action as before). Dismissing a raised hand now only clears it locally and no longer sends a take-back notice to a member who never had the mic. Layout rendered in CI; real room, audio and token flow still unverified.

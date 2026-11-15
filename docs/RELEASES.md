@@ -16,7 +16,7 @@ Built with Flutter release mode, arm64, signed with the Flutter debug key (sidel
 
 Verified: `flutter analyze` clean; the app's own Session client passed a live run against the hosted API (sign-up, sign-in, post, invalid image refused, like, comment, direct chat send and read, delete, sign-out). The APK has not been run on a device (none available in the build environment).
 
-Not built yet: calls (LiveKit project creation fails), Khalti, Facebook and Apple sign in, push notifications. Notifications v1 poll every 30 seconds with a Chats badge. Chat uses long poll.
+Not built yet: Khalti, Facebook and Apple sign in, push notifications. Calls (voice and video) are in the code and need a device test from the CI build. Notifications v1 poll every 30 seconds with a Chats badge. Chat uses long poll.
 
 ## Video reels status
 

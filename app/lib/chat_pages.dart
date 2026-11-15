@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'call_page.dart';
 import 'feed_page.dart' show ago, showError;
 
 class ChatsPage extends StatefulWidget {
@@ -277,12 +278,24 @@ class _ChatPageState extends State<ChatPage> {
     await _send();
   }
 
+  void _call(bool video) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CallPage(session: widget.session, conversationId: id, title: (widget.convo['title'] ?? 'Call').toString(), video: video),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
     return Scaffold(
-      appBar: AppBar(title: Text((widget.convo['title'] ?? 'Chat').toString())),
+      appBar: AppBar(
+        title: Text((widget.convo['title'] ?? 'Chat').toString()),
+        actions: [
+          IconButton(tooltip: 'Voice call', icon: const Icon(Icons.call), onPressed: () => _call(false)),
+          IconButton(tooltip: 'Video call', icon: const Icon(Icons.videocam), onPressed: () => _call(true)),
+        ],
+      ),
       body: Column(children: [
         Expanded(
           child: loading

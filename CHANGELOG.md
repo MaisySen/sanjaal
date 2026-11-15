@@ -18,3 +18,4 @@
 - About, privacy and terms screen naming Fintex Australia Pty Ltd. App version set to 0.2.0+2.
 - Notifications v1 uses polling, not push. The app asks GET /notifications/summary every 30 seconds while open and shows an unread badge on the Chats tab. Push (FCM and APNs) is planned for launch, once an account strategy exists.
 - Calls backend: POST /conversations/{id}/call-token returns a LiveKit room join token for members only (503 until LiveKit is configured). LiveKit Cloud Build plan: no card, 5,000 WebRTC minutes a month, 100 concurrent connections. Config via LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET. API tests: 27 passing.
+- Calls in the app: voice and video call buttons in every chat, over LiveKit (livekit_client). Camera, microphone and Bluetooth permissions added on Android. The release build runs in CI, so the call screen is analyzed but not yet run on a device.

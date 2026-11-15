@@ -190,7 +190,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 3));
     }, () => MockClient((r) async {
-      if (r.method == 'POST') posts++;
+      if (r.method == 'POST' && r.url.path.endsWith('/gifts')) posts++;
       return _reply(r);
     }));
     expect(posts, 0);

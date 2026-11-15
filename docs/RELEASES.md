@@ -51,3 +51,5 @@ Not built yet: Khalti, Facebook and Apple sign in, push notifications. Calls (vo
 Video reels are merged into main (f963bad restored). The 2 GB build host cannot compile the video_player plugin, so release APKs with video are built by CI (see .github/workflows).
 
 - Render previews: component text styles now resolve the test font, so button and app bar labels show in CI renders.
+
+- Push (client half): firebase_core and firebase_messaging, device token registered after sign in and removed on sign out. API: device_tokens table, POST /devices, POST /devices/remove. The sender is not built yet: it needs a Firebase service account key stored in the vault.

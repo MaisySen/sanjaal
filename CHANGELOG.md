@@ -60,3 +60,4 @@
 
 ## Unreleased (batch)
 - Render preview fix: buildTheme takes an optional fontFamily.
+- Push: device token registration (app and API). Sending is pending a server credential.

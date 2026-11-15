@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'push.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
@@ -177,9 +178,11 @@ class Session extends ChangeNotifier {
   Future<void> _loadMe() async {
     final j = await call('GET', '/auth/me') as Map<String, dynamic>;
     user = (j['user'] ?? j) as Map<String, dynamic>;
+    unawaited(Push.register(this));
   }
 
   Future<void> logout() async {
+    await Push.unregister(this);
     await _clear();
     notifyListeners();
   }

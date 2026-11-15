@@ -1,5 +1,9 @@
 # Changelog
 
+## media:move-to-b2
+
+- New artisan command moves database-stored media to B2 per row, verifies recorded size first, keeps the row on any failure. Tested with a faked B2 in CI. Not yet run against live data.
+
 ## Calendar excluded from builds
 
 - Nepali calendar screen and its month table removed from the source tree until provenance is settled; replacement tracked as open.

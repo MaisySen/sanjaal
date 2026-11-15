@@ -92,6 +92,12 @@ class MediaStore
         });
     }
 
+    /** Upload bytes for an existing row and return true once B2 accepted them. Used by media:move-to-b2. */
+    public static function uploadExisting(string $name, string $mime, string $bytes): void
+    {
+        self::upload($name, $mime, $bytes);
+    }
+
     private static function upload(string $name, string $mime, string $bytes): void
     {
         $a = self::account();

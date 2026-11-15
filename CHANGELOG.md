@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator smoke test in CI
+
+- New CI job starts the app on an Android emulator and checks the first screen draws (no sign in, no API calls). Allowed to fail while it is proven. Does not cover audio, calls, push or playback.
+
 ## Rooms list render
 
 - CI also renders the live rooms list (mock-backed layout only). The room screen itself needs the LiveKit native library and is not covered by widget tests.

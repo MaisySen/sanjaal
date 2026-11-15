@@ -23,8 +23,10 @@ class ChatTest extends TestCase
         $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonCount(2, 'data');
         $this->getJson("/api/v1/conversations/$cid/messages?after_seq=$m1", $ha)->assertJsonCount(1, 'data')->assertJsonPath('data.0.body', 'k xa');
         $this->getJson('/api/v1/conversations', $ha)->assertJsonPath('data.0.unread', 1)->assertJsonPath('data.0.title', $b->name);
+        $this->getJson('/api/v1/notifications/summary', $ha)->assertOk()->assertJsonPath('unread_messages', 1);
         $this->postJson("/api/v1/conversations/$cid/read", [], $ha)->assertOk();
         $this->getJson('/api/v1/conversations', $ha)->assertJsonPath('data.0.unread', 0);
+        $this->getJson('/api/v1/notifications/summary', $ha)->assertJsonPath('unread_messages', 0);
     }
 
     public function test_send_is_idempotent_by_client_id(): void

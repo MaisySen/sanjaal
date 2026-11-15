@@ -16,3 +16,4 @@
 - Social sign in: Continue with Google through Auth0 (authorization code with PKCE, redirect au.fintex.sanjaal://login-callback). Uses Auth0 development keys, so Auth0 shows a dev-keys notice on the consent screen. Facebook and Apple are not built: Facebook needs a Meta developer app (Auth0 has no dev keys for it), and Apple it needs an Apple Services ID and key from the Apple Developer account.
 - iOS: ITSAppUsesNonExemptEncryption set to false and a privacy manifest added (no tracking, no collected data types, UserDefaults reason CA92.1). Not yet built on macOS CI.
 - About, privacy and terms screen naming Fintex Australia Pty Ltd. App version set to 0.2.0+2.
+- Notifications v1 uses polling, not push. The app asks GET /notifications/summary every 30 seconds while open and shows an unread badge on the Chats tab. Push (FCM and APNs) is planned for launch, once an account strategy exists.

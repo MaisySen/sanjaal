@@ -22,6 +22,20 @@ class ChatController extends Controller
         return response()->json(['data' => $convos->map(fn ($c) => $this->present($c, $me))->values()]);
     }
 
+    /** Cheap poll target for the app badge: unread chat messages across all conversations. */
+    public function summary(Request $request): JsonResponse
+    {
+        $me = $request->user();
+        $unread = DB::table('messages')
+            ->join('conversation_members', 'conversation_members.conversation_id', '=', 'messages.conversation_id')
+            ->where('conversation_members.user_id', $me->id)
+            ->where('messages.user_id', '!=', $me->id)
+            ->whereRaw('messages.id > COALESCE(conversation_members.last_read_message_id, 0)')
+            ->count();
+
+        return response()->json(['unread_messages' => $unread]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

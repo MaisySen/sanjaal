@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'dart:async';
 import 'about_page.dart';
 import 'api.dart';
 import 'auth_page.dart';
@@ -55,6 +56,29 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int tab = 0;
+  int unread = 0;
+  Timer? _poll;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshUnread();
+    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _refreshUnread());
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshUnread() async {
+    try {
+      final j = await widget.session.call('GET', '/notifications/summary') as Map<String, dynamic>;
+      final n = (j['unread_messages'] as num?)?.toInt() ?? 0;
+      if (mounted && n != unread) setState(() => unread = n);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,11 +91,18 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(index: tab, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: tab,
-        onDestinationSelected: (i) => setState(() => tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dynamic_feed_outlined), selectedIcon: Icon(Icons.dynamic_feed), label: 'Feed'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chats'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Me'),
+        onDestinationSelected: (i) {
+          setState(() => tab = i);
+          _refreshUnread();
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.dynamic_feed_outlined), selectedIcon: Icon(Icons.dynamic_feed), label: 'Feed'),
+          NavigationDestination(
+            icon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble_outline)),
+            selectedIcon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble)),
+            label: 'Chats',
+          ),
+          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Me'),
         ],
       ),
     );

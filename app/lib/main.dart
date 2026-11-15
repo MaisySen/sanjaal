@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'about_page.dart';
 import 'api.dart';
 import 'auth_page.dart';
 import 'chat_pages.dart';
@@ -107,6 +108,12 @@ class ProfilePage extends StatelessWidget {
             title: const Text('Coin wallet'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalletPage(session: session))),
+          ),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About, privacy and terms'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
           ),
           const SizedBox(height: 24),
           FilledButton.tonalIcon(

@@ -147,6 +147,8 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       'topup' => 'eSewa top up',
       'transfer_in' => 'From $who',
       'transfer_out' => 'To $who',
+      'gift_in' => 'Gift from $who',
+      'gift_out' => 'Gift to $who',
       _ => e['kind'].toString(),
     };
   }

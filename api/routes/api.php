@@ -62,6 +62,8 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
 
     Route::post('/conversations/{conversation}/call-token', [ChatController::class, 'callToken'])->middleware('throttle:30,1');
     Route::get('/notifications/summary', [ChatController::class, 'summary']);
+    Route::get('/gifts', [\App\Http\Controllers\WalletController::class, 'gifts']);
+    Route::post('/posts/{postId}/gifts', [\App\Http\Controllers\WalletController::class, 'sendGift'])->middleware('throttle:60,1');
     Route::get('/wallet', [\App\Http\Controllers\WalletController::class, 'show']);
     Route::get('/wallet/entries', [\App\Http\Controllers\WalletController::class, 'entriesList']);
     Route::post('/wallet/transfer', [\App\Http\Controllers\WalletController::class, 'transfer'])->middleware('throttle:30,1');

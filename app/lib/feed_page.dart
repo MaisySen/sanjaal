@@ -2,6 +2,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'actions.dart';
+import 'gifts.dart';
 import 'api.dart';
 import 'notifications_page.dart';
 import 'profile_pages.dart';
@@ -271,6 +272,12 @@ class _PostCardState extends State<PostCard> {
             children: [
               ReactionButton(session: widget.session, post: widget.post),
               TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined), label: Text('$comments')),
+              if (!mine)
+                TextButton.icon(
+                  onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
+                  icon: const Icon(Icons.card_giftcard),
+                  label: const Text('Gift'),
+                ),
             ],
           ),
         ],

@@ -147,4 +147,25 @@ class WalletController extends Controller
             'created_at' => \Illuminate\Support\Carbon::parse($r->created_at)->toIso8601String(),
         ])->all();
     }
+
+    public function gifts(): JsonResponse
+    {
+        return response()->json(['data' => collect(Wallet::GIFTS)->map(fn ($g, $k) => ['key' => $k] + $g)->values()]);
+    }
+
+    /** Send a gift on a post or reel. Coins go from the sender to the creator. */
+    public function sendGift(Request $request, string $postId): JsonResponse
+    {
+        $data = $request->validate(['gift' => ['required', 'string', 'max:16']]);
+        $post = \App\Models\Post::where('public_id', $postId)->firstOrFail();
+        $me = $request->user();
+        try {
+            $gift = Wallet::gift($me, $post->user, $data['gift'], $post->id);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+        $total = (int) DB::table('gifts')->where('post_id', $post->id)->sum('coins');
+
+        return response()->json(['gift' => $gift, 'balance' => (int) $me->fresh()->coin_balance, 'post_gift_coins' => $total], 201);
+    }
 }

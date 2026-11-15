@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'api.dart';
 import 'feed_page.dart' show CommentsSheet;
+import 'gifts.dart';
 import 'profile_pages.dart';
 import 'reactions.dart';
 import 'ui.dart';
@@ -229,6 +230,7 @@ class _ReelItemState extends State<ReelItem> {
         child: Column(children: [
           ReactionButton(session: widget.session, post: widget.reel, dark: true),
           _side(Icons.mode_comment_outlined, '$comments', _comments),
+          _side(Icons.card_giftcard, 'Gift', () => showGiftSheet(context, widget.session, id, author['username'].toString())),
           _side(widget.muted ? Icons.volume_off : Icons.volume_up, widget.muted ? 'Muted' : 'Sound', widget.onToggleMute),
         ]),
       ),

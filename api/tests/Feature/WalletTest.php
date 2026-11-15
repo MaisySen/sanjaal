@@ -110,4 +110,22 @@ class WalletTest extends TestCase
         $this->postJson('/api/v1/wallet/topups', ['amount' => 100], $h)->assertStatus(503);
         $this->getJson('/api/v1/wallet', $h)->assertJsonPath('topup.esewa', false);
     }
+
+    public function test_gift_moves_coins_to_the_creator_and_records_it(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        Wallet::credit($a, 100, 'topup', 'seed-gift');
+        $post = $this->postJson('/api/v1/posts', ['body' => 'hello'], $hb)->assertCreated()->json('post.public_id');
+
+        $this->getJson('/api/v1/gifts', $ha)->assertOk()->assertJsonPath('data.0.key', 'rose');
+        $this->postJson("/api/v1/posts/$post/gifts", ['gift' => 'crown'], $ha)->assertCreated()
+            ->assertJsonPath('balance', 50)->assertJsonPath('post_gift_coins', 50)->assertJsonPath('gift.name', 'Crown');
+        $this->getJson('/api/v1/wallet', $hb)->assertJsonPath('balance', 50)->assertJsonPath('entries.0.kind', 'gift_in');
+
+        $this->postJson("/api/v1/posts/$post/gifts", ['gift' => 'rocket'], $ha)->assertStatus(422)->assertJsonPath('message', 'Not enough coins.');
+        $this->postJson("/api/v1/posts/$post/gifts", ['gift' => 'nope'], $ha)->assertStatus(422);
+        $this->postJson("/api/v1/posts/$post/gifts", ['gift' => 'rose'], $hb)->assertStatus(422);
+        $this->assertDatabaseCount('gifts', 1);
+    }
 }

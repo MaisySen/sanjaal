@@ -28,7 +28,7 @@ class Wallet
         });
     }
 
-    public static function transfer(User $from, User $to, int $amount, ?string $note = null): void
+    public static function transfer(User $from, User $to, int $amount, ?string $note = null, string $outKind = 'transfer_out', string $inKind = 'transfer_in'): void
     {
         if ($amount < 1 || $amount > self::MAX_TRANSFER) {
             throw new InvalidArgumentException('Amount must be between 1 and '.self::MAX_TRANSFER.' coins.');
@@ -36,7 +36,7 @@ class Wallet
         if ($from->id === $to->id) {
             throw new InvalidArgumentException('You cannot send coins to yourself.');
         }
-        DB::transaction(function () use ($from, $to, $amount, $note) {
+        DB::transaction(function () use ($from, $to, $amount, $note, $outKind, $inKind) {
             // Lock in id order so two opposite transfers cannot deadlock.
             $ids = [$from->id, $to->id];
             sort($ids);
@@ -49,9 +49,35 @@ class Wallet
             $ref = (string) Str::uuid();
             $a->forceFill(['coin_balance' => $a->coin_balance - $amount])->save();
             $b->forceFill(['coin_balance' => $b->coin_balance + $amount])->save();
-            self::write($a->id, 'transfer_out', -$amount, $a->coin_balance, $b->id, $ref.':out', $note);
-            self::write($b->id, 'transfer_in', $amount, $b->coin_balance, $a->id, $ref.':in', $note);
+            self::write($a->id, $outKind, -$amount, $a->coin_balance, $b->id, $ref.':out', $note);
+            self::write($b->id, $inKind, $amount, $b->coin_balance, $a->id, $ref.':in', $note);
         });
+    }
+
+    /** Gift catalogue. Coins move from the sender to the creator and the gift is recorded. */
+    public const GIFTS = [
+        'rose' => ['name' => 'Rose', 'coins' => 5],
+        'heart' => ['name' => 'Heart', 'coins' => 10],
+        'momo' => ['name' => 'Momo', 'coins' => 20],
+        'crown' => ['name' => 'Crown', 'coins' => 50],
+        'himal' => ['name' => 'Himal', 'coins' => 100],
+        'rocket' => ['name' => 'Rocket', 'coins' => 500],
+    ];
+
+    public static function gift(User $from, User $to, string $giftKey, ?int $postId): array
+    {
+        $gift = self::GIFTS[$giftKey] ?? null;
+        if (! $gift) {
+            throw new InvalidArgumentException('Unknown gift.');
+        }
+        self::transfer($from, $to, $gift['coins'], 'Gift: '.$gift['name'], 'gift_out', 'gift_in');
+        DB::table('gifts')->insert([
+            'public_id' => (string) Str::uuid(), 'sender_id' => $from->id, 'receiver_id' => $to->id,
+            'post_id' => $postId, 'gift' => $giftKey, 'coins' => $gift['coins'],
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        return $gift + ['key' => $giftKey];
     }
 
     private static function write(int $uid, string $kind, int $amount, int $balance, ?int $counterparty, string $ref, ?string $note): void

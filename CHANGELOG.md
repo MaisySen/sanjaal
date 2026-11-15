@@ -1,5 +1,9 @@
 # Changelog
 
+## Nov 16 capacity doc correction
+
+- CAPACITY_MODEL.md now uses measured Server-Timing figures and labels the knee numbers illustrative.
+
 ## 0.1.1 - 2026-11-15
 
 - API: feed, chat, media stored in Postgres, Auth0 token verification. Hosted at https://sanjaal-api.onrender.com.

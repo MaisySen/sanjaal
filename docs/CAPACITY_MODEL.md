@@ -8,7 +8,7 @@ Tool: Breakscale (https://github.com/workersio/breakscale, MIT licence, checked 
 
 Measured (16 Nov 2026, 5 single requests each from one test box to the live API, total time including network): ping 0.57 to 0.81 s, rooms list 1.37 to 1.50 s, feed 2.76 to 3.11 s. The php-fpm worker cap of 12 comes from `api/docker/www.conf`.
 
-Assumed, not measured: server time per request, taken as total time minus 0.65 s of network (ping), giving about 750 ms for the rooms list and 2,200 ms for the feed. The request mix, the database node's service time, and the Render free instance CPU limit are not measured. The simulator does not model the free instance sleeping, a cold start, or CPU starvation of 12 workers.
+Measured (Server-Timing header, 5 live requests each, Nov 16 00:03): feed app time 2.61 to 2.73 s with 1.59 to 1.64 s in the database over 7 queries (about 230 ms per query round trip); rooms list app time 1.24 to 1.39 s with 0.23 s in the database over 1 query, so about 1 s of non-database app time per request (cause not verified, possibly the free instance CPU). An earlier version of this model assumed server time as client total minus ping; that was not measured service time and the model's knee figures below were computed from it, so treat them as illustrative only. Not measured: the request mix, behaviour under concurrent load, cold starts and free instance sleep. The simulator does not model them.
 
 ## Result of the sweep (workers hold a slot for the whole request)
 

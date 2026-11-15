@@ -144,10 +144,7 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
-          working-directory: app
-          script: |
-            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/smoke_test.dart --no-pub
-            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/signed_in_test.dart --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)
+          script: sh .github/ci/emulator.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

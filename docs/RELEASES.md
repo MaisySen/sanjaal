@@ -57,3 +57,4 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - Live rooms (API plus app). CI and API tests only. Needs a two-device check: host audio reaching a listener, gift notice, end room.
 - Rooms chat and hand raise run over the LiveKit data channel. API lifecycle and privacy tested in PHPUnit. Not verified: audio, multi-device gifts and chat, the live speaker grant against LiveKit, app compile.
 - Reels depth in app: CI compile only, not run on a device. Feed following flag tested in PHPUnit.
+- Nepali calendar: BS month table from an open source project (2000 to 2099), checked against embassy holiday pairs. Canberra list has one internal conflict (29 Asoj), left out. Lunar festival dates beyond 2083 not provided. Device check pending.

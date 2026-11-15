@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'about_page.dart';
 import 'api.dart';
+import 'nepali_calendar_page.dart';
 import 'push.dart';
 import 'ui.dart';
 import 'wallet_page.dart';
@@ -44,6 +45,12 @@ class SettingsPage extends StatelessWidget {
           ValueListenableBuilder<String>(
             valueListenable: Push.status,
             builder: (context, v, child) => ListTile(leading: const Icon(Icons.notifications_outlined), title: Text(t_('Push notifications')), subtitle: Text(v)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_month_outlined),
+            title: Text(t_('Nepali calendar')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NepaliCalendarPage())),
           ),
           ListTile(
             leading: const Icon(Icons.account_balance_wallet_outlined),

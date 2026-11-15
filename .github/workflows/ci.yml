@@ -74,14 +74,6 @@ jobs:
           git config user.email ci@users.noreply.github.com
           git add . && git commit -qm "Rendered previews for ${GITHUB_SHA}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" renders
-      - name: Release build must refuse the test-only token setting
-        run: |
-          set +e
-          flutter build apk --release --dart-define=E2E_TOKEN_BASE=http://example.invalid > /tmp/refuse.log 2>&1
-          code=$?
-          if [ $code -eq 0 ]; then echo "::error title=E2E guard::release build accepted E2E_TOKEN_BASE"; exit 1; fi
-          if ! grep -q "E2E_TOKEN_BASE is for test builds only" /tmp/refuse.log; then echo "::error title=E2E guard::build failed for another reason"; tail -5 /tmp/refuse.log | sed 's/%/%25/g' | while read -r l; do echo "::error title=E2E guard log::$l"; done; exit 1; fi
-          echo "release build refused E2E_TOKEN_BASE as intended"
       - name: Build release APK
         run: |
           set +e

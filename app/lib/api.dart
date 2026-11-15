@@ -18,13 +18,8 @@ const auth0Domain = 'dev-rymtbo3wlo3tzsxv.us.auth0.com';
 /// every token's signature, issuer, audience and expiry.
 const _tokenBase = String.fromEnvironment('E2E_TOKEN_BASE');
 
-/// Compile-time check: a release or profile build with E2E_TOKEN_BASE set does not compile.
-class _TestOnlySetting {
-  const _TestOnlySetting()
-      : assert(_tokenBase == '' || !bool.fromEnvironment('dart.vm.product'), 'E2E_TOKEN_BASE is for test builds only and is refused in release builds');
-}
-
-const _testOnlySetting = _TestOnlySetting();
+/// True in release and profile builds. A build like that with E2E_TOKEN_BASE set refuses to sign in.
+const _isProductBuild = bool.fromEnvironment('dart.vm.product');
 const auth0ClientId = 'fKyNH32VRbrAFF1DUX3GRhKRW7gMR8yT';
 const auth0Audience = 'https://api.sanjaal.app';
 const socialScheme = 'au.fintex.sanjaal';
@@ -83,7 +78,9 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> _grant(Map<String, String> form) async {
-    assert(identical(_testOnlySetting, _testOnlySetting));
+    if (_tokenBase.isNotEmpty && _isProductBuild) {
+      throw ApiError('This build is not allowed to use a test token endpoint.');
+    }
     final http.Response r;
     try {
       r = await http

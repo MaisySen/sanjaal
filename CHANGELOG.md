@@ -2,7 +2,7 @@
 
 ## Release builds refuse E2E_TOKEN_BASE
 
-- Compile-time assert plus a CI step that a release build with the setting fails for that reason.
+- Runtime guard: a release or profile build with the setting refuses to sign in. The first compile-time attempt did not compile and was removed.
 
 ## Test-only token base
 

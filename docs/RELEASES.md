@@ -60,3 +60,4 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - Nepali calendar: BS month table from an open source project (2000 to 2099), checked against embassy holiday pairs. Canberra list has one internal conflict (29 Asoj), left out. Lunar festival dates beyond 2083 not provided. Device check pending.
 - Licence of the BS month table is unconfirmed (docs/THIRD_PARTY.md). Do not ship to a public store until settled.
 - BLOCKER: Nepali calendar table has an unresolved provenance gap (docs/THIRD_PARTY.md). Remove or replace before any APK.
+- Security review (Nov 2026): runtime PHP 8.4.23 is behind, Alpine 3.20 base is EOL, built-in server in production. Fixes tracked in docs/SECURITY.md.

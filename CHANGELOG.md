@@ -70,3 +70,4 @@
 - Nepali calendar (Settings): Bikram Sambat today, month grid, and named public days for 2083 BS from Nepal embassy lists. Converter tested against 30 published date pairs (CI).
 - Calendar shows today in Nepal time (UTC+5:45), says embassy lists are not a Nepal-wide notice, and docs/THIRD_PARTY.md records the data source and its open licence question.
 - Recorded the provenance review of the calendar table as an open release blocker.
+- API: removed the X-Powered-By version header (expose_php off), added nosniff, no-referrer, HSTS and frame-deny headers, closed the CORS wildcard (native app needs no browser origin).

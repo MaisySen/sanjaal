@@ -40,7 +40,7 @@ class Push {
       }
       _token = t;
       await s.call('POST', '/devices', body: {'token': t, 'platform': 'android'});
-      status.value = 'Registered. Delivery starts once the server side is switched on';
+      status.value = 'Device registered. Notifications are not being sent yet';
       _refreshSub ??= m.onTokenRefresh.listen((n) {
         _token = n;
         unawaited(s.call('POST', '/devices', body: {'token': n, 'platform': 'android'}).then((_) {}, onError: (_) {}));

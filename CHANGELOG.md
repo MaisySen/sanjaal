@@ -73,3 +73,4 @@
 - API: removed the X-Powered-By version header (expose_php off), added nosniff, no-referrer, HSTS and frame-deny headers, closed the CORS wildcard (native app needs no browser origin).
 - Security: API image v28 runs PHP 8.4.27 on Alpine 3.24 with Caddy and php-fpm (PHP2Shell CVE-2026-109618/109619 fixed). See docs/SECURITY.md.
 - API start script logs the running PHP, php-fpm, Caddy and Alpine versions at boot so the deployed runtime can be read from the service logs.
+- Docs: synthetic capacity sketch using the Breakscale engine locally (docs/CAPACITY_MODEL.md). Not measured production capacity.

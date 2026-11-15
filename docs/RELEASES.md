@@ -64,3 +64,4 @@ Video reels are merged into main (f963bad restored). The 2 GB build host cannot 
 - SECURITY: v26 and v27 ran PHP 8.4.23 (PHP2Shell affected). v28 fixes the runtime. Exposure window on the affected build was about 21 hours on 15 Nov 2026. Credentials rotated, see docs/SECURITY.md.
 - v29 adds a boot-time runtime version log line.
 - 2026-11-15 security: credentials rotated (APP_KEY, database, LiveKit, B2), eSewa confirmed as test values, Neon recovery and its old credential still open. Details in docs/SECURITY.md.
+- 2026-11-16 docs: docs/CAPACITY_MODEL.md, synthetic model only, no code change in the API or app.

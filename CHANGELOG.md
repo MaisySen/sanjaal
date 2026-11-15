@@ -1,5 +1,9 @@
 # Changelog
 
+## Voice message render
+
+- Render test for a chat with two voice message bubbles (mock data, layout only; playback not exercised).
+
 ## v30 deployed
 
 - v30 is live: route and event cache at start, plus the repo API code (including the inert media:move-to-b2 command, never run). config/cache.php was left as in v29 to avoid a second change. Rollback target: v29.

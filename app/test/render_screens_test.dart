@@ -33,6 +33,8 @@ String _ago(int mins) => DateTime.now().toUtc().subtract(Duration(minutes: mins)
 
 http.Response _json(Object o) => http.Response(jsonEncode(o), 200, headers: {'content-type': 'application/json'});
 
+bool _voiceMsgs = false;
+
 Future<http.Response> _reply(http.Request r) async {
   final p = r.url.path;
   if (p == '/oauth/token') return _json({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'});
@@ -91,6 +93,8 @@ Future<http.Response> _reply(http.Request r) async {
         m(1, 'asha', 'Namaste! Are you coming to the Dashain meetup on Saturday?', 50),
         m(2, 'me', 'Yes, I will bring sel roti.', 48),
         m(3, 'asha', 'Perfect. Dal bhat after the music.', 45),
+        if (_voiceMsgs) {...m(4, 'asha', '', 40), 'kind': 'voice', 'media_url': 'https://example.invalid/v.m4a'},
+        if (_voiceMsgs) {...m(5, 'me', '', 38), 'kind': 'voice', 'media_url': 'https://example.invalid/w.m4a'},
       ],
     });
   }
@@ -134,12 +138,13 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full']) {
+    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
+          _voiceMsgs = name == 'chat_voice';
           final key = GlobalKey();
           tester.view.physicalSize = name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
           tester.view.devicePixelRatio = 3;
@@ -152,6 +157,7 @@ void main() {
             'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, stage: [(id: 'me', name: 'Bidur Khatri', host: true, you: true, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false), (id: 'u4', name: 'Asha Gurung', host: false, you: false, muted: false, speaking: false)]),
             'room_listener' => _room(isHost: false, speaker: false, handUp: true, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
+            'chat_voice' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };

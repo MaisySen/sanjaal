@@ -49,4 +49,30 @@ class MediaTest extends TestCase
         $this->call('GET', "/api/v1/media/$id", [], [], [], ['HTTP_IF_NONE_MATCH' => '"'.$id.'"'])->assertStatus(304);
         $this->call('GET', "/api/v1/media/$id", [], [], [], ['HTTP_RANGE' => 'bytes=999-1000'])->assertStatus(416);
     }
+
+    public function test_b2_storage_keeps_bytes_out_of_the_database_and_redirects_reads(): void
+    {
+        config(['services.b2' => ['key_id' => 'k', 'key' => 's', 'bucket' => 'bkt', 'bucket_id' => 'bid']]);
+        \Illuminate\Support\Facades\Cache::flush();
+        \Illuminate\Support\Facades\Http::fake([
+            '*b2_authorize_account' => \Illuminate\Support\Facades\Http::response(['authorizationToken' => 'acct', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.b2.test', 'downloadUrl' => 'https://dl.b2.test']]]),
+            '*b2_get_upload_url' => \Illuminate\Support\Facades\Http::response(['uploadUrl' => 'https://up.b2.test/u', 'authorizationToken' => 'upl']),
+            'https://up.b2.test/u' => \Illuminate\Support\Facades\Http::response(['fileId' => 'f1']),
+            '*b2_get_download_authorization' => \Illuminate\Support\Facades\Http::response(['authorizationToken' => 'dl-token']),
+        ]);
+
+        [$user, $h] = $this->member('bina');
+        $file = \Illuminate\Http\UploadedFile::fake()->image('a.jpg', 20, 20);
+        $res = $this->post('/api/v1/posts', ['body' => 'hi', 'media' => [$file]], $h + ['Accept' => 'application/json']);
+        $res->assertCreated();
+
+        $row = DB::table('media_blobs')->first();
+        $this->assertSame('b2', $row->storage);
+        $this->assertSame('', $row->data);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r->url() === 'https://up.b2.test/u' && $r->hasHeader('X-Bz-File-Name') && $r->hasHeader('X-Bz-Content-Sha1'));
+
+        $get = $this->get('/api/v1/media/'.$row->public_id);
+        $get->assertStatus(302);
+        $this->assertSame('https://dl.b2.test/file/bkt/'.$row->public_id.'?Authorization=dl-token', $get->headers->get('Location'));
+    }
 }

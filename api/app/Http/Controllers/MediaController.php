@@ -17,8 +17,15 @@ class MediaController extends Controller
 {
     public function show(Request $request, string $publicId): Response
     {
-        $meta = DB::table('media_blobs')->select('public_id', 'mime', 'size')->where('public_id', $publicId)->first();
+        $meta = DB::table('media_blobs')->select('public_id', 'mime', 'size', 'storage')->where('public_id', $publicId)->first();
         abort_unless($meta, 404);
+
+        if ($meta->storage === 'b2') {
+            // Bytes live in object storage: send the client straight there (Range works there too).
+            return redirect()->away(\App\Support\MediaStore::url($publicId), 302, [
+                'Cache-Control' => 'private, max-age=3600',
+            ]);
+        }
 
         $size = (int) $meta->size;
         $headers = [

@@ -161,11 +161,7 @@ class ChatController extends Controller
             $mediaMime = $file->getMimeType();
             $kind = str_starts_with($mediaMime, 'image/') ? 'image' : 'voice';
             $mediaId = (string) \Illuminate\Support\Str::uuid();
-            DB::table('media_blobs')->insert([
-                'public_id' => $mediaId, 'mime' => $mediaMime, 'size' => $file->getSize(),
-                'data' => base64_encode(file_get_contents($file->getRealPath())),
-                'created_at' => now(), 'updated_at' => now(),
-            ]);
+            \App\Support\MediaStore::putFile($mediaId, $file);
         }
         $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->value('id') : null;
 

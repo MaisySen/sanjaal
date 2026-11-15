@@ -85,11 +85,7 @@ class PostController extends Controller
             foreach ($files as $file) {
                 $mime = $file->getMimeType();
                 $blob = (string) \Illuminate\Support\Str::uuid();
-                DB::table('media_blobs')->insert([
-                    'public_id' => $blob, 'mime' => $mime, 'size' => $file->getSize(),
-                    'data' => base64_encode(file_get_contents($file->getRealPath())),
-                    'created_at' => now(), 'updated_at' => now(),
-                ]);
+                \App\Support\MediaStore::putFile($blob, $file);
                 $path = $blob;
                 $post->media()->create([
                     'type' => str_starts_with($mime, 'video/') ? 'video' : 'image',
@@ -115,7 +111,7 @@ class PostController extends Controller
     {
         $post = Post::where('public_id', $publicId)->firstOrFail();
         abort_unless($post->user_id === $request->user()->id, 403, 'You can only delete your own posts.');
-        DB::table('media_blobs')->whereIn('public_id', $post->media()->pluck('path'))->delete();
+        \App\Support\MediaStore::delete($post->media()->pluck('path'));
         $post->delete();
 
         return response()->json(['message' => 'Deleted.']);

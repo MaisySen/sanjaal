@@ -52,3 +52,9 @@ Things to know:
 - Aiven powers the free service off after a period of no activity and emails first. To restart it, open the service in the Aiven console and press Power on. Real traffic keeps it awake.
 - The API host is in Ohio, so each query crosses the country. The API keeps database connections open per worker and we cut queries per request. Moving the API to the Render Oregon region would remove most of the delay.
 - Free plan has no connection pooling. Keep the API at 12 workers or fewer so we stay under 20 connections.
+
+## Media storage (Backblaze B2)
+
+New uploads go to a private B2 bucket (free tier: 10 GB stored, downloads free up to 3 times the stored size per day, no card on file). Postgres keeps a small row per file (id, type, size, storage). A read request returns a 302 to B2 with a download token the API caches for six days, so the API never streams media bytes and Render's 0.1 CPU is not on the media path. Old files stay in Postgres until moved.
+
+Limits to watch: 10 GB of storage is roughly 3,000 to 5,000 compressed videos at 2 to 3 MB each, or far more photos. Without a card, B2 stops accepting uploads at the cap rather than billing.

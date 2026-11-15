@@ -95,11 +95,7 @@ class ExtrasController extends Controller
         $file = $request->file('media');
         $blob = (string) Str::uuid();
         $mime = $file->getMimeType();
-        DB::table('media_blobs')->insert([
-            'public_id' => $blob, 'mime' => $mime, 'size' => $file->getSize(),
-            'data' => base64_encode(file_get_contents($file->getRealPath())),
-            'created_at' => now(), 'updated_at' => now(),
-        ]);
+        \App\Support\MediaStore::putFile($blob, $file);
         $pid = (string) Str::uuid();
         DB::table('stories')->insert([
             'public_id' => $pid, 'user_id' => $request->user()->id, 'media_id' => $blob, 'media_mime' => $mime,

@@ -48,6 +48,13 @@ return [
         'secret' => env('ESEWA_SECRET'),
     ],
 
+    'b2' => [
+        'key_id' => env('B2_KEY_ID'),
+        'key' => env('B2_APP_KEY'),
+        'bucket' => env('B2_BUCKET'),
+        'bucket_id' => env('B2_BUCKET_ID'),
+    ],
+
     'auth0' => [
         'domain' => env('AUTH0_DOMAIN'),
         'audience' => env('AUTH0_AUDIENCE'),

@@ -50,13 +50,9 @@ class SocialController extends Controller
         $file = $request->file('avatar');
         $user = $request->user();
         $id = (string) Str::uuid();
-        DB::table('media_blobs')->insert([
-            'public_id' => $id, 'mime' => $file->getMimeType(), 'size' => $file->getSize(),
-            'data' => base64_encode(file_get_contents($file->getRealPath())),
-            'created_at' => now(), 'updated_at' => now(),
-        ]);
+        \App\Support\MediaStore::putFile($id, $file);
         if ($user->avatar) {
-            DB::table('media_blobs')->where('public_id', $user->avatar)->delete();
+            \App\Support\MediaStore::delete([$user->avatar]);
         }
         $user->forceFill(['avatar' => $id])->save();
 

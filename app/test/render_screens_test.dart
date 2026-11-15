@@ -114,7 +114,8 @@ void main() {
             File('${out.path}/${name}_${b.name}.png').writeAsBytesSync(data!.buffer.asUint8List());
           });
           await tester.pumpWidget(const SizedBox());
-          await tester.pump(const Duration(seconds: 1));
+          await tester.pump(const Duration(seconds: 3));
+          await tester.pump(const Duration(seconds: 3));
         }, () => MockClient(_reply));
       });
     }

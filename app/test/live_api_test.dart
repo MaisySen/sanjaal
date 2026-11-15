@@ -16,7 +16,7 @@ void main() {
 
     Object? rejected;
     try {
-      await a.createPost('bad image', image: List<int>.filled(10, 1), mime: 'image/png', filename: 'x.png');
+      await a.createPost('bad image', files: [UploadFile(List<int>.filled(10, 1), 'image/png', 'x.png')]);
     } catch (e) {
       rejected = e;
     }

@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator interaction run
+
+- New emulator test: like, compose post, start chat and send, rooms list, wallet, with screenshots and screen recordings (local fixture API, synthetic member, not live services).
+
 ## Voice message render
 
 - Render test for a chat with two voice message bubbles (mock data, layout only; playback not exercised).

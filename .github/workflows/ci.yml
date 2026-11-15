@@ -157,14 +157,16 @@ jobs:
         if: always()
         with:
           name: emulator-screenshots
-          path: app/build/screenshots/*.png
+          path: |
+            app/build/screenshots/*.png
+            app/build/screenshots/*.mp4
           if-no-files-found: warn
       - name: Publish emulator screenshots
         if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
         continue-on-error: true
         run: |
           set -e
-          mkdir -p /tmp/shots && cp app/build/screenshots/*.png /tmp/shots/
+          mkdir -p /tmp/shots && cp app/build/screenshots/*.png app/build/screenshots/*.mp4 /tmp/shots/ 2>/dev/null || true
           cd /tmp/shots
           git init -q -b emulator-shots
           git config user.name ci

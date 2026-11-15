@@ -429,7 +429,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _attach() async {
-    final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
+    final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78);
     if (x == null || !mounted) return;
     final bytes = await x.readAsBytes();
     final cid = '${DateTime.now().microsecondsSinceEpoch}-${_n++}';

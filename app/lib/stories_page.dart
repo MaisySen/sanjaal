@@ -52,8 +52,8 @@ class _StoriesBarState extends State<StoriesBar> {
     );
     if (source == null) return;
     final x = source == 'photo'
-        ? await picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85)
-        : await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 30));
+        ? await picker.pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78)
+        : await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 20));
     if (x == null || !mounted) return;
     final bytes = await x.readAsBytes();
     if (!mounted) return;

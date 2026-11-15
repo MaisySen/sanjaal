@@ -452,7 +452,7 @@ class _ComposePageState extends State<ComposePage> {
   bool busy = false;
 
   Future<void> _pick() async {
-    final fs = await ImagePicker().pickMultiImage(maxWidth: 1600, imageQuality: 85, limit: 4);
+    final fs = await ImagePicker().pickMultiImage(maxWidth: 1280, imageQuality: 78, limit: 4);
     if (fs.isEmpty) return;
     setState(() {
       images = fs.take(4).toList();
@@ -461,7 +461,7 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _pickVideo() async {
-    final f = await ImagePicker().pickVideo(source: ImageSource.gallery, maxDuration: const Duration(minutes: 2));
+    final f = await ImagePicker().pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 60));
     if (f == null) return;
     if (await f.length() > 25 * 1024 * 1024) {
       if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');

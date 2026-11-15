@@ -57,4 +57,6 @@ Things to know:
 
 New uploads go to a private B2 bucket (free tier: 10 GB stored, downloads free up to 3 times the stored size per day, no card on file). Postgres keeps a small row per file (id, type, size, storage). A read request returns a 302 to B2 with a download token the API caches for six days, so the API never streams media bytes and Render's 0.1 CPU is not on the media path. Old files stay in Postgres until moved.
 
+Real free limits (checked in the B2 console, caps set to $0.00): 1 GB of downloads a day and 2,500 file downloads (Class B) a day. At the caps B2 refuses requests, it does not bill. The 2,500 downloads a day is the tight one: served straight from B2 it cannot carry 2,000 active users. The plan is a free edge cache in front of B2 (Cloudflare Pages Function on a pages.dev address, pending approval and a terms check for video). Until that is live, treat about 2,500 media loads a day as the true ceiling.
+
 Limits to watch: 10 GB of storage is roughly 3,000 to 5,000 compressed videos at 2 to 3 MB each, or far more photos. Without a card, B2 stops accepting uploads at the cap rather than billing.

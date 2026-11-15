@@ -14,7 +14,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/chat_pages.dart' show ChatPage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
-import 'package:sanjaal/rooms_page.dart' show RoomsPage;
+import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:sanjaal/wallet_page.dart' show WalletPage;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -85,6 +85,33 @@ Future<http.Response> _reply(http.Request r) async {
   return _json({'data': []});
 }
 
+Widget _room({bool isHost = false, bool speaker = false, bool handUp = false, bool failed = false, String status = 'Live', Map<String, String> hands = const {}, List<({String id, String name})> speakers = const []}) {
+  return RoomView(
+    title: 'Dashain bhajan night',
+    status: status,
+    failed: failed,
+    isHost: isHost,
+    speaker: speaker,
+    muted: false,
+    handUp: handUp,
+    inRoom: 14,
+    hands: hands,
+    speakers: speakers,
+    messages: [
+      {'from': 'Asha', 'text': 'Namaste everyone'},
+      {'from': 'Bikash', 'text': 'Beautiful song, please play another'},
+      {'from': 'Sunita', 'text': 'Joining from Sydney'},
+    ],
+    chat: TextEditingController(),
+    onEnd: () {},
+    onToggleMic: () {},
+    onRaise: () {},
+    onGift: () {},
+    onAllow: (id, allow) {},
+    onSend: () {},
+  );
+}
+
 void main() {
   setUpAll(() async {
     final root = Platform.environment['FLUTTER_ROOT'] ?? '';
@@ -94,7 +121,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['wallet', 'gift', 'chat', 'rooms']) {
+    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -108,11 +135,14 @@ void main() {
           final Widget home = switch (name) {
             'wallet' => WalletPage(session: s),
             'rooms' => RoomsPage(session: s),
+            'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, speakers: [(id: 'u3', name: 'Sunita Rai')]),
+            'room_listener' => _room(isHost: false, speaker: false, handUp: true),
+            'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = name != 'gift';
+          final pushed = name != 'gift' && !name.startsWith('room_');
           await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));

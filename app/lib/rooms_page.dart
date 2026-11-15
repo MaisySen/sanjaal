@@ -278,10 +278,76 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   Widget build(BuildContext context) {
+    return RoomView(
+      title: title,
+      status: status,
+      failed: failed,
+      isHost: isHost,
+      speaker: speaker,
+      muted: muted,
+      handUp: handUp,
+      inRoom: room.remoteParticipants.length + (failed ? 0 : 1),
+      hands: hands,
+      speakers: [for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish)) (id: p.identity, name: p.name)],
+      messages: messages,
+      chat: _chat,
+      onEnd: _end,
+      onToggleMic: _toggleMic,
+      onRaise: _raise,
+      onGift: _gift,
+      onAllow: _allow,
+      onSend: _sendChat,
+    );
+  }
+}
+
+/// The room screen as plain data and callbacks, so it can be rendered in tests without LiveKit.
+class RoomView extends StatelessWidget {
+  const RoomView({
+    super.key,
+    required this.title,
+    required this.status,
+    required this.failed,
+    required this.isHost,
+    required this.speaker,
+    required this.muted,
+    required this.handUp,
+    required this.inRoom,
+    required this.hands,
+    required this.speakers,
+    required this.messages,
+    required this.chat,
+    required this.onEnd,
+    required this.onToggleMic,
+    required this.onRaise,
+    required this.onGift,
+    required this.onAllow,
+    required this.onSend,
+  });
+  final String title;
+  final String status;
+  final bool failed;
+  final bool isHost;
+  final bool speaker;
+  final bool muted;
+  final bool handUp;
+  final int inRoom;
+  final Map<String, String> hands;
+  final List<({String id, String name})> speakers;
+  final List<Map<String, String>> messages;
+  final TextEditingController chat;
+  final VoidCallback onEnd;
+  final VoidCallback onToggleMic;
+  final VoidCallback onRaise;
+  final VoidCallback onGift;
+  final void Function(String id, bool allow) onAllow;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final inRoom = room.remoteParticipants.length + (failed ? 0 : 1);
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: [if (isHost && !failed) TextButton(onPressed: _end, child: const Text('End'))]),
+      appBar: AppBar(title: Text(title), actions: [if (isHost && !failed) TextButton(onPressed: onEnd, child: const Text('End'))]),
       body: failed
           ? Center(
               child: Padding(
@@ -302,9 +368,9 @@ class _RoomPageState extends State<RoomPage> {
                   Icon(Icons.graphic_eq, color: scheme.primary),
                   const SizedBox(width: 8),
                   Expanded(child: Text('$status . $inRoom in the room')),
-                  if (speaker) IconButton.filledTonal(tooltip: muted ? 'Unmute' : 'Mute', onPressed: _toggleMic, icon: Icon(muted ? Icons.mic_off : Icons.mic)),
-                  if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : _raise, icon: const Icon(Icons.back_hand_outlined), label: Text(handUp ? 'Hand raised' : 'Raise hand')),
-                  if (!isHost) IconButton(tooltip: 'Send a gift', onPressed: _gift, icon: const Icon(Icons.card_giftcard)),
+                  if (speaker) IconButton.filledTonal(tooltip: muted ? 'Unmute' : 'Mute', onPressed: onToggleMic, icon: Icon(muted ? Icons.mic_off : Icons.mic)),
+                  if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const Icon(Icons.back_hand_outlined), label: Text(handUp ? 'Hand raised' : 'Raise hand')),
+                  if (!isHost) IconButton(tooltip: 'Send a gift', onPressed: onGift, icon: const Icon(Icons.card_giftcard)),
                 ]),
               ),
               if (isHost && hands.isNotEmpty)
@@ -317,18 +383,18 @@ class _RoomPageState extends State<RoomPage> {
                         leading: const Icon(Icons.back_hand_outlined),
                         title: Text(h.value.isEmpty ? 'Member' : h.value),
                         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          TextButton(onPressed: () => _allow(h.key, false), child: const Text('Dismiss')),
-                          FilledButton(onPressed: () => _allow(h.key, true), child: const Text('Let speak')),
+                          TextButton(onPressed: () => onAllow(h.key, false), child: const Text('Dismiss')),
+                          FilledButton(onPressed: () => onAllow(h.key, true), child: const Text('Let speak')),
                         ]),
                       ),
                   ]),
                 ),
-              if (isHost && room.remoteParticipants.values.any((p) => p.permissions.canPublish))
+              if (isHost && speakers.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
                   child: Wrap(spacing: 8, children: [
-                    for (final p in room.remoteParticipants.values.where((p) => p.permissions.canPublish))
-                      ActionChip(avatar: const Icon(Icons.mic, size: 16), label: Text('${p.name.isEmpty ? 'Member' : p.name}  take mic'), onPressed: () => _allow(p.identity, false)),
+                    for (final p in speakers)
+                      ActionChip(avatar: const Icon(Icons.mic, size: 16), label: Text('${p.name.isEmpty ? 'Member' : p.name}  take mic'), onPressed: () => onAllow(p.id, false)),
                   ]),
                 ),
               const Divider(height: 16),
@@ -355,9 +421,9 @@ class _RoomPageState extends State<RoomPage> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                   child: Row(children: [
-                    Expanded(child: TextField(controller: _chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => _sendChat())),
+                    Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => onSend())),
                     const SizedBox(width: 8),
-                    IconButton.filled(onPressed: _sendChat, icon: const Icon(Icons.send)),
+                    IconButton.filled(onPressed: onSend, icon: const Icon(Icons.send)),
                   ]),
                 ),
               ),
@@ -365,3 +431,4 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 }
+

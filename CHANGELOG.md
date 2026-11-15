@@ -1,5 +1,9 @@
 # Changelog
 
+## RoomView split
+
+- The room screen is now a RoomView widget that takes plain data and callbacks; RoomPage feeds it from LiveKit. CI renders host, listener and failed states. Layout only, no audio.
+
 ## Account deletion design
 
 - Added docs/ACCOUNT_DELETION_DESIGN.md: store requirements from official sources, proposed flow, and open decisions. Nothing implemented, nothing promised to users.

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'ui.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key, required this.session});
@@ -65,9 +66,11 @@ class _AuthPageState extends State<AuthPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Sanjaal', textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall),
+                    const Center(child: Logo(size: 84)),
+                    const SizedBox(height: 16),
+                    Text('Sanjaal', textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 4),
-                    const Text('Your Nepali community', textAlign: TextAlign.center),
+                    Text(t_('Your Nepali community'), textAlign: TextAlign.center),
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _email,
@@ -107,7 +110,7 @@ class _AuthPageState extends State<AuthPage> {
                       onPressed: busy ? null : _submit,
                       child: busy
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text(register ? 'Create account' : 'Sign in'),
+                          : Text(register ? t_('Create account') : t_('Sign in')),
                     ),
                     TextButton(
                       onPressed: busy ? null : () => setState(() {

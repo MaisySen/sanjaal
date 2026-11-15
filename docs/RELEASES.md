@@ -2,6 +2,12 @@
 
 Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
+## 0.3.0 full app rebuild (in progress)
+
+New app shell and the missing v1 screens. Home (For you and Following, search, notifications), full screen Reels pager, Chats (with a member picker and groups), Wallet and Me as five tabs; onboarding; Sanjaal brand, light and dark theme, English and Nepali for the main labels; profiles with avatar upload, bio, follow counts, follow and message buttons; search for people and hashtags; hashtag pages; notifications for likes, comments and follows; comment replies and delete; up to four photos per post with full screen viewing; report and block; settings with blocked list, contact and account deletion request. API image v7 adds the matching routes.
+
+Not in 0.3.0: Khalti, Facebook and Apple sign in, push, cash out, and voice or image messages in chat. Not tested on a physical device.
+
 ## 0.2.0 Android and iOS, 2026-11-15
 
 Built by CI from tag v0.2.0 and published at https://github.com/MaisySen/sanjaal/releases/tag/v0.2.0 with SHA256SUMS.txt. Most phones need app-arm64-v8a-release.apk. The IPA is unsigned and cannot be installed on a phone until it is signed with an Apple account.

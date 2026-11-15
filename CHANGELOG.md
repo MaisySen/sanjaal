@@ -7,6 +7,9 @@
 
 ## Unreleased
 
+- 0.3.0 rebuild of the Flutter app: five tab shell, onboarding, brand theme with dark mode, English and Nepali labels, reels pager, profiles with avatars and follow, search, hashtag pages, notifications screen, settings, comment replies, multi photo posts, report and block, member picker for new chats.
+- API: GET /users/{username}, /users/search, POST /auth/me/avatar, bio on PATCH /auth/me, GET /notifications, block and report routes, comment replies and delete. Feeds hide blocked members. API tests: 30 passing.
+
 - Merged video reels (streaming playback) back into main.
 - Added GitHub Actions CI: API tests, Flutter analyze and test, release APK artifact, unsigned iOS IPA artifact on a macOS runner.
 - Added the iOS platform (bundle id au.fintex.sanjaal) with photo, camera and microphone permission strings.

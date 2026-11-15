@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
-import 'feed_page.dart' show ago, showError;
+import 'ui.dart';
 
 /// Coin wallet. 1 coin = NPR 1 of verified top up. Coins move between members. There is no cash out.
 class WalletPage extends StatefulWidget {

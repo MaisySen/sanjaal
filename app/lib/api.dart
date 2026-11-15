@@ -241,16 +241,16 @@ class Session extends ChangeNotifier {
     throw ApiError('Please sign in again.', 401);
   }
 
-  Future<Map<String, dynamic>> createPost(String body, {List<int>? image, String? mime, String? filename, bool reel = false}) async {
+  /// Posts text and up to 4 files. [files] are (bytes, mime, filename).
+  Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false}) async {
     final token = await _token();
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/posts'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
       ..fields['kind'] = reel ? 'reel' : 'post';
     if (body.isNotEmpty) req.fields['body'] = body;
-    if (image != null) {
-      req.files.add(http.MultipartFile.fromBytes('media[]', image,
-          filename: filename ?? 'photo', contentType: MediaType.parse(mime ?? 'image/jpeg')));
+    for (final f in files) {
+      req.files.add(http.MultipartFile.fromBytes('media[]', f.bytes, filename: f.name, contentType: MediaType.parse(f.mime)));
     }
     final http.Response r;
     try {
@@ -262,4 +262,43 @@ class Session extends ChangeNotifier {
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     return (j['post'] ?? j) as Map<String, dynamic>;
   }
+
+  Future<void> uploadAvatar(UploadFile f) async {
+    final token = await _token();
+    final req = http.MultipartRequest('POST', Uri.parse('$apiBase/auth/me/avatar'))
+      ..headers['Authorization'] = 'Bearer $token'
+      ..headers['Accept'] = 'application/json'
+      ..files.add(http.MultipartFile.fromBytes('avatar', f.bytes, filename: f.name, contentType: MediaType.parse(f.mime)));
+    final http.Response r;
+    try {
+      r = await http.Response.fromStream(await req.send().timeout(_wait));
+    } catch (_) {
+      throw ApiError('Upload failed. Check your connection and try again.');
+    }
+    if (r.statusCode != 200) throw ApiError(_errorText(r), r.statusCode);
+    user = {...?user, ...((jsonDecode(r.body) as Map)['user'] as Map).cast<String, dynamic>()};
+    notifyListeners();
+  }
+
+  Future<void> updateProfile(Map<String, dynamic> fields) async {
+    final j = await call('PATCH', '/auth/me', body: fields) as Map<String, dynamic>;
+    user = {...?user, ...(j['user'] as Map).cast<String, dynamic>()};
+    notifyListeners();
+  }
+}
+
+class UploadFile {
+  UploadFile(this.bytes, this.mime, this.name);
+  final List<int> bytes;
+  final String mime;
+  final String name;
+}
+
+String mimeFor(String name, {bool video = false}) {
+  final n = name.toLowerCase();
+  if (n.endsWith('.png')) return 'image/png';
+  if (n.endsWith('.webp')) return 'image/webp';
+  if (n.endsWith('.mp4')) return 'video/mp4';
+  if (n.endsWith('.mov')) return 'video/quicktime';
+  return video ? 'video/mp4' : 'image/jpeg';
 }

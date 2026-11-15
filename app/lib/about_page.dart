@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-const appVersion = '0.2.0';
+const appVersion = '0.3.0';
 
 /// About, privacy and terms. Plain text, no network needed.
 class AboutPage extends StatelessWidget {

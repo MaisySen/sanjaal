@@ -1,13 +1,29 @@
-import 'package:material_ui/material_ui.dart';
 import 'dart:async';
-import 'about_page.dart';
+import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'auth_page.dart';
 import 'chat_pages.dart';
 import 'feed_page.dart';
+import 'onboarding_page.dart';
+import 'profile_pages.dart';
+import 'reels_page.dart';
+import 'ui.dart';
 import 'wallet_page.dart';
 
 void main() => runApp(const SanjaalApp());
+
+ThemeData _theme(Brightness b) {
+  final scheme = ColorScheme.fromSeed(seedColor: brandRed, secondary: brandBlue, brightness: b);
+  return ThemeData(
+    colorScheme: scheme,
+    useMaterial3: true,
+    appBarTheme: AppBarTheme(centerTitle: false, backgroundColor: scheme.surface, scrolledUnderElevation: 1),
+    cardTheme: CardThemeData(elevation: 0, color: scheme.surfaceContainerLow, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+    navigationBarTheme: NavigationBarThemeData(indicatorColor: scheme.primaryContainer, labelTextStyle: const WidgetStatePropertyAll(TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), minimumSize: const Size(64, 46))),
+    inputDecorationTheme: InputDecorationTheme(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+  );
+}
 
 class SanjaalApp extends StatefulWidget {
   const SanjaalApp({super.key});
@@ -21,27 +37,35 @@ class _SanjaalAppState extends State<SanjaalApp> {
   @override
   void initState() {
     super.initState();
+    prefs.load();
     session.restore();
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Sanjaal',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFC8102E)),
-        useMaterial3: true,
-      ),
-      home: ListenableBuilder(
-        listenable: session,
-        builder: (context, _) {
-          if (session.loading) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator()));
-          }
-          if (session.user == null) return AuthPage(session: session);
-          return HomeShell(session: session);
-        },
+    return ListenableBuilder(
+      listenable: prefs,
+      builder: (context, _) => MaterialApp(
+        title: 'Sanjaal',
+        debugShowCheckedModeBanner: false,
+        theme: _theme(Brightness.light),
+        darkTheme: _theme(Brightness.dark),
+        themeMode: prefs.mode,
+        home: KeyedSubtree(
+          key: ValueKey(prefs.lang),
+          child: ListenableBuilder(
+            listenable: session,
+            builder: (context, _) {
+              if (session.loading || !prefs.ready) {
+                return const Scaffold(body: Center(child: Logo(size: 96)));
+              }
+              if (session.user == null) {
+                return prefs.seenOnboarding ? AuthPage(session: session) : const OnboardingPage();
+              }
+              return HomeShell(session: session);
+            },
+          ),
+        ),
       ),
     );
   }
@@ -58,6 +82,7 @@ class _HomeShellState extends State<HomeShell> {
   int tab = 0;
   int unread = 0;
   Timer? _poll;
+  final feedKey = GlobalKey<FeedListState>();
 
   @override
   void initState() {
@@ -80,12 +105,23 @@ class _HomeShellState extends State<HomeShell> {
     } catch (_) {}
   }
 
+  Future<void> _compose() async {
+    final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session)));
+    if (p != null && mounted) {
+      showInfo(context, p['kind'] == 'reel' ? 'Your reel is live in the Reels tab.' : 'Posted. Pull down on Home to refresh.');
+      setState(() => tab = p['kind'] == 'reel' ? 1 : 0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = widget.session;
     final pages = [
-      FeedPage(session: widget.session),
-      ChatsPage(session: widget.session),
-      ProfilePage(session: widget.session),
+      FeedPage(session: s, onCompose: _compose),
+      ReelsPage(session: s, active: tab == 1),
+      ChatsPage(session: s),
+      WalletPage(session: s),
+      MePage(session: s),
     ];
     return Scaffold(
       body: IndexedStack(index: tab, children: pages),
@@ -96,65 +132,15 @@ class _HomeShellState extends State<HomeShell> {
           _refreshUnread();
         },
         destinations: [
-          const NavigationDestination(icon: Icon(Icons.dynamic_feed_outlined), selectedIcon: Icon(Icons.dynamic_feed), label: 'Feed'),
+          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: t_('Home')),
+          NavigationDestination(icon: const Icon(Icons.play_circle_outline), selectedIcon: const Icon(Icons.play_circle), label: t_('Reels')),
           NavigationDestination(
             icon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble_outline)),
             selectedIcon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble)),
-            label: 'Chats',
+            label: t_('Chats'),
           ),
-          const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Me'),
-        ],
-      ),
-    );
-  }
-}
-
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key, required this.session});
-  final Session session;
-
-  @override
-  Widget build(BuildContext context) {
-    final u = session.user!;
-    final name = (u['name'] ?? '').toString();
-    final username = (u['username'] ?? '').toString();
-    return Scaffold(
-      appBar: AppBar(title: const Text('Me')),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Center(
-            child: CircleAvatar(
-              radius: 40,
-              child: Text((username.isEmpty ? name : username).characters.firstOrNull?.toUpperCase() ?? '?',
-                  style: const TextStyle(fontSize: 32)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(child: Text(username.isEmpty ? name : '@$username', style: Theme.of(context).textTheme.titleLarge)),
-          if (name.isNotEmpty && name != username) Center(child: Text(name)),
-          const SizedBox(height: 24),
-          ListTile(
-            leading: const Icon(Icons.account_balance_wallet),
-            title: const Text('Coin wallet'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalletPage(session: session))),
-          ),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('About, privacy and terms'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.tonalIcon(
-            onPressed: () => session.logout(),
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
-          ),
-          const SizedBox(height: 32),
-          const Text('Sanjaal 0.1.1\nPublished by Fintex Australia Pty Ltd (ABN 60 688 406 108)\ncontact@fintex.au',
-              textAlign: TextAlign.center),
+          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: t_('Wallet')),
+          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t_('Me')),
         ],
       ),
     );

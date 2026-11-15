@@ -13,6 +13,7 @@ import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/chat_pages.dart' show ChatPage;
+import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
 import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
 import 'package:sanjaal/main.dart' show buildTheme;
@@ -56,6 +57,17 @@ Future<http.Response> _reply(http.Request r) async {
         {'public_id': 'r3', 'title': 'Sydney Nepali meetup planning', 'host_name': 'Sunita Rai'},
       ]
     });
+  }
+  if (p == '/api/v1/users/asha') {
+    return _json({'user': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 2, 'followers_count': 1240, 'following_count': 87, 'following': false, 'is_me': false}});
+  }
+  if (p.endsWith('/posts') && r.url.queryParameters['username'] == 'asha') {
+    Map<String, dynamic> post(String id, String body, int likes) => {
+          'public_id': id, 'kind': 'post', 'body': body, 'media': <dynamic>[], 'hashtags': ['pokhara'],
+          'author': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'avatar_url': null},
+          'likes_count': likes, 'comments_count': 3, 'liked': false, 'my_reaction': null, 'reactions': {'like': likes}, 'created_at': _ago(180),
+        };
+    return _json({'data': [post('p1', 'Sunrise over Phewa lake this morning. Dal bhat after the boat ride.', 128), post('p2', 'Rehearsal for the Dashain concert tonight.', 54)], 'next_cursor': null});
   }
   if (p.endsWith('/wallet')) {
     return _json({
@@ -122,7 +134,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short']) {
+    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -135,6 +147,7 @@ void main() {
           final theme = buildTheme(b, fontFamily: 'Roboto');
           final Widget home = switch (name) {
             'wallet' => WalletPage(session: s),
+            'profile_full' => UserProfilePage(session: s, username: 'asha'),
             'rooms' => RoomsPage(session: s),
             'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, stage: [(id: 'me', name: 'Bidur Khatri', host: true, you: true, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false), (id: 'u4', name: 'Asha Gurung', host: false, you: false, muted: false, speaking: false)]),
             'room_listener' => _room(isHost: false, speaker: false, handUp: true, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false)]),

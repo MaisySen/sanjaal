@@ -1,5 +1,9 @@
 # Changelog
 
+## Populated profile render
+
+- Render test for a member profile with counts and two posts (mock data, layout only).
+
 ## Gift sheet test
 
 - Widget test: tapping a gift the balance cannot cover sends no request and shows the shortfall.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator flow test robustness
+
+- Waits for the compose page, and returns to the tabs after a failed step so later steps still run.
+
 ## Emulator CI timeouts
 
 - Emulator drive runs are capped at 10 minutes each and the job at 40.

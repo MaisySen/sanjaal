@@ -7,6 +7,12 @@ import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
 import 'package:shared_preferences/shared_preferences.dart';
 
+Future<void> _until(WidgetTester t, Finder f, {int tries = 24}) async {
+  for (var i = 0; i < tries && f.evaluate().isEmpty; i++) {
+    await t.pump(const Duration(milliseconds: 500));
+  }
+}
+
 Future<void> _settle(WidgetTester t, [int n = 10]) async {
   for (var i = 0; i < n; i++) {
     await t.pump(const Duration(milliseconds: 500));
@@ -38,6 +44,13 @@ void main() {
         try {
           await binding.takeScreenshot('fail_$name');
         } catch (_) {}
+        // Return to the tabs so later steps are not hidden behind a pushed page.
+        for (var i = 0; i < 4 && find.text('Wallet').evaluate().isEmpty; i++) {
+          try {
+            await tester.pageBack();
+            await tester.pump(const Duration(milliseconds: 500));
+          } catch (_) {}
+        }
       }
     }
 
@@ -49,7 +62,7 @@ void main() {
     });
     await step('s1', () async {
       await tester.tap(find.byTooltip('Post'));
-      await _settle(tester, 4);
+      await _until(tester, find.byType(TextField));
       await tester.enterText(find.byType(TextField).first, 'Posted from the emulator run #sanjaal');
       await tester.pump();
       await binding.takeScreenshot('flow3_compose');

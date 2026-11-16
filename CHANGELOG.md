@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator fixture and dark capture
+
+- CI fixture (test-only, local database) gets four more invented posts from fake members, one in Nepali, one long. Signed-in emulator test also captures dark theme feed, profile and wallet.
+
 ## CI honesty
 
 - Emulator job no longer hides a failing flows test (continue-on-error removed). New docs/VERIFICATION_STATUS.md lists which flows pass, fail or are unverified.

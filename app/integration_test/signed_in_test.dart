@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
+import 'package:sanjaal/ui.dart' show prefs;
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _token = String.fromEnvironment('E2E_TOKEN');
@@ -43,5 +45,22 @@ void main() {
     }
     await binding.takeScreenshot('signed_in_profile');
     expect(find.textContaining('Synthetic Member'), findsWidgets);
+
+    // Dark theme capture (same fixture, same screens).
+    await prefs.setMode(ThemeMode.dark);
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    await binding.takeScreenshot('dark_profile');
+    await tester.tap(find.text('Home'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    await binding.takeScreenshot('dark_feed');
+    await tester.tap(find.text('Wallet'));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    await binding.takeScreenshot('dark_wallet');
   });
 }

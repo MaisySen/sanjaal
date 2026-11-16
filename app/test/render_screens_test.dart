@@ -35,7 +35,7 @@ import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
 import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
 import 'package:sanjaal/main.dart' show buildTheme, HomeShell;
-import 'package:sanjaal/feed_page.dart' show ComposePage, CreateSheet, feedImageProvider;
+import 'package:sanjaal/feed_page.dart' show ComposePage, CreateSheet, PostCard, feedImageProvider;
 import 'package:sanjaal/wallet_page.dart' show WalletPage;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -62,7 +62,7 @@ Future<http.Response> _reply(http.Request r) async {
   if (_failSend && r.method == 'POST' && r.url.path.endsWith('/messages')) return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
   final p = r.url.path;
   if (p == '/oauth/token') return _json({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'});
-  if (p.endsWith('/auth/me')) return _json({'user': {'public_id': 'me', 'name': 'Bidur', 'username': 'bidur'}});
+  if (p.endsWith('/auth/me')) return _json({'features': {'polls': true}, 'user': {'public_id': 'me', 'name': 'Bidur', 'username': 'bidur'}});
   if (p.endsWith('/gifts')) {
     return _json({
       'data': [
@@ -251,7 +251,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -278,7 +278,8 @@ void main() {
             'shell' || 'shell_reel' => HomeShell(session: s),
             'reels_empty' || 'reels_error' => ReelsPage(session: s, active: true, onCreate: () async {}),
             'following_empty' || 'following_error' => FeedPage(session: s, onCompose: () async {}),
-            'compose' => ComposePage(session: s),
+            'compose' || 'compose_poll' => ComposePage(session: s),
+            'poll' => Scaffold(appBar: AppBar(title: const Text('Post')), body: SingleChildScrollView(child: PostCard(session: s, onRemoved: () {}, post: {'public_id': 'poll1', 'kind': 'post', 'body': 'Which day works for the community picnic?', 'author': {'public_id': 'me', 'username': 'bidur', 'name': 'Bidur Khatri'}, 'media': [], 'hashtags': [], 'poll': {'options': [{'choice': 0, 'text': 'Saturday afternoon', 'votes': 12}, {'choice': 1, 'text': 'Sunday morning', 'votes': 8}], 'total_votes': 20, 'my_choice': 0}, 'created_at': _ago(45)}))),
             'create' => const Scaffold(backgroundColor: Colors.black, body: Align(alignment: Alignment.bottomCenter, child: Material(color: Color(0xFF1A1D24), borderRadius: BorderRadius.vertical(top: Radius.circular(28)), child: CreateSheet()))),
             'about' || 'about_big' => const AboutPage(),
             'search' || 'search_results' || 'search_none' || 'search_error' => SearchPage(session: s),
@@ -317,6 +318,15 @@ void main() {
           if (name.endsWith('_offline')) {
             s.setOffline(true);
             await tester.pump(const Duration(milliseconds: 300));
+          }
+          if (base == 'compose_poll') {
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 400));
+            await tester.tap(find.text('Poll'));
+            await tester.pump(const Duration(milliseconds: 400));
+            await tester.enterText(find.byType(TextField).at(0), 'Which day works for the picnic?');
+            await tester.enterText(find.byType(TextField).at(1), 'Saturday afternoon');
+            await tester.enterText(find.byType(TextField).at(2), 'Sunday morning');
           }
           if (base == 'shell_reel') {
             await tester.pump();

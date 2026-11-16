@@ -58,6 +58,7 @@ class Session extends ChangeNotifier {
   String? _refresh;
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   Map<String, dynamic>? user;
+  bool pollsEnabled = false;
   bool loading = true;
   /// Sign-in header for files that need it (chat photos). Used by widgets that cannot await.
   Map<String, String> get mediaHeaders => {if (_access != null) 'Authorization': 'Bearer $_access'};
@@ -220,6 +221,7 @@ class Session extends ChangeNotifier {
   Future<void> _loadMe() async {
     final j = await call('GET', '/auth/me') as Map<String, dynamic>;
     user = (j['user'] ?? j) as Map<String, dynamic>;
+    pollsEnabled = (j['features'] as Map?)?['polls'] == true;
     unawaited(Push.register(this));
   }
 
@@ -233,6 +235,7 @@ class Session extends ChangeNotifier {
     _access = null;
     _refresh = null;
     user = null;
+    pollsEnabled = false;
     await RefreshStore.clear();
   }
 
@@ -288,13 +291,16 @@ class Session extends ChangeNotifier {
   }
 
   /// Posts text and up to 4 files. [files] are (bytes, mime, filename).
-  Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false}) async {
+  Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false, List<String>? pollOptions}) async {
     final token = await _token();
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/posts'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
       ..fields['kind'] = reel ? 'reel' : 'post';
     if (body.isNotEmpty) req.fields['body'] = body;
+    if (pollOptions != null) {
+      for (var i = 0; i < pollOptions.length; i++) req.fields['poll_options[$i]'] = pollOptions[i];
+    }
     for (final f in files) {
       req.files.add(http.MultipartFile.fromBytes('media[]', f.bytes, filename: f.name, contentType: MediaType.parse(f.mime)));
     }

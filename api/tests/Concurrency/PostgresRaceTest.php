@@ -155,4 +155,25 @@ class PostgresRaceTest extends TestCase
         $this->assertSame(1000, (int) $u->fresh()->coin_balance);
         $this->assertSame(1, DB::table('wallet_entries')->where('kind', 'withdraw_release')->count());
     }
+    public function test_parallel_poll_choices_count_each_member_once(): void
+    {
+        $a = $this->user('asha');
+        $this->user('bina');
+        $p = \App\Models\Post::create(['user_id' => $a->id, 'kind' => 'post', 'body' => 'Day?', 'poll_options' => ['A', 'B']]);
+        $codes = $this->race(array_map(fn ($i) => ['bina', 'POST', "/api/v1/posts/{$p->public_id}/poll/vote", ['choice' => $i % 2]], range(1, 6)));
+        $this->assertSame(array_fill(0, 6, 200), $codes);
+        $this->assertSame(1, DB::table('poll_votes')->where('post_id', $p->id)->count());
+    }
+
+    public function test_parallel_poll_vote_and_delete_leave_no_votes(): void
+    {
+        $a = $this->user('asha');
+        $this->user('bina');
+        $p = \App\Models\Post::create(['user_id' => $a->id, 'kind' => 'post', 'body' => 'Day?', 'poll_options' => ['A', 'B']]);
+        $codes = $this->race([['asha', 'DELETE', "/api/v1/posts/{$p->public_id}", []], ['bina', 'POST', "/api/v1/posts/{$p->public_id}/poll/vote", ['choice' => 0]]]);
+        $this->assertSame(200, $codes[0]);
+        $this->assertContains($codes[1], [200, 404]);
+        $this->assertSame(0, DB::table('poll_votes')->where('post_id', $p->id)->count());
+    }
+
 }

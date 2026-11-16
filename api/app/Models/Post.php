@@ -15,6 +15,8 @@ class Post extends Model
 
     protected $guarded = [];
 
+    protected $casts = ['poll_options' => 'array'];
+
     protected static function booted(): void
     {
         static::creating(fn (Post $p) => $p->public_id ??= (string) Str::uuid());

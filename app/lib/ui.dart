@@ -95,6 +95,16 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Poll': 'मत सर्वेक्षण',
+  'Option': 'विकल्प',
+  'Add option': 'विकल्प थप्नुहोस्',
+  'Remove poll': 'मत सर्वेक्षण हटाउनुहोस्',
+  'Remove vote': 'मत हटाउनुहोस्',
+  'vote': 'मत',
+  'votes': 'मत',
+  'One choice per person. Results show counts, not names.': 'प्रति व्यक्ति एउटा विकल्प। नतिजामा संख्या देखिन्छ, नाम होइन।',
+  'Add a question and different, non-empty options.': 'प्रश्न र फरक, खाली नभएका विकल्पहरू राख्नुहोस्।',
+  'Could not save your vote. Try again.': 'मत सुरक्षित हुन सकेन। फेरि प्रयास गर्नुहोस्।',
   'No reels yet': 'अहिलेसम्म रिल छैन',
   'Share a short video with your community.': 'आफ्नो समुदायसँग छोटो भिडियो साझा गर्नुहोस्।',
   'Create a reel': 'रिल बनाउनुहोस्',

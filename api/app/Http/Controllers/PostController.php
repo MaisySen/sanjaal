@@ -77,9 +77,18 @@ class PostController extends Controller
             'body' => ['nullable', 'string', 'max:2000'],
             'media' => ['nullable', 'array', 'max:4'],
             'media.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4,mov', 'max:25600'],
+            'poll_options' => ['nullable', 'array', 'min:2', 'max:4'],
+            'poll_options.*' => ['required', 'string', 'max:80'],
         ]);
         $kind = $data['kind'] ?? 'post';
         $files = $request->file('media', []);
+        $options = isset($data['poll_options']) ? array_values(array_map('trim', $data['poll_options'])) : null;
+        if ($options !== null) {
+            $normalized = array_map(fn ($v) => Str::lower($v), $options);
+            if ($kind !== 'post' || $files || blank($data['body'] ?? null) || in_array('', $options, true) || count(array_unique($normalized)) !== count($options)) {
+                return response()->json(['message' => 'A poll needs a question and 2 to 4 different options, without media.'], 422);
+            }
+        }
 
         if (blank($data['body'] ?? null) && ! $files) {
             return response()->json(['message' => 'A post needs text or media.', 'errors' => ['body' => ['A post needs text or media.']]], 422);
@@ -91,8 +100,8 @@ class PostController extends Controller
             }
         }
 
-        $post = DB::transaction(function () use ($request, $data, $kind, $files) {
-            $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $data['body'] ?? null]);
+        $post = DB::transaction(function () use ($request, $data, $kind, $files, $options) {
+            $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $data['body'] ?? null, 'poll_options' => $options]);
             foreach ($files as $file) {
                 $mime = $file->getMimeType();
                 $blob = (string) \Illuminate\Support\Str::uuid();
@@ -115,15 +124,23 @@ class PostController extends Controller
     {
         $post = Post::with(self::WITH)->where('public_id', $publicId)->firstOrFail();
 
+        abort_if(in_array($post->user_id, Present::hiddenAuthors([$request->user()->id]), true), 404);
+
         return response()->json(['post' => Present::post($post, $request->user())]);
     }
 
     public function destroy(Request $request, string $publicId): JsonResponse
     {
-        $post = Post::where('public_id', $publicId)->firstOrFail();
-        abort_unless($post->user_id === $request->user()->id, 403, 'You can only delete your own posts.');
-        \App\Support\MediaStore::delete($post->media()->pluck('path'));
-        $post->delete();
+        $paths = DB::transaction(function () use ($publicId, $request) {
+            $post = Post::where('public_id', $publicId)->lockForUpdate()->firstOrFail();
+            abort_unless($post->user_id === $request->user()->id, 403, 'You can only delete your own posts.');
+            $paths = $post->media()->pluck('path');
+            DB::table('poll_votes')->where('post_id', $post->id)->delete();
+            $post->delete();
+
+            return $paths;
+        });
+        \App\Support\MediaStore::delete($paths);
 
         return response()->json(['message' => 'Deleted.']);
     }

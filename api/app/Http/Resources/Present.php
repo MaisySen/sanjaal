@@ -42,7 +42,12 @@ class Present
             }
         }
         $savedIds = \Illuminate\Support\Facades\DB::table('bookmarks')->where('user_id', $uid)->whereIn('post_id', $ids)->pluck('post_id')->all();
+        $pollIds = $posts->filter(fn ($p) => is_array($p->poll_options))->pluck('id')->all();
+        $pollRows = $pollIds ? \Illuminate\Support\Facades\DB::table('poll_votes')->whereIn('post_id', $pollIds)
+            ->selectRaw('post_id, choice, count(*) as n, sum(case when user_id = ? then 1 else 0 end) as mine', [$uid])
+            ->groupBy('post_id', 'choice')->get()->groupBy('post_id') : collect();
         foreach ($posts as $p) {
+            if (is_array($p->poll_options)) $p->setAttribute('_poll_rows', $pollRows[$p->id] ?? collect());
             $p->setAttribute('_saved', in_array($p->id, $savedIds, true));
             $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
             $p->setAttribute('_mine', $mine->has($p->id) ? ($mine[$p->id] ?? '') : false);
@@ -57,6 +62,7 @@ class Present
             'public_id' => $p->public_id,
             'kind' => $p->kind,
             'body' => $p->body,
+            'poll' => self::poll($p, $viewer),
             'author' => self::user($p->user),
             'media' => $p->media->map(fn ($m) => [
                 'type' => $m->type,
@@ -71,6 +77,26 @@ class Present
             'reactions' => $pre ? $p->getAttribute('_reactions') : $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),
             'saved' => array_key_exists('_saved', $p->getAttributes()) ? (bool) $p->getAttribute('_saved') : ($viewer ? \Illuminate\Support\Facades\DB::table('bookmarks')->where('user_id', $viewer->id)->where('post_id', $p->id)->exists() : false),
             'created_at' => $p->created_at->toIso8601String(),
+        ];
+    }
+
+    /** Aggregate counts and only the viewer's choice. No voter identities leave this presenter. */
+    public static function poll(Post $post, ?User $viewer = null): ?array
+    {
+        if (! is_array($post->poll_options)) return null;
+        $rows = $post->getAttribute('_poll_rows');
+        if ($rows === null) {
+            $rows = \Illuminate\Support\Facades\DB::table('poll_votes')->where('post_id', $post->id)
+                ->selectRaw('choice, count(*) as n, sum(case when user_id = ? then 1 else 0 end) as mine', [$viewer?->id ?? 0])
+                ->groupBy('choice')->get();
+        }
+        $counts = $rows->pluck('n', 'choice');
+        $mine = $rows->first(fn ($r) => (int) $r->mine > 0);
+
+        return [
+            'options' => collect($post->poll_options)->map(fn ($text, $index) => ['choice' => $index, 'text' => $text, 'votes' => (int) ($counts[$index] ?? 0)])->values(),
+            'total_votes' => (int) $rows->sum('n'),
+            'my_choice' => $mine ? (int) $mine->choice : null,
         ];
     }
 

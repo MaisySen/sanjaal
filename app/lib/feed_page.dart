@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'poll_card.dart';
 import 'media_visibility.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
@@ -416,6 +417,7 @@ class _PostCardState extends State<PostCard> {
             ]),
           ),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
+          if (p['poll'] is Map) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: PollCard(key: ValueKey(p['public_id']), session: widget.session, post: p)),
           if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
           if (single) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 0), child: ClipRRect(borderRadius: BorderRadius.circular(18), child: _image(images.first['url'] as String, 320))),
           if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 10), child: SizedBox(height: 320, child: PageView(children: [for (final m in images) SizedBox(height: 320, width: double.infinity, child: Image.network(m['url'] as String, fit: BoxFit.cover, errorBuilder: (c, e, st) => const SizedBox()))]))),
@@ -723,6 +725,19 @@ class _ComposePageState extends State<ComposePage> {
   List<XFile> images = [];
   XFile? video;
   bool busy = false;
+  List<TextEditingController>? pollOptions;
+
+  @override
+  void dispose() {
+    text.dispose();
+    for (final option in pollOptions ?? <TextEditingController>[]) { option.dispose(); }
+    super.dispose();
+  }
+
+  void _poll() {
+    if (images.isNotEmpty || video != null) { showError(context, 'Remove media before adding a poll.'); return; }
+    setState(() => pollOptions = [TextEditingController(), TextEditingController()]);
+  }
 
   @override
   void initState() {
@@ -763,7 +778,12 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _post() async {
+    if (busy) return;
     final body = text.text.trim();
+    final options = pollOptions?.map((c) => c.text.trim()).toList();
+    if (options != null && (body.isEmpty || options.any((v) => v.isEmpty) || options.map((v) => v.toLowerCase()).toSet().length != options.length)) {
+      showError(context, t_('Add a question and different, non-empty options.')); return;
+    }
     if (body.isEmpty && images.isEmpty && video == null) {
       showError(context, 'Write something or add a photo or video.');
       return;
@@ -775,7 +795,7 @@ class _ComposePageState extends State<ComposePage> {
         files.add(UploadFile(await f.readAsBytes(), mimeFor(f.name), f.name));
       }
       if (video != null) files.add(UploadFile(await video!.readAsBytes(), mimeFor(video!.name, video: true), video!.name));
-      final post = await widget.session.createPost(body, files: files, reel: video != null);
+      final post = await widget.session.createPost(body, files: files, reel: video != null, pollOptions: options);
       if (mounted) Navigator.of(context).pop(post);
     } catch (e) {
       if (mounted) {
@@ -803,6 +823,21 @@ class _ComposePageState extends State<ComposePage> {
             const SizedBox(width: 12),
             Expanded(child: TextField(controller: text, autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
           ]),
+          if (pollOptions != null) ...[
+            for (var i = 0; i < pollOptions!.length; i++) Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TextField(controller: pollOptions![i], enabled: !busy, maxLength: 80, decoration: InputDecoration(labelText: '${t_('Option')} ${i + 1}')),
+            ),
+            Wrap(spacing: 8, children: [
+              if (pollOptions!.length < 4) TextButton(onPressed: busy ? null : () => setState(() => pollOptions!.add(TextEditingController())), child: Text(t_('Add option'))),
+              TextButton(onPressed: busy ? null : () {
+                final old = pollOptions!;
+                setState(() => pollOptions = null);
+                WidgetsBinding.instance.addPostFrameCallback((_) { for (final c in old) { c.dispose(); } });
+              }, child: Text(t_('Remove poll'))),
+            ]),
+            Text(t_('One choice per person. Results show counts, not names.')),
+          ],
           if (video != null)
             Card(child: ListTile(leading: const PhIcon('video-camera'), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
           if (images.isNotEmpty)
@@ -827,8 +862,9 @@ class _ComposePageState extends State<ComposePage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              TextButton.icon(onPressed: busy ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
-              TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
+              TextButton.icon(onPressed: busy || pollOptions != null ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
+              TextButton.icon(onPressed: busy || pollOptions != null ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
+              if (widget.session.pollsEnabled && pollOptions == null) TextButton.icon(onPressed: busy ? null : _poll, icon: const PhIcon('check', size: 20), label: Text(t_('Poll'))),
               if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: const Text('Remove media')),
             ]),
           ),

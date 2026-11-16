@@ -14,7 +14,7 @@ class AuthController extends Controller
 {
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['user' => \App\Http\Resources\Present::user($request->user()) + ['phone' => $request->user()->phone, 'email' => $request->user()->email]]);
+        return response()->json(['features' => ['polls' => true], 'user' => \App\Http\Resources\Present::user($request->user()) + ['phone' => $request->user()->phone, 'email' => $request->user()->email]]);
     }
 
     public function update(Request $request): JsonResponse

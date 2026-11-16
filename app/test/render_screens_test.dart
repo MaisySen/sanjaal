@@ -50,6 +50,7 @@ String _ago(int mins) => DateTime.now().toUtc().subtract(Duration(minutes: mins)
 http.Response _json(Object o) => http.Response(jsonEncode(o), 200, headers: {'content-type': 'application/json'});
 
 bool _voiceMsgs = false;
+bool _sharedMsgs = false;
 bool _failSend = false;
 
 Future<http.Response> _reply(http.Request r) async {
@@ -169,6 +170,8 @@ Future<http.Response> _reply(http.Request r) async {
         m(1, 'asha', 'Namaste! Are you coming to the Dashain meetup on Saturday?', 50),
         m(2, 'me', 'Yes, I will bring sel roti.', 48),
         m(3, 'asha', 'Perfect. Dal bhat after the music.', 45),
+        if (_sharedMsgs) {...m(4, 'asha', '', 40), 'kind': 'post', 'shared_post': {'public_id': 'p1', 'author': {'name': 'Bikash Thapa', 'username': 'bikash'}, 'excerpt': 'Sunrise from Poon Hill this morning. Worth the early start.', 'image_url': 'http://fixture.invalid/p1.jpg'}},
+        if (_sharedMsgs) {...m(5, 'me', '', 38), 'kind': 'post', 'shared_post': null},
         if (_voiceMsgs) {...m(4, 'asha', '', 40), 'kind': 'voice', 'media_url': 'https://example.invalid/v.m4a'},
         if (_voiceMsgs) {...m(5, 'me', '', 38), 'kind': 'voice', 'media_url': 'https://example.invalid/w.m4a'},
       ],
@@ -228,13 +231,14 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['shell_offline', 'shared_card', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['shell_offline', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
           _voiceMsgs = name == 'chat_voice';
+          _sharedMsgs = name.startsWith('chat_shared');
           _failSend = name == 'chat_unsent';
           await tester.runAsync(() => prefs.setLang(name.endsWith('_ne') ? 'ne' : 'en'));
           final key = GlobalKey();
@@ -242,7 +246,7 @@ void main() {
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
           final theme = buildTheme(b, fontFamily: 'Roboto', fontFamilyFallback: ['NotoDev']);
-          final base = name.replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '');
+          final base = name.replaceAll('chat_shared', 'chat').replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '');
           final Widget home = switch (base) {
             'wallet' => WalletPage(session: s),
             'profile_full' => UserProfilePage(session: s, username: 'asha'),

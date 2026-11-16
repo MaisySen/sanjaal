@@ -1,3 +1,4 @@
+import 'feed_page.dart' show feedImageProvider;
 import 'ph.dart';
 import 'dart:math';
 import 'package:material_ui/material_ui.dart';
@@ -123,7 +124,7 @@ class SharedPostCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(12)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (img != null) Image.network(img, height: 130, width: 230, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox(height: 60)),
+          if (img != null) Image(image: (feedImageProvider ?? NetworkImage.new)(img), height: 130, width: 230, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const SizedBox(height: 60)),
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

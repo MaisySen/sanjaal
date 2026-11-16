@@ -8,7 +8,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'refresh_store.dart';
 
 const apiBase = String.fromEnvironment('API_BASE_URL',
     defaultValue: 'https://sanjaal-api.onrender.com/api/v1');
@@ -79,8 +79,13 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> restore() async {
-    final p = await SharedPreferences.getInstance();
-    _refresh = p.getString('refresh_token');
+    try {
+      _refresh = await RefreshStore.read();
+    } catch (_) {
+      loading = false;
+      notifyListeners();
+      return;
+    }
     if (_refresh != null) {
       try {
         await _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
@@ -116,14 +121,21 @@ class Session extends ChangeNotifier {
       throw ApiError(msg, r.statusCode);
     }
     final j = jsonDecode(r.body) as Map<String, dynamic>;
+    final rt = j['refresh_token'] as String?;
+    try {
+      if (rt != null) {
+        await RefreshStore.write(rt);
+        _refresh = rt;
+      } else if (form['grant_type'] != 'refresh_token') {
+        // A new login must never inherit a different account's refresh token.
+        await RefreshStore.clear();
+        _refresh = null;
+      }
+    } catch (_) {
+      throw ApiError('Could not save your sign-in securely. Try again.');
+    }
     _access = j['access_token'] as String;
     _expires = DateTime.now().add(Duration(seconds: (j['expires_in'] as num?)?.toInt() ?? 3600));
-    final rt = j['refresh_token'] as String?;
-    if (rt != null) {
-      _refresh = rt;
-      final p = await SharedPreferences.getInstance();
-      await p.setString('refresh_token', rt);
-    }
   }
 
   Future<void> login(String id, String password) async {
@@ -221,8 +233,7 @@ class Session extends ChangeNotifier {
     _access = null;
     _refresh = null;
     user = null;
-    final p = await SharedPreferences.getInstance();
-    await p.remove('refresh_token');
+    await RefreshStore.clear();
   }
 
   Future<String> _token() async {

@@ -1,47 +1,48 @@
-// Runs the app's real Session client against a live API.
-// LIVE_API=https://sanjaal-api.onrender.com/api/v1 flutter test test/live_api_test.dart
+// Explicit opt-in, read-only live verification using an existing QA identity.
+// SANJAAL_QA_LOGIN_FILE points at a private JSON file with username/password.
+// Never create identities, publish posts, contact people, or spend from this test.
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:sanjaal/api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  final live = Platform.environment['LIVE_API'] != null;
-  test('register, post, comment, like, chat against the live API', () async {
-    SharedPreferences.setMockInitialValues({});
-    final n = 'lt${DateTime.now().millisecondsSinceEpoch % 100000000}';
-    final a = Session();
-    await a.register('$n@example.com', n, 'Sanjaal-Test-9x!');
-    expect(a.user!['username'], n);
-
-    Object? rejected;
-    try {
-      await a.createPost('bad image', files: [UploadFile(List<int>.filled(10, 1), 'image/png', 'x.png')]);
-    } catch (e) {
-      rejected = e;
+class _ReadOnlyClient extends http.BaseClient {
+  final _inner = IOClient();
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    final token = request.url == Uri.https(auth0Domain, '/oauth/token');
+    if (!(token && request.method == 'POST') && request.method != 'GET') {
+      throw StateError('Live verification forbids API mutations.');
     }
-    expect(rejected, isA<ApiError>()); // an invalid image is refused
+    return _inner.send(request);
+  }
 
-    final ok = await a.createPost('hello from test');
-    final id = ok['public_id'] as String;
-    final feed = await a.call('GET', '/posts') as Map;
-    expect((feed['data'] as List).any((p) => p['public_id'] == id), isTrue);
-    final liked = await a.call('POST', '/posts/$id/like') as Map;
-    expect(liked['liked'], isTrue);
-    await a.call('POST', '/posts/$id/comments', body: {'body': 'nice'});
-    final cs = await a.call('GET', '/posts/$id/comments') as Map;
-    expect((cs['data'] as List).length, 1);
+  @override
+  void close() => _inner.close();
+}
 
-    final m = 'lu${DateTime.now().millisecondsSinceEpoch % 100000000}';
-    final b = Session();
-    await b.register('$m@example.com', m, 'Sanjaal-Test-9x!');
-    final c = (await a.call('POST', '/conversations', body: {'type': 'direct', 'username': m}) as Map)['conversation'] as Map;
-    await a.call('POST', '/conversations/${c['public_id']}/messages', body: {'body': 'namaste', 'client_id': 'k1'});
-    final got = await b.call('GET', '/conversations/${c['public_id']}/messages') as Map;
-    expect((got['data'] as List).single['body'], 'namaste');
-    await a.call('DELETE', '/posts/$id');
-
-    await a.logout();
-    expect(a.user, isNull);
-  }, skip: live ? false : 'LIVE_API not set', timeout: const Timeout(Duration(minutes: 3)));
+void main() {
+  final credentialFile = Platform.environment['SANJAAL_QA_LOGIN_FILE'];
+  test('existing QA login and read-only API routes use the real Session client', () async {
+    final credentials = jsonDecode(await File(credentialFile!).readAsString()) as Map;
+    SharedPreferences.setMockInitialValues({});
+    await http.runWithClient(() async {
+        final session = Session();
+        await session.login(credentials['username'] as String, credentials['password'] as String);
+        expect(session.user?['public_id'], isNotEmpty);
+        for (final path in ['/posts', '/saved', '/conversations', '/wallet/withdrawals', '/rooms']) {
+          final result = await session.call('GET', path) as Map;
+          expect(result['data'], isA<List>(), reason: '$path schema');
+        }
+        final wallet = await session.call('GET', '/wallet') as Map;
+        expect(wallet['cashout'], isA<Map>());
+        expect((wallet['cashout'] as Map)['available'], isFalse);
+        await session.logout();
+        expect(session.user, isNull);
+    }, () => _ReadOnlyClient());
+  }, skip: credentialFile == null ? 'SANJAAL_QA_LOGIN_FILE not set' : false,
+    timeout: const Timeout(Duration(minutes: 3)));
 }

@@ -1,18 +1,40 @@
 # Verification status
 
-Last updated Nov 16 2026. Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
+Updated November 17, 2026. This is a test record, not a claim that the full app is finished.
 
-The emulator CI job runs against a local fixture API with a synthetic member. It is not live evidence and not a physical device.
+## Published preview
 
-| Flow | Status | Evidence |
+Android 0.5.1+6 was built from `51c1c73`, signed with the stable upload key, and published as a test prerelease:
+https://github.com/MaisySen/sanjaal/releases/tag/v0.5.1
+
+CI run: https://github.com/MaisySen/sanjaal/actions/runs/43887613498
+All four jobs passed: API, app, unsigned iOS build, emulator. The emulator uses a local fixture API and synthetic member, not the production API or a Samsung phone. Its actual flows test passed composing a post and sending a chat message. Earlier finder failures were fixed; they are not still outstanding.
+
+| Flow | Current evidence | Still unverified |
 | --- | --- | --- |
-| App launch, signed-in feed, profile | Passes on emulator (fixture) | emulator CI |
-| Like tap | Passes on emulator (fixture) | emulator CI |
-| Rooms list screen, wallet screen | Passes on emulator (fixture) | emulator CI |
-| Compose post (typing) | FAILING, unresolved | "Found 0 widgets with type TextField", cause unknown |
-| Start a chat and send (typing) | FAILING, unresolved | same finder error |
-| Room join, audio, token flow in the app | Not verified | LiveKit transport only checked with two synthetic clients, not the app |
-| Push delivery | Not built live, not verified | sender is server-side code only, no credentials deployed |
-| Dark mode | Not captured on a device | |
+| Launch, signed-in feed, profile, like, rooms list, wallet | Fixture emulator checks pass in the CI run above | Physical phone behavior |
+| Compose and publish post, start chat and send | Fixture emulator interaction checks pass, screenshots inspected | Production writes and physical phone behavior |
+| Small-phone Create sheet | 320x640 widget regression opens sheet, selects Reel and reaches Continue without overflow | Physical phone behavior |
+| Real Auth0 email/password sign-in | Real Auth0 password grant returned 200 for the existing synthetic QA identity; the app's actual Session.login client also passed a read-only live test | On-phone entry and native social-login callback |
+| Live signed-in reads | Actual Session client passed profile, posts, saved, conversations, withdrawals, rooms, and wallet checks against the deployed API; cashout remains unavailable | Production posting, chat, media, audio, push and multi-device behavior |
+| Persistent login / refresh | Root cause confirmed: API Allow Offline Access is off in Auth0; no refresh token issued | End-to-end refresh issuance, device secure storage and restore |
+| Secure refresh persistence | Candidate source migrates preferences to Keystore-backed storage / Keychain, clears old copies, excludes Android backup, and prevents a new login inheriting another account's refresh token; targeted tests pass | Candidate build/device verification; not in published 0.5.1 |
+| Calls and live rooms | Client and server code exists; prior synthetic transport checks are not app/device evidence | App audio/video, permissions, backgrounding and two-device calls |
+| Push delivery | Client registration and server sender code exists | Real delivery and production credential/configuration readiness |
+| Wallet / cash-out | Signed-in balance/history/withdrawal reads return 200; cash-out unavailable; deployed payout provider remains DisabledPayout | Top-up and payout provider integration, approval and payment testing |
+| iOS | CI unsigned build passes | Signed install, real-device behavior and distribution |
+| TeamViewer / Samsung | Separate physical-device verification work | No genuine Samsung test claimed here |
 
-The emulator job is no longer marked continue-on-error, so a failing flows test shows as a failed job. Do not read a green run as proof of the failing flows above.
+## Safe live verification
+
+`app/test/live_api_test.dart` is explicitly opt-in via `SANJAAL_QA_LOGIN_FILE`, a private existing-QA credential file. Its HTTP client permits only the Auth0 token POST and API GETs. It does not create identities, publish posts, send messages or move money. Never commit the private credential file or token responses. A skipped live test in normal CI is not live evidence.
+
+Auth0 settings were read at the API's settings page. Offline access was not enabled during these checks. In particular, published 0.5.1 still stores any refresh token it receives in ordinary preferences, so the hardened replacement needs verification before enabling persistent sessions.
+
+## API deployment
+
+The live image remains `sanjaalapp/sanjaal-api:v31-7e2e68c`, not the latest branch head. Source changes after that commit are not deployed merely because repository CI passes. The newer payout retry hardening is locally tested, including PostgreSQL 18 concurrency checks, but is not live. Payouts remain disabled.
+
+## Secure-storage candidate checks
+
+Local split suite: 167 passed, 1 live test skipped without credentials (51 non-render tests, 56 light renders, 56 dark renders, 4 other renders). The opt-in actual-Session live test passed separately. Analyzer reports no errors or warnings; remaining diagnostics are informational. Candidate is 0.5.2+7, not yet published or device-tested. Plugin source: https://pub.dev/packages/flutter_secure_storage (11.2.0); uses default platform secure storage without requiring biometric enrollment.

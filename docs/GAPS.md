@@ -1,15 +1,19 @@
 # Functional gaps and reconciliation
 
-Status of features from the design review against what is built. Updated with each batch. A missing backend endpoint is a gap to build, not a sign the feature is unwanted. Renders from fixtures are structural evidence only. No item here has been run on a device.
+Updated November 17, 2026. Source, deployed API, published APK, fixture tests and genuine device tests are different states. See [VERIFICATION_STATUS.md](VERIFICATION_STATUS.md) for current evidence. The full app is not complete.
 
-| Area | Built in the app | Gap |
+| Area | Built | Remaining gap |
 | --- | --- | --- |
-| Home feed | Photo cards with rail (react, comment, gift), plain cards for text and video | Save, Saved list (Me), Share to chat (post menu) | Vertical one-post-per-page pager built for For you and Following (stories row stays fixed above it, not overlaid; text and video posts scroll inside their page; the page is sized to leave room for the nav bar, not edge to edge under it). Pager is widget-tested with fixtures, not device-tested, and no device scroll feel or performance evidence exists. Save and Share are in the post menu, not rail buttons. Shared card render-checked in the chat screen at standard and 1.8x text (fixture, not device) render |
-| Create | Create sheet, composer, video picker, story picker | Record or take via the system camera (image_picker), fake-picker tested for Story only, not device-tested. No custom in-app camera UI (filters, timer, multi-clip): not built |
-| Group chat | Group info with member list, Add people (by username), Leave group, owner handoff on leave | Rename and member roles not built. API and app are tested locally (PHP feature tests and a mock-client widget test); not deployed or run against live. Earlier messages, reply quotes and live payloads are filtered by join time (tested). Chat media is now served only through a signed-in, membership-checked route and never through the public media address. The Backblaze path (server fetches the file so the bucket token never reaches a client) is tested against a faked B2 only: no real bucket, so real B2 behaviour (latency, large files, error shapes) is unverified. Concurrency: owner-leave and capacity races are tested against a local throwaway PostgreSQL 16 (PG_RACE=1, see api/tests/Concurrency), which is not the live Neon service. Other races (simultaneous sends, joins versus leaves across requests, reads during a leave) are not tested |
-| Calls | Voice and video over LiveKit, history with missed state, glass control tray | Live call not exercised on a device, no minimise to a floating tile |
-| Wallet | Balance, history, Send, Add coins and Cash out shown as not available | Top up and cash out providers not integrated |
-| Live rooms | Host, speaker, raise hand, gifts | Host raise-hand sheet restyle not reviewed |
-| Offline states | Error and retry on lists | Unsent message and offline banner states not restyled |
-| Language | English and Nepali strings | Nepali strings need native review |
+| Home feed | Photo/text/video posts, reactions, comments, gifts; Save, Saved list and Share to chat; vertical one-post pager | Fixture emulator checks cover selected paths, not physical-device scroll feel, production media or performance. Stories stay fixed above the pager rather than overlaying edge-to-edge content. |
+| Create | Create sheet and composer; system-camera/gallery image and video picking for stories and reels; camera choice/cancel/permission handling tested with fake pickers | No custom filters/timer/multi-clip camera UI. No real camera/permission capture evidence. Small-phone Continue clipping fixed in 0.5.1. |
+| Group chat | Group name/member list, Add people, Leave, owner handoff, owner-only Rename in source and widget/API tests; join-time history filtering; membership-checked chat media | Member-role management not built. Rename/member endpoints exist in the deployed source but their authenticated mutation paths are not proven live. Real B2 latency/large-file/error behavior is unverified. PostgreSQL 18 local throwaway concurrency checks pass, not a live-database load test. Other cross-request membership/send races remain to be tested. |
+| Sign-in | Real Auth0 password grant and actual Session client work against the live API with an existing synthetic QA identity | Native social callback and physical-device login unverified. Auth0 offline access is off, preventing persistent sessions. Secure token persistence is candidate source only, not in published 0.5.1. |
+| Calls | Voice/video LiveKit client, history/missed state and control tray | Actual app call on two real devices, audio routing, backgrounding, reconnection and floating minimised tile unverified or not built. |
+| Wallet | Balance/history/send UI; withdrawal groundwork; top-up and cash-out unavailable | Providers not integrated or approved. DisabledPayout remains deployed; no payout execution claim. |
+| Live rooms | Host/speaker/raise hand/gift UI and server code | Real app audio, room lifecycle and host interactions need device verification. |
+| Offline states | Error/retry lists and offline banner; unsent-message handling | Physical network transitions/recovery and polish need review. |
+| Push | Client registration and server sender code | Real push delivery and production configuration readiness unverified. |
+| Language | English and Nepali strings | Native Nepali review needed. |
+| iOS | CI unsigned build | Signing/distribution and real-device verification. |
 
+Synthetic fixture renders are layout evidence only. Genuine Auth0/live API reads do not prove posting, messaging, payments, media, calls or push. No physical Samsung/TeamViewer result is recorded by this engineering check.

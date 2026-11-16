@@ -1,5 +1,7 @@
 # Releases
 
+Historical sections below describe their release-time conditions, not the latest candidate, live image or verification status. See VERIFICATION_STATUS.md for later evidence. Automatic tag publication remains disabled; PHONE_PREVIEW_RELEASE.md describes the separately verified preview path.
+
 ## 0.5.1 Android phone-testing preview, 2026-11-17
 
 - Published production-endpoint arm64 APK: https://github.com/MaisySen/sanjaal/releases/tag/v0.5.1
@@ -78,7 +80,7 @@ Not in 0.3.0: Khalti, Facebook and Apple sign in, push, cash out, and voice or i
 
 Built by CI from tag v0.2.0 and published at https://github.com/MaisySen/sanjaal/releases/tag/v0.2.0 with SHA256SUMS.txt. Most phones need app-arm64-v8a-release.apk. The IPA is unsigned and cannot be installed on a phone until it is signed with an Apple account.
 
-Signing caveat: these Android builds are signed with the Flutter debug key. When we switch to our own upload key, Android will refuse to update over a build signed with a different key, so everyone must uninstall the app first and sign in again. An upload keystore exists and is kept in the vault, not in the repo. Switching CI to it needs repository secrets that the repo owner adds.
+Historical signing caveat: these older builds used different debug certificates. They cannot directly update to the stable upload certificate used by preview0.5.1. Do not uninstall or wipe app data as a workaround. Confirm the installed package/certificate and preserve data before choosing an update or migration route. Signing material is private, never part of this repository. Automatic tag publication is currently disabled pending a verified signing pipeline.
 
 Contents: video reels, long poll chat, coin wallet with eSewa test mode, Google sign in (Auth0 development keys), voice and video calls over LiveKit, about and privacy screen, unread badge by polling. Not tested on a physical device yet.
 

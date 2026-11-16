@@ -68,6 +68,9 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+      - name: Phone preview finalizer unit contracts (fake Android tools)
+        run: python3 .github/ci/test_finalize_phone_preview.py
+        working-directory: .
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

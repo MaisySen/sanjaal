@@ -218,14 +218,14 @@ void main() {
     final bytes = (await img.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
     // A real CC0 photograph (Wikimedia Commons, Billjones94, licence checked live) is used when it has been downloaded
     // to /tmp/photos by the reviewer. It is never committed. Otherwise the generated picture above is used.
-    final real = File('/tmp/photos/photo_portrait.jpg');
+    final real = File(Platform.environment['SANJAAL_TEST_PHOTO'] ?? '/tmp/photos/photo_portrait.jpg');
     final photoBytes = real.existsSync() ? real.readAsBytesSync() : bytes;
     feedImageProvider = (url) => MemoryImage(photoBytes);
     await _loadFont('MaterialIcons', ['$dir/MaterialIcons-Regular.otf']);
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['shell_big', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});

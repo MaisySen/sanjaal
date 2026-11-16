@@ -180,13 +180,16 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                   ]),
                 ),
                 const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: esewa ? _topup : null, child: Text(t_('Add coins'), maxLines: 1, softWrap: false))),
-                  const SizedBox(width: 10),
-                  Expanded(child: OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: balance > 0 ? _send : null, child: Text(t_('Send'), maxLines: 1, softWrap: false))),
-                  const SizedBox(width: 10),
-                  Expanded(child: OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: null, child: Text(t_('Cash out'), maxLines: 1, softWrap: false))),
-                ]),
+                Builder(builder: (context) {
+                  final big = MediaQuery.textScalerOf(context).scale(14) / 14 > 1.3;
+                  final buttons = <Widget>[
+                    FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: esewa ? _topup : null, child: Text(t_('Add coins'), maxLines: 1, softWrap: false)),
+                    OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: balance > 0 ? _send : null, child: Text(t_('Send'), maxLines: 1, softWrap: false)),
+                    OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: null, child: Text(t_('Cash out'), maxLines: 1, softWrap: false)),
+                  ];
+                  if (big) return Column(children: [for (final b in buttons) Padding(padding: const EdgeInsets.only(bottom: 8), child: SizedBox(width: double.infinity, child: b))]);
+                  return Row(children: [for (var i = 0; i < buttons.length; i++) ...[if (i > 0) const SizedBox(width: 10), Expanded(child: buttons[i])]]);
+                }),
                 if (!esewa)
                   Container(
                     margin: const EdgeInsets.only(top: 12),

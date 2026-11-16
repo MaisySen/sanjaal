@@ -316,7 +316,7 @@ class _PostCardState extends State<PostCard> {
     final p = widget.post;
     const shadow = [Shadow(blurRadius: 6, color: Colors.black54)];
     Widget plate(Widget child) => Container(
-          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.38), borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white24)),
           child: child,
         );
     Widget railItem(String icon, String label, VoidCallback onTap) => plate(InkWell(
@@ -342,7 +342,7 @@ class _PostCardState extends State<PostCard> {
             GestureDetector(onTap: () => openImage(context, url), child: _photo(url)),
             const IgnorePointer(
               child: DecoratedBox(
-                decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.0, 0.45, 1.0], colors: [Color(0x00000000), Color(0x00000000), Color(0xCC000000)])),
+                decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.0, 0.4, 0.7, 1.0], colors: [Color(0x00000000), Color(0x00000000), Color(0x99000000), Color(0xE6000000)])),
               ),
             ),
             if (images.length > 1) Positioned(top: 12, right: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)), child: Text('+${images.length - 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))),

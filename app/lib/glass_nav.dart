@@ -85,7 +85,7 @@ class _Item extends StatelessWidget {
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               icon,
               const SizedBox(height: 2),
-              Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, height: 1.1, fontWeight: FontWeight.w700, color: color)),
+              MediaQuery.withClampedTextScaling(maxScaleFactor: 1.2, child: Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, height: 1.1, fontWeight: FontWeight.w700, color: color))),
             ]),
           ),
         ),

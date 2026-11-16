@@ -78,7 +78,7 @@ class _StoriesBarState extends State<StoriesBar> {
     ];
     if (!loaded && groups.isEmpty) return const SizedBox(height: 8);
     return SizedBox(
-      height: 98,
+      height: 74 + 24 * (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 2.0),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),

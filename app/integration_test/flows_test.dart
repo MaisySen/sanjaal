@@ -124,7 +124,15 @@ void main() {
       // Use a native Android pointer for this gate, not the synthetic text
       // channel. This bridge exists only in the throwaway CI fixture router.
       final field = find.widgetWithText(TextField, 'Option 2');
+      // Re-establish the input client only after restoring the real surface.
+      await tester.tap(field);
+      await tester.pump();
+      await tester.showKeyboard(field);
+      await tester.pump();
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.show');
       final point = tester.getCenter(field) * tester.view.devicePixelRatio;
+      // ignore: avoid_print
+      print('Native tap coordinates: $point, ratio=${tester.view.devicePixelRatio}, field=${tester.getRect(field)}');
       // Live binding drops physical pointers by default, including adb taps.
       final remove = find.widgetWithText(TextButton, 'Remove poll');
       binding.shouldPropagateDevicePointerEvents = true;

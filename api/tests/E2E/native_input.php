@@ -33,6 +33,6 @@ $dir = __DIR__.'/../../../app/build/screenshots';
 [$capture, $png] = $run(['exec-out', 'screencap', '-p']);
 if ($capture === 0) file_put_contents($dir.'/poll_native_display.png', $png);
 [, $ime] = $run(['shell', 'dumpsys', 'input_method']);
-file_put_contents($dir.'/poll_native_ime.txt', $ime);
+file_put_contents($dir.'/poll_native_ime.txt', 'tap x='.$x.' y='.$y."\n".$ime);
 http_response_code($code === 0 ? 200 : 502);
 echo json_encode(['ok' => $code === 0]);

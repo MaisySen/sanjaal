@@ -1,5 +1,16 @@
 # Changelog
 
+## Redesign pass 9: product fixes found while reviewing renders
+
+- Posts no longer show a hashtag twice (chips only for tags not already in the text).
+- Photos size to their own shape (capped height) instead of one fixed crop.
+- Chats top bar: New chat plus a More menu (Live rooms, Call history, Archived chats), not four icons. The emulator flows test opens Live rooms through the menu.
+- Settings: Push status no longer prints an exception type. Segmented controls use the app tint, not Material blue.
+- buildTheme accepts a font fallback list so non-Latin scripts render in tests.
+- Onboarding: drawn ridge and sun art (code, no images) per slide. Last slide no longer says you can top up with eSewa (top up is not switched on).
+- Compose: borderless writing area, Photos and Reel actions in a bottom bar, counter only near the limit.
+- Render tests: real HomeShell (5-tab nav), compose, photo posts in portrait and wide shapes (invented art), demo-data strip. Checked with flutter analyze and widget renders; not on a device.
+
 ## Redesign pass 8: chats list and render coverage
 
 - Chats list rows: ink-tone initial avatars, bold unread preview, crimson time and badge for unread, muted chats grey. Render tests now cover chats (English and Nepali), notifications, settings, sign in and onboarding, show a visible demo-data strip, use the five-tab nav, and render the wallet with top up switched off. Checked with flutter analyze and widget renders; not on a device.

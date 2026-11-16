@@ -46,7 +46,7 @@ class Push {
         unawaited(s.call('POST', '/devices', body: {'token': n, 'platform': 'android'}).then((_) {}, onError: (_) {}));
       });
     } catch (e) {
-      status.value = 'Off: could not register (${e.runtimeType}). Will retry next time you open the app';
+      status.value = 'Not available on this device yet. We will try again next time you open the app';
     }
   }
 

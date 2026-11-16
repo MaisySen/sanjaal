@@ -111,26 +111,26 @@ class _ChatsPageState extends State<ChatsPage> {
         title: Text(showArchived ? 'Archived' : t_('Chats')),
         actions: [
           IconButton(tooltip: t_('New chat'), icon: const Icon(Icons.edit_square), onPressed: _new),
-          IconButton(
-            tooltip: 'Live rooms',
-            icon: const Icon(Icons.podcasts),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session))),
-          ),
-          IconButton(
-            tooltip: 'Call history',
-            icon: const Icon(Icons.call_outlined),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session))),
-          ),
-          IconButton(
-            tooltip: showArchived ? 'Back to chats' : 'Archived chats',
-            icon: Icon(showArchived ? Icons.chat_outlined : Icons.archive_outlined),
-            onPressed: () {
-              setState(() {
-                showArchived = !showArchived;
-                loading = true;
-              });
-              _load();
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (v) {
+              if (v == 'rooms') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session)));
+              } else if (v == 'calls') {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session)));
+              } else {
+                setState(() {
+                  showArchived = !showArchived;
+                  loading = true;
+                });
+                _load();
+              }
             },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'rooms', child: Text(t_('Live rooms'))),
+              const PopupMenuItem(value: 'calls', child: Text('Call history')),
+              PopupMenuItem(value: 'archive', child: Text(showArchived ? 'Back to chats' : 'Archived chats')),
+            ],
           ),
         ],
       ),

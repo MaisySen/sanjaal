@@ -102,7 +102,9 @@ void main() {
       await binding.takeScreenshot('flow7_chat_list');
     });
     await step('s3', () async {
-      await tester.tap(find.byTooltip('Live rooms'));
+      await tester.tap(find.byTooltip('More'));
+      await _settle(tester, 2);
+      await tester.tap(find.text('Live rooms'));
       await _settle(tester, 6);
       await binding.takeScreenshot('flow8_rooms_list');
       await tester.pageBack();

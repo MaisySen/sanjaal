@@ -14,7 +14,7 @@ import 'wallet_page.dart';
 
 void main() => runApp(const SanjaalApp());
 
-ThemeData buildTheme(Brightness b, {String? fontFamily}) {
+ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamilyFallback}) {
   final light = b == Brightness.light;
   // One restrained palette: warm paper, ink text, crimson only for action and the active tab.
   final scheme = ColorScheme(
@@ -40,8 +40,8 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
   );
   const r = BorderRadius.all(Radius.circular(10));
   const shape = RoundedRectangleBorder(borderRadius: r);
-  final labelStyle = TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.1);
-  final base = ThemeData(brightness: b, fontFamily: fontFamily, useMaterial3: true).textTheme;
+  final labelStyle = TextStyle(fontFamily: fontFamily, fontFamilyFallback: fontFamilyFallback, fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.1);
+  final base = ThemeData(brightness: b, fontFamily: fontFamily, useMaterial3: true).textTheme.apply(fontFamilyFallback: fontFamilyFallback);
   final text = base.copyWith(
     titleLarge: base.titleLarge?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.3),
     titleMedium: base.titleMedium?.copyWith(fontWeight: FontWeight.w600, letterSpacing: -0.1),
@@ -62,7 +62,7 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
       scrolledUnderElevation: 0,
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
-      titleTextStyle: TextStyle(fontFamily: fontFamily, color: scheme.onSurface, fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.3),
+      titleTextStyle: TextStyle(fontFamily: fontFamily, fontFamilyFallback: fontFamilyFallback, color: scheme.onSurface, fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.3),
     ),
     tabBarTheme: TabBarThemeData(
       labelColor: scheme.onSurface,
@@ -95,6 +95,14 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
       foregroundColor: scheme.onPrimary,
       elevation: 1,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? scheme.primaryContainer : Colors.transparent),
+        foregroundColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? scheme.onPrimaryContainer : scheme.onSurfaceVariant),
+        side: WidgetStatePropertyAll(BorderSide(color: scheme.outlineVariant)),
+        iconColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? scheme.primary : scheme.onSurfaceVariant),
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: shape, minimumSize: const Size(64, 44), textStyle: labelStyle)),
     outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(shape: shape, minimumSize: const Size(64, 44), side: BorderSide(color: scheme.outlineVariant), textStyle: labelStyle)),

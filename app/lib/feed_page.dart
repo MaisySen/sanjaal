@@ -236,7 +236,8 @@ class _PostCardState extends State<PostCard> {
     final images = media.where((m) => m['type'] == 'image').toList();
     final videos = media.where((m) => m['type'] != 'image').toList();
     final body = (p['body'] ?? '').toString();
-    final tags = (p['hashtags'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    final bodyLower = body.toLowerCase();
+    final tags = ((p['hashtags'] as List?)?.map((e) => e.toString()).toList() ?? <String>[]).where((tg) => !bodyLower.contains('#${tg.toLowerCase()}')).toList();
     final scheme = Theme.of(context).colorScheme;
     final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
@@ -275,7 +276,7 @@ class _PostCardState extends State<PostCard> {
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
           if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
           if (single) Padding(padding: const EdgeInsets.only(top: 10), child: _image(images.first['url'] as String, 320)),
-          if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 10), child: SizedBox(height: 320, child: PageView(children: [for (final m in images) _image(m['url'] as String, 320)]))),
+          if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 10), child: SizedBox(height: 320, child: PageView(children: [for (final m in images) SizedBox(height: 320, width: double.infinity, child: Image.network(m['url'] as String, fit: BoxFit.cover, errorBuilder: (c, e, st) => const SizedBox()))]))),
           if (images.length > 1) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Text('1 of ${images.length}, swipe', style: muted)),
           for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10), child: VideoTile(url: v['url'] as String)),
           Padding(
@@ -298,15 +299,18 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
+  // Height follows the photo's own shape, capped so a tall photo does not take the whole screen.
   Widget _image(String url, double h) => GestureDetector(
         onTap: () => openImage(context, url),
-        child: Image.network(
-          url,
-          width: double.infinity,
-          height: h,
-          fit: BoxFit.cover,
-          loadingBuilder: (c, child, prog) => prog == null ? child : SizedBox(height: h, child: const Center(child: CircularProgressIndicator())),
-          errorBuilder: (c, e, s) => SizedBox(height: 80, child: Center(child: Text('Image could not load', style: TextStyle(color: Theme.of(context).colorScheme.outline)))),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 440, minHeight: 160),
+          child: Image.network(
+            url,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            loadingBuilder: (c, child, prog) => prog == null ? child : SizedBox(height: 240, child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.outline))),
+            errorBuilder: (c, e, s) => SizedBox(height: 80, child: Center(child: Text('Image could not load', style: TextStyle(color: Theme.of(context).colorScheme.outline)))),
+          ),
         ),
       );
 }
@@ -525,13 +529,14 @@ class _ComposePageState extends State<ComposePage> {
           child: FilledButton(onPressed: busy ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
         ),
       ]),
-      body: ListView(
+      body: Column(children: [
+        Expanded(child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Avatar(user: widget.session.user),
             const SizedBox(width: 12),
-            Expanded(child: TextField(controller: text, maxLines: 6, maxLength: 2000, decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none))),
+            Expanded(child: TextField(controller: text, autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
           ]),
           if (video != null)
             Card(child: ListTile(leading: const Icon(Icons.videocam), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
@@ -549,14 +554,22 @@ class _ComposePageState extends State<ComposePage> {
                   ),
               ]),
             ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, children: [
-            ActionChip(avatar: const Icon(Icons.photo_outlined, size: 18), label: Text(images.isEmpty ? 'Add photos (up to 4)' : 'Change photos'), onPressed: busy ? null : _pick),
-            ActionChip(avatar: const Icon(Icons.videocam_outlined, size: 18), label: Text(video == null ? 'Add video as reel' : 'Change video'), onPressed: busy ? null : _pickVideo),
-            if (images.isNotEmpty || video != null) ActionChip(label: const Text('Remove media'), onPressed: busy ? null : () => setState(() { images = []; video = null; })),
-          ]),
         ],
-      ),
+      )),
+        Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(children: [
+              TextButton.icon(onPressed: busy ? null : _pick, icon: const Icon(Icons.photo_outlined, size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
+              TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const Icon(Icons.videocam_outlined, size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
+              const Spacer(),
+              if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: const Text('Remove media')),
+            ]),
+          ),
+        ),
+      ]),
     );
   }
 }

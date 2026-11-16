@@ -256,9 +256,12 @@ jobs:
           name: sanjaal-ios-unsigned
           path: app/sanjaal-unsigned.ipa
 
+  # Publishing is deliberately closed until stable-key signing is integrated.
+  # The ordinary app artifact is debug-signed even in release mode.
+  # A tag alone must never ship it, or bypass genuine native-input checks.
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [api, app, ios]
+    if: startsWith(github.ref, 'refs/tags/v') && false
+    needs: [api, app, ios, emulator]
     runs-on: ubuntu-latest
     permissions:
       contents: write

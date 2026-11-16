@@ -33,7 +33,7 @@ Auth0 settings were read at the API's settings page. Offline access was not enab
 
 ## API deployment
 
-The live image remains `sanjaalapp/sanjaal-api:v31-7e2e68c`, not the latest branch head. Source changes after that commit are not deployed merely because repository CI passes. The newer payout retry hardening is locally tested, including PostgreSQL 18 concurrency checks, but is not live. Payouts remain disabled.
+The last verified deployment is the isolated media-security image `sanjaalapp/sanjaal-api:v35-media-0f805e8`, not the recovered product branch head. Earlier v31 references below are historical checkpoints. The isolation patch preserves authenticated chat/range reads and requires a current positive public reference for anonymous media. It is not a broad product deployment. The health endpoint returned 200 on November 17 at 08:24 AEDT; that alone does not identify the image or prove feature readiness. Candidate chat replay, upload receipts, polls and subsequent client work must not be described as deployed. Payouts remain disabled.
 
 ## Secure-storage candidate checks
 
@@ -223,3 +223,14 @@ API local:107/855 SQLite and PostgreSQL normal/cached. Real PostgreSQL races:10/
 - Send/discard cannot stack; callbacks notify once. Owned temporary files are deleted on success, error, discard or shutdown. Cleanup waits for in-flight native calls rather than disposing out of order. This cannot guarantee immediate cleanup if a native call itself hangs; actual OS/microphone/codec testing remains open. Existing120second duration-limit behavior preserved.
 -21controlled fake-recorder/file fixtures pass. Complete split localFlutter164non-render+115journey+181render=460passed,1intentional live skip;final focused recorder rerun after inactive-start refinement also passed. Analyzer21info/no errors or warnings. Four actual EN/NElightdark320x640/1.8x recording-control PNGs inspected. These are synthetic capture files and fake permission/native callbacks, not device/audio evidence.
 - APIunchanged116/940+14localPGraces97. At08:18mediaCI43956201092 API/apppassed,emulatorfailed,iOSpending;playbackCI43957455274 API/iOSpassed,app/emulatorpending. No new APK publication/live deployment. NativeIME remains unresolved, uploadOFF/payoutsdisabled/livev35isolation preserved.
+
+
+## November 17 whole-product reconciliation, 08:25 AEDT
+
+The user's full-product quality correction is still the acceptance criterion. Bug counts, fixture renders and successful compilation are supporting evidence, not completion. See [PRODUCT_RECONCILIATION.md](PRODUCT_RECONCILIATION.md) for the connected journey review and release path.
+
+- Actual current HomeShell, Chats, Wallet, story review and own-profile fixture pixels were inspected. The requested floating glass bar is present. The generic `me_dark` fixture has an endpoint-fixture error; it is not successful-profile proof. The focused own-profile fixture is valid large-text layout evidence, not live profile data.
+- Published release list rechecked: v0.5.1 remains the newest preview. Current recovered source through b9927b7 is not a published app. API ping returned 200/status ok/media b2, not proof of the candidate deployment.
+- CI43957455274: API/app/unsigned iOS passed, emulator still running at 08:24. CI43959218322: API passed; other build/native jobs still running. No native pass or new APK claimed.
+- Historical tag publication omitted the emulator dependency and would have published ordinary debug-signed APK artifacts. Candidate workflow now depends on all four jobs and is explicitly disabled in source until stable-key signing and final artifact verification are integrated. Do not remove the disabled condition merely because tests pass. No tag or variable was changed by this source correction.
+- Durable drafts/outbox, physical input/audio/camera/network/push, two-device calls, iOS signing, remaining Nepal-focused roadmap and cohesive product polish remain open. Upload-intent rollout stays OFF and DisabledPayout stays bound. No broad deployment performed.

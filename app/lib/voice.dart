@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
@@ -104,13 +105,13 @@ class _VoiceRecorderBarState extends State<VoiceRecorderBar> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Row(children: [
-      IconButton(onPressed: _discard, icon: Icon(Icons.delete_outline, color: scheme.error), tooltip: 'Discard'),
-      Icon(Icons.fiber_manual_record, size: 14, color: _ready ? scheme.error : scheme.outline),
+      IconButton(onPressed: _discard, icon: PhIcon('trash', color: scheme.error), tooltip: 'Discard'),
+      PhIcon('circle-fill', size: 14, color: _ready ? scheme.error : scheme.outline),
       const SizedBox(width: 8),
       Text(_ready ? _clock(_elapsed) : 'Starting', style: const TextStyle(fontWeight: FontWeight.w600)),
       const SizedBox(width: 8),
       Expanded(child: Text('Recording', style: TextStyle(color: scheme.onSurfaceVariant))),
-      IconButton.filled(onPressed: _ready ? _send : null, icon: const Icon(Icons.send), tooltip: 'Send voice message'),
+      IconButton.filled(onPressed: _ready ? _send : null, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary), tooltip: 'Send voice message'),
     ]);
   }
 }
@@ -186,7 +187,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
     return SizedBox(
       width: 210,
       child: Row(children: [
-        IconButton(onPressed: _toggle, icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36, color: scheme.primary)),
+        IconButton(onPressed: _toggle, icon: PhIcon(_playing ? Ph.pause_circle_filled : Ph.play_circle_fill, size: 36, color: scheme.primary)),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2), backgroundColor: scheme.onSurface.withOpacity(0.28), color: scheme.primary),

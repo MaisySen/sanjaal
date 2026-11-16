@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 import 'ui.dart';
@@ -13,10 +14,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
   int page = 0;
 
   static const _slides = [
-    (Icons.dynamic_feed, 'Share with your community', 'Post photos and thoughts, follow people, and see what Nepalis near and far are sharing.'),
-    (Icons.movie_filter, 'Watch and make reels', 'Swipe through short videos or upload your own. Like, comment and follow.'),
-    (Icons.forum, 'Chat and call', 'Message friends, make groups, and start a voice or video call from any chat.'),
-    (Icons.account_balance_wallet, 'Coins you can send', 'Send coins to friends as gifts. Every balance change is recorded in your history.'),
+    (Ph.dynamic_feed, 'Share with your community', 'Post photos and thoughts, follow people, and see what Nepalis near and far are sharing.'),
+    (Ph.movie_filter, 'Watch and make reels', 'Swipe through short videos or upload your own. Like, comment and follow.'),
+    (Ph.forum, 'Chat and call', 'Message friends, make groups, and start a voice or video call from any chat.'),
+    (Ph.account_balance_wallet, 'Coins you can send', 'Send coins to friends as gifts. Every balance change is recorded in your history.'),
   ];
 
   @override

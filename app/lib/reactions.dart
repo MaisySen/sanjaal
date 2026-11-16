@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -96,7 +97,7 @@ class _ReactionButtonState extends State<ReactionButton> {
   Widget build(BuildContext context) {
     final color = widget.dark ? Colors.white : Theme.of(context).colorScheme.onSurface;
     final icon = mine == null
-        ? Icon(Icons.favorite_border, color: color, size: widget.dark ? 30 : 22)
+        ? PhIcon('heart', color: color, size: widget.dark ? 30 : 22)
         : Text(reactionEmoji[mine] ?? reactionEmoji['love']!, style: TextStyle(fontSize: widget.dark ? 28 : 21));
     final label = Text('$count', style: TextStyle(color: color, fontSize: widget.dark ? 12 : 14));
     return GestureDetector(

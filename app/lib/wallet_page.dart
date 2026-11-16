@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
@@ -177,9 +178,9 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                     ]),
                     const SizedBox(height: 16),
                     Row(children: [
-                      FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add, size: 18), label: Text(t_('Add coins'))),
+                      FilledButton.icon(onPressed: esewa ? _topup : null, icon: const PhIcon('plus', size: 18), label: Text(t_('Add coins'))),
                       const SizedBox(width: 10),
-                      OutlinedButton.icon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.north_east, size: 18), label: Text(t_('Send'))),
+                      OutlinedButton.icon(onPressed: balance > 0 ? _send : null, icon: const PhIcon('arrow-up-right', size: 18), label: Text(t_('Send'))),
                     ]),
                     if (!esewa) const Padding(padding: EdgeInsets.only(top: 10), child: Text('Adding coins is not switched on yet.')),
                     const Padding(padding: EdgeInsets.only(top: 6), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),

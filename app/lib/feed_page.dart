@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
@@ -23,11 +24,11 @@ class FeedPage extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(children: [const Logo(size: 26), const SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface))]),
+          title: const Logo(size: 56),
           actions: [
-            IconButton(tooltip: t_('Post'), icon: const Icon(Icons.add_box_outlined), onPressed: onCompose),
-            IconButton(tooltip: t_('Search'), icon: const Icon(Icons.search), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
-            IconButton(tooltip: t_('Notifications'), icon: const Icon(Icons.notifications_none), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
+            IconButton(tooltip: t_('Post'), icon: const PhIcon('plus-square'), onPressed: onCompose),
+            IconButton(tooltip: t_('Search'), icon: const PhIcon('magnifying-glass'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
+            IconButton(tooltip: t_('Notifications'), icon: const PhIcon('bell'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
           ],
           bottom: TabBar(tabs: [Tab(text: t_('For you')), Tab(text: t_('Following'))]),
         ),
@@ -37,7 +38,7 @@ class FeedPage extends StatelessWidget {
             session: session,
             query: const {'kind': 'post'},
             header: StoriesBar(session: session),
-            emptyIcon: Icons.dynamic_feed_outlined,
+            emptyIcon: Ph.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
             emptyHint: 'Be the first. Tap + to share a photo or a thought.',
           ),
@@ -45,7 +46,7 @@ class FeedPage extends StatelessWidget {
             key: const PageStorageKey('following'),
             session: session,
             query: const {'scope': 'following', 'kind': 'post'},
-            emptyIcon: Icons.group_add_outlined,
+            emptyIcon: Ph.group_add_outlined,
             emptyTitle: 'Follow people to fill this tab',
             emptyHint: 'Use search to find members and tap Follow.',
           ),
@@ -62,14 +63,14 @@ class FeedList extends StatefulWidget {
     required this.session,
     required this.query,
     this.header,
-    this.emptyIcon = Icons.dynamic_feed_outlined,
+    this.emptyIcon = Ph.dynamic_feed_outlined,
     this.emptyTitle = 'No posts yet',
     this.emptyHint,
   });
   final Session session;
   final Map<String, String> query;
   final Widget? header;
-  final IconData emptyIcon;
+  final PhData emptyIcon;
   final String emptyTitle;
   final String? emptyHint;
   @override
@@ -142,7 +143,7 @@ class FeedListState extends State<FeedList> {
             if (loading) return const Padding(padding: EdgeInsets.only(top: 80), child: Center(child: CircularProgressIndicator()));
             if (error != null) {
               return EmptyState(
-                icon: Icons.cloud_off,
+                icon: Ph.cloud_off,
                 title: error!,
                 action: OutlinedButton(onPressed: () => load(refresh: true), child: Text(t_('Try again'))),
               );
@@ -265,7 +266,7 @@ class _PostCardState extends State<PostCard> {
               SizedBox(width: 40, height: 40, child: PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 iconSize: 20,
-                icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
+                icon: PhIcon('dots-three', color: scheme.onSurfaceVariant),
                 onSelected: _menu,
                 itemBuilder: (_) => mine
                     ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
@@ -284,11 +285,11 @@ class _PostCardState extends State<PostCard> {
             child: Row(
               children: [
                 ReactionButton(session: widget.session, post: widget.post),
-                TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined, size: 20), label: Text('$comments')),
+                TextButton.icon(onPressed: _comments, icon: const PhIcon('chat-teardrop', size: 20), label: Text('$comments')),
                 if (!mine)
                   TextButton.icon(
                     onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
-                    icon: const Icon(Icons.card_giftcard, size: 20),
+                    icon: const PhIcon('gift', size: 20),
                     label: Text(t_('Gift')),
                   ),
               ],
@@ -397,8 +398,8 @@ class _CommentsSheetState extends State<CommentsSheet> {
           title: Text('@${a['username']}  ·  ${ago(c['created_at'].toString())}', style: const TextStyle(fontSize: 12)),
           subtitle: Text(c['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (!reply) IconButton(tooltip: t_('Reply'), icon: const Icon(Icons.reply, size: 18), onPressed: () => setState(() => replyTo = c)),
-            if (canDelete) IconButton(tooltip: t_('Delete'), icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _delete(c)),
+            if (!reply) IconButton(tooltip: t_('Reply'), icon: const PhIcon('arrow-bend-up-left', size: 18), onPressed: () => setState(() => replyTo = c)),
+            if (canDelete) IconButton(tooltip: t_('Delete'), icon: const PhIcon('trash', size: 18), onPressed: () => _delete(c)),
           ]),
         ),
       );
@@ -420,7 +421,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 child: loading
                     ? const Center(child: CircularProgressIndicator())
                     : items.isEmpty
-                        ? EmptyState(icon: Icons.mode_comment_outlined, title: error ?? 'No comments yet', hint: error == null ? 'Say something kind.' : null)
+                        ? EmptyState(icon: Ph.mode_comment_outlined, title: error ?? 'No comments yet', hint: error == null ? 'Say something kind.' : null)
                         : ListView(children: [
                             for (final c in top) ...[
                               tile(c),
@@ -432,14 +433,14 @@ class _CommentsSheetState extends State<CommentsSheet> {
                 ListTile(
                   dense: true,
                   title: Text('Replying to @${(replyTo!['author'] as Map)['username']}'),
-                  trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => replyTo = null)),
+                  trailing: IconButton(icon: const PhIcon('x'), onPressed: () => setState(() => replyTo = null)),
                 ),
               Padding(
                 padding: const EdgeInsets.all(8),
                 child: Row(
                   children: [
                     Expanded(child: TextField(controller: input, maxLength: 1000, decoration: const InputDecoration(hintText: 'Add a comment', counterText: '', border: OutlineInputBorder()), onSubmitted: (_) => _send())),
-                    IconButton(onPressed: sending ? null : _send, icon: const Icon(Icons.send)),
+                    IconButton(onPressed: sending ? null : _send, icon: const PhIcon('paper-plane-tilt-fill')),
                   ],
                 ),
               ),
@@ -458,7 +459,7 @@ class HashtagPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('#$tag')),
-        body: FeedList(session: session, query: {'hashtag': tag}, emptyIcon: Icons.tag, emptyTitle: 'No posts with #$tag yet'),
+        body: FeedList(session: session, query: {'hashtag': tag}, emptyIcon: Ph.tag, emptyTitle: 'No posts with #$tag yet'),
       );
 }
 
@@ -539,7 +540,7 @@ class _ComposePageState extends State<ComposePage> {
             Expanded(child: TextField(controller: text, autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
           ]),
           if (video != null)
-            Card(child: ListTile(leading: const Icon(Icons.videocam), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
+            Card(child: ListTile(leading: const PhIcon('video-camera'), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
           if (images.isNotEmpty)
             SizedBox(
               height: 140,
@@ -562,8 +563,8 @@ class _ComposePageState extends State<ComposePage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(children: [
-              TextButton.icon(onPressed: busy ? null : _pick, icon: const Icon(Icons.photo_outlined, size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
-              TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const Icon(Icons.videocam_outlined, size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
+              TextButton.icon(onPressed: busy ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
+              TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
               const Spacer(),
               if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: const Text('Remove media')),
             ]),
@@ -614,7 +615,7 @@ class _VideoTileState extends State<VideoTile> {
       onTap: () => c.value.isPlaying ? c.pause() : c.play(),
       child: Stack(alignment: Alignment.center, children: [
         AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c)),
-        if (!c.value.isPlaying) const Icon(Icons.play_circle_fill, size: 64, color: Colors.white70),
+        if (!c.value.isPlaying) const PhIcon('play-circle-fill', size: 64, color: Colors.white70),
       ]),
     );
   }

@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'about_page.dart';
@@ -44,34 +45,34 @@ class SettingsPage extends StatelessWidget {
           const Divider(),
           ValueListenableBuilder<String>(
             valueListenable: Push.status,
-            builder: (context, v, child) => ListTile(leading: const Icon(Icons.notifications_outlined), title: Text(t_('Push notifications')), subtitle: Text(v)),
+            builder: (context, v, child) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(v)),
           ),
           ListTile(
-            leading: const Icon(Icons.account_balance_wallet_outlined),
+            leading: const PhIcon('wallet'),
             title: Text(t_('Coin wallet')),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const PhIcon('caret-right'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalletPage(session: session))),
           ),
           ListTile(
-            leading: const Icon(Icons.block),
+            leading: const PhIcon('prohibit'),
             title: Text(t_('Blocked people')),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const PhIcon('caret-right'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BlockedPage(session: session))),
           ),
           ListTile(
-            leading: const Icon(Icons.info_outline),
+            leading: const PhIcon('info'),
             title: Text(t_('About, privacy and terms')),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const PhIcon('caret-right'),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
           ),
           ListTile(
-            leading: const Icon(Icons.mail_outline),
+            leading: const PhIcon('envelope-simple'),
             title: Text(t_('Contact us')),
             subtitle: const Text('contact@fintex.au'),
             onTap: () => launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal')),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_forever_outlined),
+            leading: const PhIcon('trash'),
             title: const Text('Delete my account'),
             subtitle: const Text('Sends a request by email'),
             onTap: () async {
@@ -81,7 +82,7 @@ class SettingsPage extends StatelessWidget {
           ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
+            leading: PhIcon('sign-out', color: Theme.of(context).colorScheme.error),
             title: Text(t_('Sign out')),
             onTap: () {
               Navigator.of(context).popUntil((r) => r.isFirst);
@@ -129,9 +130,9 @@ class _BlockedPageState extends State<BlockedPage> {
     return Scaffold(
       appBar: AppBar(title: Text(t_('Blocked people'))),
       body: list == null
-          ? (error != null ? EmptyState(icon: Icons.cloud_off, title: error!) : const Center(child: CircularProgressIndicator()))
+          ? (error != null ? EmptyState(icon: Ph.cloud_off, title: error!) : const Center(child: CircularProgressIndicator()))
           : list!.isEmpty
-              ? const EmptyState(icon: Icons.block, title: 'You have not blocked anyone')
+              ? const EmptyState(icon: Ph.block, title: 'You have not blocked anyone')
               : ListView(children: [
                   for (final u in list!)
                     ListTile(

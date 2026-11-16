@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -83,9 +84,9 @@ class _ChatsPageState extends State<ChatsPage> {
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: Icon(c['pinned'] == true ? Icons.push_pin : Icons.push_pin_outlined), title: Text(c['pinned'] == true ? 'Unpin' : 'Pin to top'), onTap: () => set({'pinned': c['pinned'] != true})),
-          ListTile(leading: Icon(c['muted'] == true ? Icons.notifications_off : Icons.notifications_off_outlined), title: Text(c['muted'] == true ? 'Unmute' : 'Mute'), onTap: () => set({'muted': c['muted'] != true})),
-          ListTile(leading: Icon(c['archived'] == true ? Icons.unarchive_outlined : Icons.archive_outlined), title: Text(c['archived'] == true ? 'Unarchive' : 'Archive'), onTap: () => set({'archived': c['archived'] != true})),
+          ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(c['pinned'] == true ? 'Unpin' : 'Pin to top'), onTap: () => set({'pinned': c['pinned'] != true})),
+          ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(c['muted'] == true ? 'Unmute' : 'Mute'), onTap: () => set({'muted': c['muted'] != true})),
+          ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(c['archived'] == true ? 'Unarchive' : 'Archive'), onTap: () => set({'archived': c['archived'] != true})),
         ]),
       ),
     );
@@ -110,7 +111,7 @@ class _ChatsPageState extends State<ChatsPage> {
       appBar: AppBar(
         title: Text(showArchived ? 'Archived' : t_('Chats')),
         actions: [
-          IconButton(tooltip: t_('New chat'), icon: const Icon(Icons.edit_square), onPressed: _new),
+          IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
           PopupMenuButton<String>(
             tooltip: 'More',
             onSelected: (v) {
@@ -156,15 +157,15 @@ class _ChatsPageState extends State<ChatsPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           child: Row(children: [
                             c['type'] == 'group'
-                                ? CircleAvatar(radius: 24, backgroundColor: scheme.surfaceContainerHigh, child: Icon(Icons.groups, color: scheme.onSurfaceVariant))
+                                ? CircleAvatar(radius: 24, backgroundColor: scheme.surfaceContainerHigh, child: PhIcon('users-three', color: scheme.onSurfaceVariant))
                                 : Avatar(user: {'name': title, 'username': title, 'avatar_url': c['avatar_url']}, radius: 24),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
                                   Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w600))),
-                                  if (c['pinned'] == true) Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.push_pin, size: 13, color: scheme.onSurfaceVariant)),
-                                  if (c['muted'] == true) Padding(padding: const EdgeInsets.only(left: 4), child: Icon(Icons.notifications_off, size: 13, color: scheme.onSurfaceVariant)),
+                                  if (c['pinned'] == true) Padding(padding: const EdgeInsets.only(left: 6), child: PhIcon('push-pin-fill', size: 13, color: scheme.onSurfaceVariant)),
+                                  if (c['muted'] == true) Padding(padding: const EdgeInsets.only(left: 4), child: PhIcon('bell-slash', size: 13, color: scheme.onSurfaceVariant)),
                                 ]),
                                 const SizedBox(height: 2),
                                 Text(_preview(last), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: unread > 0 ? scheme.onSurface : scheme.onSurfaceVariant, fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.w400)),
@@ -271,7 +272,7 @@ class _NewChatPageState extends State<NewChatPage> {
         actions: [
           TextButton.icon(
             onPressed: busy ? null : () => setState(() { group = !group; picked.clear(); }),
-            icon: Icon(group ? Icons.person : Icons.groups),
+            icon: PhIcon(group ? Ph.person : Ph.groups),
             label: Text(group ? 'One to one' : 'New group'),
           ),
         ],
@@ -289,14 +290,14 @@ class _NewChatPageState extends State<NewChatPage> {
           ),
         Padding(
           padding: const EdgeInsets.all(16),
-          child: TextField(controller: q, autofocus: true, onChanged: _changed, decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search by name or username', border: OutlineInputBorder())),
+          child: TextField(controller: q, autofocus: true, onChanged: _changed, decoration: const InputDecoration(prefixIcon: PhIcon('magnifying-glass'), hintText: 'Search by name or username', border: OutlineInputBorder())),
         ),
         if (error != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         Expanded(
           child: !searched
-              ? const EmptyState(icon: Icons.person_search, title: 'Find someone to chat with', hint: 'Search for a member, then tap them.')
+              ? const EmptyState(icon: Ph.person_search, title: 'Find someone to chat with', hint: 'Search for a member, then tap them.')
               : results.isEmpty
-                  ? const EmptyState(icon: Icons.search_off, title: 'No matches')
+                  ? const EmptyState(icon: Ph.search_off, title: 'No matches')
                   : ListView(children: [
                       for (final u in results)
                         ListTile(
@@ -320,7 +321,7 @@ class _NewChatPageState extends State<NewChatPage> {
                       }
                       _start({'type': 'group', 'title': title.text.trim(), 'usernames': picked.keys.toList()});
                     },
-              icon: const Icon(Icons.check),
+              icon: const PhIcon('check'),
               label: Text('Create group (${picked.length})'),
             )
           : null,
@@ -500,7 +501,7 @@ class _ChatPageState extends State<ChatPage> {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            leading: const Icon(Icons.reply),
+            leading: const PhIcon('arrow-bend-up-left'),
             title: const Text('Reply'),
             onTap: () {
               Navigator.pop(ctx);
@@ -509,7 +510,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
           if ((m['body'] ?? '').toString().isNotEmpty)
             ListTile(
-              leading: const Icon(Icons.copy),
+              leading: const PhIcon('copy'),
               title: Text(t_('Copy')),
               onTap: () {
                 Navigator.pop(ctx);
@@ -545,8 +546,8 @@ class _ChatPageState extends State<ChatPage> {
           if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
         ]),
         actions: [
-          IconButton(tooltip: 'Voice call', icon: const Icon(Icons.call), onPressed: () => _call(false)),
-          IconButton(tooltip: 'Video call', icon: const Icon(Icons.videocam), onPressed: () => _call(true)),
+          IconButton(tooltip: 'Voice call', icon: const PhIcon('phone-fill'), onPressed: () => _call(false)),
+          IconButton(tooltip: 'Video call', icon: const PhIcon('video-camera'), onPressed: () => _call(true)),
         ],
       ),
       body: Column(children: [
@@ -595,7 +596,7 @@ class _ChatPageState extends State<ChatPage> {
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: GestureDetector(
                                       onTap: () => openImage(context, m['media_url'] as String),
-                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))),
+                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
                                     ),
                                   ),
                                 if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String),
@@ -620,7 +621,7 @@ class _ChatPageState extends State<ChatPage> {
                   decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
                   child: Row(children: [
                     Expanded(child: Text('Replying to @${(replyTo!['sender'] as Map)['username']}: ${kindLabel(replyTo!['kind'], replyTo!['body'])}', maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => replyTo = null), icon: const Icon(Icons.close, size: 18)),
+                    IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => replyTo = null), icon: const PhIcon('x', size: 18)),
                   ]),
                 ),
               if (recording)
@@ -635,10 +636,10 @@ class _ChatPageState extends State<ChatPage> {
                 )
               else
               Row(children: [
-                IconButton(onPressed: _attach, icon: const Icon(Icons.image_outlined)),
+                IconButton(onPressed: _attach, icon: const PhIcon('image')),
                 Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder()))),
-                IconButton(onPressed: () => setState(() => recording = true), icon: const Icon(Icons.mic_none), tooltip: 'Voice message'),
-                IconButton(onPressed: _send, icon: const Icon(Icons.send)),
+                IconButton(onPressed: () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
+                IconButton(onPressed: _send, icon: const PhIcon('paper-plane-tilt-fill')),
               ]),
             ]),
           ),

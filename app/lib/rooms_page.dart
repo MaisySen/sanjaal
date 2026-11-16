@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'dart:convert';
 import 'package:livekit_client/livekit_client.dart' hide Session;
 import 'package:material_ui/material_ui.dart';
@@ -77,7 +78,7 @@ class _RoomsPageState extends State<RoomsPage> {
       appBar: AppBar(title: Text(t_('Live rooms')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton.icon(onPressed: _start, icon: const Icon(Icons.mic, size: 18), label: Text(t_('Go live')), style: FilledButton.styleFrom(minimumSize: const Size(64, 36))),
+          child: FilledButton.icon(onPressed: _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live')), style: FilledButton.styleFrom(minimumSize: const Size(64, 36))),
         ),
       ]),
       body: RefreshIndicator(
@@ -85,17 +86,17 @@ class _RoomsPageState extends State<RoomsPage> {
         child: loading
             ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : rooms.isEmpty
-                ? ListView(children: [EmptyState(icon: Icons.podcasts, title: error ?? 'No rooms live right now', hint: 'Start one and others can listen in.')])
+                ? ListView(children: [EmptyState(icon: Ph.podcasts, title: error ?? 'No rooms live right now', hint: 'Start one and others can listen in.')])
                 : ListView.separated(
                     itemCount: rooms.length,
                     separatorBuilder: (_, i) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final r = rooms[i];
                       return ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.graphic_eq)),
+                        leading: const CircleAvatar(child: PhIcon('waveform')),
                         title: Text('${r['title']}'),
                         subtitle: Text('Hosted by ${r['host_name'] ?? r['host_username']}'),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: const PhIcon('caret-right'),
                         onTap: () => _open(r['public_id'] as String),
                       );
                     },
@@ -387,7 +388,7 @@ class RoomView extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: Text(title), actions: [
-        if (!isHost && !failed) IconButton(tooltip: 'Send a gift', onPressed: onGift, icon: const Icon(Icons.card_giftcard)),
+        if (!isHost && !failed) IconButton(tooltip: 'Send a gift', onPressed: onGift, icon: const PhIcon('gift')),
         if (isHost && !failed) TextButton(onPressed: onEnd, child: Text(t_('End'))),
       ]),
       body: failed
@@ -395,7 +396,7 @@ class RoomView extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.error_outline, size: 64, color: scheme.error),
+                  PhIcon('warning-circle', size: 64, color: scheme.error),
                   const SizedBox(height: 12),
                   Text(status, textAlign: TextAlign.center),
                   const SizedBox(height: 20),
@@ -414,7 +415,7 @@ class RoomView extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Text('$inRoom in the room', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),
-                  if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const Icon(Icons.back_hand_outlined, size: 18), label: Text(handUp ? 'Hand raised' : 'Raise hand'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
+                  if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const PhIcon('hand-waving', size: 18), label: Text(handUp ? 'Hand raised' : 'Raise hand'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
                 ]),
               ),
               if (isHost && hands.isNotEmpty)
@@ -426,7 +427,7 @@ class RoomView extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
-                            const Icon(Icons.back_hand_outlined, size: 20),
+                            const PhIcon('hand-waving', size: 20),
                             const SizedBox(width: 10),
                             Expanded(child: Text(h.value.isEmpty ? 'Member' : h.value, maxLines: 2, overflow: TextOverflow.ellipsis)),
                           ]),
@@ -468,7 +469,7 @@ class RoomView extends StatelessWidget {
                           Text([m.name, if (m.host) '(host)', if (m.you) '(you)'].join(' '), maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.2)),
                           const SizedBox(height: 2),
                           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Icon(m.muted ? Icons.mic_off : Icons.mic, size: 12, color: scheme.onSurfaceVariant),
+                            PhIcon(m.muted ? Ph.mic_off : Ph.mic, size: 12, color: scheme.onSurfaceVariant),
                             const SizedBox(width: 3),
                             Flexible(child: Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))),
                           ]),
@@ -482,7 +483,7 @@ class RoomView extends StatelessWidget {
               Divider(height: 1, color: scheme.outlineVariant),
               Expanded(
                 child: messages.isEmpty
-                    ? const EmptyState(icon: Icons.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')
+                    ? const EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')
                     : ListView.builder(
                         reverse: true,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -503,11 +504,11 @@ class RoomView extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                   child: Row(children: [
-                    if (speaker) IconButton.filledTonal(tooltip: muted ? 'Unmute' : 'Mute', onPressed: onToggleMic, icon: Icon(muted ? Icons.mic_off : Icons.mic)),
+                    if (speaker) IconButton.filledTonal(tooltip: muted ? 'Unmute' : 'Mute', onPressed: onToggleMic, icon: PhIcon(muted ? Ph.mic_off : Ph.mic)),
                     if (speaker) const SizedBox(width: 8),
                     Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => onSend())),
                     const SizedBox(width: 8),
-                    IconButton.filled(onPressed: onSend, icon: const Icon(Icons.send)),
+                    IconButton.filled(onPressed: onSend, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
                   ]),
                 ),
               ),

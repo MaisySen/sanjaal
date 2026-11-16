@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'actions.dart';
@@ -133,7 +134,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (user == null) {
       return Scaffold(
         appBar: AppBar(title: Text('@${widget.username}')),
-        body: error != null ? EmptyState(icon: Icons.person_off_outlined, title: error!) : const Center(child: CircularProgressIndicator()),
+        body: error != null ? EmptyState(icon: Ph.person_off_outlined, title: error!) : const Center(child: CircularProgressIndicator()),
       );
     }
     final isMe = user['is_me'] == true;
@@ -156,7 +157,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       body: FeedList(
         session: widget.session,
         query: {'username': widget.username},
-        emptyIcon: Icons.image_outlined,
+        emptyIcon: Ph.image_outlined,
         emptyTitle: isMe ? 'You have not posted yet' : 'No posts yet',
         header: ProfileHeader(
           user: user,
@@ -169,7 +170,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         : FilledButton(onPressed: busy || blocked ? null : _follow, child: Text(t_('Follow'))),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: OutlinedButton.icon(onPressed: busy || blocked ? null : _message, icon: const Icon(Icons.chat_bubble_outline), label: Text(t_('Message')))),
+                  Expanded(child: OutlinedButton.icon(onPressed: busy || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message')))),
                 ]),
         ),
       ),
@@ -214,7 +215,7 @@ class _MePageState extends State<MePage> {
         actions: [
           IconButton(
             tooltip: t_('Settings'),
-            icon: const Icon(Icons.settings_outlined),
+            icon: const PhIcon('gear'),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: s))),
           ),
         ],
@@ -223,7 +224,7 @@ class _MePageState extends State<MePage> {
         key: ValueKey(_refresh),
         session: s,
         query: {'username': (s.user?['username'] ?? '').toString()},
-        emptyIcon: Icons.image_outlined,
+        emptyIcon: Ph.image_outlined,
         emptyTitle: 'You have not posted yet',
         emptyHint: 'Your posts show up here. Tap + on Home to share one.',
         header: ProfileHeader(
@@ -231,7 +232,7 @@ class _MePageState extends State<MePage> {
           actions: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              icon: const Icon(Icons.edit_outlined, size: 18),
+              icon: const PhIcon('pencil-simple', size: 18),
               label: Text(t_('Edit profile')),
               onPressed: () async {
                 await Navigator.of(context).push(MaterialPageRoute(builder: (_) => EditProfilePage(session: s)));
@@ -303,7 +304,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               Positioned(
                 right: 0,
                 bottom: 0,
-                child: CircleAvatar(radius: 18, backgroundColor: brandRed, child: IconButton(padding: EdgeInsets.zero, icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white), onPressed: busy ? null : _avatar)),
+                child: CircleAvatar(radius: 18, backgroundColor: brandRed, child: IconButton(padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.white), onPressed: busy ? null : _avatar)),
               ),
             ]),
           ),

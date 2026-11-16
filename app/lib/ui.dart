@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,7 +31,7 @@ void showInfo(BuildContext context, String m) {
 
 /// App wide settings: theme and language. Saved on the device.
 class AppPrefs extends ChangeNotifier {
-  ThemeMode mode = ThemeMode.system;
+  ThemeMode mode = ThemeMode.dark;
   String lang = 'en';
   bool seenOnboarding = true;
   bool ready = false;
@@ -40,7 +41,8 @@ class AppPrefs extends ChangeNotifier {
     mode = switch (p.getString('theme')) {
       'dark' => ThemeMode.dark,
       'light' => ThemeMode.light,
-      _ => ThemeMode.system,
+      'system' => ThemeMode.system,
+      _ => ThemeMode.dark,
     };
     lang = p.getString('lang') ?? 'en';
     seenOnboarding = p.getBool('onboarded') ?? false;
@@ -164,7 +166,7 @@ class Avatar extends StatelessWidget {
 
 class EmptyState extends StatelessWidget {
   const EmptyState({super.key, required this.icon, required this.title, this.hint, this.action});
-  final IconData icon;
+  final PhData icon;
   final String title;
   final String? hint;
   final Widget? action;
@@ -176,7 +178,7 @@ class EmptyState extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 30, color: s.colorScheme.onSurfaceVariant),
+          PhIcon(icon, size: 30, color: s.colorScheme.onSurfaceVariant),
           const SizedBox(height: 10),
           Text(title, textAlign: TextAlign.center, style: s.textTheme.titleMedium?.copyWith(fontSize: 16)),
           if (hint != null) ...[
@@ -195,16 +197,8 @@ class Logo extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.22),
-        color: brandRed,
-      ),
-      child: Text('स', style: TextStyle(color: Colors.white, fontSize: size * 0.58, fontWeight: FontWeight.w700, height: 1.1)),
-    );
+    // Draft identity: the Devanagari wordmark alone. No logo mark is approved yet.
+    return Text('सञ्जाल', style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w700, letterSpacing: -0.3, color: Theme.of(context).colorScheme.onSurface));
   }
 }
 

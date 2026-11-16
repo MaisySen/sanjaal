@@ -1,14 +1,15 @@
+import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'ui.dart';
 
-const _giftIcons = <String, IconData>{
-  'rose': Icons.local_florist,
-  'heart': Icons.favorite,
-  'momo': Icons.ramen_dining,
-  'crown': Icons.workspace_premium,
-  'himal': Icons.landscape,
-  'rocket': Icons.rocket_launch,
+const _giftIcons = <String, PhData>{
+  'rose': Ph.local_florist,
+  'heart': Ph.favorite,
+  'momo': Ph.ramen_dining,
+  'crown': Ph.workspace_premium,
+  'himal': Ph.landscape,
+  'rocket': Ph.rocket_launch,
 };
 
 /// Bottom sheet that lists gifts and sends one to the creator of a post or reel.
@@ -113,7 +114,7 @@ class _GiftSheetState extends State<_GiftSheet> {
                       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                         sending == g['key']
                             ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(_giftIcons[g['key']] ?? Icons.card_giftcard, size: 32),
+                            : PhIcon(_giftIcons[g['key']] ?? Ph.card_giftcard, size: 32),
                         const SizedBox(height: 4),
                         Text(g['name'].toString()),
                         Text('${g['coins']} coins', style: Theme.of(context).textTheme.bodySmall),

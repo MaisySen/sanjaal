@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'dart:async';
 
 import 'package:image_picker/image_picker.dart';
@@ -45,8 +46,8 @@ class _StoriesBarState extends State<StoriesBar> {
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.photo_outlined), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
-          ListTile(leading: const Icon(Icons.videocam_outlined), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
+          ListTile(leading: const PhIcon('image'), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
+          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
         ]),
       ),
     );
@@ -84,7 +85,7 @@ class _StoriesBarState extends State<StoriesBar> {
                   child: Avatar(user: user, radius: 24),
                 ),
                 if (plus)
-                  CircleAvatar(radius: 10, backgroundColor: scheme.primary, child: Icon(Icons.add, size: 14, color: scheme.onPrimary)),
+                  CircleAvatar(radius: 10, backgroundColor: scheme.primary, child: PhIcon('plus', size: 14, color: scheme.onPrimary)),
               ]),
               const SizedBox(height: 4),
               Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
@@ -108,7 +109,7 @@ class _StoriesBarState extends State<StoriesBar> {
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           if (mine.isNotEmpty && i == 1) {
-            return InkWell(onTap: _add, child: SizedBox(width: 56, child: Center(child: Icon(Icons.add_circle_outline, color: scheme.primary, size: 32))));
+            return InkWell(onTap: _add, child: SizedBox(width: 56, child: Center(child: PhIcon('plus-circle', color: scheme.primary, size: 32))));
           }
           final k = mine.isNotEmpty && i > 1 ? i - 1 : i;
           return tiles[k];
@@ -265,7 +266,7 @@ class _StoryViewerState extends State<StoryViewer> {
           item['url'] as String,
           fit: BoxFit.contain,
           loadingBuilder: (_, child, p) => p == null ? child : const Center(child: CircularProgressIndicator()),
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48),
+          errorBuilder: (_, __, ___) => const PhIcon('image-broken', color: Colors.white54, size: 48),
         ),
       );
     }
@@ -312,9 +313,9 @@ class _StoryViewerState extends State<StoryViewer> {
                 Avatar(user: author, radius: 16),
                 const SizedBox(width: 8),
                 Expanded(child: Text('${author['username']}  ${ago(item['created_at'] as String)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
-                if (isMine) IconButton(onPressed: _viewers, icon: const Icon(Icons.visibility_outlined, color: Colors.white)),
-                if (isMine) IconButton(onPressed: _delete, icon: const Icon(Icons.delete_outline, color: Colors.white)),
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close, color: Colors.white)),
+                if (isMine) IconButton(onPressed: _viewers, icon: const PhIcon('eye', color: Colors.white)),
+                if (isMine) IconButton(onPressed: _delete, icon: const PhIcon('trash', color: Colors.white)),
+                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const PhIcon('x', color: Colors.white)),
               ]),
             ),
             if (caption.isNotEmpty)

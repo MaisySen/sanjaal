@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -80,15 +81,15 @@ class _SearchPageState extends State<SearchPage> {
         ),
       ),
       body: error != null
-          ? EmptyState(icon: Icons.cloud_off, title: error!)
+          ? EmptyState(icon: Ph.cloud_off, title: error!)
           : !searched
-              ? const EmptyState(icon: Icons.search, title: 'Find people to follow', hint: 'Type a name, a username or a hashtag.')
+              ? const EmptyState(icon: Ph.search, title: 'Find people to follow', hint: 'Type a name, a username or a hashtag.')
               : users.isEmpty && tags.isEmpty
-                  ? const EmptyState(icon: Icons.search_off, title: 'No matches')
+                  ? const EmptyState(icon: Ph.search_off, title: 'No matches')
                   : ListView(children: [
                       for (final tg in tags)
                         ListTile(
-                          leading: const CircleAvatar(child: Icon(Icons.tag)),
+                          leading: const CircleAvatar(child: PhIcon('hash')),
                           title: Text('#$tg'),
                           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tg))),
                         ),

@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'profile_pages.dart';
@@ -35,9 +36,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
     if (items == null && error == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (items == null) {
-      body = EmptyState(icon: Icons.cloud_off, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: Text(t_('Try again'))));
+      body = EmptyState(icon: Ph.cloud_off, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: Text(t_('Try again'))));
     } else if (items!.isEmpty) {
-      body = const EmptyState(icon: Icons.notifications_none, title: 'Nothing yet', hint: 'Likes, comments and new followers show up here.');
+      body = const EmptyState(icon: Ph.notifications_none, title: 'Nothing yet', hint: 'Likes, comments and new followers show up here.');
     } else {
       body = RefreshIndicator(
         onRefresh: _load,
@@ -49,12 +50,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
             final type = n['type'];
             final who = '@${n['actor']}';
             final (icon, color, text) = switch (type) {
-              'like' => (Icons.favorite, brandRed, '$who liked your post'),
-              'comment' => (Icons.mode_comment, const Color(0xFF24405F), '$who commented: ${n['text']}'),
-              _ => (Icons.person_add, const Color(0xFF3F5B45), '$who started following you'),
+              'like' => (Ph.favorite, brandRed, '$who liked your post'),
+              'comment' => (Ph.mode_comment, const Color(0xFF24405F), '$who commented: ${n['text']}'),
+              _ => (Ph.person_add, const Color(0xFF3F5B45), '$who started following you'),
             };
             return ListTile(
-              leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color, size: 20)),
+              leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: PhIcon(icon, color: color, size: 20)),
               title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(type == 'like' && (n['text'] ?? '').toString().isNotEmpty ? '${n['text']}  ·  ${ago(n['created_at'].toString())}' : ago(n['created_at'].toString())),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: n['actor'].toString()))),

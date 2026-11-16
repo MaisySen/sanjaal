@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'api.dart';
@@ -70,7 +71,7 @@ class _ReelsPageState extends State<ReelsPage> {
         body: loading
             ? const Center(child: CircularProgressIndicator())
             : EmptyState(
-                icon: Icons.movie_outlined,
+                icon: Ph.movie_outlined,
                 title: error ?? 'No reels yet',
                 hint: error == null ? 'Tap + on Home, add a video and it shows up here.' : null,
                 action: OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Refresh'))),
@@ -104,7 +105,7 @@ class _ReelsPageState extends State<ReelsPage> {
             child: Row(children: [
               Text(t_('Reels'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
               const Spacer(),
-              IconButton(color: Colors.white, tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: () => _load(refresh: true)),
+              IconButton(color: Colors.white, tooltip: 'Refresh', icon: const PhIcon('arrow-clockwise'), onPressed: () => _load(refresh: true)),
             ]),
           ),
         ),
@@ -205,10 +206,10 @@ class _ReelItemState extends State<ReelItem> {
 
   bool get _mine => widget.session.user?['username'] == author['username'];
 
-  Widget _side(IconData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
+  Widget _side(PhData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
         padding: const EdgeInsets.only(bottom: 18),
         child: Column(children: [
-          IconButton(iconSize: 34, color: color, icon: Icon(icon), onPressed: onTap),
+          IconButton(iconSize: 34, color: color, icon: PhIcon(icon), onPressed: onTap),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
         ]),
       );
@@ -230,7 +231,7 @@ class _ReelItemState extends State<ReelItem> {
             child: Center(child: AspectRatio(aspectRatio: ctl.value.aspectRatio, child: VideoPlayer(ctl))),
           ),
         ),
-      if (ready && ctl != null && !ctl.value.isPlaying) const Center(child: IgnorePointer(child: Icon(Icons.play_arrow_rounded, size: 88, color: Colors.white54))),
+      if (ready && ctl != null && !ctl.value.isPlaying) const Center(child: IgnorePointer(child: PhIcon('play-fill', size: 88, color: Colors.white54))),
       if (ready && ctl != null)
         Positioned(left: 0, right: 0, bottom: 0, child: VideoProgressIndicator(ctl, allowScrubbing: true, padding: EdgeInsets.zero, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
       const Positioned(left: 0, right: 0, bottom: 0, height: 220, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xCC000000), Color(0x00000000)]))))),
@@ -265,9 +266,9 @@ class _ReelItemState extends State<ReelItem> {
         bottom: 24,
         child: Column(children: [
           ReactionButton(session: widget.session, post: widget.reel, dark: true),
-          _side(Icons.mode_comment_outlined, '$comments', _comments),
-          _side(Icons.card_giftcard, 'Gift', () => showGiftSheet(context, widget.session, id, author['username'].toString())),
-          _side(widget.muted ? Icons.volume_off : Icons.volume_up, widget.muted ? 'Muted' : 'Sound', widget.onToggleMute),
+          _side(Ph.mode_comment_outlined, '$comments', _comments),
+          _side(Ph.card_giftcard, 'Gift', () => showGiftSheet(context, widget.session, id, author['username'].toString())),
+          _side(widget.muted ? Ph.volume_off : Ph.volume_up, widget.muted ? 'Muted' : 'Sound', widget.onToggleMute),
         ]),
       ),
     ]);

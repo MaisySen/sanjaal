@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:livekit_client/livekit_client.dart' hide Session;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -117,7 +118,7 @@ class _CallPageState extends State<CallPage> {
                   await room.localParticipant?.setMicrophoneEnabled(!muted);
                   _changed();
                 },
-                icon: Icon(muted ? Icons.mic_off : Icons.mic),
+                icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
               ),
               if (widget.video)
                 IconButton.filledTonal(
@@ -126,12 +127,12 @@ class _CallPageState extends State<CallPage> {
                     await room.localParticipant?.setCameraEnabled(camOn);
                     _changed();
                   },
-                  icon: Icon(camOn ? Icons.videocam : Icons.videocam_off),
+                  icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),
                 ),
               IconButton.filled(
                 style: IconButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.call_end),
+                icon: const PhIcon('phone-x-fill'),
               ),
             ]),
           ),
@@ -144,7 +145,7 @@ class _CallPageState extends State<CallPage> {
         margin: const EdgeInsets.all(4),
         color: Colors.grey.shade900,
         child: Stack(children: [
-          if (v != null) Positioned.fill(child: VideoTrackRenderer(v)) else const Center(child: Icon(Icons.person, size: 64, color: Colors.white54)),
+          if (v != null) Positioned.fill(child: VideoTrackRenderer(v)) else const Center(child: PhIcon('user-fill', size: 64, color: Colors.white54)),
           Positioned(left: 8, bottom: 8, child: Text(name, style: const TextStyle(color: Colors.white))),
         ]),
       );

@@ -4,6 +4,8 @@ Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
 ## Unreleased (API image v9)
 
+Pass 12: floating glass nav bar, Phosphor icons, dark-first theme (first part of the reviewed redesign). Widget render and analyze only; not on a device; no app release.
+
 Pass 11: render coverage for About and Search. About text says adding coins is not switched on yet (deletion route kept); privacy claims flagged for grounded review. No app release.
 
 Pass 10: flows test finder import fix (material_ui), large-text layout fixes in room and settings, photo-based feed render check. Widget renders only; not on a device. No app release.

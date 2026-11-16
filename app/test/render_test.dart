@@ -14,6 +14,7 @@ import 'package:sanjaal/api.dart';
 import 'package:sanjaal/feed_page.dart' show PostCard;
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:sanjaal/profile_pages.dart' show ProfileHeader;
+import 'package:sanjaal/ph.dart';
 import 'package:sanjaal/ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -116,7 +117,7 @@ Widget _screen(Session s, int tab) {
         ? ListView(children: [for (final p in posts) PostCard(session: s, post: p, onRemoved: () {})])
         : ListView(children: [
             ProfileHeader(user: profile, actions: Row(mainAxisAlignment: MainAxisAlignment.center, children: [FilledButton(onPressed: () {}, child: const Text('Follow')), const SizedBox(width: 12), OutlinedButton(onPressed: () {}, child: const Text('Message'))])),
-            const EmptyState(icon: Icons.photo_library_outlined, title: 'No posts yet', hint: 'Posts will show here.'),
+            const EmptyState(icon: Ph.image_outlined, title: 'No posts yet', hint: 'Posts will show here.'),
           ]),
     bottomNavigationBar: NavigationBar(selectedIndex: tab == 0 ? 0 : 4, destinations: const [
       NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),

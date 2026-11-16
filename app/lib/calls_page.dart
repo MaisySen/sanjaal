@@ -1,3 +1,4 @@
+import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
@@ -55,7 +56,7 @@ class _CallsPageState extends State<CallsPage> {
         child: loading
             ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : calls.isEmpty
-                ? ListView(children: [EmptyState(icon: Icons.call_outlined, title: error ?? 'No calls yet', hint: 'Start a call from any chat.')])
+                ? ListView(children: [EmptyState(icon: Ph.call_outlined, title: error ?? 'No calls yet', hint: 'Start a call from any chat.')])
                 : ListView.separated(
                     itemCount: calls.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
@@ -69,12 +70,12 @@ class _CallsPageState extends State<CallsPage> {
                         leading: Avatar(user: (c['caller'] as Map).cast<String, dynamic>()),
                         title: Text('${c['title'] ?? who}', style: TextStyle(color: missed ? scheme.error : null)),
                         subtitle: Row(children: [
-                          Icon(incoming ? Icons.call_received : Icons.call_made, size: 14, color: missed ? scheme.error : scheme.outline),
+                          PhIcon(incoming ? Ph.call_received : Ph.call_made, size: 14, color: missed ? scheme.error : scheme.outline),
                           const SizedBox(width: 4),
                           Text([missed ? 'Missed' : (c['status'] == 'answered' || c['status'] == 'ended' ? (incoming ? 'Incoming' : 'Outgoing') : (incoming ? 'Incoming' : 'No answer')), ago(c['created_at'] as String), _length((c['duration_s'] as num).toInt())].where((e) => e.isNotEmpty).join('  ')),
                         ]),
                         trailing: IconButton(
-                          icon: Icon(video ? Icons.videocam_outlined : Icons.call_outlined),
+                          icon: PhIcon(video ? Ph.videocam_outlined : Ph.call_outlined),
                           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => CallPage(session: widget.session, conversationId: c['conversation_id'] as String, title: '${c['title'] ?? 'Call'}', video: video),
                           )),
@@ -135,7 +136,7 @@ class IncomingCallPage extends StatelessWidget {
                 IconButton.filled(
                   style: IconButton.styleFrom(backgroundColor: Colors.red, minimumSize: const Size(72, 72)),
                   onPressed: () => _answer(context, false),
-                  icon: const Icon(Icons.call_end, size: 32),
+                  icon: const PhIcon('phone-x-fill', size: 32),
                 ),
                 const SizedBox(height: 8),
                 const Text('Decline', style: TextStyle(color: Colors.white70)),
@@ -144,7 +145,7 @@ class IncomingCallPage extends StatelessWidget {
                 IconButton.filled(
                   style: IconButton.styleFrom(backgroundColor: const Color(0xFF3BE276), foregroundColor: Colors.black, minimumSize: const Size(72, 72)),
                   onPressed: () => _answer(context, true),
-                  icon: Icon(video ? Icons.videocam : Icons.call, size: 32),
+                  icon: PhIcon(video ? Ph.videocam : Ph.call, size: 32),
                 ),
                 const SizedBox(height: 8),
                 const Text('Accept', style: TextStyle(color: Colors.white70)),

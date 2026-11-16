@@ -1,3 +1,5 @@
+import 'glass_nav.dart';
+import 'ph.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
@@ -12,33 +14,36 @@ import 'reels_page.dart';
 import 'ui.dart';
 import 'wallet_page.dart';
 
-void main() => runApp(const SanjaalApp());
+void main() {
+  registerPhosphorLicense();
+  runApp(const SanjaalApp());
+}
 
 ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamilyFallback}) {
   final light = b == Brightness.light;
-  // One restrained palette: warm paper, ink text, crimson only for action and the active tab.
+  // Near-black surface, white primary actions, quiet greys (reviewed direction, Nov 16 2026).
   final scheme = ColorScheme(
     brightness: b,
-    primary: light ? const Color(0xFFB3122B) : const Color(0xFFE5646F),
-    onPrimary: light ? Colors.white : const Color(0xFF2A0006),
-    primaryContainer: light ? const Color(0xFFF3E4DF) : const Color(0xFF3A2220),
-    onPrimaryContainer: light ? const Color(0xFF5B0A17) : const Color(0xFFFFD9DC),
-    secondary: light ? const Color(0xFF24405F) : const Color(0xFF9DB8DC),
-    onSecondary: light ? Colors.white : const Color(0xFF0B2038),
-    error: light ? const Color(0xFFB3261E) : const Color(0xFFFFB4AB),
-    onError: light ? Colors.white : const Color(0xFF601410),
-    surface: light ? const Color(0xFFFAF7F2) : const Color(0xFF141311),
-    onSurface: light ? const Color(0xFF1C1A17) : const Color(0xFFECE8E1),
-    surfaceContainerLowest: light ? Colors.white : const Color(0xFF0F0E0C),
-    surfaceContainerLow: light ? const Color(0xFFF3EFE8) : const Color(0xFF1B1A17),
-    surfaceContainer: light ? const Color(0xFFEFEAE1) : const Color(0xFF211F1C),
-    surfaceContainerHigh: light ? const Color(0xFFE9E3D9) : const Color(0xFF292723),
-    surfaceContainerHighest: light ? const Color(0xFFE3DDD2) : const Color(0xFF312F2A),
-    onSurfaceVariant: light ? const Color(0xFF5E5950) : const Color(0xFFA9A398),
-    outline: light ? const Color(0xFF7A7469) : const Color(0xFF8B857A),
-    outlineVariant: light ? const Color(0xFFD9D2C5) : const Color(0xFF3A372F),
+    primary: light ? const Color(0xFF0B0D11) : Colors.white,
+    onPrimary: light ? Colors.white : const Color(0xFF0B0D11),
+    primaryContainer: light ? const Color(0xFFE9EBEF) : const Color(0xFF232833),
+    onPrimaryContainer: light ? const Color(0xFF0B0D11) : Colors.white,
+    secondary: light ? const Color(0xFF3A4150) : const Color(0xFFC9CED8),
+    onSecondary: light ? Colors.white : const Color(0xFF0B0D11),
+    error: light ? const Color(0xFFC62840) : const Color(0xFFFF6B7C),
+    onError: light ? Colors.white : const Color(0xFF2A0006),
+    surface: light ? Colors.white : const Color(0xFF0B0D11),
+    onSurface: light ? const Color(0xFF0B0D11) : Colors.white,
+    surfaceContainerLowest: light ? Colors.white : const Color(0xFF090B0E),
+    surfaceContainerLow: light ? const Color(0xFFF6F7F9) : const Color(0xFF12151B),
+    surfaceContainer: light ? const Color(0xFFF0F2F5) : const Color(0xFF181C23),
+    surfaceContainerHigh: light ? const Color(0xFFE9EBEF) : const Color(0xFF1F242D),
+    surfaceContainerHighest: light ? const Color(0xFFE1E4E9) : const Color(0xFF272C36),
+    onSurfaceVariant: light ? const Color(0xFF4A505C) : const Color(0xFFA6A9AF),
+    outline: light ? const Color(0xFF6B7280) : const Color(0xFF8A8E96),
+    outlineVariant: light ? const Color(0xFFDDE0E5) : const Color(0xFF2A2F39),
   );
-  const r = BorderRadius.all(Radius.circular(10));
+  const r = BorderRadius.all(Radius.circular(14));
   const shape = RoundedRectangleBorder(borderRadius: r);
   final labelStyle = TextStyle(fontFamily: fontFamily, fontFamilyFallback: fontFamilyFallback, fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.1);
   final base = ThemeData(brightness: b, fontFamily: fontFamily, useMaterial3: true).textTheme.apply(fontFamilyFallback: fontFamilyFallback);
@@ -252,22 +257,19 @@ class _HomeShellState extends State<HomeShell> {
     ];
     return Scaffold(
       body: IndexedStack(index: tab, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: (i) {
+      extendBody: true,
+      bottomNavigationBar: GlassNavBar(
+        index: tab,
+        onSelected: (i) {
           setState(() => tab = i);
           _refreshUnread();
         },
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: t_('Home')),
-          NavigationDestination(icon: const Icon(Icons.play_circle_outline), selectedIcon: const Icon(Icons.play_circle), label: t_('Reels')),
-          NavigationDestination(
-            icon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble_outline)),
-            selectedIcon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble)),
-            label: t_('Chats'),
-          ),
-          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: t_('Wallet')),
-          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t_('Me')),
+        items: [
+          NavItem(t_('Home'), 'house', 'house-fill'),
+          NavItem(t_('Reels'), 'play-circle', 'play-circle-fill'),
+          NavItem(t_('Chats'), 'chat-circle', 'chat-circle-fill', badge: unread),
+          NavItem(t_('Wallet'), 'wallet', 'wallet-fill'),
+          NavItem(t_('Me'), 'user-circle', 'user-circle-fill'),
         ],
       ),
     );

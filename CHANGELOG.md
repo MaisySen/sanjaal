@@ -1,5 +1,9 @@
 # Changelog
 
+## Push sender (server)
+
+- API can send chat message pushes through FCM HTTP v1 with a service account (FCM_CREDENTIALS). Off until set. CI tests use a faked provider and a generated key. Not verified against Firebase, no device receipt, iOS not covered.
+
 ## Voice bubble contrast
 
 - Progress track in voice bubbles uses a visible track colour (was faint in light mode).

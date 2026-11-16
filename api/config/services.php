@@ -55,6 +55,12 @@ return [
         'bucket_id' => env('B2_BUCKET_ID'),
     ],
 
+    // Push sender (FCM HTTP v1). Credentials are a Google service account JSON, as a path or the JSON itself.
+    // Unset means push is off and sending is a no-op.
+    'fcm' => [
+        'credentials' => env('FCM_CREDENTIALS'),
+    ],
+
     'auth0' => [
         'domain' => env('AUTH0_DOMAIN'),
         'audience' => env('AUTH0_AUDIENCE'),

@@ -191,7 +191,31 @@ class ChatController extends Controller
             report($e); // Realtime is best effort. Clients fall back to polling.
         }
 
+        $this->push($convo, $me, $msg);
+
         return response()->json(['message' => Present::message($msg)], 201);
+    }
+
+    /** Best effort push to the other members who have not muted the chat. Runs after the response. */
+    private function push(Conversation $convo, User $me, $msg): void
+    {
+        $body = match ($msg->kind) {
+            'voice' => 'Voice message',
+            'image' => 'Photo',
+            default => \Illuminate\Support\Str::limit((string) $msg->body, 80),
+        };
+        $ids = $convo->members()->where('users.id', '!=', $me->id)->wherePivot('muted', false)->pluck('users.id')->all();
+        if ($ids === []) {
+            return;
+        }
+        $title = $convo->type === 'group' && $convo->title ? $convo->title.': '.$me->name : $me->name;
+        app()->terminating(function () use ($ids, $title, $body, $convo) {
+            try {
+                app(\App\Services\Push::class)->toUsers($ids, $title, $body, ['type' => 'message', 'conversation' => $convo->public_id]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        });
     }
 
     public function read(Request $request, string $id): JsonResponse

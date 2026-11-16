@@ -8,6 +8,8 @@ Room host label uses stable identity (tests for same-name members). Gift sheet s
 
 Emulator CI now also runs an interaction test (like, post, chat, rooms list, wallet) and records the screen. Local fixture only.
 
+Push sender for chat messages added server side (off until a Firebase service account is configured; fake-provider tests only).
+
 ## 0.4.0 reactions, stories, chat depth, calls, 2026-11-15
 
 Six reactions on posts and reels (tap for a heart, long press for like, love, laugh, wow, sad, angry) with counts. Stories that last 24 hours: photo or video, a ring row above the feed, full screen viewer with tap to move, viewer list and delete for your own. Chat: photo messages, reply to a message, typing indicator, pin, mute and archive from a long press, archived list. Calls: full screen incoming call alert with accept and decline (checked every 5 seconds while the app is open, no push yet) and a call history screen with missed calls and call back. API image v8 adds these routes (34 tests passing).

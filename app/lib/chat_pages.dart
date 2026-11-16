@@ -32,6 +32,7 @@ class _ChatsPageState extends State<ChatsPage> {
   String? error;
   Timer? timer;
   bool showArchived = false;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -47,17 +48,18 @@ class _ChatsPageState extends State<ChatsPage> {
   }
 
   Future<void> _load({bool quiet = false}) async {
+    final version = ++_loadVersion;
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
-      if (!mounted) return;
+      if (!mounted || version != _loadVersion) return;
       setState(() {
         convos = (j['data'] as List).cast<Map<String, dynamic>>();
         error = null;
       });
     } on ApiError catch (e) {
-      if (mounted && !quiet) setState(() => error = e.message);
+      if (mounted && version == _loadVersion && !quiet) setState(() => error = e.message);
     }
-    if (mounted && loading) setState(() => loading = false);
+    if (mounted && version == _loadVersion && loading) setState(() => loading = false);
   }
 
   String _preview(Map<String, dynamic>? last) {
@@ -117,34 +119,50 @@ class _ChatsPageState extends State<ChatsPage> {
           IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
           PopupMenuButton<String>(
             tooltip: 'More',
-            onSelected: (v) {
-              if (v == 'rooms') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session)));
-              } else if (v == 'calls') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session)));
-              } else {
-                setState(() {
-                  showArchived = !showArchived;
-                  loading = true;
-                });
-                _load();
-              }
+            onSelected: (_) {
+              setState(() {
+                showArchived = !showArchived;
+                convos = [];
+                error = null;
+                loading = true;
+              });
+              _load();
             },
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'rooms', child: Text(t_('Live rooms'))),
-              const PopupMenuItem(value: 'calls', child: Text('Call history')),
               PopupMenuItem(value: 'archive', child: Text(showArchived ? 'Back to chats' : 'Archived chats')),
             ],
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+          child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, runSpacing: 4, children: [
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session))),
+              icon: const PhIcon('phone', size: 20), label: Text(t_('Calls')),
+            ),
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session))),
+              icon: const PhIcon('waveform', size: 20), label: Text(t_('Live rooms')),
+            ),
+          ])),
+        ),
+        Expanded(child: RefreshIndicator(
         onRefresh: _load,
         child: loading
             ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : convos.isEmpty
-                ? ListView(children: [SizedBox(height: 300, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(error ?? 'No chats yet. Tap New chat to find someone.', textAlign: TextAlign.center))))])
+                ? ListView(padding: const EdgeInsets.only(bottom: 100), children: [EmptyState(
+                    icon: error != null ? Ph.error_outline : Ph.forum,
+                    title: error ?? t_(showArchived ? 'No archived chats' : 'Start a conversation'),
+                    hint: error != null || showArchived ? null : t_('Find someone by name or username.'),
+                    action: error != null
+                        ? OutlinedButton(onPressed: _load, child: Text(t_('Try again')))
+                        : showArchived ? null : FilledButton.icon(onPressed: _new, icon: const PhIcon('note-pencil', size: 18), label: Text(t_('New chat'))),
+                  )])
                 : ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 100),
                     itemCount: convos.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, i) {
@@ -184,7 +202,8 @@ class _ChatsPageState extends State<ChatsPage> {
                       );
                     },
                   ),
-      ),
+      )),
+      ]),
     );
   }
 }
@@ -211,6 +230,8 @@ class _NewChatPageState extends State<NewChatPage> {
   @override
   void dispose() {
     _debounce?.cancel();
+    q.dispose();
+    title.dispose();
     super.dispose();
   }
 
@@ -656,7 +677,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-/// Group info: the group name and who is in it. Adding people and leaving are not available yet, so they are not offered.
+/// Group membership, owner-only rename, invitations and leaving.
 class GroupInfoPage extends StatefulWidget {
   const GroupInfoPage({super.key, required this.session, required this.convo});
   final Session session;

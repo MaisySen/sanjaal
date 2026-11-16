@@ -13,6 +13,7 @@ import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/ph.dart' show PhIcon, PhData;
+import 'package:sanjaal/calls_page.dart' show CallsPage, IncomingCallPage;
 import 'package:sanjaal/call_page.dart' show CallView, CallTile;
 import 'package:sanjaal/chat_pages.dart' show ChatPage, ChatsPage, GroupInfoPage;
 import 'package:sanjaal/notifications_page.dart' show NotificationsPage;
@@ -54,6 +55,7 @@ bool _voiceMsgs = false;
 bool _sharedMsgs = false;
 String _following = '';
 bool _failSend = false;
+String _communicationState = '';
 
 Future<http.Response> _reply(http.Request r) async {
   if (_failSend && r.method == 'POST' && r.url.path.endsWith('/messages')) return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
@@ -72,6 +74,13 @@ Future<http.Response> _reply(http.Request r) async {
       ]
     });
   }
+  if (p.endsWith('/calls/fixture/action')) return http.Response(jsonEncode({'message': 'Could not update the call. Try again.'}), 503);
+  if (p.endsWith('/calls')) { return _json({'data': [
+    {'public_id': 'c1', 'conversation_id': 'chat1', 'title': 'Asha Gurung', 'caller': {'username': 'me', 'name': 'Bidur'}, 'direction': 'outgoing', 'kind': 'voice', 'status': 'ended', 'duration_s': 185, 'created_at': _ago(45)},
+    {'public_id': 'c2', 'conversation_id': 'chat2', 'title': 'Sydney Nepali meetup', 'caller': {'username': 'sunita', 'name': 'Sunita Rai'}, 'direction': 'incoming', 'kind': 'video', 'status': 'missed', 'duration_s': 0, 'created_at': _ago(90)},
+  ]}); }
+  if (_communicationState.contains('error') && ((p.endsWith('/rooms') || p.endsWith('/conversations')) && r.method == 'GET')) return http.Response(jsonEncode({'message': 'Could not load. Try again.'}), 503);
+  if (_communicationState.contains('empty') && ((p.endsWith('/rooms') || p.endsWith('/conversations')) && r.method == 'GET')) return _json({'data': []});
   if (p.endsWith('/conversations') && r.method == 'GET') {
     Map<String, dynamic> msg(String b, int mins) => {'kind': 'text', 'body': b, 'created_at': _ago(mins)};
     return _json({
@@ -235,27 +244,30 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
+          _communicationState = name;
           _voiceMsgs = name == 'chat_voice';
           _following = name.startsWith('following_error') ? 'error' : name.startsWith('following_empty') ? 'empty' : '';
           _sharedMsgs = name.startsWith('chat_shared');
           _failSend = name == 'chat_unsent';
           await tester.runAsync(() => prefs.setLang(name.endsWith('_ne') ? 'ne' : 'en'));
           final key = GlobalKey();
-          tester.view.physicalSize = name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
+          tester.view.physicalSize = name.contains('_small') ? const Size(960, 1920) : name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
           final theme = buildTheme(b, fontFamily: 'Roboto', fontFamilyFallback: ['NotoDev']);
-          final base = name.replaceAll('chat_shared', 'chat').replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '');
+          final base = name.replaceAll('chat_shared', 'chat').replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '').replaceAll('_small', '');
           final Widget home = switch (base) {
             'wallet' => WalletPage(session: s),
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
-            'rooms' => RoomsPage(session: s),
+            'rooms' || 'rooms_empty' || 'rooms_error' => RoomsPage(session: s),
+            'calls' => CallsPage(session: s),
+            'incoming' || 'incoming_error' => IncomingCallPage(session: s, call: {'public_id': 'fixture', 'conversation_id': 'c1', 'kind': 'voice', 'caller': {'username': 'asha', 'name': 'Asha Gurung'}}),
             'shell' => HomeShell(session: s),
             'following_empty' || 'following_error' => FeedPage(session: s, onCompose: () async {}),
             'compose' => ComposePage(session: s),
@@ -269,7 +281,7 @@ void main() {
             'reel' => Scaffold(backgroundColor: Colors.black, body: ReelItem(session: s, playing: true, muted: false, onToggleMute: () {}, reel: {'public_id': 'r1', 'body': 'Dal bhat after the boat ride #pokhara', 'comments_count': 14, 'likes_count': 212, 'author': {'username': 'asha', 'name': 'Asha Gurung', 'public_id': 'u1', 'following': false}, 'media': [{'type': 'video', 'url': 'http://fixture.invalid/r1.mp4'}]})),
             'blocked' => BlockedPage(session: s),
             'new_chat' => NewChatPage(session: s),
-            'chats' || 'chats_ne' => ChatsPage(session: s),
+            'chats' || 'chats_ne' || 'chats_empty' || 'chats_error' => ChatsPage(session: s),
             'notifications' => NotificationsPage(session: s),
             'settings' => SettingsPage(session: s),
             'shared_card' => Scaffold(appBar: AppBar(title: const Text('Shared post')), body: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SharedPostCard(post: const {'public_id': 'p1', 'author': {'name': 'Asha Gurung', 'username': 'asha'}, 'excerpt': 'Evening light on the ridge. Tea after the walk.', 'image_url': null}), SharedPostCard(post: null)]))),
@@ -297,6 +309,13 @@ void main() {
           if (name.endsWith('_offline')) {
             s.setOffline(true);
             await tester.pump(const Duration(milliseconds: 300));
+          }
+          if (base == 'incoming_error') {
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 400));
+            await tester.tap(find.byTooltip('Accept'));
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+            await tester.pump();
           }
           if (name.endsWith('_scrolled')) {
             for (var i = 0; i < 4; i++) {

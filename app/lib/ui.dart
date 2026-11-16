@@ -95,6 +95,20 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Room title': 'कोठाको नाम',
+  'What is your room about?': 'तपाईंको कोठा के विषयमा हो?',
+  'No calls yet': 'अहिलेसम्म कल छैन',
+  'Start a call from any chat.': 'कुनै पनि च्याटबाट कल सुरु गर्नुहोस्।',
+  'No rooms live right now': 'अहिले कुनै कोठा लाइभ छैन',
+  'Start one and others can listen in.': 'कोठा सुरु गर्नुहोस् र अरूलाई सुन्न दिनुहोस्।',
+  'Incoming video call': 'भिडियो कल आउँदैछ',
+  'Incoming voice call': 'भ्वाइस कल आउँदैछ',
+  'Accept': 'स्वीकार गर्नुहोस्',
+  'Decline': 'अस्वीकार गर्नुहोस्',
+  'Could not update the call. Try again.': 'कल अद्यावधिक हुन सकेन। फेरि प्रयास गर्नुहोस्।',
+  'No archived chats': 'अभिलेखमा च्याट छैन',
+  'Start a conversation': 'कुराकानी सुरु गर्नुहोस्',
+  'Find someone by name or username.': 'नाम वा प्रयोगकर्ता नामबाट खोज्नुहोस्।',
   'Your people.\nYour stories.': 'आफ्ना मान्छे।\nआफ्ना कथा।',
   'A place for Nepalis, wherever you are.': 'जहाँ भए पनि, नेपालीका लागि आफ्नै ठाउँ।',
   'Share a moment': 'पल बाँड्नुहोस्',

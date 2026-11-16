@@ -19,6 +19,7 @@ class _RoomsPageState extends State<RoomsPage> {
   List<Map<String, dynamic>> rooms = [];
   bool loading = true;
   String? error;
+  bool starting = false;
 
   @override
   void initState() {
@@ -50,25 +51,18 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 
   Future<void> _start() async {
-    final c = TextEditingController();
-    final title = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(t_('Go live')),
-        content: TextField(controller: c, autofocus: true, maxLength: 80, decoration: const InputDecoration(hintText: 'What is your room about?')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: Text(t_('Start'))),
-        ],
-      ),
-    );
-    if (title == null || title.length < 2) return;
+    if (starting) return;
+    setState(() => starting = true);
     try {
+      final title = await showDialog<String>(context: context, builder: (_) => const _RoomTitleDialog());
+      if (!mounted || title == null) return;
       final j = await widget.session.call('POST', '/rooms', body: {'title': title}) as Map<String, dynamic>;
       if (!mounted) return;
       await _open(j['room_id'] as String, created: {...j, 'title': title, 'is_host': true});
     } catch (e) {
       if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => starting = false);
     }
   }
 
@@ -78,7 +72,7 @@ class _RoomsPageState extends State<RoomsPage> {
       appBar: AppBar(title: Text(t_('Live rooms')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton.icon(onPressed: _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live')), style: FilledButton.styleFrom(minimumSize: const Size(64, 36))),
+          child: FilledButton.icon(onPressed: starting ? null : _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live')), style: FilledButton.styleFrom(minimumSize: const Size(64, 48))),
         ),
       ]),
       body: RefreshIndicator(
@@ -86,7 +80,7 @@ class _RoomsPageState extends State<RoomsPage> {
         child: loading
             ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : rooms.isEmpty
-                ? ListView(children: [EmptyState(icon: Ph.podcasts, title: error ?? 'No rooms live right now', hint: 'Start one and others can listen in.')])
+                ? ListView(children: [EmptyState(icon: Ph.podcasts, title: error ?? t_('No rooms live right now'), hint: error == null ? t_('Start one and others can listen in.') : null, action: error != null ? OutlinedButton(onPressed: _load, child: Text(t_('Try again'))) : FilledButton.icon(onPressed: starting ? null : _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live'))))])
                 : ListView.separated(
                     itemCount: rooms.length,
                     separatorBuilder: (_, i) => const Divider(height: 1),
@@ -104,6 +98,37 @@ class _RoomsPageState extends State<RoomsPage> {
       ),
     );
   }
+}
+
+class _RoomTitleDialog extends StatefulWidget {
+  const _RoomTitleDialog();
+  @override
+  State<_RoomTitleDialog> createState() => _RoomTitleDialogState();
+}
+
+class _RoomTitleDialogState extends State<_RoomTitleDialog> {
+  final title = TextEditingController();
+  @override
+  void dispose() {
+    title.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(t_('Go live')),
+    content: TextField(
+      controller: title, autofocus: true, maxLength: 80,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: InputDecoration(labelText: t_('Room title'), hintText: t_('What is your room about?')),
+      onChanged: (_) => setState(() {}),
+      onSubmitted: (_) { if (title.text.trim().length >= 2) Navigator.pop(context, title.text.trim()); },
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(t_('Cancel'))),
+      FilledButton(onPressed: title.text.trim().length < 2 ? null : () => Navigator.pop(context, title.text.trim()), child: Text(t_('Start'))),
+    ],
+  );
 }
 
 /// One live room. The host speaks. Listeners chat, raise a hand and send gifts. The host can let a listener speak.

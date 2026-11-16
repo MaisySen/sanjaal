@@ -48,3 +48,11 @@ The next working source batch changes first-run/account routing, direct empty-st
 - The new first-use test initially found English 1.8x overflow at 320x640; the wordmark constraint was fixed and the test rerun successfully. Actual pixels were inspected after loading real test fonts, not inferred from test success.
 - First-use tests cover English/Nepali at 320x640, normal/1.8x text with a reachable account action; actual app welcome-to-registration-to-sign-in routing; empty-state vs load-error actions; refresh queuing during an in-flight fetch; and profile list/count reload after a publish revision.
 - The emulator publish flow now requires the post to appear after returning from Compose without a manual pull-to-refresh. Its next CI result is pending, not inherited from the previous source.
+
+## Connected communication source batch
+
+The next batch makes Calls and Live rooms visible in Chats, adds an actionable empty inbox and proper load-error retries, preserves list space above the floating navigation, and ignores stale inbox responses when switching to Archived. A room needs a valid title before Start; duplicate start requests are blocked. Call history refreshes after returning from a call.
+
+The audit found a real call-state bug: incoming Accept/Decline previously swallowed server failure and still entered the call or dismissed its ring. The candidate now stays on the ring screen with a retryable error, disables both actions during a request, and only changes screens after the server accepts the action. Caller/error content scrolls separately from fixed accept/decline controls on small screens.
+
+Current local source: 204 tests passed, 1 opt-in live test skipped (70 non-render, 67 light, 67 dark). The 11 new communication tests use a mock API, not real media: direct chat creation and Calls/Rooms navigation, three load-error retries, archive-response ordering, room-title validation/cancel with no POST, outgoing call avatar identity, and failed incoming accept/decline with duplicate suppression and retry. Small 320x640/1.8x incoming-error and empty-inbox pixels, normal Chats, and rooms error pixels were inspected. New emulator/CI evidence remains pending. No actual calls, room creation, message sends, provider changes, or new APK release happened in this batch. Native Nepali copy still needs review.

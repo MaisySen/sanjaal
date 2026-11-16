@@ -56,7 +56,7 @@ class _CallsPageState extends State<CallsPage> {
         child: loading
             ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : calls.isEmpty
-                ? ListView(children: [EmptyState(icon: Ph.call_outlined, title: error ?? 'No calls yet', hint: 'Start a call from any chat.')])
+                ? ListView(children: [EmptyState(icon: Ph.call_outlined, title: error ?? t_('No calls yet'), hint: error == null ? t_('Start a call from any chat.') : null, action: error == null ? null : OutlinedButton(onPressed: _load, child: Text(t_('Try again'))))])
                 : ListView.separated(
                     itemCount: calls.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
@@ -67,18 +67,22 @@ class _CallsPageState extends State<CallsPage> {
                       final video = c['kind'] == 'video';
                       final who = incoming ? (c['caller'] as Map)['name'] ?? (c['caller'] as Map)['username'] : c['title'];
                       return ListTile(
-                        leading: Avatar(user: (c['caller'] as Map).cast<String, dynamic>()),
+                        leading: Avatar(user: incoming ? (c['caller'] as Map).cast<String, dynamic>() : {'name': c['title'] ?? 'Call'}),
                         title: Text('${c['title'] ?? who}', style: TextStyle(color: missed ? scheme.error : null)),
                         subtitle: Row(children: [
                           PhIcon(incoming ? Ph.call_received : Ph.call_made, size: 14, color: missed ? scheme.error : scheme.outline),
                           const SizedBox(width: 4),
-                          Text([missed ? 'Missed' : (c['status'] == 'answered' || c['status'] == 'ended' ? (incoming ? 'Incoming' : 'Outgoing') : (incoming ? 'Incoming' : 'No answer')), ago(c['created_at'] as String), _length((c['duration_s'] as num).toInt())].where((e) => e.isNotEmpty).join('  ')),
+                          Expanded(child: Text([missed ? 'Missed' : (c['status'] == 'answered' || c['status'] == 'ended' ? (incoming ? 'Incoming' : 'Outgoing') : (incoming ? 'Incoming' : 'No answer')), ago(c['created_at'] as String), _length((c['duration_s'] as num).toInt())].where((e) => e.isNotEmpty).join('  '))),
                         ]),
                         trailing: IconButton(
                           icon: PhIcon(video ? Ph.videocam_outlined : Ph.call_outlined),
-                          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => CallPage(session: widget.session, conversationId: c['conversation_id'] as String, title: '${c['title'] ?? 'Call'}', video: video),
-                          )),
+                          tooltip: video ? t_('Video call') : t_('Voice call'),
+                          onPressed: () async {
+                            await Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => CallPage(session: widget.session, conversationId: c['conversation_id'] as String, title: '${c['title'] ?? 'Call'}', video: video),
+                            ));
+                            if (mounted) _load();
+                          },
                         ),
                       );
                     },
@@ -89,67 +93,89 @@ class _CallsPageState extends State<CallsPage> {
 }
 
 /// Full screen ring for an incoming call.
-class IncomingCallPage extends StatelessWidget {
+class IncomingCallPage extends StatefulWidget {
   const IncomingCallPage({super.key, required this.session, required this.call});
   final Session session;
   final Map<String, dynamic> call;
 
-  Future<void> _answer(BuildContext context, bool accept) async {
-    final nav = Navigator.of(context);
+  @override
+  State<IncomingCallPage> createState() => _IncomingCallPageState();
+}
+
+class _IncomingCallPageState extends State<IncomingCallPage> {
+  bool busy = false;
+  String? error;
+
+  Future<void> _answer(bool accept) async {
+    if (busy) return;
+    setState(() { busy = true; error = null; });
     try {
-      await session.call('POST', '/calls/${call['public_id']}/action', body: {'action': accept ? 'answer' : 'decline'});
-    } catch (_) {}
-    if (!accept) {
-      nav.pop();
-      return;
+      await widget.session.call('POST', '/calls/${widget.call['public_id']}/action', body: {'action': accept ? 'answer' : 'decline'});
+      if (!mounted) return;
+      if (!accept) {
+        Navigator.of(context).pop();
+        return;
+      }
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => CallPage(
+          session: widget.session,
+          conversationId: widget.call['conversation_id'] as String,
+          title: '${widget.call['title'] ?? 'Call'}',
+          video: widget.call['kind'] == 'video',
+          callId: widget.call['public_id'] as String,
+        ),
+      ));
+    } catch (e) {
+      if (mounted) setState(() { busy = false; error = e is ApiError ? e.message : t_('Could not update the call. Try again.'); });
     }
-    nav.pushReplacement(MaterialPageRoute(
-      builder: (_) => CallPage(
-        session: session,
-        conversationId: call['conversation_id'] as String,
-        title: '${call['title'] ?? 'Call'}',
-        video: call['kind'] == 'video',
-        callId: call['public_id'] as String,
-      ),
-    ));
   }
 
   @override
   Widget build(BuildContext context) {
-    final caller = (call['caller'] as Map).cast<String, dynamic>();
-    final video = call['kind'] == 'video';
+    final caller = (widget.call['caller'] as Map).cast<String, dynamic>();
+    final video = widget.call['kind'] == 'video';
     return Scaffold(
       backgroundColor: const Color(0xFF14152E),
       body: SafeArea(
         child: Column(children: [
-          const Spacer(flex: 2),
-          Avatar(user: caller, radius: 56),
-          const SizedBox(height: 20),
-          Text('${caller['name'] ?? caller['username']}', style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          Text(video ? 'Incoming video call' : 'Incoming voice call', style: const TextStyle(color: Colors.white70, fontSize: 16)),
-          const Spacer(flex: 3),
+          Expanded(child: Center(child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Avatar(user: caller, radius: 56),
+              const SizedBox(height: 20),
+              Text('${caller['name'] ?? caller['username']}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text(t_(video ? 'Incoming video call' : 'Incoming voice call'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
+              if (error != null) Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Semantics(liveRegion: true, child: Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white))),
+              ),
+              if (busy) const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(color: Colors.white)),
+            ]),
+          ))),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Column(children: [
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              Flexible(child: Column(mainAxisSize: MainAxisSize.min, children: [
                 IconButton.filled(
+                  tooltip: t_('Decline'),
                   style: IconButton.styleFrom(backgroundColor: Colors.red, minimumSize: const Size(72, 72)),
-                  onPressed: () => _answer(context, false),
+                  onPressed: busy ? null : () => _answer(false),
                   icon: const PhIcon('phone-x-fill', size: 32),
                 ),
                 const SizedBox(height: 8),
-                const Text('Decline', style: TextStyle(color: Colors.white70)),
-              ]),
-              Column(children: [
+                Text(t_('Decline'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+              ])),
+              Flexible(child: Column(mainAxisSize: MainAxisSize.min, children: [
                 IconButton.filled(
+                  tooltip: t_('Accept'),
                   style: IconButton.styleFrom(backgroundColor: const Color(0xFF3BE276), foregroundColor: Colors.black, minimumSize: const Size(72, 72)),
-                  onPressed: () => _answer(context, true),
+                  onPressed: busy ? null : () => _answer(true),
                   icon: PhIcon(video ? Ph.videocam : Ph.call, size: 32),
                 ),
                 const SizedBox(height: 8),
-                const Text('Accept', style: TextStyle(color: Colors.white70)),
-              ]),
+                Text(t_('Accept'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+              ])),
             ]),
           ),
         ]),

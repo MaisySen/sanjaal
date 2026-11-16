@@ -214,3 +214,9 @@ Full splitFlutter165nonrender+145journey+181render=491passed/1intentional live s
 ### First-use follow-through, November 17 09:00 AEDT
 
 The join/return form now has matching English/Nepali labels/errors/helpers, explicit password visibility and stable pending state across inputs, mode, social and Done callbacks. Large-text 320x640 layouts were inspected after scrolling to the actual action, with simulated inset only. Thirteen offline Auth regressions join the whole local suite (504 pass, one live skip). This narrows the first-use source gap; it does not prove live credentials, native keyboard, social callback or restore/refresh. No native assertion or provider flag changed. Continue connected-journey review and legitimate-release/device verification, not just isolated form counts.
+
+### Wallet destination, November 17 09:14 AEDT
+
+Wallet now presents localized real balance/history and explicit unavailable funding/payouts without implied cash value. Read failures distinguish unknown initial balance, stale last balance and failed secondary cash-out history. Controls serialize operations and unknown transfer replies stop repeat sends in the current view. Large-text translated labels choose a readable column, amounts remain readable, and dialog fields scroll above a simulated inset. Twenty-six new offline journeys and actual pixels support this batch; full local 530 pass/one live skip, analyzer 21 info.
+
+Remaining: no durable replay for member transfers across navigation/restart, no provider-dependent value, no actual money/native/device proof. Do not mistake clearer containment for a ready payment product. Native gate and legitimate release still block completion; original whole-product requirements remain.

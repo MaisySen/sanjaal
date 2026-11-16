@@ -447,7 +447,7 @@ void main() {
     await tester.tap(find.text('Dismiss'));
     await tester.tap(find.text('Move to listeners'));
     await tester.tap(find.byTooltip('Mute'));
-    await tester.tap(find.byIcon(Icons.send));
+    await tester.tap(find.byTooltip('Send'));
     await tester.pump();
     expect(log, ['allow u1 true', 'dismiss u1', 'allow u3 false', 'mic', 'send']);
   });

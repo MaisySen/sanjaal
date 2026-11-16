@@ -519,7 +519,7 @@ class RoomView extends StatelessWidget {
                     if (speaker) const SizedBox(width: 8),
                     Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => onSend())),
                     const SizedBox(width: 8),
-                    IconButton.filled(onPressed: onSend, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
+                    IconButton.filled(tooltip: 'Send', onPressed: onSend, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
                   ]),
                 ),
               ),

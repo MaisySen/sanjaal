@@ -97,17 +97,92 @@ class _CallPageState extends State<CallPage> {
       tiles.add(_tile(p.name.isEmpty ? 'Member' : p.name, v));
     }
     final me = room.localParticipant;
+    return CallView(
+      title: widget.title,
+      status: status,
+      failed: failed,
+      video: widget.video,
+      muted: muted,
+      camOn: camOn,
+      tiles: tiles,
+      selfPreview: me != null && camOn && _videoOf(me) != null ? VideoTrackRenderer(_videoOf(me)!) : null,
+      onMute: () async {
+        muted = !muted;
+        await room.localParticipant?.setMicrophoneEnabled(!muted);
+        _changed();
+      },
+      onCamera: () async {
+        camOn = !camOn;
+        await room.localParticipant?.setCameraEnabled(camOn);
+        _changed();
+      },
+      onEnd: () => Navigator.of(context).pop(),
+    );
+  }
+
+  Widget _tile(String name, VideoTrack? v) => CallTile(name: name, video: v == null ? null : VideoTrackRenderer(v));
+}
+
+/// One participant tile: video when there is any, otherwise a placeholder with the name.
+class CallTile extends StatelessWidget {
+  const CallTile({super.key, required this.name, this.video});
+  final String name;
+  final Widget? video;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: Colors.grey.shade900, borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(children: [
+          if (video != null) Positioned.fill(child: video!) else const Center(child: PhIcon('user-fill', size: 64, color: Colors.white54)),
+          Positioned(
+            left: 10,
+            bottom: 10,
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), borderRadius: BorderRadius.circular(12)), child: Text(name, style: const TextStyle(color: Colors.white))),
+          ),
+        ]),
+      );
+}
+
+/// The call screen without any LiveKit dependency, so it can be rendered offline.
+class CallView extends StatelessWidget {
+  const CallView({super.key, required this.title, required this.status, required this.failed, required this.video, required this.muted, required this.camOn, required this.tiles, required this.onMute, required this.onCamera, required this.onEnd, this.selfPreview});
+  final String title;
+  final String status;
+  final bool failed;
+  final bool video;
+  final bool muted;
+  final bool camOn;
+  final List<Widget> tiles;
+  final Widget? selfPreview;
+  final VoidCallback onMute;
+  final VoidCallback onCamera;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: Text(widget.title), backgroundColor: Colors.black, foregroundColor: Colors.white),
+      appBar: AppBar(title: Text(title), backgroundColor: Colors.black, foregroundColor: Colors.white),
       body: Column(children: [
         Expanded(
           child: tiles.isEmpty
               ? Center(child: Text(failed ? status : (status == 'Connected' ? 'Waiting for others to join' : status), style: const TextStyle(color: Colors.white), textAlign: TextAlign.center))
-              : GridView.count(crossAxisCount: tiles.length > 1 ? 2 : 1, children: tiles),
+              : Stack(children: [
+                  LayoutBuilder(builder: (context, box) {
+                    final cols = tiles.length > 1 ? 2 : 1;
+                    final rows = (tiles.length / cols).ceil();
+                    return GridView.count(
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: cols,
+                      childAspectRatio: (box.maxWidth / cols) / (box.maxHeight / rows),
+                      children: tiles,
+                    );
+                  }),
+                  if (selfPreview != null) Positioned(right: 14, top: 14, child: SizedBox(height: 120, width: 90, child: ClipRRect(borderRadius: BorderRadius.circular(14), child: selfPreview))),
+                ]),
         ),
-        if (me != null && camOn && _videoOf(me) != null)
-          SizedBox(height: 120, width: 90, child: VideoTrackRenderer(_videoOf(me)!)),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(32, 8, 32, 16),
@@ -115,44 +190,27 @@ class _CallPageState extends State<CallPage> {
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(40)),
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              IconButton.filledTonal(
-                style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
-                onPressed: failed ? null : () async {
-                  muted = !muted;
-                  await room.localParticipant?.setMicrophoneEnabled(!muted);
-                  _changed();
-                },
-                icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
-              ),
-              if (widget.video)
                 IconButton.filledTonal(
-                style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
-                  onPressed: failed ? null : () async {
-                    camOn = !camOn;
-                    await room.localParticipant?.setCameraEnabled(camOn);
-                    _changed();
-                  },
-                  icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),
+                  style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
+                  onPressed: failed ? null : onMute,
+                  icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
                 ),
-              IconButton.filled(
-                style: IconButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const PhIcon('phone-x-fill', color: Colors.white),
-              ),
-            ]),
+                if (video)
+                  IconButton.filledTonal(
+                    style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
+                    onPressed: failed ? null : onCamera,
+                    icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),
+                  ),
+                IconButton.filled(
+                  style: IconButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: onEnd,
+                  icon: const PhIcon('phone-x-fill', color: Colors.white),
+                ),
+              ]),
             ),
           ),
         ),
       ]),
     );
   }
-
-  Widget _tile(String name, VideoTrack? v) => Container(
-        margin: const EdgeInsets.all(4),
-        color: Colors.grey.shade900,
-        child: Stack(children: [
-          if (v != null) Positioned.fill(child: VideoTrackRenderer(v)) else const Center(child: PhIcon('user-fill', size: 64, color: Colors.white54)),
-          Positioned(left: 8, bottom: 8, child: Text(name, style: const TextStyle(color: Colors.white))),
-        ]),
-      );
 }

@@ -25,8 +25,12 @@ Future<void> flush(WidgetTester t) async {
 }
 Future<void> review(WidgetTester t, String name) async {
   t.view.physicalSize = const Size(960, 1920); t.view.devicePixelRatio = 3; addTearDown(t.view.reset);
-  final font = FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(File('/home/sandbox/tools/flutter/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf').readAsBytesSync())));
-  await t.runAsync(() => font.load()); await t.pumpAndSettle();
+  final fontFile = File('${Platform.environment['FLUTTER_ROOT'] ?? ''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
+  if (fontFile.existsSync()) {
+    final font = FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(fontFile.readAsBytesSync())));
+    await t.runAsync(() => font.load());
+  }
+  await t.pumpAndSettle();
   await t.runAsync(() async {
     final boundary = t.firstState(find.byType(WidgetsApp)).context.findAncestorRenderObjectOfType<RenderRepaintBoundary>();
     // Root boundary wraps the complete route and any modal sheet.

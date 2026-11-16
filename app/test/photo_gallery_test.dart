@@ -72,8 +72,11 @@ void main() {
   for (final immersive in [true, false]) {
     for (final brightness in [Brightness.light, Brightness.dark]) {
       testWidgets('real post $immersive ${brightness.name} exposes every photo and correct count', (t) async {
-        final font = FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(File('/home/sandbox/tools/flutter/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf').readAsBytesSync())));
-        await t.runAsync(() => font.load());
+        final fontFile = File('${Platform.environment['FLUTTER_ROOT'] ?? ''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
+        if (fontFile.existsSync()) {
+          final font = FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(fontFile.readAsBytesSync())));
+          await t.runAsync(() => font.load());
+        }
         t.view.physicalSize = const Size(960, 1920); t.view.devicePixelRatio = 3; addTearDown(t.view.reset);
         feedImageProvider = photo; addTearDown(() => feedImageProvider = null);
         final key = GlobalKey();
@@ -96,7 +99,7 @@ void main() {
     for (final failure in [false, true]) {
       testWidgets('gallery render ${b.name} error=$failure at small large-text size', (t) async {
         final font = FontLoader('Roboto');
-        final file = File('/home/sandbox/tools/flutter/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
+        final file = File('${Platform.environment['FLUTTER_ROOT'] ?? ''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf');
         if (file.existsSync()) { font.addFont(Future.value(ByteData.sublistView(file.readAsBytesSync()))); await t.runAsync(() => font.load()); }
         t.view.physicalSize = const Size(960, 1920); t.view.devicePixelRatio = 3; addTearDown(t.view.reset);
         final key = GlobalKey();

@@ -24,7 +24,7 @@ class AboutPage extends StatelessWidget {
         const Text(
           'We store your email, username, display name, what you post and your messages so the app can work. '
           'We do not run ads, we do not sell your data and we do not track you across other apps. '
-          'Adding coins is not switched on yet. If it is switched on, it will be paid on eSewa and we would see the payment reference and amount, never your eSewa login. '
+          'Adding coins is not switched on yet. '
           'To delete your account and data, write to contact@fintex.au.',
         ),
         h('Terms'),

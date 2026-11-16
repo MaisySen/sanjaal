@@ -19,6 +19,7 @@ import 'package:sanjaal/auth_page.dart' show AuthPage;
 import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
+import 'package:sanjaal/chat_pages.dart' show NewChatPage;
 import 'package:sanjaal/settings_page.dart' show BlockedPage;
 import 'package:sanjaal/search_page.dart' show SearchPage;
 import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
@@ -70,6 +71,13 @@ Future<http.Response> _reply(http.Request r) async {
         {'public_id': 'c4', 'type': 'direct', 'title': 'सुनिता राई', 'unread': 0, 'last_message': msg('धन्यवाद, भोलि भेटौँला', 1500)},
       ]
     });
+  }
+  if (p.endsWith('/stories')) {
+    return http.Response(jsonEncode({'data': [
+      {'author': {'username': 'asha', 'name': 'Asha Gurung'}, 'all_viewed': false, 'items': []},
+      {'author': {'username': 'bikash', 'name': 'Bikash Thapa'}, 'all_viewed': true, 'items': []},
+      {'author': {'username': 'sunita', 'name': 'Sunita Rai'}, 'all_viewed': false, 'items': []},
+    ]}), 200, headers: {'content-type': 'application/json'});
   }
   if (p.endsWith('/users/blocked')) {
     return http.Response(jsonEncode({'data': [
@@ -183,7 +191,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -206,6 +214,7 @@ void main() {
             'about' || 'about_big' => const AboutPage(),
             'search' || 'search_results' => SearchPage(session: s),
             'blocked' => BlockedPage(session: s),
+            'new_chat' => NewChatPage(session: s),
             'chats' || 'chats_ne' => ChatsPage(session: s),
             'notifications' => NotificationsPage(session: s),
             'settings' => SettingsPage(session: s),

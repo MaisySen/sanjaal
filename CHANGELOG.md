@@ -2,8 +2,9 @@
 
 ## Pass 11: About and Search render coverage
 
+- Render coverage also for New chat and the stories row (real HomeShell, fixture stories).
 - Render tests added for About (normal and 1.8x text), Search (empty and results) and Blocked people. Widget renders only, fixture data.
-- About text: the two top up statements now say adding coins is not switched on yet (the wallet screen says the same; availability is a server flag). The deletion-by-email sentence is kept unchanged. Review item still open: the wording is interim, and the privacy claims below are ungrounded. Privacy claims (no ads, no sale, no tracking, what is stored) need grounded review against real behaviour before publication. Deletion behaviour is still an open design decision.
+- About text: the two top up statements now say adding coins is not switched on yet (the wallet screen says the same). The speculative future eSewa payment sentence was removed. The deletion-by-email sentence is kept unchanged. Review item still open: the wording is interim, and the privacy claims below are ungrounded. Privacy claims (no ads, no sale, no tracking, what is stored) need grounded review against real behaviour before publication. Deletion behaviour is still an open design decision.
 
 ## Pass 10: large-text fixes and test finder fix
 

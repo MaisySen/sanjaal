@@ -482,7 +482,7 @@ class RoomView extends StatelessWidget {
               Divider(height: 1, color: scheme.outlineVariant),
               Expanded(
                 child: messages.isEmpty
-                    ? const Center(child: Text('No messages yet. Say hello.'))
+                    ? const EmptyState(icon: Icons.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')
                     : ListView.builder(
                         reverse: true,
                         padding: const EdgeInsets.symmetric(horizontal: 16),

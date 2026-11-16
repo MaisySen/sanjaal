@@ -153,7 +153,7 @@ Future<http.Response> _reply(http.Request r) async {
   return _json({'data': []});
 }
 
-Widget _room({bool isHost = false, bool speaker = false, bool handUp = false, bool failed = false, String status = 'Live', Map<String, String> hands = const {}, List<({String id, String name, bool host, bool you, bool muted, bool speaking})> stage = const []}) {
+Widget _room({bool noChat = false, bool isHost = false, bool speaker = false, bool handUp = false, bool failed = false, String status = 'Live', Map<String, String> hands = const {}, List<({String id, String name, bool host, bool you, bool muted, bool speaking})> stage = const []}) {
   return RoomView(
     title: 'Dashain bhajan night',
     status: status,
@@ -166,7 +166,7 @@ Widget _room({bool isHost = false, bool speaker = false, bool handUp = false, bo
     hands: hands,
     stage: stage,
     onDismissHand: (id) {},
-    messages: [
+    messages: noChat ? [] : [
       {'from': 'Asha', 'text': 'Namaste everyone'},
       {'from': 'Bikash', 'text': 'Beautiful song, please play another'},
       {'from': 'Sunita', 'text': 'Joining from Sydney'},
@@ -191,7 +191,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -222,6 +222,7 @@ void main() {
             'onboarding' => const OnboardingPage(),
             'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, stage: [(id: 'me', name: 'Bidur Khatri', host: true, you: true, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false), (id: 'u4', name: 'Asha Gurung', host: false, you: false, muted: false, speaking: false)]),
             'room_listener' => _room(isHost: false, speaker: false, handUp: true, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false)]),
+            'room_quiet' => _room(noChat: true, isHost: false, speaker: false, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
             'chat_voice' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),

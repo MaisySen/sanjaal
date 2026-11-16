@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 3: onboarding
+
+- Onboarding drops the gradient circle for a left-aligned editorial layout: large light numeral, short crimson rule, small icon, headline and body. Slide text now goes through the translation helper. Not yet compiled or captured; CI will be the first check.
+
 ## Emulator fixture and dark capture
 
 - CI fixture (test-only, local database) gets four more invented posts from fake members, one in Nepali, one long. Signed-in emulator test also captures dark theme feed, profile and wallet.

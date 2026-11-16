@@ -33,26 +33,25 @@ class _OnboardingPageState extends State<OnboardingPage> {
               controller: pager,
               onPageChanged: (i) => setState(() => page = i),
               children: [
-                for (final s in _slides)
+                for (var n = 0; n < _slides.length; n++)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(
-                        width: 140,
-                        height: 140,
-                        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [brandRed, Color(0xFF8A0B20)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
-                        child: Icon(s.$1, size: 64, color: Colors.white),
-                      ),
-                      const SizedBox(height: 36),
-                      Text(s.$2, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Text('0${n + 1}', style: Theme.of(context).textTheme.displayLarge?.copyWith(fontWeight: FontWeight.w300, color: Theme.of(context).colorScheme.outline)),
+                      const SizedBox(height: 8),
+                      Container(width: 40, height: 3, color: brandRed),
+                      const SizedBox(height: 24),
+                      Icon(_slides[n].$1, size: 28, color: Theme.of(context).colorScheme.onSurface),
+                      const SizedBox(height: 16),
+                      Text(t_(_slides[n].$2), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.15)),
                       const SizedBox(height: 12),
-                      Text(s.$3, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
+                      Text(t_(_slides[n].$3), style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.4)),
                     ]),
                   ),
               ],
             ),
           ),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.start, children: [
             for (var i = 0; i < _slides.length; i++)
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),

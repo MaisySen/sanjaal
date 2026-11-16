@@ -18,6 +18,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   List<Map<String, dynamic>> entries = [];
   Map<String, dynamic> topup = {};
   Map<String, dynamic> cashout = {};
+  List<Map<String, dynamic>> withdrawals = [];
   String? cashoutId; // reused on a retry of the same request so a lost reply cannot hold coins twice
   int? cashoutCoins;
   bool loading = true;
@@ -55,6 +56,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         error = null;
         loading = false;
       });
+      _loadWithdrawals();
     } on ApiError catch (e) {
       if (mounted) {
         setState(() {
@@ -145,6 +147,35 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       if (mounted) showError(context, e);
     }
   }
+
+  Future<void> _loadWithdrawals() async {
+    try {
+      final j = await widget.session.call('GET', '/wallet/withdrawals') as Map<String, dynamic>;
+      if (mounted) setState(() => withdrawals = ((j['data'] as List?) ?? const []).cast<Map<String, dynamic>>());
+    } catch (_) {
+      // The list is secondary: the wallet still works without it.
+    }
+  }
+
+  Future<void> _cancelWithdrawal(String id) async {
+    try {
+      await widget.session.call('POST', '/wallet/withdrawals/$id/cancel');
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Cash out canceled.'))));
+    } catch (e) {
+      if (mounted) showError(context, e);
+      await _loadWithdrawals();
+    }
+  }
+
+  String _wdStatus(String s) => switch (s) {
+        'requested' => 'Requested',
+        'processing' => 'Processing',
+        'paid' => 'Paid',
+        'failed' => 'Failed, coins returned',
+        'canceled' => 'Canceled, coins returned',
+        _ => s,
+      };
 
   Future<void> _cashout() async {
     final min = (cashout['min'] as num?)?.toInt() ?? 500;
@@ -250,6 +281,17 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                       Expanded(child: Text(!esewa && cashout['available'] != true ? 'Adding coins is not switched on yet. Cash out is not available.' : !esewa ? 'Adding coins is not switched on yet.' : 'Cash out is not available yet.')),
                     ]),
                   ),
+                if (withdrawals.isNotEmpty) ...[
+                  const SizedBox(height: 22),
+                  Text(t_('Cash outs'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  for (final w in withdrawals)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('${w['coins']} coins', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text([_wdStatus(w['status'].toString()), ago((w['created_at'] ?? '').toString())].join('  ')),
+                      trailing: w['status'] == 'requested' ? TextButton(onPressed: () => _cancelWithdrawal(w['public_id'].toString()), child: Text(t_('Cancel'))) : null,
+                    ),
+                ],
                 const SizedBox(height: 22),
                 Text(t_('Activity'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                 if (entries.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('No activity yet.')),

@@ -564,6 +564,52 @@ void main() {
     }));
   });
 
+  testWidgets('wallet: cash-out list shows states; only a requested one can be canceled, once', (tester) async {
+    final calls = <String>[];
+    var canceled = false;
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+      }
+      await tester.pumpWidget(MaterialApp(home: WalletPage(session: s)));
+      await settle();
+      expect(find.text('Cash outs'), findsOneWidget);
+      expect(find.text('Paid', findRichText: true, skipOffstage: false).evaluate().isNotEmpty || find.textContaining('Paid').evaluate().isNotEmpty, isTrue);
+      expect(find.textContaining('Failed, coins returned'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsOneWidget, reason: 'only the requested one');
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await settle();
+      expect(calls.where((c) => c == 'POST /wallet/withdrawals/w1/cancel').length, 1);
+      expect(find.widgetWithText(TextButton, 'Cancel'), findsNothing);
+      expect(find.textContaining('Canceled, coins returned'), findsOneWidget);
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}');
+      if (r.url.path.endsWith('/cancel')) {
+        canceled = true;
+        return http.Response(jsonEncode({'canceled': true, 'balance': 1000}), 200, headers: {'content-type': 'application/json'});
+      }
+      if (r.url.path.endsWith('/wallet/withdrawals')) {
+        return http.Response(jsonEncode({'data': [
+          {'public_id': 'w1', 'coins': 600, 'status': canceled ? 'canceled' : 'requested', 'created_at': '2026-11-16T10:00:00Z'},
+          {'public_id': 'w2', 'coins': 500, 'status': 'paid', 'created_at': '2026-11-15T10:00:00Z'},
+          {'public_id': 'w3', 'coins': 700, 'status': 'failed', 'created_at': '2026-11-14T10:00:00Z'},
+        ]}), 200, headers: {'content-type': 'application/json'});
+      }
+      return http.Response(jsonEncode({'balance': 1000, 'topup': {'esewa': true}, 'cashout': {'available': true, 'min': 500, 'max': 100000}, 'entries': []}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
   testWidgets('saved posts: menu toggles save with one request, failure reverts', (tester) async {
     final calls = <String>[];
     var fail = false;

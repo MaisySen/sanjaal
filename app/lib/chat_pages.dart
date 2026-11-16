@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_page.dart';
+import 'profile_pages.dart' show UserProfilePage;
 import 'calls_page.dart';
 import 'rooms_page.dart';
 import 'ui.dart';
@@ -541,10 +542,14 @@ class _ChatPageState extends State<ChatPage> {
     final group = widget.convo['type'] == 'group';
     return Scaffold(
       appBar: AppBar(
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text((widget.convo['title'] ?? 'Chat').toString()),
-          if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
-        ]),
+        title: InkWell(
+          onTap: group ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text((widget.convo['title'] ?? 'Chat').toString()),
+            if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
+            else if (group) Text('${(widget.convo['members'] as List?)?.length ?? 0} members', style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ]),
+        ),
         actions: [
           IconButton(tooltip: 'Voice call', icon: const PhIcon('phone-fill'), onPressed: () => _call(false)),
           IconButton(tooltip: 'Video call', icon: const PhIcon('video-camera'), onPressed: () => _call(true)),
@@ -643,6 +648,36 @@ class _ChatPageState extends State<ChatPage> {
             ]),
           ),
         ),
+      ]),
+    );
+  }
+}
+
+/// Group info: the group name and who is in it. Adding people and leaving are not available yet, so they are not offered.
+class GroupInfoPage extends StatelessWidget {
+  const GroupInfoPage({super.key, required this.session, required this.convo});
+  final Session session;
+  final Map<String, dynamic> convo;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final members = ((convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    return Scaffold(
+      appBar: AppBar(title: Text(t_('Group info'))),
+      body: ListView(children: [
+        const SizedBox(height: 16),
+        Center(child: CircleAvatar(radius: 44, backgroundColor: scheme.surfaceContainerHigh, child: PhIcon('users-three', size: 40, color: scheme.onSurfaceVariant))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text((convo['title'] ?? 'Group').toString(), textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
+        Text('${members.length} members', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 16),
+        for (final m in members)
+          ListTile(
+            leading: Avatar(user: m, radius: 22),
+            title: Text((m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text('@${m['username']}'),
+            onTap: m['public_id'] == session.user?['public_id'] ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: session, username: m['username'].toString()))),
+          ),
       ]),
     );
   }

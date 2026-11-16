@@ -209,3 +209,10 @@ API local:107/855 SQLite and PostgreSQL normal/cached. Real PostgreSQL races:10/
 - Complete local split Flutter:128non-render+115journey+181render=424passed, one intentional live skip. Analyzer21info/no errors or warnings. API116/940,14localPG races97 remains the latest checked API state.
 - Actual EN/NE light/dark320x640/1.8x media-retry and leave-confirmation PNGs inspected. Long leave wording was shortened; shared snackbar text now preserves theme fonts/fallback instead of dropping them. These are fixture checks, not native keyboard or real-device evidence.
 - History CI43954312948 was still running at08:03: API/appbuild passed, unsignediOS/emulator still pending. No new APK release or live API change. v35 security isolation, disabled payouts, upload rolloutOFF and physical/native gates remain intact.
+
+## November 17 voice playback candidate
+
+- Actual playback widget guards private download/native preparation completions against disposal, source changes, background and covered routes before resuming. Visibility loss pauses without automatic restart. Loading prevents duplicate taps. Pause/Play reuses the current source/position. Own-bubble controls/progress inherit the correct foreground ink.
+-15new synthetic tests with fake decoder/speaker, not physical sound, codec or network evidence. Four own/received EN/NE light/dark320x640/1.8x PNGs inspected. Local full splitFlutter143non-render+115journey+181render=439passed/1intentional live skip;analyzer21info/noerrorswarnings. API unchanged116/940+14localPGraces97.
+- History73a69daCI https://github.com/MaisySen/sanjaal/actions/runs/43954312948 settled:API/appAPK-build/unsignediOSpassed;emulatorpollnativeIMEfailed/release skipped. Actual native display inspected with Option2focus/no visible keyboard. No nativepass/APKpublication/deployment. Media c845a94CI43956201092 remained running at08:09 withAPIpassed.
+- Recording lifecycle, durable drafts/outbox and actual two-device/audio delivery remain open. Livev35isolation/uploadOFF/disabledpayouts unchanged.

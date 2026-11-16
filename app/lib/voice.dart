@@ -1,4 +1,6 @@
 import 'ph.dart';
+import 'media_visibility.dart';
+import 'ui.dart' show t_;
 import 'api.dart' show Session;
 import 'dart:async';
 import 'dart:io';
@@ -128,10 +130,13 @@ class VoiceBubble extends StatefulWidget {
   State<VoiceBubble> createState() => _VoiceBubbleState();
 }
 
-class _VoiceBubbleState extends State<VoiceBubble> {
+class _VoiceBubbleState extends State<VoiceBubble> with MediaVisibility<VoiceBubble> {
   AudioPlayer? _player;
   final List<StreamSubscription<dynamic>> _subs = [];
   bool _playing = false;
+  bool _busy = false;
+  bool _sourceReady = false;
+  int _generation = 0;
   Duration _pos = Duration.zero;
   Duration _total = Duration.zero;
 
@@ -157,47 +162,87 @@ class _VoiceBubbleState extends State<VoiceBubble> {
     return p;
   }
 
+  @override
+  void mediaVisibilityChanged(bool visible) {
+    if (visible) return;
+    _generation++;
+    _player?.pause().catchError((_) {});
+    if (mounted) setState(() => _playing = false);
+  }
+
+  @override
+  void didUpdateWidget(covariant VoiceBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url || oldWidget.session != widget.session) {
+      _generation++;
+      for (final s in _subs) { s.cancel(); }
+      _subs.clear();
+      _player?.dispose().catchError((_) {});
+      _player = null;
+      _sourceReady = false;
+      _playing = false;
+      _pos = Duration.zero;
+      _total = Duration.zero;
+    }
+  }
+
   Future<void> _toggle() async {
-    final p = _ensure();
+    if (_busy || !mediaVisible) return;
+    final generation = _generation;
+    setState(() => _busy = true);
     try {
+      final p = _ensure();
       if (_playing) {
         await p.pause();
-        setState(() => _playing = false);
+        if (mounted && generation == _generation) setState(() => _playing = false);
       } else {
-        final s = widget.session;
-        await p.play(s == null ? UrlSource(widget.url) : BytesSource(await s.fetchBytes(widget.url)));
+        if (!_sourceReady) {
+          final s = widget.session;
+          final source = s == null ? UrlSource(widget.url) : BytesSource(await s.fetchBytes(widget.url));
+          // A download or native decoder can finish after navigation/background.
+          if (!mediaVisible || generation != _generation) return;
+          await p.setSource(source);
+          if (!mediaVisible || generation != _generation) return;
+          _sourceReady = true;
+        }
+        await p.resume();
+        if (!mediaVisible || generation != _generation) {
+          await p.pause();
+          return;
+        }
         setState(() => _playing = true);
       }
     } catch (_) {
-      if (mounted) {
+      if (mediaVisible && generation == _generation) {
         setState(() => _playing = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not play this voice message.')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Could not play this voice message.'))));
       }
-    }
+    } finally { if (mounted) setState(() => _busy = false); }
   }
 
   @override
   void dispose() {
+    _generation++;
     for (final s in _subs) {
       s.cancel();
     }
-    _player?.dispose();
+    _player?.dispose().catchError((_) {});
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final ink = DefaultTextStyle.of(context).style.color ?? Theme.of(context).colorScheme.onSurface;
     final progress = _total.inMilliseconds == 0 ? 0.0 : (_pos.inMilliseconds / _total.inMilliseconds).clamp(0.0, 1.0);
     return SizedBox(
       width: 210,
       child: Row(children: [
-        IconButton(onPressed: _toggle, icon: PhIcon(_playing ? Ph.pause_circle_filled : Ph.play_circle_fill, size: 36, color: scheme.primary)),
+        IconButton(tooltip: t_(_busy ? 'Loading voice message' : _playing ? 'Pause voice message' : 'Play voice message'), onPressed: _busy ? null : _toggle, icon: _busy ? SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2, color: ink)) : PhIcon(_playing ? Ph.pause_circle_filled : Ph.play_circle_fill, size: 36, color: ink)),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2), backgroundColor: scheme.onSurface.withOpacity(0.28), color: scheme.primary),
+            LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2), backgroundColor: ink.withValues(alpha: 0.28), color: ink),
             const SizedBox(height: 4),
-            Text(_total == Duration.zero ? 'Voice message' : '${_clock(_playing || _pos > Duration.zero ? _pos : _total)} / ${_clock(_total)}', style: const TextStyle(fontSize: 11)),
+            Text(_total == Duration.zero ? t_('Voice message') : '${_clock(_playing || _pos > Duration.zero ? _pos : _total)} / ${_clock(_total)}', style: const TextStyle(fontSize: 11)),
           ]),
         ),
       ]),

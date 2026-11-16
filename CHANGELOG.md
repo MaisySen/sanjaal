@@ -1,5 +1,9 @@
 # Changelog
 
+## Feed row author line
+
+- Author name no longer truncates early; menu button no longer adds height.
+
 ## Avatar cleanup
 
 - Removed an unused variable after the redesign.

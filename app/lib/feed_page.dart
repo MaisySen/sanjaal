@@ -253,11 +253,10 @@ class _PostCardState extends State<PostCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Flexible(child: GestureDetector(onTap: _openAuthor, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)))),
+                  Expanded(child: GestureDetector(onTap: _openAuthor, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)))),
                   const SizedBox(width: 6),
                   Text(ago((p['created_at'] ?? '').toString()), style: muted),
-                  const Spacer(),
-                  PopupMenuButton<String>(
+                  SizedBox(width: 32, height: 28, child: PopupMenuButton<String>(
                     padding: EdgeInsets.zero,
                     iconSize: 20,
                     icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
@@ -265,7 +264,7 @@ class _PostCardState extends State<PostCard> {
                     itemBuilder: (_) => mine
                         ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
                         : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
-                  ),
+                  )),
                 ]),
                 if (name != '@${author['username']}') Text('@${author['username']}', style: muted),
                 if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6, right: 8), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),

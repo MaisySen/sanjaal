@@ -1,5 +1,9 @@
 # Changelog
 
+## CI analyze output
+
+- Analyze step reports error and warning lines in any format.
+
 ## Visual redesign, first pass
 
 - New palette (warm paper, ink text, crimson only for actions and the active tab), flat navigation bar, underline tabs, 10 px corners. Feed posts are flat rows with hairline dividers, inline author line, plain hashtag links and inset media instead of tinted cards. Wallet balance is a ledger header. Avatars use ink tones. Layout and styling only, no behaviour change. Not yet inspected on a device.

@@ -209,7 +209,7 @@ class _ReelItemState extends State<ReelItem> {
   Widget _side(PhData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
         padding: const EdgeInsets.only(bottom: 18),
         child: Column(children: [
-          IconButton(iconSize: 34, color: color, icon: PhIcon(icon), onPressed: onTap),
+          IconButton(iconSize: 30, style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: 0.35), fixedSize: const Size(52, 52)), color: color, icon: PhIcon(icon), onPressed: onTap),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
         ]),
       );

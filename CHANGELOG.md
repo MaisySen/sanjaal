@@ -9,6 +9,7 @@
 - Chat thread: outgoing bubbles white with dark text, incoming grey, 20/6 px corners, pill composer with a white send button. Widget render of a fixture only.
 - Call controls sit in a translucent tray with a red end button. Not rendered: there is no widget test for the call page, so this is analyzer-checked only.
 - Feed post: single photos get rounded corners and side margins, softer dividers. Analyzer and shell render pass; no fixture post with a photo was rendered.
+- Reel action rail: round dark backplates for contrast over video. The fixture has no video, so the backplate is invisible in the render and contrast over real footage is unchecked.
 - The red logo tile is gone: the header and sign-in show the Devanagari wordmark alone. This is a draft identity, not an approved logo.
 - Checked with flutter analyze and a widget render of the shell (fixture data, not a device). Glass performance on a phone is untested. Other screens are not yet restyled.
 

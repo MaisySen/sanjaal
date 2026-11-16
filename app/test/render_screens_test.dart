@@ -21,7 +21,7 @@ import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
 import 'package:sanjaal/share_post.dart' show SharedPostCard;
-import 'package:sanjaal/feed_page.dart' show SavedPage;
+import 'package:sanjaal/feed_page.dart' show SavedPage, FeedPage;
 import 'package:sanjaal/profile_pages.dart' show MePage, EditProfilePage;
 import 'package:sanjaal/stories_page.dart' show StoryViewer;
 import 'package:sanjaal/reels_page.dart' show ReelItem;
@@ -51,6 +51,7 @@ http.Response _json(Object o) => http.Response(jsonEncode(o), 200, headers: {'co
 
 bool _voiceMsgs = false;
 bool _sharedMsgs = false;
+String _following = '';
 bool _failSend = false;
 
 Future<http.Response> _reply(http.Request r) async {
@@ -130,6 +131,8 @@ Future<http.Response> _reply(http.Request r) async {
   if (p == '/api/v1/users/asha') {
     return _json({'user': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 2, 'followers_count': 1240, 'following_count': 87, 'following': false, 'is_me': false}});
   }
+  if (p.endsWith('/posts') && r.url.queryParameters['scope'] == 'following' && _following == 'error') return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
+  if (p.endsWith('/posts') && r.url.queryParameters['scope'] == 'following' && _following == 'empty') return _json({'data': <dynamic>[], 'next_cursor': null});
   if (p.endsWith('/posts') && r.url.queryParameters['username'] == null && r.method == 'GET') {
     Map<String, dynamic> fp(String id, String body, int likes, List<dynamic> media) => {
           'public_id': id, 'kind': 'post', 'body': body, 'media': media, 'hashtags': <dynamic>[],
@@ -231,13 +234,14 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['shell_offline', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
           _voiceMsgs = name == 'chat_voice';
+          _following = name.startsWith('following_error') ? 'error' : name.startsWith('following_empty') ? 'empty' : '';
           _sharedMsgs = name.startsWith('chat_shared');
           _failSend = name == 'chat_unsent';
           await tester.runAsync(() => prefs.setLang(name.endsWith('_ne') ? 'ne' : 'en'));
@@ -252,6 +256,7 @@ void main() {
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
             'rooms' => RoomsPage(session: s),
             'shell' => HomeShell(session: s),
+            'following_empty' || 'following_error' => FeedPage(session: s, onCompose: () async {}),
             'compose' => ComposePage(session: s),
             'create' => const Scaffold(backgroundColor: Colors.black, body: Align(alignment: Alignment.bottomCenter, child: Material(color: Color(0xFF1A1D24), borderRadius: BorderRadius.vertical(top: Radius.circular(28)), child: CreateSheet()))),
             'about' || 'about_big' => const AboutPage(),
@@ -299,6 +304,12 @@ void main() {
             }
             await tester.drag(find.byType(Scrollable).first, Offset(0, name.startsWith('room') ? -300 : -700));
             await tester.pump(const Duration(milliseconds: 600));
+          }
+          if (base.startsWith('following_')) {
+            await tester.pump(const Duration(seconds: 1));
+            await tester.pump(const Duration(seconds: 1));
+            await tester.tap(find.text('Following'));
+            await tester.pump(const Duration(milliseconds: 400));
           }
           if (base == 'gift' || base == 'gift_short') {
             await tester.tap(find.text('Send a gift'));

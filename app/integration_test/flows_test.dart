@@ -125,6 +125,9 @@ void main() {
       // channel. This bridge exists only in the throwaway CI fixture router.
       final field = find.widgetWithText(TextField, 'Option 2');
       final point = tester.getCenter(field) * tester.view.devicePixelRatio;
+      // Live binding drops physical pointers by default, including adb taps.
+      binding.shouldPropagateDevicePointerEvents = true;
+      try {
       final native = await tester.runAsync(() => http.post(
         Uri.parse('${const String.fromEnvironment('E2E_TOKEN_BASE')}/e2e/native-tap'),
         headers: {'Authorization': 'Bearer ${const String.fromEnvironment('E2E_TOKEN')}', 'Content-Type': 'application/json'},
@@ -144,9 +147,13 @@ void main() {
       final remove = find.widgetWithText(TextButton, 'Remove poll');
       expect(remove.hitTestable(), findsOneWidget);
       expect(tester.getBottomLeft(remove).dy, lessThanOrEqualTo(tester.view.physicalSize.height / tester.view.devicePixelRatio - inset));
-      // Reconvert only after the native gate, to capture the framework view.
-      await screenshotChannel.invokeMethod<void>('convertFlutterSurfaceToImage');
-      await tester.pump();
+      } finally {
+        binding.shouldPropagateDevicePointerEvents = false;
+        // Restore screenshots even when an assertion fails so later checks
+        // retain their own evidence instead of cascading surface errors.
+        await screenshotChannel.invokeMethod<void>('convertFlutterSurfaceToImage');
+        await tester.pump();
+      }
       await binding.takeScreenshot('flow_poll_native_keyboard');
       await tester.tap(remove);
       await _settle(tester, 2);

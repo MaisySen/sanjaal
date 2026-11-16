@@ -368,6 +368,7 @@ class ChatController extends Controller
             'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
             'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), Present::hiddenAuthors([$me->id])) : null,
+            'my_role' => $c->type === 'group' ? ($pivot?->role ?? 'member') : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
             'unread' => $c->messages()->where('id', '>', max($pivot?->last_read_message_id ?? 0, $pivot?->history_from_id ?? 0))->where('user_id', '!=', $me->id)->count(),
         ];

@@ -246,6 +246,7 @@ class ChatTest extends TestCase
         $cid = $this->group($ha, ['bina']);
 
         $this->patchJson("/api/v1/conversations/$cid", ['title' => '  Dashain   plans '], $ha)->assertOk()->assertJsonPath('conversation.title', 'Dashain plans');
+        $this->assertSame('owner', $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Dashain plans'], $ha)->json('conversation.my_role'));
         $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Mine now'], $hb)->assertForbidden();
         $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Nope'], $hc)->assertNotFound();
         $this->patchJson("/api/v1/conversations/$cid", ['title' => '   '], $ha)->assertStatus(422);

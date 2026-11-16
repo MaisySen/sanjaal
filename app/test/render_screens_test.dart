@@ -282,7 +282,7 @@ void main() {
             'room_quiet' => _room(noChat: true, isHost: false, speaker: false, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
             'chat_voice' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
-            'group_info' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}),
+            'group_info' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'my_role': 'owner', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}),
             'call_video' => CallView(title: 'Asha Gurung', status: 'Connected', failed: false, video: true, muted: false, camOn: true, tiles: [CallTile(name: 'Asha Gurung', video: Image(image: feedImageProvider!('x'), fit: BoxFit.cover)), const CallTile(name: 'Bikash Thapa')], selfPreview: Image(image: feedImageProvider!('y'), fit: BoxFit.cover), onMute: () {}, onCamera: () {}, onEnd: () {}),
             'call_voice' => CallView(title: 'Asha Gurung', status: 'Connected', failed: false, video: false, muted: true, camOn: false, tiles: const [CallTile(name: 'Asha Gurung')], onMute: () {}, onCamera: () {}, onEnd: () {}),
             'chat_unsent' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
@@ -443,6 +443,65 @@ void main() {
         return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'members': [user('asha'), user('bina'), user('chandra')]}}), 200, headers: {'content-type': 'application/json'});
       }
       return http.Response(jsonEncode({'left': true}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
+  testWidgets('group info: only the owner sees Rename; it patches once, updates the title, and a refusal keeps it', (tester) async {
+    final calls = <String>[];
+    var refuse = false;
+    Map<String, dynamic> user(String n) => {'public_id': 'u_$n', 'name': n, 'username': n};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> pump(Map<String, dynamic> convo) async {
+        await tester.pumpWidget(MaterialApp(home: GroupInfoPage(key: UniqueKey(), session: s, convo: convo)));
+        await tester.pumpAndSettle();
+      }
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+      }
+      final base = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha'), user('bina')]};
+      await pump({...base, 'my_role': 'member'});
+      expect(find.text('Rename group'), findsNothing);
+      await pump({...base, 'my_role': 'owner'});
+      expect(find.text('Rename group'), findsOneWidget);
+      // Cancel sends nothing.
+      await tester.tap(find.text('Rename group'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(calls, isEmpty);
+      // Refusal keeps the old title and shows the server's words.
+      refuse = true;
+      await tester.tap(find.text('Rename group'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Everest');
+      await tester.tap(find.text('Save'));
+      await settle();
+      expect(find.text('Only the group owner can rename it.'), findsOneWidget);
+      expect(find.text('Trek'), findsOneWidget);
+      refuse = false;
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.text('Rename group'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Everest');
+      await tester.tap(find.text('Save'));
+      await settle();
+      expect(find.text('Everest'), findsOneWidget);
+      expect(calls.where((c) => c == 'PATCH /conversations/g1 {"title":"Everest"}').length, 2, reason: 'one refused, one accepted');
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}${r.body.isEmpty ? '' : ' ${r.body}'}');
+      if (refuse) return http.Response(jsonEncode({'message': 'Only the group owner can rename it.'}), 403, headers: {'content-type': 'application/json'});
+      return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'title': 'Everest', 'members': []}}), 200, headers: {'content-type': 'application/json'});
     }));
   });
 

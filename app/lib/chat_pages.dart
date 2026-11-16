@@ -668,6 +668,8 @@ class GroupInfoPage extends StatefulWidget {
 class _GroupInfoPageState extends State<GroupInfoPage> {
   late List<Map<String, dynamic>> members = ((widget.convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
   bool busy = false;
+  late String title = (widget.convo['title'] ?? 'Group').toString();
+  late final bool isOwner = widget.convo['my_role'] == 'owner';
 
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
@@ -697,6 +699,32 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       final j = await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/members', body: {'usernames': names}) as Map<String, dynamic>;
       final c = j['conversation'] as Map<String, dynamic>;
       if (mounted) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
+    } on ApiError catch (e) {
+      if (mounted) _say(e.message);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _rename() async {
+    final ctrl = TextEditingController(text: title);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t_('Rename group')),
+        content: TextField(controller: ctrl, autofocus: true, maxLength: 80, decoration: InputDecoration(hintText: t_('Group name'))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t_('Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(c, ctrl.text.trim()), child: Text(t_('Save'))),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || name == title) return;
+    setState(() => busy = true);
+    try {
+      final j = await widget.session.call('PATCH', '/conversations/${widget.convo['public_id']}', body: {'title': name}) as Map<String, dynamic>;
+      final c = j['conversation'] as Map<String, dynamic>;
+      if (mounted) setState(() => title = (c['title'] ?? name).toString());
     } on ApiError catch (e) {
       if (mounted) _say(e.message);
     } finally {
@@ -739,9 +767,15 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       body: ListView(children: [
         const SizedBox(height: 16),
         Center(child: CircleAvatar(radius: 44, backgroundColor: scheme.surfaceContainerHigh, child: PhIcon('users-three', size: 40, color: scheme.onSurfaceVariant))),
-        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text((convo['title'] ?? 'Group').toString(), textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
         Text('${members.length} members', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 16),
+        if (isOwner)
+          ListTile(
+            leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('note-pencil', size: 20)),
+            title: Text(t_('Rename group'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            onTap: busy ? null : _rename,
+          ),
         ListTile(
           leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('plus', size: 20)),
           title: Text(t_('Add people'), style: const TextStyle(fontWeight: FontWeight.w600)),

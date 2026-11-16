@@ -19,6 +19,7 @@ import 'package:sanjaal/auth_page.dart' show AuthPage;
 import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
+import 'package:sanjaal/settings_page.dart' show BlockedPage;
 import 'package:sanjaal/search_page.dart' show SearchPage;
 import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
@@ -69,6 +70,21 @@ Future<http.Response> _reply(http.Request r) async {
         {'public_id': 'c4', 'type': 'direct', 'title': 'सुनिता राई', 'unread': 0, 'last_message': msg('धन्यवाद, भोलि भेटौँला', 1500)},
       ]
     });
+  }
+  if (p.endsWith('/users/blocked')) {
+    return http.Response(jsonEncode({'data': [
+      {'username': 'raju_k', 'name': 'Raju K'},
+      {'username': 'spam_account', 'name': 'Promo Offers'},
+    ]}), 200, headers: {'content-type': 'application/json'});
+  }
+  if (p.endsWith('/users/search')) {
+    return http.Response(jsonEncode({
+      'users': [
+        {'username': 'asha', 'name': 'Asha Gurung', 'following': true},
+        {'username': 'ashok_t', 'name': 'Ashok Thapa'},
+      ],
+      'hashtags': ['ashadh', 'ashwin'],
+    }), 200, headers: {'content-type': 'application/json'});
   }
   if (p.endsWith('/notifications')) {
     return _json({
@@ -167,7 +183,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -188,7 +204,8 @@ void main() {
             'shell' => HomeShell(session: s),
             'compose' => ComposePage(session: s),
             'about' || 'about_big' => const AboutPage(),
-            'search' => SearchPage(session: s),
+            'search' || 'search_results' => SearchPage(session: s),
+            'blocked' => BlockedPage(session: s),
             'chats' || 'chats_ne' => ChatsPage(session: s),
             'notifications' => NotificationsPage(session: s),
             'settings' => SettingsPage(session: s),
@@ -208,6 +225,13 @@ void main() {
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
           if (base == 'gift' || base == 'gift_short') {
             await tester.tap(find.text('Send a gift'));
+          }
+          if (base == 'search_results') {
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 600));
+            await tester.pump(const Duration(milliseconds: 600));
+            await tester.enterText(find.byType(EditableText), 'ash');
+            await tester.pump(const Duration(milliseconds: 400));
           }
           for (var i = 0; i < 6; i++) {
             await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));

@@ -2,7 +2,7 @@
 
 ## Pass 11: About and Search render coverage
 
-- Render tests added for About (normal and 1.8x text) and Search empty state. Widget renders only.
+- Render tests added for About (normal and 1.8x text), Search (empty and results) and Blocked people. Widget renders only, fixture data.
 - About text is unchanged. Review item, not changed here: it says top ups are paid on eSewa (not switched on), coins come from a verified top up, and account and data deletion is by email to contact@fintex.au. Privacy claims (no ads, no sale, no tracking, what is stored) need grounded review against real behaviour before publication. Deletion behaviour is still an open design decision.
 
 ## Pass 10: large-text fixes and test finder fix

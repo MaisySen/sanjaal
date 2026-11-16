@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 7: media-led feed rows and calmer dark primary
+
+- Feed rows: author header on top (avatar, name, handle and time), body at full width, photos and video edge to edge, actions below. Dark theme primary changes from a bright pink to a deeper rose with checked contrast. Render test now includes an invented photo post (original art in test/fixtures, test only) served through a test-only HTTP override. Checked with flutter analyze and widget renders; not on a device.
+
 ## Redesign pass 6: chat bubbles
 
 - Received bubbles are white with a hairline border, sent bubbles keep the warm tint, corners are asymmetric toward the sender. Better contrast in light and dark. Checked with flutter analyze and widget renders; not on a device.

@@ -240,55 +240,56 @@ class _PostCardState extends State<PostCard> {
     final scheme = Theme.of(context).colorScheme;
     final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    final single = images.length == 1;
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
-      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-      child: Row(
+      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(onTap: _openAuthor, child: Avatar(user: author, radius: 19)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(child: GestureDetector(onTap: _openAuthor, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)))),
-                  const SizedBox(width: 6),
-                  Text(ago((p['created_at'] ?? '').toString()), style: muted),
-                  SizedBox(width: 32, height: 28, child: PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    iconSize: 20,
-                    icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
-                    onSelected: _menu,
-                    itemBuilder: (_) => mine
-                        ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                        : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
-                  )),
-                ]),
-                if (name != '@${author['username']}') Text('@${author['username']}', style: muted),
-                if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6, right: 8), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
-                if (tags.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
-                if (images.length == 1) Padding(padding: const EdgeInsets.only(top: 10, right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: _image(images.first['url'] as String, 280))),
-                if (images.length > 1)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10, right: 8),
-                    child: ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(height: 240, child: PageView(children: [for (final m in images) _image(m['url'] as String, 240)]))),
-                  ),
-                if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 4), child: Text('1 of ${images.length}, swipe', style: muted)),
-                for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10, right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoTile(url: v['url'] as String))),
-                Row(
-                  children: [
-                    ReactionButton(session: widget.session, post: widget.post),
-                    TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined, size: 20), label: Text('$comments')),
-                    if (!mine)
-                      TextButton.icon(
-                        onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
-                        icon: const Icon(Icons.card_giftcard, size: 20),
-                        label: Text(t_('Gift')),
-                      ),
-                  ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 4, 0),
+            child: Row(children: [
+              GestureDetector(onTap: _openAuthor, child: Avatar(user: author, radius: 18)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _openAuthor,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, height: 1.2)),
+                    Text(name != '@${author['username']}' ? '@${author['username']} \u00b7 ${ago((p['created_at'] ?? '').toString())}' : ago((p['created_at'] ?? '').toString()), maxLines: 1, overflow: TextOverflow.ellipsis, style: muted),
+                  ]),
                 ),
+              ),
+              SizedBox(width: 40, height: 40, child: PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+                icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
+                onSelected: _menu,
+                itemBuilder: (_) => mine
+                    ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                    : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+              )),
+            ]),
+          ),
+          if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
+          if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
+          if (single) Padding(padding: const EdgeInsets.only(top: 10), child: _image(images.first['url'] as String, 320)),
+          if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 10), child: SizedBox(height: 320, child: PageView(children: [for (final m in images) _image(m['url'] as String, 320)]))),
+          if (images.length > 1) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Text('1 of ${images.length}, swipe', style: muted)),
+          for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10), child: VideoTile(url: v['url'] as String)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+            child: Row(
+              children: [
+                ReactionButton(session: widget.session, post: widget.post),
+                TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined, size: 20), label: Text('$comments')),
+                if (!mine)
+                  TextButton.icon(
+                    onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
+                    icon: const Icon(Icons.card_giftcard, size: 20),
+                    label: Text(t_('Gift')),
+                  ),
               ],
             ),
           ),

@@ -19,8 +19,8 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
   // One restrained palette: warm paper, ink text, crimson only for action and the active tab.
   final scheme = ColorScheme(
     brightness: b,
-    primary: light ? const Color(0xFFB3122B) : const Color(0xFFFF7A87),
-    onPrimary: light ? Colors.white : const Color(0xFF3A0008),
+    primary: light ? const Color(0xFFB3122B) : const Color(0xFFE5646F),
+    onPrimary: light ? Colors.white : const Color(0xFF2A0006),
     primaryContainer: light ? const Color(0xFFF3E4DF) : const Color(0xFF3A2220),
     onPrimaryContainer: light ? const Color(0xFF5B0A17) : const Color(0xFFFFD9DC),
     secondary: light ? const Color(0xFF24405F) : const Color(0xFF9DB8DC),

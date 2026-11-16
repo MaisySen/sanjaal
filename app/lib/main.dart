@@ -200,10 +200,14 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int tab = 0;
   int unread = 0;
   int _contentRevision = 0;
+  int _reelRevision = 0;
+  int _storyRevision = 0;
+  bool _foreground = true;
+  final _visited = <int>{0};
   Timer? _poll;
   Timer? _ring;
   bool _ringing = false;
@@ -213,18 +217,36 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     _refreshUnread();
     _poll = Timer.periodic(const Duration(seconds: 30), (_) => _refreshUnread());
     _ring = Timer.periodic(const Duration(seconds: 5), (_) => _checkIncoming());
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (_foreground == foreground || !mounted) return;
+    setState(() => _foreground = foreground);
+    if (foreground) {
+      _refreshUnread();
+      _checkIncoming();
+    }
+  }
+
+  void _showTab(int index) {
+    setState(() { tab = index; _visited.add(index); });
+    _refreshUnread();
+  }
+
   Future<void> _checkIncoming() async {
-    if (_ringing || !mounted) return;
+    if (_ringing || !mounted || !_foreground) return;
     _ringing = true;
     try {
       final j = await widget.session.call('GET', '/calls/incoming') as Map<String, dynamic>;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
-      if (list.isEmpty || !mounted) return;
+      if (list.isEmpty || !mounted || !_foreground) return;
       if (list.first['public_id'] == _lastCall) return;
       _lastCall = list.first['public_id'] as String;
       HapticFeedback.heavyImpact();
@@ -237,12 +259,14 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _ring?.cancel();
     super.dispose();
   }
 
   Future<void> _refreshUnread() async {
+    if (!_foreground) return;
     try {
       final j = await widget.session.call('GET', '/notifications/summary') as Map<String, dynamic>;
       final n = (j['unread_messages'] as num?)?.toInt() ?? 0;
@@ -253,8 +277,15 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _compose() async {
     final what = await showModalBottomSheet<String>(context: context, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet());
     if (what == null || !mounted) return;
+    await _create(what);
+  }
+
+  Future<void> _create(String what) async {
     if (what == 'story') {
-      if (await addStory(context, widget.session) && mounted) showInfo(context, 'Your story is up. It shows in the row at the top of Home.');
+      if (await addStory(context, widget.session) && mounted) {
+        setState(() { _storyRevision++; tab = 0; _visited.add(0); });
+        showInfo(context, 'Your story is up. It shows in the row at the top of Home.');
+      }
       return;
     }
     final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session, startWithVideo: what == 'reel')));
@@ -265,7 +296,9 @@ class _HomeShellState extends State<HomeShell> {
       }
       setState(() {
         _contentRevision++;
+        if (p['kind'] == 'reel') _reelRevision++;
         tab = p['kind'] == 'reel' ? 1 : 0;
+        _visited.add(tab);
       });
     }
   }
@@ -274,9 +307,9 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final s = widget.session;
     final pages = [
-      FeedPage(session: s, onCompose: _compose, forYouKey: feedKey),
-      ReelsPage(session: s, active: tab == 1),
-      ChatsPage(session: s),
+      FeedPage(session: s, onCompose: _compose, forYouKey: feedKey, storyRevision: _storyRevision),
+      ReelsPage(session: s, active: tab == 1 && _foreground, contentRevision: _reelRevision, onCreate: () => _create('reel'), bottomInset: 88 + MediaQuery.viewPaddingOf(context).bottom),
+      ChatsPage(session: s, active: tab == 2 && _foreground),
       WalletPage(session: s),
       MePage(session: s, onCompose: _compose, contentRevision: _contentRevision),
     ];
@@ -286,15 +319,15 @@ class _HomeShellState extends State<HomeShell> {
           listenable: s,
           builder: (context, _) => s.offline ? _OfflineBanner(onRetry: _refreshUnread) : const SizedBox.shrink(),
         ),
-        Expanded(child: IndexedStack(index: tab, children: pages)),
+        Expanded(child: IndexedStack(index: tab, children: [
+          for (var i = 0; i < pages.length; i++)
+            _visited.contains(i) ? TickerMode(enabled: i == tab && _foreground, child: pages[i]) : const SizedBox.shrink(),
+        ])),
       ]),
       extendBody: true,
       bottomNavigationBar: GlassNavBar(
         index: tab,
-        onSelected: (i) {
-          setState(() => tab = i);
-          _refreshUnread();
-        },
+        onSelected: _showTab,
         items: [
           NavItem(t_('Home'), 'house', 'house-fill'),
           NavItem(t_('Reels'), 'play-circle', 'play-circle-fill'),

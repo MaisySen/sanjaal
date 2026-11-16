@@ -10,8 +10,11 @@ import 'ui.dart';
 
 /// Full screen vertical reels. Swipe up for the next one.
 class ReelsPage extends StatefulWidget {
-  const ReelsPage({super.key, required this.session, required this.active});
+  const ReelsPage({super.key, required this.session, required this.active, this.contentRevision = 0, this.onCreate, this.bottomInset = 0});
   final Session session;
+  final int contentRevision;
+  final double bottomInset;
+  final Future<void> Function()? onCreate;
   final bool active; // false while another tab is showing, so audio stops
   @override
   State<ReelsPage> createState() => _ReelsPageState();
@@ -23,6 +26,7 @@ class _ReelsPageState extends State<ReelsPage> {
   int index = 0;
   String? cursor;
   bool loading = false;
+  bool _refreshQueued = false;
   bool done = false;
   String? error;
   bool muted = false;
@@ -34,13 +38,20 @@ class _ReelsPageState extends State<ReelsPage> {
   }
 
   @override
+  void didUpdateWidget(ReelsPage old) {
+    super.didUpdateWidget(old);
+    if (old.contentRevision != widget.contentRevision) _load(refresh: true);
+  }
+
+  @override
   void dispose() {
     pager.dispose();
     super.dispose();
   }
 
   Future<void> _load({bool refresh = false}) async {
-    if (loading || (done && !refresh)) return;
+    if (loading) { if (refresh) _refreshQueued = true; return; }
+    if (done && !refresh) return;
     setState(() {
       loading = true;
       error = null;
@@ -50,15 +61,21 @@ class _ReelsPageState extends State<ReelsPage> {
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       setState(() {
-        if (refresh) reels.clear();
+        if (refresh) { reels.clear(); index = 0; }
         reels.addAll(items);
         cursor = j['next_cursor'] as String?;
         done = cursor == null;
       });
+      if (refresh) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && pager.hasClients) pager.jumpToPage(0); });
     } on ApiError catch (e) {
       if (mounted) setState(() => error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => error = 'Could not load reels. Try again.');
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+        if (_refreshQueued) { _refreshQueued = false; _load(refresh: true); }
+      }
     }
   }
 
@@ -66,16 +83,17 @@ class _ReelsPageState extends State<ReelsPage> {
   Widget build(BuildContext context) {
     if (reels.isEmpty) {
       return Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, title: Text(t_('Reels'))),
-        body: loading
+        appBar: AppBar(title: Text(t_('Reels'))),
+        body: Padding(padding: const EdgeInsets.only(bottom: 88), child: loading
             ? const Center(child: CircularProgressIndicator())
             : EmptyState(
                 icon: Ph.movie_outlined,
-                title: error ?? 'No reels yet',
-                hint: error == null ? 'Tap + on Home, add a video and it shows up here.' : null,
-                action: OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Refresh'))),
-              ),
+                title: error ?? t_('No reels yet'),
+                hint: error == null ? t_('Share a short video with your community.') : null,
+                action: error == null && widget.onCreate != null
+                    ? FilledButton.icon(onPressed: widget.onCreate, icon: const PhIcon('video-camera', size: 18), label: Text(t_('Create a reel')))
+                    : OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Try again'))),
+              )),
       );
     }
     return Scaffold(
@@ -94,6 +112,7 @@ class _ReelsPageState extends State<ReelsPage> {
             key: ValueKey(reels[i]['public_id']),
             session: widget.session,
             reel: reels[i],
+            bottomInset: widget.bottomInset,
             playing: widget.active && i == index,
             muted: muted,
             onToggleMute: () => setState(() => muted = !muted),
@@ -115,12 +134,13 @@ class _ReelsPageState extends State<ReelsPage> {
 }
 
 class ReelItem extends StatefulWidget {
-  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute});
+  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0});
   final Session session;
   final Map<String, dynamic> reel;
   final bool playing;
   final bool muted;
   final VoidCallback onToggleMute;
+  final double bottomInset;
   @override
   State<ReelItem> createState() => _ReelItemState();
 }
@@ -209,7 +229,7 @@ class _ReelItemState extends State<ReelItem> {
   Widget _side(PhData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
         padding: const EdgeInsets.only(bottom: 18),
         child: Column(children: [
-          IconButton(iconSize: 30, style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: 0.55), fixedSize: const Size(52, 52)), color: color, icon: PhIcon(icon), onPressed: onTap),
+          IconButton(tooltip: label, iconSize: 30, style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: 0.55), fixedSize: const Size(52, 52)), color: color, icon: PhIcon(icon), onPressed: onTap),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
         ]),
       );
@@ -220,7 +240,7 @@ class _ReelItemState extends State<ReelItem> {
     final body = (widget.reel['body'] ?? '').toString();
     return Stack(fit: StackFit.expand, children: [
       if (failed)
-        const Center(child: Text('Video could not load', style: TextStyle(color: Colors.white70)))
+        const Positioned(top: 104, left: 24, right: 84, child: Text('Video could not load', style: TextStyle(color: Colors.white70)))
       else if (!ready || ctl == null)
         const Center(child: CircularProgressIndicator())
       else
@@ -233,12 +253,12 @@ class _ReelItemState extends State<ReelItem> {
         ),
       if (ready && ctl != null && !ctl.value.isPlaying) const Center(child: IgnorePointer(child: PhIcon('play-fill', size: 88, color: Colors.white54))),
       if (ready && ctl != null)
-        Positioned(left: 0, right: 0, bottom: 0, child: VideoProgressIndicator(ctl, allowScrubbing: true, padding: EdgeInsets.zero, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
+        Positioned(left: 0, right: 0, bottom: widget.bottomInset, child: VideoProgressIndicator(ctl, allowScrubbing: true, padding: EdgeInsets.zero, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
       const Positioned(left: 0, right: 0, bottom: 0, height: 220, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xCC000000), Color(0x00000000)]))))),
       Positioned(
         left: 16,
         right: 84,
-        bottom: 24,
+        bottom: 24 + widget.bottomInset,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           GestureDetector(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString()))),
@@ -252,10 +272,10 @@ class _ReelItemState extends State<ReelItem> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: SizedBox(
-                height: 32,
+                height: 48,
                 child: following
-                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 32), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: const Text('Following'))
-                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 32)), onPressed: _follow, child: const Text('Follow')),
+                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: const Text('Following'))
+                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 48), backgroundColor: Colors.white, foregroundColor: Colors.black), onPressed: _follow, child: const Text('Follow')),
               ),
             ),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white))),
@@ -263,7 +283,7 @@ class _ReelItemState extends State<ReelItem> {
       ),
       Positioned(
         right: 4,
-        bottom: 24,
+        bottom: 24 + widget.bottomInset,
         child: Column(children: [
           ReactionButton(session: widget.session, post: widget.reel, dark: true),
           _side(Ph.mode_comment_outlined, '$comments', _comments),

@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
+import 'package:sanjaal/glass_nav.dart' show GlassNavBar;
 import 'package:sanjaal/ph.dart' show PhIcon, PhData;
 import 'package:sanjaal/calls_page.dart' show CallsPage, IncomingCallPage;
 import 'package:sanjaal/call_page.dart' show CallView, CallTile;
@@ -26,7 +27,7 @@ import 'package:sanjaal/share_post.dart' show SharedPostCard;
 import 'package:sanjaal/feed_page.dart' show SavedPage, FeedPage, FeedList, FeedListState;
 import 'package:sanjaal/profile_pages.dart' show MePage, EditProfilePage;
 import 'package:sanjaal/stories_page.dart' show StoryViewer;
-import 'package:sanjaal/reels_page.dart' show ReelItem;
+import 'package:sanjaal/reels_page.dart' show ReelItem, ReelsPage;
 import 'package:sanjaal/chat_pages.dart' show NewChatPage;
 import 'package:sanjaal/settings_page.dart' show BlockedPage;
 import 'package:sanjaal/search_page.dart' show SearchPage;
@@ -141,6 +142,12 @@ Future<http.Response> _reply(http.Request r) async {
   if (p == '/api/v1/users/asha') {
     return _json({'user': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 2, 'followers_count': 1240, 'following_count': 87, 'following': false, 'is_me': false}});
   }
+  if (p.endsWith('/posts') && r.url.queryParameters['kind'] == 'reel') {
+    if (_communicationState.contains('reels_error')) return http.Response(jsonEncode({'message': 'Could not load reels. Try again.'}), 503);
+    return _json({'data': _communicationState.contains('shell_reel') ? [
+      {'public_id': 'reel1', 'kind': 'reel', 'body': 'Evening practice for the community concert', 'media': [], 'author': {'public_id': 'asha', 'username': 'asha', 'name': 'Asha Gurung'}, 'likes_count': 212, 'comments_count': 14},
+    ] : [], 'next_cursor': null});
+  }
   if (p.endsWith('/posts') && r.url.queryParameters['scope'] == 'following' && _following == 'error') return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
   if (p.endsWith('/posts') && r.url.queryParameters['scope'] == 'following' && _following == 'empty') return _json({'data': <dynamic>[], 'next_cursor': null});
   if (p.endsWith('/posts') && r.url.queryParameters['username'] == null && r.method == 'GET') {
@@ -244,7 +251,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -268,7 +275,8 @@ void main() {
             'rooms' || 'rooms_empty' || 'rooms_error' => RoomsPage(session: s),
             'calls' => CallsPage(session: s),
             'incoming' || 'incoming_error' => IncomingCallPage(session: s, call: {'public_id': 'fixture', 'conversation_id': 'c1', 'kind': 'voice', 'caller': {'username': 'asha', 'name': 'Asha Gurung'}}),
-            'shell' => HomeShell(session: s),
+            'shell' || 'shell_reel' => HomeShell(session: s),
+            'reels_empty' || 'reels_error' => ReelsPage(session: s, active: true, onCreate: () async {}),
             'following_empty' || 'following_error' => FeedPage(session: s, onCompose: () async {}),
             'compose' => ComposePage(session: s),
             'create' => const Scaffold(backgroundColor: Colors.black, body: Align(alignment: Alignment.bottomCenter, child: Material(color: Color(0xFF1A1D24), borderRadius: BorderRadius.vertical(top: Radius.circular(28)), child: CreateSheet()))),
@@ -302,13 +310,18 @@ void main() {
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = base != 'create' && base != 'gift' && base != 'gift_short' && base != 'onboarding' && base != 'auth' && base != 'shell';
+          final pushed = base != 'create' && base != 'gift' && base != 'gift_short' && base != 'onboarding' && base != 'auth' && base != 'shell' && base != 'shell_reel';
           await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, builder: (c, child0) { final child = name.contains('_big') ? MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.8)), child: child0!) : child0; return Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]); }, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
           if (name.endsWith('_offline')) {
             s.setOffline(true);
             await tester.pump(const Duration(milliseconds: 300));
+          }
+          if (base == 'shell_reel') {
+            await tester.pump();
+            await tester.tap(find.text('Reels'));
+            await tester.pump(const Duration(milliseconds: 400));
           }
           if (base == 'incoming_error') {
             await tester.pump();
@@ -359,6 +372,11 @@ void main() {
           for (var i = 0; i < 6; i++) {
             await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
             await tester.pump(const Duration(milliseconds: 100));
+          }
+          if (base == 'shell_reel') {
+            final navTop = tester.getTopLeft(find.byType(GlassNavBar)).dy;
+            expect(tester.getBottomLeft(find.text('Evening practice for the community concert')).dy, lessThan(navTop));
+            expect(tester.getBottomLeft(find.text('Sound')).dy, lessThan(navTop));
           }
           await tester.runAsync(() async {
             final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

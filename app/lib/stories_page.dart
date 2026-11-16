@@ -10,8 +10,9 @@ import 'ui.dart';
 
 /// Row of story rings above the feed. First tile adds your own story.
 class StoriesBar extends StatefulWidget {
-  const StoriesBar({super.key, required this.session});
+  const StoriesBar({super.key, required this.session, this.contentRevision = 0});
   final Session session;
+  final int contentRevision;
   @override
   State<StoriesBar> createState() => _StoriesBarState();
 }
@@ -19,6 +20,7 @@ class StoriesBar extends StatefulWidget {
 class _StoriesBarState extends State<StoriesBar> {
   List<Map<String, dynamic>> groups = [];
   bool loaded = false;
+  int _loadVersion = 0;
 
   @override
   void initState() {
@@ -26,17 +28,24 @@ class _StoriesBarState extends State<StoriesBar> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(StoriesBar old) {
+    super.didUpdateWidget(old);
+    if (old.contentRevision != widget.contentRevision) _load();
+  }
+
   Future<void> _load() async {
+    final version = ++_loadVersion;
     try {
       final j = await widget.session.call('GET', '/stories') as Map<String, dynamic>;
-      if (mounted) {
+      if (mounted && version == _loadVersion) {
         setState(() {
           groups = (j['data'] as List).cast<Map<String, dynamic>>();
           loaded = true;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => loaded = true);
+      if (mounted && version == _loadVersion) setState(() => loaded = true);
     }
   }
 

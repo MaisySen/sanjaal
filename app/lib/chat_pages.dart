@@ -20,8 +20,9 @@ String kindLabel(Object? kind, Object? body) {
 }
 
 class ChatsPage extends StatefulWidget {
-  const ChatsPage({super.key, required this.session});
+  const ChatsPage({super.key, required this.session, this.active = true});
   final Session session;
+  final bool active;
   @override
   State<ChatsPage> createState() => _ChatsPageState();
 }
@@ -38,7 +39,13 @@ class _ChatsPageState extends State<ChatsPage> {
   void initState() {
     super.initState();
     _load();
-    timer = Timer.periodic(const Duration(seconds: 12), (_) => _load(quiet: true));
+    timer = Timer.periodic(const Duration(seconds: 12), (_) { if (widget.active) _load(quiet: true); });
+  }
+
+  @override
+  void didUpdateWidget(ChatsPage old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) _load(quiet: true);
   }
 
   @override

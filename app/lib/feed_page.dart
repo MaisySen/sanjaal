@@ -18,10 +18,11 @@ ImageProvider Function(String url)? feedImageProvider;
 
 /// Home tab: For you and Following, with search and notifications on top.
 class FeedPage extends StatelessWidget {
-  const FeedPage({super.key, required this.session, required this.onCompose, this.forYouKey});
+  const FeedPage({super.key, required this.session, required this.onCompose, this.forYouKey, this.storyRevision = 0});
   final Session session;
   final Future<void> Function() onCompose;
   final GlobalKey<FeedListState>? forYouKey;
+  final int storyRevision;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +44,7 @@ class FeedPage extends StatelessWidget {
             session: session,
             query: const {'kind': 'post'},
             immersive: true,
-            header: StoriesBar(session: session),
+            header: StoriesBar(session: session, contentRevision: storyRevision),
             emptyIcon: Ph.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
             emptyHint: t_('Share something that matters to you.'),

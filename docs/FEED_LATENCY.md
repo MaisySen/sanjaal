@@ -43,3 +43,7 @@ GET /ping app time, 10 requests each, same hour:
 - after (v30): 433, 449, 449, 450, 452, 454, 463, 518, 540, 555 ms (median about 450)
 
 About 25 percent lower, but the free instance's CPU share is shared and noisy and the earlier run was trending down during the sample, so the gain is probably real but not proven to come from the cache. Database round trips are untouched. Unauthenticated routes (auth/me, rooms, posts, wallet, conversations) still return 401, a bad token returns 401 and an unknown route returns 404 on v30. The API test suite ran with routes and events cached in CI. Authenticated live behaviour was not exercised.
+
+## November 17 client request budget (fixture, not live latency)
+
+A HomeShell widget trace before lazy destinations made nine GETs on startup: summary, reels, conversations, wallet, profile, own posts, Home posts, stories, withdrawals. After the change it makes three: summary, Home posts, stories. Regression tests also verify first-visit loading, retained state and paused hidden/background polling. This avoids unrelated work competing with Home. It is not a device startup benchmark, a measured live latency gain or a 2,000-user capacity result. All earlier live timing figures above remain historical samples, not current measurements.

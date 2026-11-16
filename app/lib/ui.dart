@@ -95,6 +95,9 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'No reels yet': 'अहिलेसम्म रिल छैन',
+  'Share a short video with your community.': 'आफ्नो समुदायसँग छोटो भिडियो साझा गर्नुहोस्।',
+  'Create a reel': 'रिल बनाउनुहोस्',
   'Room title': 'कोठाको नाम',
   'What is your room about?': 'तपाईंको कोठा के विषयमा हो?',
   'No calls yet': 'अहिलेसम्म कल छैन',

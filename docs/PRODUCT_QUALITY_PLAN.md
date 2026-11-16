@@ -85,3 +85,7 @@ The first connected slice replaces four feature-introduction slides with one opt
 ## Communication slice implementation
 
 Calls and Live rooms now have visible entries below the Chats header instead of miscellaneous-menu placement. Inbox empty/error states have different actions, archived results cannot be overwritten by a late inbox response, and room title entry validates before submitting. Incoming call actions now preserve the ring and show a retryable error after a failed server action instead of pretending an answer/decline succeeded. Local fixture tests and actual small-screen pixels cover these changes; they do not settle real audio, permission refusal, backgrounding, reconnect or two-device gaps. Keep those in the release gate.
+
+## Startup and complete creator-return follow-up
+
+Measured fixture HomeShell startup reads dropped from nine to three by delaying unvisited destinations, not by hiding features. Visited destinations retain state. Background/hidden polling and tickers are gated. Reels and story creation now return to refreshed destinations, with in-flight/stale-response regressions and direct empty-Reels creation. Actual in-shell, small-phone Reels pixels exposed and fixed caption/actions under the glass bar. This completes more of the connected creator journey, not the physical media, performance, push, capacity or Nepal-specific feature gaps.

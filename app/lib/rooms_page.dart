@@ -422,13 +422,19 @@ class RoomView extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   child: Column(children: [
                     for (final h in hands.entries)
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.back_hand_outlined),
-                        title: Text(h.value.isEmpty ? 'Member' : h.value),
-                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
-                          FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            const Icon(Icons.back_hand_outlined, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(h.value.isEmpty ? 'Member' : h.value, maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          ]),
+                          const SizedBox(height: 6),
+                          Wrap(spacing: 8, runSpacing: 4, children: [
+                            TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
+                            FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
+                          ]),
                         ]),
                       ),
                   ]),
@@ -442,10 +448,12 @@ class RoomView extends StatelessWidget {
               else
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Wrap(spacing: 12, runSpacing: 16, children: [
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.34),
+                    child: SingleChildScrollView(child: Wrap(spacing: 12, runSpacing: 16, children: [
                     for (final m in stage)
                       SizedBox(
-                        width: 96,
+                        width: 96 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.5),
                         child: Column(children: [
                           Container(
                             padding: const EdgeInsets.all(3),
@@ -459,16 +467,17 @@ class RoomView extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text([m.name, if (m.host) '(host)', if (m.you) '(you)'].join(' '), maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.2)),
                           const SizedBox(height: 2),
-                          Row(mainAxisSize: MainAxisSize.min, children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             Icon(m.muted ? Icons.mic_off : Icons.mic, size: 12, color: scheme.onSurfaceVariant),
                             const SizedBox(width: 3),
-                            Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on'), style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                            Flexible(child: Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))),
                           ]),
                           if (isHost && !m.you && !m.host)
                             TextButton(onPressed: () => onAllow(m.id, false), style: TextButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 8)), child: Text(t_('Move to listeners'), style: const TextStyle(fontSize: 12))),
                         ]),
                       ),
-                  ]),
+                  ])),
+                  ),
                 ),
               Divider(height: 1, color: scheme.outlineVariant),
               Expanded(

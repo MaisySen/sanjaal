@@ -43,6 +43,15 @@ Map<String, dynamic> _post(String id, String name, String user, String body, int
       'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
     };
 
+// Real CC0 photographs from Wikimedia Commons are used when present in /tmp/photos (downloaded by the
+// reviewer, never committed). Otherwise the invented ridge art in test/fixtures is used.
+List<int> _photoBytes(String name) {
+  final real = File('/tmp/photos/$name');
+  if (real.existsSync()) return real.readAsBytesSync();
+  final fallback = name.contains('portrait') ? 'ridge_portrait.png' : 'ridge_wide.png';
+  return File('test/fixtures/$fallback').readAsBytesSync();
+}
+
 class _Resp extends Stream<List<int>> implements HttpClientResponse {
   _Resp(this.bytes);
   final List<int> bytes;
@@ -81,7 +90,7 @@ class _Client implements HttpClient {
   @override
   bool autoUncompress = true;
   @override
-  Future<HttpClientRequest> getUrl(Uri url) async => _Req(File('test/fixtures/${url.pathSegments.last}').readAsBytesSync());
+  Future<HttpClientRequest> getUrl(Uri url) async => _Req(_photoBytes(url.pathSegments.last));
   @override
   dynamic noSuchMethod(Invocation i) => null;
 }
@@ -96,8 +105,8 @@ class _Overrides extends HttpOverrides {
 Widget _screen(Session s, int tab) {
   final posts = [
     _post('p1', 'Asha Gurung', 'asha', 'Sunrise over Phewa lake this morning. Dal bhat after the boat ride. #pokhara', 128, 14),
-    {..._post('p3', 'Maya Rai', 'maya', 'Evening light from the ridge above Nagarkot.', 212, 31), 'media': [{'type': 'image', 'url': 'http://fixture.invalid/ridge_portrait.png'}], 'hashtags': <String>[]},
-    {..._post('p4', 'Dipesh Karki', 'dipesh', 'Wide frame, same evening.', 40, 2), 'media': [{'type': 'image', 'url': 'http://fixture.invalid/ridge_wide.png'}], 'hashtags': <String>[]},
+    {..._post('p3', 'Maya Rai', 'maya', 'Evening light from the ridge above Nagarkot.', 212, 31), 'media': [{'type': 'image', 'url': 'http://fixture.invalid/photo_portrait.jpg'}], 'hashtags': <String>[]},
+    {..._post('p4', 'Dipesh Karki', 'dipesh', 'Wide frame, same evening.', 40, 2), 'media': [{'type': 'image', 'url': 'http://fixture.invalid/photo_wide.jpg'}], 'hashtags': <String>[]},
     _post('p2', 'Bikash Thapa', 'bikash', 'New song from the studio in Kathmandu. Tell me what you think of the chorus.', 54, 9),
   ];
   final profile = {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 0, 'followers_count': 0, 'following_count': 0};

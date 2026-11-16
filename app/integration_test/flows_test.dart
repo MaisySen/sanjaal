@@ -1,7 +1,7 @@
 // Interaction run on an Android emulator against a LOCAL copy of this API with a synthetic member
 // (api/tests/E2E). Real taps and typing, real HTTP to the local API. It is not evidence about Auth0,
 // the live service, LiveKit, push or media. Nothing here is a real account.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;

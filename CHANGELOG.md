@@ -1,5 +1,11 @@
 # Changelog
 
+## Pass 10: large-text fixes and test finder fix
+
+- Emulator flows test imported flutter/material, whose TextField type does not match the app's material_ui widgets, so the finders found nothing (cause of s1 and s2 failing). The test now imports material_ui. Not yet run on an emulator or CI.
+- Room: hand-raise rows stack name and buttons, the on-stage list scrolls and tiles grow with text size. Settings theme labels stay on one line. Checked at 1.8x text scale in widget renders (layout only).
+- Feed render test uses real CC0 Wikimedia Commons photographs from /tmp when present (not committed); otherwise the invented ridge art.
+
 ## Redesign pass 9: product fixes found while reviewing renders
 
 - Posts no longer show a hashtag twice (chips only for tags not already in the text).

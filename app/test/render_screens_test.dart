@@ -165,7 +165,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -178,7 +178,8 @@ void main() {
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
           final theme = buildTheme(b, fontFamily: 'Roboto', fontFamilyFallback: ['NotoDev']);
-          final Widget home = switch (name) {
+          final base = name.replaceAll('_big', '');
+          final Widget home = switch (base) {
             'wallet' => WalletPage(session: s),
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
             'rooms' => RoomsPage(session: s),
@@ -197,11 +198,11 @@ void main() {
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = name != 'gift' && name != 'gift_short' && name != 'onboarding' && name != 'auth' && name != 'shell';
-          await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, builder: (c, child) => Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]), debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
+          final pushed = base != 'gift' && base != 'gift_short' && base != 'onboarding' && base != 'auth' && base != 'shell';
+          await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, builder: (c, child0) { final child = name.endsWith('_big') ? MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.8)), child: child0!) : child0; return Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]); }, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
-          if (name == 'gift' || name == 'gift_short') {
+          if (base == 'gift' || base == 'gift_short') {
             await tester.tap(find.text('Send a gift'));
           }
           for (var i = 0; i < 6; i++) {

@@ -23,9 +23,9 @@ class SettingsPage extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SegmentedButton<ThemeMode>(
               segments: [
-                ButtonSegment(value: ThemeMode.system, label: Text(t_('System'))),
-                ButtonSegment(value: ThemeMode.light, label: Text(t_('Light'))),
-                ButtonSegment(value: ThemeMode.dark, label: Text(t_('Dark'))),
+                ButtonSegment(value: ThemeMode.system, label: Text(t_('System'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+                ButtonSegment(value: ThemeMode.light, label: Text(t_('Light'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+                ButtonSegment(value: ThemeMode.dark, label: Text(t_('Dark'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
               ],
               selected: {prefs.mode},
               onSelectionChanged: (s) => prefs.setMode(s.first),

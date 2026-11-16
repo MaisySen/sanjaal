@@ -7,10 +7,17 @@ import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Waits for [f]. On timeout it throws with what is on screen, so the failure names the real state
+/// (route, visible text, tooltips) instead of a later tap failing on a missing widget.
 Future<void> _until(WidgetTester t, Finder f, {int tries = 24}) async {
   for (var i = 0; i < tries && f.evaluate().isEmpty; i++) {
     await t.pump(const Duration(milliseconds: 500));
   }
+  if (f.evaluate().isNotEmpty) return;
+  final texts = find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? (e.widget as Text).textSpan?.toPlainText() ?? '').where((s) => s.isNotEmpty).take(25).toList();
+  final tips = find.byType(Tooltip).evaluate().map((e) => (e.widget as Tooltip).message ?? '').where((s) => s.isNotEmpty).take(25).toList();
+  final routes = find.byType(Scaffold).evaluate().length;
+  throw TestFailure('Timed out waiting for $f. Scaffolds: $routes. Visible text: $texts. Tooltips: $tips');
 }
 
 Future<void> _type(WidgetTester t, Finder f, String text) async {

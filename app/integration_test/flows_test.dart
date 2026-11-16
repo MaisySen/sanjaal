@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
+import 'package:sanjaal/reactions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Waits for [f]. On timeout it throws with what is on screen, so the failure names the real state
@@ -50,8 +51,12 @@ void main() {
 
     final failed = <String>[];
     Future<void> step(String name, Future<void> Function() f) async {
+      // ignore: avoid_print
+      print('Flow start $name');
       try {
         await f();
+        // ignore: avoid_print
+        print('Flow passed $name');
       } catch (e, st) {
         failed.add(name);
         // ignore: avoid_print
@@ -72,18 +77,26 @@ void main() {
     }
 
     await step('s0', () async {
-      await tester.tap(find.byIcon(Icons.favorite_border).first);
+      await _until(tester, find.byType(ReactionButton));
+      await tester.tap(find.byType(ReactionButton).first);
       await _settle(tester, 4);
-      expect(find.byIcon(Icons.favorite_border), findsWidgets);
+      expect(find.text('❤️'), findsWidgets);
       await binding.takeScreenshot('flow2_after_like');
     });
     await step('s1', () async {
       await tester.tap(find.byTooltip('Post'));
+      await _until(tester, find.text('Continue'));
+      await tester.tap(find.text('Post').last);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
       await _until(tester, find.byType(TextField));
       await _type(tester, find.byType(TextField), 'Posted from the emulator run #sanjaal');
       await tester.pump();
       await binding.takeScreenshot('flow3_compose');
       await tester.tap(find.widgetWithText(FilledButton, 'Post'));
+      await _settle(tester, 8);
+      // Compose confirms success; refresh the existing pager to fetch the newest post.
+      await tester.drag(find.byType(PageView).first, const Offset(0, 450));
       await _settle(tester, 8);
       expect(find.textContaining('Posted from the emulator run'), findsWidgets);
       await binding.takeScreenshot('flow4_post_in_feed');

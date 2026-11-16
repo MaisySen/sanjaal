@@ -243,3 +243,12 @@ Recorder CI43959218322 failed one widget assertion: delivery was observed before
 Candidate correction awaits private-file cleanup before handing bytes to onDone, then rechecks visibility. A new callback-boundary regression requires the directory to be empty inside delivery. The test pumps both fake-zone continuations and actual file I/O until the delivery event, with a bounded timeout, rather than assuming a fixed50ms drain means cleanup completed. Bytes-once, no-cancel and file-deletion assertions remain. This changes no codec/permission/native-IME claim.
 
 Focused40tests passed. Complete local splitFlutter165nonrender+115journey+181render=461passed,1intentional live skip;analyzer21info/noerrorswarnings. A combined command finished all journeys but hit its budget during renders; a complete181render rerun passed. No new APK, production deployment or physical-device result. Whole-product work remains open per PRODUCT_RECONCILIATION.md.
+
+
+## November 17 new-chat journey candidate
+
+-26focusedfixtures and full local splitFlutter165nonrender+141journey+181render=487passed,1intentional live skip. Analyzer21info/noerrorswarnings. API unchanged116/940+14real localPGraces97.
+- Immediate search generations, loading/error/retry separation, immutable pending creation selection, duplicate/back locks, group draft protection and unknown-create-result containment implemented in candidate source. No group replay protocol or durable draft added.
+-16small/large-text language/theme/layout cases; actual representative ENlight/NEdark group/error/simulated-keyboard/unknown-result images inspected. Title truncation corrected after the first pixel check. Fixed create action is visible above simulated240dp keyboard space, not native keyboard evidence.
+- At08:40 recorder43959218322 settled API/iOSpass, appfailed earlier cleanup fixture and emulatorfailed; corrected-recorder43961436452 APIpassed/otherspending. Reconciliation43960237408 API/apppassed/iOS+emulatorpending. No green corrected CI claim, APK publication or production mutation.
+- Livev35mediaisolation,uploadOFF,disabledpayouts and fail-closed tag publication unchanged. Whole-product profile/first-use, nativeinput and genuine device proof remain open.

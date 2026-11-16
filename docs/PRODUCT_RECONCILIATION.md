@@ -53,3 +53,8 @@ The candidate release job now depends on API, app, iOS and emulator. Publication
 6. Build and sign a legitimate production-endpoint phone preview with the stable identity. Verify package/version/certificate, no synthetic tunnel or test endpoint, API compatibility and anonymous download bytes. Publish/deliver it as a preview with precise remaining caveats. A CI artifact alone is not this outcome. Do not advise uninstalling or wiping user data.
 
 Completion requires a usable integrated product and honest device/release evidence. This checkpoint establishes progress and the remaining route; it does not claim that the app now satisfies the brief.
+
+
+### Subsequent source progress
+
+The next member-discovery/conversation-creation batch closes the audited new-chat response-ordering, retry, pending-controls and discard gaps. It adds an honest unknown-creation outcome path and fixes title truncation in large text. This does not close the profile/first-use or physical-device gates above. See PRODUCT_QUALITY_PLAN.md and VERIFICATION_STATUS.md for scoped tests/pixels and current CI results.

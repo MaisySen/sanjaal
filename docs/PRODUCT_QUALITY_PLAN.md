@@ -190,3 +190,14 @@ Verification:21new controlled-recorder/file fixtures exercise disposal at permis
 ### Recorder callback cleanup boundary, November 17
 
 CI43959218322 found the file-deletion assertion could run after bytes were delivered but before asynchronous final cleanup. Production now awaits cleanup before the callback, then rechecks active visibility. The new test inspects the directory inside delivery; event-driven bounded pumping replaces the old fixed-time assumption. It preserves bytes-once and deletion assertions. Full local split461pass/1skip and analyzer21info/noerrorswarnings; not a green CI, device or full-product completion claim. Main journey reconciliation and release blockers are recorded separately in PRODUCT_RECONCILIATION.md.
+
+
+### Member discovery to conversation creation, November 17
+
+New-chat member reads now invalidate on every edit or clear, before debounce. Old success/error results cannot reappear under a newer query. Search shows loading, a distinct retryable error, an actual empty response or current members. Retry keeps the query. Disposal invalidates the generation and cancels debounce.
+
+Direct/group creation is single-flight. Member rows, checkboxes, selected chips, mode switch, title/search and back are locked while pending. Success releases the exit guard and returns the current conversation; forced-disposal results cannot navigate a replacement route. A group name and selected people remain after explicit rejection. Groups have no server replay key: transport/5xx/malformed-success uncertainty disables another creation and offers Back to Chats, not blind resend. This is loss containment, not durable recovery or exactly-once group creation.
+
+Name/selected people ask before route-back or switching to one-to-one. Selection is limited to the API's49othermembers. Form/results scroll together, chips use content height, and a fixed create action stays above simulated keyboard space. Actual320x640/1.8x pixels showed an oversized mode-switch text label truncating the title; a labeled/tooltip icon preserves the full title. English/Nepali strings added, native copy review still owed.
+
+26focusedfixtures include old-response-before-debounce, query clear, failure retry, malformed read/disposal, locked checkboxes/chips, no duplicate creation, group rejection/retention, unknown outcome, discard and forced navigation disposal, plus16layoutcases. Representative Englishlight/Nepalidark group/error/simulated-keyboard/unknown-result pixels inspected. Complete local splitFlutter165nonrender+141journey+181render=487passed/1intentional live skip,analyzer21info/noerrorswarnings. No nativeIME/Samsung/live-chat/APIdeployment/APKrelease claim. Profile/first-use quality refinement and the rest of PRODUCT_RECONCILIATION.md remain open.

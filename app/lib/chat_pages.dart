@@ -230,136 +230,142 @@ class _NewChatPageState extends State<NewChatPage> {
   Timer? _debounce;
   List<Map<String, dynamic>> results = [];
   final picked = <String, Map<String, dynamic>>{};
-  bool group = false;
-  bool busy = false;
-  bool searched = false;
-  String? error;
+  bool group = false, busy = false, searched = false, searching = false;
+  bool _completed = false, _uncertain = false;
+  String? searchError, startError;
   int _seq = 0;
+  bool get _locked => busy || _uncertain;
 
   @override
   void dispose() {
+    ++_seq;
     _debounce?.cancel();
     q.dispose();
     title.dispose();
     super.dispose();
   }
 
-  void _changed(String v) {
+  void _changed(String value) {
+    final seq = ++_seq; // Invalidate immediately, not when the debounce fires.
     _debounce?.cancel();
-    if (v.trim().isEmpty) {
-      setState(() {
-        results = [];
-        searched = false;
-      });
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
-      final seq = ++_seq;
-      try {
-        final j = await widget.session.call('GET', '/users/search', query: {'q': v.trim()}) as Map<String, dynamic>;
-        if (mounted && seq == _seq) {
-          setState(() {
-            results = (j['users'] as List).cast<Map<String, dynamic>>();
-            searched = true;
-            error = null;
-          });
-        }
-      } on ApiError catch (e) {
-        if (mounted && seq == _seq) setState(() => error = e.message);
-      }
+    final query = value.trim();
+    setState(() {
+      results = [];
+      searchError = null;
+      searched = false;
+      searching = query.isNotEmpty;
     });
+    if (query.isEmpty) return;
+    _debounce = Timer(const Duration(milliseconds: 350), () => _search(query, seq));
+  }
+
+  Future<void> _search(String query, int seq) async {
+    try {
+      final response = await widget.session.call('GET', '/users/search', query: {'q': query});
+      final users = ((response as Map)['users'] as List).cast<Map<String, dynamic>>();
+      if (!mounted || seq != _seq) return;
+      setState(() { results = users; searched = true; searching = false; searchError = null; });
+    } catch (e) {
+      if (!mounted || seq != _seq) return;
+      setState(() {
+        searching = false;
+        searchError = e is ApiError ? e.message : t_('Could not load members. Try again.');
+      });
+    }
+  }
+
+  Future<void> _leave([Map<String, dynamic>? conversation]) async {
+    if (!mounted) return;
+    setState(() { _completed = true; busy = false; });
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) Navigator.of(context).pop(conversation);
   }
 
   Future<void> _start(Map<String, dynamic> body) async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
+    if (_locked) return;
+    FocusScope.of(context).unfocus();
+    _debounce?.cancel();
+    ++_seq;
+    setState(() { busy = true; searching = false; startError = null; });
     try {
-      final j = await widget.session.call('POST', '/conversations', body: body) as Map<String, dynamic>;
-      if (mounted) Navigator.of(context).pop((j['conversation'] as Map).cast<String, dynamic>());
-    } on ApiError catch (e) {
-      if (mounted) {
-        setState(() {
-          busy = false;
-          error = e.message;
-        });
-      }
+      final response = await widget.session.call('POST', '/conversations', body: body);
+      final conversation = ((response as Map)['conversation'] as Map).cast<String, dynamic>();
+      if (conversation['public_id'] is! String || (conversation['public_id'] as String).isEmpty) throw const FormatException();
+      if (mounted) await _leave(conversation);
+    } catch (e) {
+      if (!mounted) return;
+      // Groups have no server replay key. A lost/malformed success is not a
+      // rejected creation, so do not offer another POST as ordinary retry.
+      final rejected = e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500;
+      setState(() {
+        busy = false;
+        _uncertain = !rejected;
+        startError = rejected ? e.message : t_('The chat may already exist. Check Chats before starting it again.');
+      });
     }
   }
 
-  void _tap(Map<String, dynamic> u) {
-    final name = u['username'].toString();
-    if (!group) {
-      _start({'type': 'direct', 'username': name});
+  void _tap(Map<String, dynamic> user) {
+    if (_locked) return;
+    final name = user['username'].toString();
+    if (!group) { _start({'type': 'direct', 'username': name}); return; }
+    if (!picked.containsKey(name) && picked.length >= 49) {
+      showInfo(context, t_('Choose up to 49 people.'));
       return;
     }
-    setState(() => picked.containsKey(name) ? picked.remove(name) : picked[name] = u);
+    setState(() => picked.containsKey(name) ? picked.remove(name) : picked[name] = user);
+  }
+
+  Future<void> _switchMode() async {
+    if (_locked) return;
+    if (group && (picked.isNotEmpty || title.text.trim().isNotEmpty)) {
+      final discard = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+        scrollable: true,
+        title: Text(t_('Discard this group?')),
+        content: Text(t_('The name and selected people will be cleared.')),
+        actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Keep editing'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Discard')))],
+      ));
+      if (discard != true || !mounted) return;
+    }
+    setState(() { group = !group; picked.clear(); title.clear(); startError = null; });
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(group ? 'New group' : t_('New chat')),
-        actions: [
-          TextButton.icon(
-            onPressed: busy ? null : () => setState(() { group = !group; picked.clear(); }),
-            icon: PhIcon(group ? Ph.person : Ph.groups),
-            label: Text(group ? 'One to one' : 'New group'),
-          ),
-        ],
-      ),
-      body: Column(children: [
-        if (group)
-          Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: TextField(controller: title, maxLength: 80, decoration: const InputDecoration(labelText: 'Group name', border: OutlineInputBorder()))),
-        if (group && picked.isNotEmpty)
-          SizedBox(
-            height: 48,
-            child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-              for (final e in picked.entries)
-                Padding(padding: const EdgeInsets.only(right: 6), child: InputChip(label: Text('@${e.key}'), onDeleted: () => setState(() => picked.remove(e.key)))),
-            ]),
-          ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: TextField(controller: q, autofocus: true, onChanged: _changed, decoration: const InputDecoration(prefixIcon: PhIcon('magnifying-glass'), hintText: 'Search by name or username', border: OutlineInputBorder())),
-        ),
-        if (error != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-        Expanded(
-          child: !searched
-              ? const EmptyState(icon: Ph.person_search, title: 'Find someone to chat with', hint: 'Search for a member, then tap them.')
-              : results.isEmpty
-                  ? const EmptyState(icon: Ph.search_off, title: 'No matches')
-                  : ListView(children: [
-                      for (final u in results)
-                        ListTile(
-                          leading: Avatar(user: u),
-                          title: Text((u['name'] ?? '').toString().isEmpty ? '@${u['username']}' : u['name'].toString()),
-                          subtitle: Text('@${u['username']}'),
-                          trailing: group ? Checkbox(value: picked.containsKey(u['username'].toString()), onChanged: (_) => _tap(u)) : null,
-                          onTap: busy ? null : () => _tap(u),
-                        ),
-                    ]),
-        ),
+  Widget build(BuildContext context) => DraftExitGuard(
+    hasChanges: !_completed && (picked.isNotEmpty || title.text.trim().isNotEmpty),
+    busy: busy && !_completed,
+    busyMessage: 'Starting the conversation. Please wait.',
+    child: Scaffold(
+      appBar: AppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
+        IconButton(onPressed: _locked ? null : _switchMode, icon: PhIcon(group ? Ph.person : Ph.groups), tooltip: t_(group ? 'One to one' : 'New group')),
       ]),
-      floatingActionButton: group && picked.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: busy
-                  ? null
-                  : () {
-                      if (title.text.trim().isEmpty) {
-                        setState(() => error = 'Enter a group name.');
-                        return;
-                      }
-                      _start({'type': 'group', 'title': title.text.trim(), 'usernames': picked.keys.toList()});
-                    },
-              icon: const PhIcon('check'),
-              label: Text('Create group (${picked.length})'),
-            )
-          : null,
-    );
-  }
+      body: CustomScrollView(slivers: [
+        SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (group) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: TextField(controller: title, enabled: !_locked, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: t_('Group name'), border: const OutlineInputBorder()))),
+          if (group && picked.isNotEmpty) SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [for (final entry in picked.entries) Padding(padding: const EdgeInsets.only(right: 6), child: InputChip(label: Text('@${entry.key}'), onDeleted: _locked ? null : () => setState(() => picked.remove(entry.key))))])),
+          Padding(padding: const EdgeInsets.all(16), child: TextField(controller: q, enabled: !_locked, autofocus: true, onChanged: _changed, decoration: InputDecoration(prefixIcon: const PhIcon('magnifying-glass'), hintText: t_('Search by name or username'), border: const OutlineInputBorder()))),
+          if (busy) Padding(padding: const EdgeInsets.all(16), child: Text(t_('Starting the conversation. Please wait.'))),
+          if (startError != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Text(startError!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+          if (_uncertain) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: OutlinedButton(onPressed: _leave, child: Text(t_('Back to Chats')))),
+          if (searchError != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Column(children: [Text(searchError!, style: TextStyle(color: Theme.of(context).colorScheme.error)), OutlinedButton(onPressed: _locked ? null : () => _changed(q.text), child: Text(t_('Try again')))])),
+        ])),
+        if (searching) const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))),
+        if (!searching && searchError == null && !searched) SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Ph.person_search, title: t_('Find someone to chat with'), hint: t_('Search for a member, then tap them.'))),
+        if (!searching && searchError == null && searched && results.isEmpty) SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Ph.search_off, title: t_('No matches'))),
+        if (!searching && results.isNotEmpty) SliverList(delegate: SliverChildBuilderDelegate((c, index) {
+          final user = results[index];
+          return ListTile(leading: Avatar(user: user), title: Text((user['name'] ?? '').toString().isEmpty ? '@${user['username']}' : user['name'].toString()), subtitle: Text('@${user['username']}'), trailing: group ? Checkbox(value: picked.containsKey(user['username'].toString()), onChanged: _locked ? null : (_) => _tap(user)) : null, onTap: _locked ? null : () => _tap(user));
+        }, childCount: results.length)),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ]),
+      bottomNavigationBar: group && picked.isNotEmpty ? Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: SafeArea(child: Padding(padding: const EdgeInsets.all(16), child: FilledButton.icon(
+        onPressed: _locked ? null : () {
+          if (title.text.trim().isEmpty) { setState(() => startError = t_('Enter a group name.')); return; }
+          _start({'type': 'group', 'title': title.text.trim(), 'usernames': picked.keys.toList()});
+        }, icon: const PhIcon('check'), label: Text('${t_('Create group')} (${picked.length})'),
+      )))) : null,
+    ),
+  );
 }
 
 class ChatPage extends StatefulWidget {

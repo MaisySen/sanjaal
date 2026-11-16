@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 Android phone-testing preview, 2026-11-17
+
+- Published production-endpoint arm64 APK: https://github.com/MaisySen/sanjaal/releases/tag/v0.5.1
+- Source 51c1c73, versionName 0.5.1, arm64 versionCode 2006. Stable upload certificate; v2/v3 signature and 16 KB alignment verified. Anonymous download read back byte-for-byte after publication: 39,377,762 bytes, SHA256 a7abf5ae8aa15bbd542db58e2fd063afadd202f78a4548a9ca21ce34a17e078b.
+- CI 43887613498 passed app, API, unsigned iOS and all mandatory emulator smoke, signed-in fixture and interaction checks. Actual emulator pixels reviewed: composer, posted feed item and sent chat message are readable without overflow. Local Flutter suite: 162 passed, 1 skipped; API: 85 tests, 618 assertions.
+- Fixed the small-phone Create sheet clipping Continue. The 320x640 regression selects a type and completes the modal; settled screenshot shows its label clearly. 589e919 only improved capture timing, no production app change.
+- This is for testing on the owner's phone, not a finished-product release. Not Samsung or TeamViewer tested. Real live Auth0 sign-in remains unverified; synthetic QA identity was created but browser login did not complete. Physical audio, push and multi-device behavior are still unverified. Cash-out remains disabled. Live API remains v31-7e2e68c; the newer payout lookup safety change is not deployed yet.
+
+
 - Small-phone regression capture now waits for the enabled-button transition before taking its screenshot. Continue is readable and within bounds at 320x640. Debug banner disabled in the fixture capture only; production unchanged.
 
 ## Small-phone Create sheet fix (candidate, not shipped)

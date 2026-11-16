@@ -1,7 +1,7 @@
 import 'ph.dart';
 import 'media_visibility.dart';
 import 'ui.dart' show t_;
-import 'api.dart' show Session;
+import 'api.dart' show Session, newUploadIntent;
 import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
@@ -27,80 +27,148 @@ class VoiceRecorderBar extends StatefulWidget {
   State<VoiceRecorderBar> createState() => _VoiceRecorderBarState();
 }
 
-class _VoiceRecorderBarState extends State<VoiceRecorderBar> {
+class _VoiceRecorderBarState extends State<VoiceRecorderBar> with MediaVisibility<VoiceRecorderBar> {
   final AudioRecorder _rec = AudioRecorder();
+  late final Future<void> _starting;
+  Future<void>? _ending, _closing;
   Timer? _tick;
   Duration _elapsed = Duration.zero;
-  String? _path;
-  bool _ready = false;
-  bool _finished = false;
+  String? _path, _stoppedPath;
+  bool _ready = false, _finished = false, _cancelled = false;
+  bool _startRequested = false, _nativeEnded = false, _notified = false;
+  bool get _active => mounted && !_cancelled && mediaVisible;
 
   @override
   void initState() {
     super.initState();
-    _start();
+    _starting = Future<void>.microtask(_start);
+  }
+
+  Future<void> _deleteFiles() async {
+    for (final path in {_path, _stoppedPath}.whereType<String>()) {
+      try { final file = File(path); if (await file.exists()) await file.delete(); } catch (_) {}
+    }
+  }
+
+  Future<void> _cancelNative() async {
+    if (_startRequested && !_nativeEnded) {
+      try { await _rec.cancel(); _nativeEnded = true; } catch (_) {}
+    }
+    await _deleteFiles();
+  }
+
+  void _notifyCancel() {
+    if (mounted && !_notified) { _notified = true; widget.onCancel(); }
+  }
+
+  void _error(String message) {
+    if (!_active) return;
+    widget.onError(t_(message));
+    if (_active) _notifyCancel();
   }
 
   Future<void> _start() async {
+    if (!_active) {
+      _cancelled = true;
+      _finished = true;
+      _notifyCancel();
+      return;
+    }
+    if (_finished) return;
     try {
-      if (!await _rec.hasPermission()) {
-        widget.onError('Microphone permission is needed to record. Allow it in Settings.');
-        widget.onCancel();
+      final allowed = await _rec.hasPermission();
+      if (!_active || _finished) return;
+      if (!allowed) {
+        _finished = true;
+        _error('Microphone permission is needed to record. Allow it in Settings.');
         return;
       }
       final dir = await getTemporaryDirectory();
-      _path = '${dir.path}/voice-${DateTime.now().millisecondsSinceEpoch}.m4a';
+      if (!_active || _finished) return;
+      _path = '${dir.path}/voice-${newUploadIntent()}.m4a';
+      _startRequested = true;
       await _rec.start(const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 48000, sampleRate: 22050, numChannels: 1), path: _path!);
-      if (!mounted) return;
+      if (!_active || _finished) return;
       setState(() => _ready = true);
       _tick = Timer.periodic(const Duration(milliseconds: 250), (_) {
-        if (!mounted) return;
+        if (!_active || _finished) return;
         setState(() => _elapsed += const Duration(milliseconds: 250));
         if (_elapsed.inSeconds >= maxVoiceSeconds) _send();
       });
-    } catch (e) {
-      widget.onError('Could not start recording.');
-      widget.onCancel();
+    } catch (_) {
+      await _cancelNative();
+      if (_active && !_finished) {
+        _finished = true;
+        _error('Could not start recording.');
+      }
     }
   }
 
   Future<void> _send() async {
-    if (_finished) return;
-    _finished = true;
+    if (_finished || !_ready || !_active) return;
+    setState(() => _finished = true);
     _tick?.cancel();
+    _ending = _sendAndFinish();
+    await _ending;
+  }
+
+  Future<void> _sendAndFinish() async {
     try {
-      final p = await _rec.stop();
-      final path = p ?? _path;
+      await _starting;
+      _stoppedPath = await _rec.stop();
+      _nativeEnded = true;
+      final path = _stoppedPath ?? _path;
+      if (!_active) return;
       if (path == null || _elapsed.inMilliseconds < 800) {
-        if (path != null) File(path).delete().catchError((_) => File(path));
-        widget.onError('Hold on a little longer. That was too short.');
-        widget.onCancel();
+        _error('Hold on a little longer. That was too short.');
         return;
       }
       final bytes = await File(path).readAsBytes();
-      File(path).delete().catchError((_) => File(path));
-      widget.onDone(bytes);
-    } catch (e) {
-      widget.onError('Could not save the recording.');
-      widget.onCancel();
+      if (_active && !_notified) { _notified = true; widget.onDone(bytes); }
+    } catch (_) {
+      _error('Could not save the recording.');
+    } finally {
+      await _cancelNative();
+      if (_cancelled) _notifyCancel();
     }
   }
 
   Future<void> _discard() async {
     if (_finished) return;
-    _finished = true;
+    _cancelled = true;
+    setState(() => _finished = true);
     _tick?.cancel();
-    try {
-      final p = await _rec.stop();
-      if (p != null) File(p).delete().catchError((_) => File(p));
-    } catch (_) {}
-    widget.onCancel();
+    _ending = _discardAndFinish();
+    await _ending;
+  }
+
+  Future<void> _discardAndFinish() async {
+    await _starting;
+    await _cancelNative();
+    _notifyCancel();
   }
 
   @override
+  void mediaVisibilityChanged(bool visible) {
+    if (visible) return;
+    _cancelled = true;
+    if (!_finished) _discard();
+  }
+
+  Future<void> _shutdown() => _closing ??= () async {
+    await _starting;
+    await _ending;
+    await _cancelNative();
+    try { await _rec.dispose(); } catch (_) {}
+  }();
+
+  @override
   void dispose() {
+    _cancelled = true;
     _tick?.cancel();
-    _rec.dispose();
+    // A start/stop in flight owns the recorder until it returns. Shutdown waits
+    // for both, then cancels remaining capture and deletes only our temp files.
+    _shutdown();
     super.dispose();
   }
 
@@ -108,13 +176,14 @@ class _VoiceRecorderBarState extends State<VoiceRecorderBar> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Row(children: [
-      IconButton(onPressed: _discard, icon: PhIcon('trash', color: scheme.error), tooltip: 'Discard'),
-      PhIcon('circle-fill', size: 14, color: _ready ? scheme.error : scheme.outline),
+      IconButton(onPressed: _finished ? null : _discard, icon: PhIcon('trash', color: scheme.error), tooltip: t_('Discard')),
+      PhIcon('circle-fill', size: 14, color: _ready && !_finished ? scheme.error : scheme.outline),
       const SizedBox(width: 8),
-      Text(_ready ? _clock(_elapsed) : 'Starting', style: const TextStyle(fontWeight: FontWeight.w600)),
-      const SizedBox(width: 8),
-      Expanded(child: Text('Recording', style: TextStyle(color: scheme.onSurfaceVariant))),
-      IconButton.filled(onPressed: _ready ? _send : null, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary), tooltip: 'Send voice message'),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(_finished ? t_('Finishing') : _ready ? _clock(_elapsed) : t_('Starting'), style: const TextStyle(fontWeight: FontWeight.w600)),
+        if (!_finished) Text(t_('Recording'), style: TextStyle(color: scheme.onSurfaceVariant)),
+      ])),
+      IconButton.filled(onPressed: _ready && !_finished ? _send : null, icon: PhIcon('paper-plane-tilt-fill', color: scheme.onPrimary), tooltip: t_('Send voice message')),
     ]);
   }
 }

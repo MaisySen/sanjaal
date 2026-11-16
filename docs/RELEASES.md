@@ -2,6 +2,14 @@
 
 Historical sections below describe their release-time conditions, not the latest candidate, live image or verification status. See VERIFICATION_STATUS.md for later evidence. Automatic tag publication remains disabled; PHONE_PREVIEW_RELEASE.md describes the separately verified preview path.
 
+## 0.5.2 Android testing preview,2026-11-17
+
+- Published: https://github.com/MaisySen/sanjaal/releases/tag/v0.5.2
+- Exact sourcea9323c7aafffbf754ed286b5d187d19c4705cf19; ownCI https://github.com/MaisySen/sanjaal/actions/runs/43972117639 passedAPI/app/unsignediOS/emulator. Actual native Gboard/Option2/Remove pixels inspected; test/platform235inset,mockedfalse. Fixture notification window focus was corrected without weakening native assertions.
+- ARM64version0.5.2/code2007; stable0.5.1certificate; v2/v3,16KBZIP+everyARM64ELFsegment,productionAPI/noQAmarkers/backupoff/nondebuggable verified.41,024,622bytes,SHA2562a510e7015f61a2925a7894ac7e4004d868b8742c2a847e2eb7e9d017fa40a6a. PublishedAPK/checksum/verificationJSON anonymously downloaded and matched byte-for-byte; actual release page read back.
+- Preview only. No new candidate installed onSamsung. NoAPIdeploy/migration/provideractivation/realtransfer. Sending coins fails closed when deployed API lacks transfer_replay; funding/cashoutoff. New server receipts and other backend hardening are source progress, not live rollout. Physical secure storage/liveAuth0/media/calls/push/twodevice and signediOS remain unverified on this candidate; whole-product quality/remaining Nepal features incomplete. See VERIFICATION_STATUS.md and published notes.
+- Historical0.2/0.3/0.4certificates differ; no uninstall/datawipe workaround is recommended.
+
 ## 0.5.1 Android phone-testing preview, 2026-11-17
 
 - Published production-endpoint arm64 APK: https://github.com/MaisySen/sanjaal/releases/tag/v0.5.1

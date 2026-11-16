@@ -25,12 +25,12 @@ class FeedPage extends StatelessWidget {
         appBar: AppBar(
           title: Row(children: [const Logo(size: 26), const SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface))]),
           actions: [
+            IconButton(tooltip: t_('Post'), icon: const Icon(Icons.add_box_outlined), onPressed: onCompose),
             IconButton(tooltip: t_('Search'), icon: const Icon(Icons.search), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
             IconButton(tooltip: t_('Notifications'), icon: const Icon(Icons.notifications_none), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
           ],
           bottom: TabBar(tabs: [Tab(text: t_('For you')), Tab(text: t_('Following'))]),
         ),
-        floatingActionButton: FloatingActionButton(onPressed: onCompose, tooltip: t_('Post'), child: const Icon(Icons.add)),
         body: TabBarView(children: [
           FeedList(
             key: const PageStorageKey('forYou'),

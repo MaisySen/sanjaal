@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 2
+
+- Compose moved from a floating button (it covered post actions) to the Home app bar. Profile Edit button uses the primary crimson. Notification icon colours use the ink palette.
+
 ## Feed row author line
 
 - Author name no longer truncates early; menu button no longer adds height.

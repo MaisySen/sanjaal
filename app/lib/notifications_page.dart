@@ -50,8 +50,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
             final who = '@${n['actor']}';
             final (icon, color, text) = switch (type) {
               'like' => (Icons.favorite, brandRed, '$who liked your post'),
-              'comment' => (Icons.mode_comment, brandBlue, '$who commented: ${n['text']}'),
-              _ => (Icons.person_add, Colors.green, '$who started following you'),
+              'comment' => (Icons.mode_comment, const Color(0xFF24405F), '$who commented: ${n['text']}'),
+              _ => (Icons.person_add, const Color(0xFF3F5B45), '$who started following you'),
             };
             return ListTile(
               leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color, size: 20)),

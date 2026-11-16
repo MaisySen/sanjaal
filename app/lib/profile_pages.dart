@@ -230,8 +230,8 @@ class _MePageState extends State<MePage> {
           user: me,
           actions: SizedBox(
             width: double.infinity,
-            child: FilledButton.tonalIcon(
-              icon: const Icon(Icons.edit_outlined),
+            child: FilledButton.icon(
+              icon: const Icon(Icons.edit_outlined, size: 18),
               label: Text(t_('Edit profile')),
               onPressed: () async {
                 await Navigator.of(context).push(MaterialPageRoute(builder: (_) => EditProfilePage(session: s)));

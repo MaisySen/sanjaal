@@ -311,21 +311,25 @@ Future<bool> addStory(BuildContext context, Session session) async {
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const PhIcon('image'), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
-          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
+          ListTile(leading: const PhIcon('camera'), title: Text(t_('Take a photo')), onTap: () => Navigator.pop(ctx, 'photo_cam')),
+          ListTile(leading: const PhIcon('image'), title: Text(t_('Choose a photo')), onTap: () => Navigator.pop(ctx, 'photo')),
+          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Record a video')), onTap: () => Navigator.pop(ctx, 'video_cam')),
+          ListTile(leading: const PhIcon('film-strip'), title: Text(t_('Choose a video')), onTap: () => Navigator.pop(ctx, 'video')),
         ]),
       ),
     );
     if (source == null) return false;
-    final x = source == 'photo'
-        ? await picker.pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78)
-        : await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 20));
+    final from = source.endsWith('_cam') ? ImageSource.camera : ImageSource.gallery;
+    final isVideo = source.startsWith('video');
+    final x = !isVideo
+        ? await picker.pickImage(source: from, maxWidth: 1280, imageQuality: 78)
+        : await picker.pickVideo(source: from, maxDuration: const Duration(seconds: 20));
     if (x == null || !context.mounted) return false;
     final bytes = await x.readAsBytes();
     if (!context.mounted) return false;
     try {
       showInfo(context, t_('Posting your story...'));
-      await session.upload('/stories', file: UploadFile(bytes, mimeFor(x.name, video: source == 'video'), x.name));
+      await session.upload('/stories', file: UploadFile(bytes, mimeFor(x.name, video: isVideo), x.name));
       return true;
     } catch (e) {
       if (context.mounted) showError(context, e);

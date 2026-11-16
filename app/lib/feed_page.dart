@@ -623,7 +623,17 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _pickVideo() async {
-    final f = await ImagePicker().pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 60));
+    final from = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Record a video')), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
+          ListTile(leading: const PhIcon('film-strip'), title: Text(t_('Choose a video')), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
+        ]),
+      ),
+    );
+    if (from == null) return;
+    final f = await ImagePicker().pickVideo(source: from, maxDuration: const Duration(seconds: 60));
     if (f == null) return;
     if (await f.length() > 25 * 1024 * 1024) {
       if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');

@@ -11,6 +11,8 @@ Pass 14: Share a post into a chat (API and app), render and mock-client tests pl
 
 Pass 14b: Following tab empty and error renders added. Fixture renders only; no app release.
 
+Pass 14c: camera capture choices for Story and Reel. Fake-picker widget test only; not on a device; no app release.
+
 Pass 11: render coverage for About and Search. About text says adding coins is not switched on yet (deletion route kept); privacy claims flagged for grounded review. No app release.
 
 Pass 10: flows test finder import fix (material_ui), large-text layout fixes in room and settings, photo-based feed render check. Widget renders only; not on a device. No app release.

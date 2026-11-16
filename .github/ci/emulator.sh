@@ -1,6 +1,7 @@
 #!/bin/sh
 # Runs both emulator tests, keeps the real exit code, and turns failure lines into annotations.
 cd app
+adb shell settings put secure show_ime_with_hard_keyboard 1
 rc=0
 for t in smoke signed_in flows; do
   extra=""

@@ -3,6 +3,7 @@
 // the live service, LiveKit, push or media. Nothing here is a real account.
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
 import 'package:sanjaal/reactions.dart';
@@ -99,6 +100,48 @@ void main() {
       await _until(tester, find.textContaining('Posted from the emulator run'));
       expect(find.textContaining('Posted from the emulator run'), findsWidgets);
       await binding.takeScreenshot('flow4_post_in_feed');
+    });
+    await step('poll', () async {
+      await tester.tap(find.byTooltip('Post'));
+      await _until(tester, find.text('Continue'));
+      await tester.tap(find.text('Post').last);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+      await _until(tester, find.byType(TextField));
+      await _type(tester, find.byType(TextField), 'Emulator poll: meetup day?');
+      await tester.tap(find.text('Poll'));
+      await _settle(tester, 2);
+      await tester.scrollUntilVisible(find.text('Option 2'), 120, scrollable: find.byType(Scrollable).first);
+      await _type(tester, find.widgetWithText(TextField, 'Option 2'), 'Sunday');
+      await _settle(tester, 2);
+      final inset = tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
+      expect(inset, greaterThan(0), reason: 'This check requires the native emulator keyboard, not only synthetic text input.');
+      final remove = find.widgetWithText(TextButton, 'Remove poll');
+      expect(remove.hitTestable(), findsOneWidget);
+      expect(tester.getBottomLeft(remove).dy, lessThanOrEqualTo(tester.view.physicalSize.height / tester.view.devicePixelRatio - inset));
+      await binding.takeScreenshot('flow_poll_native_keyboard');
+      await tester.tap(remove);
+      await _settle(tester, 2);
+      expect(find.text('Photos'), findsOneWidget);
+      await tester.tap(find.text('Poll'));
+      await _settle(tester, 2);
+      await tester.scrollUntilVisible(find.text('Option 1'), 100, scrollable: find.byType(Scrollable).first);
+      await _type(tester, find.widgetWithText(TextField, 'Option 1'), 'Saturday');
+      await tester.scrollUntilVisible(find.text('Option 2'), 100, scrollable: find.byType(Scrollable).first);
+      await _type(tester, find.widgetWithText(TextField, 'Option 2'), 'Sunday');
+      await tester.tap(find.widgetWithText(FilledButton, 'Post'));
+      await _settle(tester, 6);
+      await _until(tester, find.textContaining('Emulator poll: meetup day?'));
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+      await _settle(tester, 2);
+      await tester.ensureVisible(find.text('Saturday'));
+      await tester.tap(find.text('Saturday'));
+      await _settle(tester, 4);
+      expect(find.text('1 vote'), findsOneWidget);
+      await binding.takeScreenshot('flow_poll_vote_confirmed');
+      await tester.tap(find.text('Remove vote'));
+      await _settle(tester, 4);
+      expect(find.text('0 votes'), findsOneWidget);
     });
     await step('s2', () async {
       await tester.tap(find.text('Chats'));

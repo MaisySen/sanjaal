@@ -45,7 +45,7 @@ void main() {
       expect(find.text('Add a question and different, non-empty options.'), findsOneWidget);
       await t.enterText(find.byType(TextField).at(0), 'Meetup day?');
       await t.enterText(find.byType(TextField).at(1), 'Saturday');
-      await t.enterText(find.byType(TextField).at(2), 'Sunday');
+      await t.enterText(find.widgetWithText(TextField, 'Option 2'), 'Sunday');
       await t.tap(find.widgetWithText(FilledButton, 'Post')); await flush(t);
       expect(sent, contains('poll_options[0]'));
       expect(sent, contains('Saturday'));
@@ -76,6 +76,30 @@ void main() {
       writes++;
       return http.Response(jsonEncode(fail ? {'message': 'Vote fixture failed'} : {'poll': r.method == 'DELETE' ? poll() : poll(mine: 0, a: 1)}), fail ? 503 : 200);
     });
+  });
+  testWidgets('large-text poll controls remain above simulated keyboard and remove safely while focused', (t) async {
+    t.view.physicalSize = const Size(640, 1280);
+    t.view.devicePixelRatio = 2;
+    addTearDown(t.view.reset);
+    await fixture(t, (s) async {
+      await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark), builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.8)), child: child!), home: ComposePage(session: s)));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Poll')); await t.pumpAndSettle();
+      t.view.viewInsets = const FakeViewPadding(bottom: 480);
+      await t.pumpAndSettle();
+      await t.scrollUntilVisible(find.text('Option 2'), 120, scrollable: find.byType(Scrollable).first);
+      await t.enterText(find.widgetWithText(TextField, 'Option 2'), 'Sunday');
+      await t.pumpAndSettle();
+      final remove = find.widgetWithText(TextButton, 'Remove poll');
+      expect(t.getBottomLeft(remove).dy, lessThanOrEqualTo(400));
+      expect(remove.hitTestable(), findsOneWidget);
+      expect(find.text('Photos'), findsNothing);
+      expect(t.takeException(), isNull);
+      await t.tap(remove); await t.pumpAndSettle();
+      expect(find.text('Remove poll'), findsNothing);
+      expect(find.text('Photos'), findsOneWidget);
+      expect(t.takeException(), isNull);
+    }, (_) async => http.Response('{}', 200));
   });
   testWidgets('vote blocks duplicate taps while pending', (t) async {
     var writes = 0;

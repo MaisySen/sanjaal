@@ -739,6 +739,15 @@ class _ComposePageState extends State<ComposePage> {
     setState(() => pollOptions = [TextEditingController(), TextEditingController()]);
   }
 
+  void _removePoll() {
+    final old = pollOptions;
+    FocusScope.of(context).unfocus();
+    setState(() => pollOptions = null);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final c in old ?? <TextEditingController>[]) { c.dispose(); }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -830,11 +839,7 @@ class _ComposePageState extends State<ComposePage> {
             ),
             Wrap(spacing: 8, children: [
               if (pollOptions!.length < 4) TextButton(onPressed: busy ? null : () => setState(() => pollOptions!.add(TextEditingController())), child: Text(t_('Add option'))),
-              TextButton(onPressed: busy ? null : () {
-                final old = pollOptions!;
-                setState(() => pollOptions = null);
-                WidgetsBinding.instance.addPostFrameCallback((_) { for (final c in old) { c.dispose(); } });
-              }, child: Text(t_('Remove poll'))),
+
             ]),
             Text(t_('One choice per person. Results show counts, not names.')),
           ],
@@ -862,8 +867,9 @@ class _ComposePageState extends State<ComposePage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              TextButton.icon(onPressed: busy || pollOptions != null ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
-              TextButton.icon(onPressed: busy || pollOptions != null ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
+              if (pollOptions != null) TextButton(onPressed: busy ? null : _removePoll, child: Text(t_('Remove poll'))),
+              if (pollOptions == null) TextButton.icon(onPressed: busy ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
+              if (pollOptions == null) TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
               if (widget.session.pollsEnabled && pollOptions == null) TextButton.icon(onPressed: busy ? null : _poll, icon: const PhIcon('check', size: 20), label: Text(t_('Poll'))),
               if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: const Text('Remove media')),
             ]),

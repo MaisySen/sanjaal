@@ -126,6 +126,7 @@ void main() {
       final field = find.widgetWithText(TextField, 'Option 2');
       final point = tester.getCenter(field) * tester.view.devicePixelRatio;
       // Live binding drops physical pointers by default, including adb taps.
+      final remove = find.widgetWithText(TextButton, 'Remove poll');
       binding.shouldPropagateDevicePointerEvents = true;
       try {
       final native = await tester.runAsync(() => http.post(
@@ -144,7 +145,6 @@ void main() {
       expect(tester.state<EditableTextState>(find.descendant(of: field, matching: find.byType(EditableText))).widget.focusNode.hasFocus, isTrue, reason: 'The native pointer must focus Option 2, not another control.');
       final inset = tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
       expect(inset, greaterThan(0), reason: 'This check requires the native emulator keyboard, not only synthetic text input.');
-      final remove = find.widgetWithText(TextButton, 'Remove poll');
       expect(remove.hitTestable(), findsOneWidget);
       expect(tester.getBottomLeft(remove).dy, lessThanOrEqualTo(tester.view.physicalSize.height / tester.view.devicePixelRatio - inset));
       } finally {

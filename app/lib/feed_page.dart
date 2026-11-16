@@ -244,8 +244,8 @@ class _PostCardState extends State<PostCard> {
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     final single = images.length == 1;
     return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
-      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)))),
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -276,7 +276,7 @@ class _PostCardState extends State<PostCard> {
           ),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
           if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
-          if (single) Padding(padding: const EdgeInsets.only(top: 10), child: _image(images.first['url'] as String, 320)),
+          if (single) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 0), child: ClipRRect(borderRadius: BorderRadius.circular(18), child: _image(images.first['url'] as String, 320))),
           if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 10), child: SizedBox(height: 320, child: PageView(children: [for (final m in images) SizedBox(height: 320, width: double.infinity, child: Image.network(m['url'] as String, fit: BoxFit.cover, errorBuilder: (c, e, st) => const SizedBox()))]))),
           if (images.length > 1) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Text('1 of ${images.length}, swipe', style: muted)),
           for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10), child: VideoTile(url: v['url'] as String)),

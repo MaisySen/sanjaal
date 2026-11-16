@@ -171,7 +171,7 @@ class FeedListState extends State<FeedList> {
               // Room under the page for the floating nav bar.
               return Padding(
                 padding: const EdgeInsets.only(bottom: 84),
-                child: hasPhoto ? card : SingleChildScrollView(physics: const ClampingScrollPhysics(), child: card),
+                child: hasPhoto ? card : _PageHandoff(pager: pager, child: SingleChildScrollView(physics: const ClampingScrollPhysics(), child: card)),
               );
             },
           ),
@@ -221,6 +221,42 @@ class FeedListState extends State<FeedList> {
           );
         },
       ),
+    );
+  }
+}
+
+/// A page whose own content scrolls. The content scrolls first; once it reaches its end (or start) the same drag
+/// carries on into the pager, and letting go snaps to a page. Without this a tall post would trap the swipe.
+class _PageHandoff extends StatefulWidget {
+  const _PageHandoff({required this.pager, required this.child});
+  final PageController pager;
+  final Widget child;
+  @override
+  State<_PageHandoff> createState() => _PageHandoffState();
+}
+
+class _PageHandoffState extends State<_PageHandoff> {
+  bool carrying = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.metrics.axis != Axis.vertical || !widget.pager.hasClients) return false;
+        final pos = widget.pager.position;
+        if (n is OverscrollNotification && n.dragDetails != null) {
+          carrying = true;
+          pos.jumpTo((pos.pixels + n.overscroll).clamp(pos.minScrollExtent, pos.maxScrollExtent));
+          return true;
+        }
+        if (n is ScrollEndNotification && carrying) {
+          carrying = false;
+          if (pos is ScrollPositionWithSingleContext) pos.goBallistic(-(n.dragDetails?.primaryVelocity ?? 0));
+          return true;
+        }
+        return false;
+      },
+      child: widget.child,
     );
   }
 }

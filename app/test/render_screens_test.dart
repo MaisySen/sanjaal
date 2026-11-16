@@ -546,6 +546,98 @@ void main() {
     });
   }
 
+  Future<void> pagerTest(WidgetTester tester, List<Map<String, dynamic>> data, Future<void> Function(double Function() page, Future<void> Function() settle, List<String> reqs) body, {String? cursor, double scale = 1.0, Brightness b = Brightness.dark}) async {
+    final reqs = <String>[];
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(theme: buildTheme(b, fontFamily: 'Roboto'), builder: (c, ch) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)), child: ch!), home: FeedPage(session: s, onCompose: () async {})));
+      Future<void> settle() async {
+        for (var i = 0; i < 5; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 150));
+        }
+        await tester.pump(const Duration(seconds: 1));
+      }
+      await settle();
+      await body(() => tester.stateList<FeedListState>(find.byType(FeedList)).first.pager.page!, settle, reqs);
+      await tester.pumpWidget(const SizedBox());
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      if (r.url.path.endsWith('/stories')) return http.Response(jsonEncode({'data': <dynamic>[]}), 200, headers: {'content-type': 'application/json'});
+      reqs.add(r.url.toString());
+      return http.Response(jsonEncode({'data': r.url.queryParameters['cursor'] == null ? data : <dynamic>[], 'next_cursor': r.url.queryParameters['cursor'] == null ? cursor : null}), 200, headers: {'content-type': 'application/json'});
+    }));
+  }
+  Map<String, dynamic> textPost(int i, String body) => {'public_id': 't$i', 'kind': 'post', 'body': body, 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': false, 'created_at': '2026-11-16T00:00:00Z'};
+  final vertical = find.byWidgetPredicate((w) => w is PageView && w.scrollDirection == Axis.vertical);
+
+  testWidgets('pager: a tall text post scrolls first, then the same drag carries into the next post', (tester) async {
+    final tall = List.generate(60, (i) => 'Line $i of a long update about the festival plans.').join(' ');
+    await pagerTest(tester, [textPost(1, tall), textPost(2, 'Second')], (page, settle, reqs) async {
+      await tester.drag(vertical, const Offset(0, -120));
+      await settle();
+      expect(page(), 0.0, reason: 'a short drag scrolls the post, it does not change page');
+      for (var i = 0; i < 12 && page() < 1.0; i++) {
+        await tester.fling(vertical, const Offset(0, -300), 1500);
+        await settle();
+      }
+      expect(page(), 1.0, reason: 'at the end of the post the swipe moves on');
+      await tester.fling(vertical, const Offset(0, 300), 1500);
+      await settle();
+      expect(page(), 0.0, reason: 'swiping back returns to the post');
+    });
+  });
+
+  testWidgets('pager: one post, nothing more to load: stays put and asks for nothing extra', (tester) async {
+    await pagerTest(tester, [textPost(1, 'Only post')], (page, settle, reqs) async {
+      final before = reqs.length;
+      await tester.fling(vertical, const Offset(0, -300), 2000);
+      await settle();
+      expect(page(), 0.0);
+      expect(reqs.length, before, reason: 'swiping up on a short feed asks for nothing');
+      expect(find.text('Only post'), findsOneWidget);
+      expect(reqs.length, before, reason: 'no extra requests on a short feed');
+    });
+  });
+
+  testWidgets('pager: pull down on the first post refreshes once', (tester) async {
+    await pagerTest(tester, [textPost(1, 'First'), textPost(2, 'Second')], (page, settle, reqs) async {
+      final before = reqs.length;
+      await tester.fling(vertical, const Offset(0, 400), 1000);
+      await settle();
+      expect(page(), 0.0);
+      expect(reqs.length, before + 1, reason: 'exactly one refresh request');
+    });
+  });
+
+  testWidgets('pager: last post at the end of the feed does not load again or error', (tester) async {
+    await pagerTest(tester, [textPost(1, 'Post A'), textPost(2, 'Post B end')], (page, settle, reqs) async {
+      final before = reqs.length;
+      await tester.fling(vertical, const Offset(0, -300), 2000);
+      await settle();
+      expect(page(), 1.0);
+      await tester.fling(vertical, const Offset(0, -300), 2000);
+      await settle();
+      expect(page(), 1.0, reason: 'cannot swipe past the last post');
+      expect(find.text('Post B end'), findsOneWidget);
+      expect(reqs.length, before, reason: 'the feed said it was finished');
+    });
+  });
+
+  for (final b in [Brightness.light, Brightness.dark]) {
+    testWidgets('pager render with a text post at 1.8x text: ${b.name}', (tester) async {
+      final key = GlobalKey();
+      await pagerTest(tester, [textPost(1, 'Rehearsal tonight, come early. Bring the madal.'), textPost(2, 'Second')], b: b, scale: 1.8, (page, settle, reqs) async {
+        expect(find.textContaining('Rehearsal tonight'), findsOneWidget);
+      });
+    });
+  }
+
   testWidgets('home pager: swipe moves one post at a time and loads the next page once near the end', (tester) async {
     final reqs = <String>[];
     Map<String, dynamic> post(int i) => {'public_id': 'p$i', 'kind': 'post', 'body': 'Post number $i', 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [{'type': 'image', 'url': 'http://fixture.invalid/$i.jpg'}], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': false, 'created_at': '2026-11-16T00:00:00Z'};

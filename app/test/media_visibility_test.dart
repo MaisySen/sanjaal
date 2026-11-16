@@ -79,6 +79,16 @@ void main() {
   late VideoPlayerPlatform old;
   setUp(() { old = VideoPlayerPlatform.instance; video = _Video(); VideoPlayerPlatform.instance = video; });
   tearDown(() { VideoPlayerPlatform.instance = old; });
+  testWidgets('a retained ReelItem swaps pruned pooled ownership without replaying disposed controllers',(t)async{
+    final pool=ReelPlayerPool();final session=Session();
+    final items=[for(var i=0;i<6;i++) <String,dynamic>{'public_id':'r$i','body':'Fixture','author':{'username':'fixture'},'media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];
+    Widget cell(Map<String,dynamic> item)=>app(ReelItem(key:const ValueKey('retained'),session:session,reel:item,playing:true,muted:false,onToggleMute:(){},playback:pool.forReel(item)));
+    pool.warm(items,0);await t.pumpWidget(cell(items[0]));await flush(t);expect(video.playing[0],isTrue);
+    pool.warm(items,4);await t.pumpWidget(cell(items[4]));await flush(t);expect(video.playing[0],isFalse);expect(video.playing.values.where((v)=>v).length,1);
+    final cut=video.calls.length;pool.warm(items,0);await t.pumpWidget(cell(items[0]));await flush(t);
+    expect(video.calls.skip(cut).where((v)=>v=='play:0'),isEmpty);expect(video.playing.values.where((v)=>v).length,1);expect(t.takeException(),isNull);
+    await t.pumpWidget(const SizedBox());pool.dispose();await flush(t);expect(video.playing.values.every((v)=>!v),isTrue);
+  });
   testWidgets('Reels pool retains previous/current/next without restarting a back swipe', (t) async {
     final pool=ReelPlayerPool();
     final items=[for(var i=0;i<6;i++) <String,dynamic>{'public_id':'r$i','media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];

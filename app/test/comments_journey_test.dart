@@ -44,6 +44,23 @@ void main(){
       final f=File(pair.$2); if(f.existsSync()){final l=FontLoader(pair.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await l.load();}
     }
   });
+  testWidgets('limited comments remain readable and deletable without allowing a new send or reply',(t)async{
+    var writes=0;var deletes=0;
+    await fixture(t,(r)async{
+      if(r.method=='POST')writes++;
+      if(r.method=='DELETE'){deletes++;return json({'deleted':true,'removed_count':1});}
+      return json({'data':[comment('a')],'next_cursor':null,'can_comment':false});
+    },()async{
+      expect(find.text('Comment a'),findsOneWidget);
+      expect(find.text('Comments are limited by this member.'),findsOneWidget);
+      expect(t.widget<TextField>(find.byType(TextField)).enabled,isFalse);
+      expect(button(t,'Send comment').onPressed,isNull);
+      expect(t.widget<TextButton>(find.widgetWithText(TextButton,'Reply')).onPressed,isNull);
+      expect(button(t,'Delete').onPressed,isNotNull);
+      await t.tap(find.byTooltip('Delete'));await flush(t);
+      expect(writes,0);expect(deletes,1);expect(find.text('Comment a'),findsNothing);
+    });
+  });
   testWidgets('one page only, recoverable cursor failure, dedupe and lazy next page', (t) async {
     final cursors=<String?>[]; var fail=true;
     await fixture(t,(r) async {

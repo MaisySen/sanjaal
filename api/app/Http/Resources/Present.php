@@ -46,7 +46,13 @@ class Present
         $pollRows = $pollIds ? \Illuminate\Support\Facades\DB::table('poll_votes')->whereIn('post_id', $pollIds)
             ->selectRaw('post_id, choice, count(*) as n, sum(case when user_id = ? then 1 else 0 end) as mine', [$uid])
             ->groupBy('post_id', 'choice')->get()->groupBy('post_id') : collect();
+        $owners = $posts->pluck('user_id')->unique()->all();
+        $controls = \Illuminate\Support\Facades\DB::table('member_controls')->whereIn('user_id', $owners)->get()->keyBy('user_id');
+        $ownerFollowsViewer = \Illuminate\Support\Facades\DB::table('follows')->whereIn('follower_id', $owners)->where('followee_id', $uid)->pluck('follower_id')->all();
         foreach ($posts as $p) {
+            $scope = $controls[$p->user_id]->comments_from ?? 'everyone';
+            $p->setAttribute('_can_comment', $viewer && ($p->user_id === $uid || $scope === 'everyone' || ($scope === 'following' && in_array($p->user_id, $ownerFollowsViewer, true))));
+            $p->setAttribute('_can_share', $viewer && ($p->user_id === $uid || !isset($controls[$p->user_id]) || (bool) $controls[$p->user_id]->share_to_chat));
             if (is_array($p->poll_options)) $p->setAttribute('_poll_rows', $pollRows[$p->id] ?? collect());
             $p->setAttribute('_saved', in_array($p->id, $savedIds, true));
             $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
@@ -72,6 +78,8 @@ class Present
             'hashtags' => $p->hashtags->pluck('tag')->values(),
             'likes_count' => $p->likes_count,
             'comments_count' => $p->comments_count,
+            'can_comment' => array_key_exists('_can_comment', $p->getAttributes()) ? $p->getAttribute('_can_comment') : ($viewer ? \App\Support\MemberControls::canComment($p->user_id, $viewer->id) : false),
+            'can_share_to_chat' => array_key_exists('_can_share', $p->getAttributes()) ? $p->getAttribute('_can_share') : ($viewer ? \App\Support\MemberControls::canShare($p->user_id, $viewer->id) : false),
             'liked' => $pre ? $p->getAttribute('_mine') !== false : ($viewer ? $p->likes()->where('user_id', $viewer->id)->exists() : false),
             'my_reaction' => $pre ? ($p->getAttribute('_mine') === false ? null : $p->getAttribute('_mine')) : ($viewer ? $p->likes()->where('user_id', $viewer->id)->value('reaction') : null),
             'reactions' => $pre ? $p->getAttribute('_reactions') : $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),

@@ -294,6 +294,8 @@ class ChatController extends Controller
             if (! empty($data['shared_post'])) {
                 $sp = \App\Models\Post::where('public_id', $data['shared_post'])->first();
                 abort_if(! $sp || in_array($sp->user_id, Present::hiddenAuthors([$me->id]), true), 422, 'That post is not available to share.');
+                DB::table('users')->where('id', $sp->user_id)->lockForUpdate()->first();
+                abort_unless(\App\Support\MemberControls::canShare($sp->user_id, $me->id), 403, 'This member has turned off sharing to chat.');
                 $sharedId = $sp->id;
                 $kind = 'post';
             }

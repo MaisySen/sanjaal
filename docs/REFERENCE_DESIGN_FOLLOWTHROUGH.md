@@ -41,8 +41,8 @@ These remain part of the full-build request where applicable, not closed by docu
 | Friends feed activity | Needs a defined supported Sanjaal activity model and actual visibility rules. |
 | Messages and story replies | Chat exists. Message-request/reply audience settings need server rules. |
 | Tags and mentions | Hashtags exist; user tagging/mention permissions and notification enforcement are unfinished. |
-| Comments | Existing create/delete/report/block flows; per-post/account comment permissions remain unfinished. |
-| Sharing | Existing explicit share-to-chat; reshare audiences and restrictions need implementation. |
+| Comments | Added account-wide new-comment/reply audience: everyone, people the owner follows, or nobody else. Server enforces it, owner exception is explicit, existing comments remain readable and deletable. Per-post overrides and deeper moderation remain unfinished. |
+| Sharing | Added server-enforced switch for new share-to-Sanjaal-chat messages, with owner exception. UI explicitly says this does not retract old messages or make public links private. Broader reshare audiences/media privacy remain unfinished. |
 | Restricted / Limit interactions / Hidden words | Needs server-backed moderation settings and enforcement, not local-only privacy switches. |
 | Follow and invite friends | Search/follow exists. Invite/link sharing needs an explicit user-selected destination; no contact upload without scope. |
 | Favourites / Muted accounts | Chat mute exists. Feed favourites/account mute still need storage, filters and management. |
@@ -65,3 +65,11 @@ These remain part of the full-build request where applicable, not closed by docu
 ## Remaining integrated proof
 
 Custom gallery/capture layout parity, deeper applicable Settings enforcement, native durable background transfer, live Auth0/device restore, media/camera/audio permission recovery, network interruption, real Samsung installation of this candidate, two-device calls/push and signed iOS distribution remain unfinished. Mock HTTP, generated images and fake video-platform tests do not establish any of those outcomes. No live API migration/provider change is included in this source batch. No third-party branding/private reference photos are published.
+
+## Interaction controls follow-through
+
+Authenticated `/auth/me/controls` reads/writes only the current member. A revision-guarded transaction locks the always-existing owner row, including competing first saves. Comment and new shared-post sends take the same owner lock before checking policy. Already-completed share replay returns the original result, never a fresh send. Feed/reel presentation batches controls and follow-direction checks rather than one controls query per post. Blocking still wins.
+
+The app exposes Comments and sharing only when `/auth/me` advertises `interaction_controls`; old servers get no nonfunctional switch. Loading failures do not populate guessed defaults. Saving waits for a validated confirmation; stale, transport-loss or server-error outcomes require explicit reload, never automatic replay. English and Nepali copy explains exact limits. This is a limited interaction setting, not account privacy. No migration has been applied to the deployed API by this batch.
+
+Local checks for this follow-through: 125 API tests / 1022 assertions on SQLite and a local PostgreSQL service; two dedicated PostgreSQL multi-process control races / 17 assertions; 53 focused Flutter settings/comment/player tests plus large-text small-phone light/dark English/Nepali fixture inspection. Fake video and HTTP tests remain synthetic and do not prove codecs, device playback or live API behavior. Native CI for the prior integrated source is tracked separately.

@@ -12,6 +12,8 @@ Route::get('/v1/ping', fn () => response()->json(['app' => 'sanjaal', 'status' =
 
 Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/me/controls', [\App\Http\Controllers\MemberControlsController::class, 'show']);
+    Route::patch('/me/controls', [\App\Http\Controllers\MemberControlsController::class, 'update'])->middleware('throttle:30,1');
     Route::patch('/me', [AuthController::class, 'update']);
     Route::post('/me/avatar', [\App\Http\Controllers\SocialController::class, 'avatar'])->middleware('throttle:10,1');
 });

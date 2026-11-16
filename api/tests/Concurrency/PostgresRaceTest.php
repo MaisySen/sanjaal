@@ -72,6 +72,37 @@ class PostgresRaceTest extends TestCase
         return $c;
     }
 
+    public function test_simultaneous_first_control_saves_have_exactly_one_revision_winner(): void
+    {
+        $owner = $this->user('owner');
+        $codes = $this->race([
+            ['owner', 'PATCH', '/api/v1/auth/me/controls', ['revision'=>0, 'comments_from'=>'nobody']],
+            ['owner', 'PATCH', '/api/v1/auth/me/controls', ['revision'=>0, 'share_to_chat'=>false]],
+        ]);
+        sort($codes); $this->assertSame([200,409], $codes);
+        $this->assertSame(1, DB::table('member_controls')->where('user_id',$owner->id)->count());
+        $this->assertSame(1, (int) DB::table('member_controls')->where('user_id',$owner->id)->value('revision'));
+    }
+    public function test_comment_and_chat_share_racing_a_control_change_leave_a_closed_boundary(): void
+    {
+        $owner=$this->user('owner');$sender=$this->user('sender');$receiver=$this->user('receiver');
+        $post=\App\Models\Post::create(['user_id'=>$owner->id,'kind'=>'post','body'=>'Race']);
+        $chat=$this->group($sender,[$receiver]);
+        $codes=$this->race([
+            ['owner','PATCH','/api/v1/auth/me/controls',['revision'=>0,'comments_from'=>'nobody','share_to_chat'=>false]],
+            ['sender','POST',"/api/v1/posts/{$post->public_id}/comments",['body'=>'At the boundary']],
+            ['sender','POST',"/api/v1/conversations/{$chat->public_id}/messages",['shared_post'=>$post->public_id,'client_id'=>'boundary']],
+        ]);
+        $this->assertSame(200,$codes[0]);
+        $this->assertContains($codes[1],[201,403]);$this->assertContains($codes[2],[201,403]);
+        $this->assertSame($codes[1]===201?1:0,$post->comments()->count());
+        $this->assertSame($post->comments()->count(),$post->fresh()->comments_count);
+        $this->assertSame($codes[2]===201?1:0,$chat->messages()->count());
+        $h=$this->hdr('sender');
+        $this->postJson("/api/v1/posts/{$post->public_id}/comments",['body'=>'After closure'],$h)->assertForbidden();
+        $this->postJson("/api/v1/conversations/{$chat->public_id}/messages",['shared_post'=>$post->public_id,'client_id'=>'after'],$h)->assertForbidden();
+    }
+
     public function test_capacity_holds_when_six_members_add_one_new_person_each_at_once(): void
     {
         $owner = $this->user('owner');

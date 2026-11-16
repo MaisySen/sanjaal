@@ -48,6 +48,7 @@ class EngagementController extends Controller
         return response()->json([
             'data' => collect($page->items())->map(fn ($c) => Present::comment($c))->values(),
             'next_cursor' => $page->nextCursor()?->encode(),
+            'can_comment' => \App\Support\MemberControls::canComment($post->user_id, $request->user()->id),
         ]);
     }
 
@@ -58,6 +59,8 @@ class EngagementController extends Controller
         $comment = DB::transaction(function () use ($request, $post, $data) {
             // Serialize the parent check and count with comment deletion.
             $post = Post::whereKey($post->id)->lockForUpdate()->firstOrFail();
+            DB::table('users')->where('id', $post->user_id)->lockForUpdate()->first();
+            abort_unless(\App\Support\MemberControls::canComment($post->user_id, $request->user()->id), 403, 'Comments are limited by this member.');
             $parent = isset($data['parent_id']) ? $post->comments()->where('public_id', $data['parent_id'])->whereNull('parent_id')->first() : null;
             abort_if(isset($data['parent_id']) && (! $parent || in_array($parent->user_id, Present::hiddenAuthors([$request->user()->id]), true)), 422, 'That comment is not available to reply to.');
             $c = $post->comments()->create(['user_id' => $request->user()->id, 'body' => $data['body'], 'parent_id' => $parent?->id]);

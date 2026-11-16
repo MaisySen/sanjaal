@@ -96,6 +96,19 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'When off, other members cannot send new copies of your posts through Share to chat. You can still share your own posts. Public links and earlier messages are not removed.': 'बन्द हुँदा अरू सदस्यले तपाईंका पोस्ट कुराकानीमा नयाँ रूपमा पठाउन सक्दैनन्। तपाईंले आफ्ना पोस्ट साझेदारी गर्न सक्नुहुन्छ। सार्वजनिक लिङ्क र पुराना सन्देश हट्दैनन्।',
+  'This limits new comments and replies. Existing comments stay visible. You can still comment on your own posts.': 'यसले नयाँ टिप्पणी र जवाफ सीमित गर्छ। पुराना टिप्पणी देखिइरहन्छन्। आफ्ना पोस्टमा तपाईंले टिप्पणी गर्न सक्नुहुन्छ।',
+  'Comments are limited by this member.': 'यस सदस्यले टिप्पणी सीमित गरेका छन्।',
+  'Settings result is unconfirmed. Reload to check before changing them again.': 'सेटिङ सुरक्षित भएको पुष्टि भएन। फेरि परिवर्तन गर्नुअघि पुनः लोड गरेर जाँच्नुहोस्।',
+  'Reload current settings': 'हालको सेटिङ फेरि लोड गर्नुहोस्',
+  'Settings could not be loaded.': 'सेटिङ लोड हुन सकेन।',
+  'Settings saved.': 'सेटिङ सुरक्षित भयो।',
+  'Allow sharing to Sanjaal chats': 'Sanjaal कुराकानीमा साझेदारी गर्न दिनुहोस्',
+  'Nobody else': 'अरू कसैले सक्दैन',
+  'People you follow': 'तपाईंले फलो गरेका व्यक्तिहरू',
+  'Everyone': 'सबैजना',
+  'Who can comment on your posts and reels': 'तपाईंका पोस्ट र रिलमा कसले टिप्पणी गर्न सक्छ',
+  'Comments and sharing': 'टिप्पणी र साझेदारी',
   'Sends a request by email': 'इमेलबाट अनुरोध पठाउँछ',
   'Delete my account': 'मेरो खाता मेटाउनुहोस्',
   'This removes the local retry copy. It does not remove anything already posted. Check your profile before starting a new upload.': 'यसले फेरि प्रयास गर्न राखिएको स्थानीय प्रति हटाउँछ। पहिले नै पोस्ट भएको कुरा हटाउँदैन। नयाँ अपलोड सुरु गर्नुअघि आफ्नो प्रोफाइल जाँच्नुहोस्।',

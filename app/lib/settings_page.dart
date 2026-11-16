@@ -1,3 +1,4 @@
+import 'member_controls_page.dart';
 import 'feed_page.dart' show SavedPage;
 import 'profile_pages.dart' show EditProfilePage;
 import 'notifications_page.dart';
@@ -38,6 +39,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ('Notifications push', option('Notifications', 'bell', () => open(_NotificationSettings(session: session)))),
       ],
       'Who can interact with you': [
+        if (session.interactionControlsEnabled) ('Comments sharing audience', option('Comments and sharing', 'chat-teardrop', () => open(MemberControlsPage(session: session)))),
         ('Blocked people privacy', option('Blocked people', 'prohibit', () => open(BlockedPage(session: session)))),
       ],
       'Your app and media': [

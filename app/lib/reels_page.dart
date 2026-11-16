@@ -219,6 +219,7 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
   late int comments = (widget.reel['comments_count'] as num?)?.toInt() ?? 0;
   late bool following = (widget.reel['author'] as Map)['following'] == true;
   bool followBusy = false;
+  int _playerEpoch = 0;
 
   Map<String, dynamic> get author => (widget.reel['author'] as Map).cast<String, dynamic>();
   String get id => widget.reel['public_id'] as String;
@@ -226,6 +227,12 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
   @override
   void initState() {
     super.initState();
+    _attach();
+  }
+
+  void _attach() {
+    final epoch = ++_playerEpoch;
+    ready = false; failed = false;
     final media = (widget.reel['media'] as List).cast<Map<String, dynamic>>();
     final v = media.where((m) => m['type'] != 'image').toList();
     if (v.isEmpty) {
@@ -236,20 +243,24 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
     c = ctl;
     if (widget.playback == null) ctl.setLooping(true);
     (widget.playback?.initialized ?? ctl.initialize()).then((_) {
-      if (!mounted || widget.playback?.disposed == true) return;
+      if (!mounted || epoch != _playerEpoch || widget.playback?.disposed == true) return;
       ctl.setVolume(widget.muted ? 0 : 1);
       setState(() => ready = true);
       if (widget.playing && mediaVisible) ctl.play();
     }).catchError((_) {
-      if (mounted) setState(() => failed = true);
+      if (mounted && epoch == _playerEpoch) setState(() => failed = true);
     });
   }
 
   @override
   void didUpdateWidget(ReelItem old) {
     super.didUpdateWidget(old);
+    if (!identical(old.playback, widget.playback)) {
+      if (old.playback == null) { c?.dispose(); } else if (!old.playback!.disposed) { c?.pause(); }
+      c = null; _attach(); return;
+    }
     final ctl = c;
-    if (ctl == null || !ready) return;
+    if (ctl == null || !ready || widget.playback?.disposed == true) return;
     if (widget.muted != old.muted) ctl.setVolume(widget.muted ? 0 : 1);
     if (widget.playing != old.playing) {
       widget.playing && mediaVisible ? ctl.play() : ctl.pause();
@@ -265,7 +276,8 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
 
   @override
   void dispose() {
-    if (widget.playback == null) { c?.dispose(); } else { c?.pause(); }
+    _playerEpoch++;
+    if (widget.playback == null) { c?.dispose(); } else if (!widget.playback!.disposed) { c?.pause(); }
     super.dispose();
   }
 

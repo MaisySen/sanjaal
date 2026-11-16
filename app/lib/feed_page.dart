@@ -381,7 +381,7 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  PopupMenuItem<String> shareItem() => PopupMenuItem(value: 'share', child: Text(t_('Share to chat')));
+  PopupMenuItem<String> shareItem() => PopupMenuItem(value: 'share', enabled: widget.post['can_share_to_chat'] != false, child: Text(t_('Share to chat')));
 
   PopupMenuItem<String> saveItem() => PopupMenuItem(value: 'save', child: Text(widget.post['saved'] == true ? t_('Remove from saved') : t_('Save')));
 
@@ -621,6 +621,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
   final deleting = <String>{};
   final local = <String>{};
   final removed = <String>{};
+  bool canComment = true;
   bool loading = false;
   bool sending = false;
   bool closing = false;
@@ -643,6 +644,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
     try {
       final j = await widget.session.call('GET', '/posts/${widget.postId}/comments', query: {if (!refresh && nextCursor != null) 'cursor': nextCursor!}) as Map<String, dynamic>;
       if (!mounted) return;
+      canComment = j['can_comment'] != false;
       final incoming = (j['data'] as List).cast<Map<String, dynamic>>().where((c) => !removed.contains(c['public_id']) && !removed.contains(c['parent_id'])).toList();
       final cursor = j['next_cursor'] as String?;
       if (refresh) items.removeWhere((c) => !local.contains(c['public_id']));
@@ -658,7 +660,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
 
   Future<void> _send() async {
     final tx = input.text.trim();
-    if (tx.isEmpty || sending || deleting.isNotEmpty || uncertain || replyGone) return;
+    if (!canComment || tx.isEmpty || sending || deleting.isNotEmpty || uncertain || replyGone) return;
     final parent = replyTo;
     setState(() => sending = true);
     try {
@@ -733,7 +735,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
           const SizedBox(height: 4),
           Text(c['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
           Wrap(children: [
-            if (!reply) TextButton(onPressed: sending || deleting.isNotEmpty || uncertain ? null : () => setState(() { replyTo = c; replyGone = false; }), child: Text(t_('Reply'))),
+            if (!reply) TextButton(onPressed: !canComment || sending || deleting.isNotEmpty || uncertain ? null : () => setState(() { replyTo = c; replyGone = false; }), child: Text(t_('Reply'))),
             if (canDelete) IconButton(tooltip: t_('Delete'), icon: const PhIcon('trash', size: 18), onPressed: sending || deleting.isNotEmpty ? null : () => _delete(c)),
           ]),
         ])),
@@ -769,11 +771,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
         Row(children: [const SizedBox(width: 16), Expanded(child: Text(t_('Comments'), style: Theme.of(context).textTheme.titleMedium)), IconButton(tooltip: t_('Refresh comments'), onPressed: loading ? null : () => _load(refresh: true), icon: const PhIcon('arrow-clockwise')), IconButton(tooltip: t_('Close comments'), onPressed: _close, icon: const PhIcon('x'))]),
         Expanded(child: ListView.builder(controller: scroll, itemCount: list.length, itemBuilder: (_, i) => list[i])),
         ConstrainedBox(constraints: BoxConstraints(maxHeight: bounds.maxHeight * 0.6), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (!canComment) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Comments are limited by this member.'))),
           if (replyGone) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(t_('Original comment removed. Choose another reply or cancel.'))),
           if (replyTo != null) Padding(padding: const EdgeInsets.only(left: 16), child: Row(children: [Expanded(child: Text('${t_('Replying to')} @${(replyTo!['author'] as Map)['username']}', maxLines: 2, overflow: TextOverflow.ellipsis)), IconButton(tooltip: t_('Cancel reply'), icon: const PhIcon('x'), onPressed: sending || deleting.isNotEmpty || uncertain ? null : () => setState(() { replyTo = null; replyGone = false; }))])),
           Padding(key: const ValueKey('comment-composer'), padding: const EdgeInsets.all(8), child: Row(children: [
-            Expanded(child: TextField(controller: input, enabled: !sending && deleting.isEmpty, maxLength: 1000, minLines: 1, maxLines: 3, decoration: InputDecoration(hintText: t_('Add a comment'), counterText: '', border: const OutlineInputBorder()), onSubmitted: (_) => _send())),
-            IconButton(tooltip: t_('Send comment'), onPressed: sending || deleting.isNotEmpty || uncertain || replyGone ? null : _send, icon: sending ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt-fill')),
+            Expanded(child: TextField(controller: input, enabled: canComment && !sending && deleting.isEmpty, maxLength: 1000, minLines: 1, maxLines: 3, decoration: InputDecoration(hintText: t_('Add a comment'), counterText: '', border: const OutlineInputBorder()), onSubmitted: (_) => _send())),
+            IconButton(tooltip: t_('Send comment'), onPressed: !canComment || sending || deleting.isNotEmpty || uncertain || replyGone ? null : _send, icon: sending ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt-fill')),
           ])),
         ]))),
       ]))),

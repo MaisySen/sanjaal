@@ -120,6 +120,7 @@ class Session extends ChangeNotifier {
   Map<String, dynamic>? user;
   bool pollsEnabled = false;
   bool uploadIntentsEnabled = false;
+  bool interactionControlsEnabled = false;
   bool loading = true;
   /// Sign-in header for files that need it (chat photos). Used by widgets that cannot await.
   Map<String, String> get mediaHeaders => {if (_access != null) 'Authorization': 'Bearer $_access'};
@@ -284,6 +285,7 @@ class Session extends ChangeNotifier {
     user = (j['user'] ?? j) as Map<String, dynamic>;
     pollsEnabled = (j['features'] as Map?)?['polls'] == true;
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
+    interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
     unawaited(Push.register(this));
   }
 
@@ -300,6 +302,7 @@ class Session extends ChangeNotifier {
     user = null;
     pollsEnabled = false;
     uploadIntentsEnabled = false;
+    interactionControlsEnabled = false;
     await RefreshStore.clear();
   }
 

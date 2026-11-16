@@ -226,7 +226,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['shell_offline', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -240,7 +240,7 @@ void main() {
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
           final theme = buildTheme(b, fontFamily: 'Roboto', fontFamilyFallback: ['NotoDev']);
-          final base = name.replaceAll('_scrolled', '').replaceAll('_big', '');
+          final base = name.replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '');
           final Widget home = switch (base) {
             'wallet' => WalletPage(session: s),
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
@@ -281,6 +281,10 @@ void main() {
           await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, builder: (c, child0) { final child = name.contains('_big') ? MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.8)), child: child0!) : child0; return Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]); }, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
+          if (name.endsWith('_offline')) {
+            s.setOffline(true);
+            await tester.pump(const Duration(milliseconds: 300));
+          }
           if (name.endsWith('_scrolled')) {
             for (var i = 0; i < 4; i++) {
               await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
@@ -332,6 +336,29 @@ void main() {
       });
     }
   }
+
+  testWidgets('offline flag: a failed request sets it, the next response clears it', (tester) async {
+    var down = true;
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      expect(s.offline, isFalse);
+      await tester.runAsync(() async {
+        await expectLater(s.call('GET', '/notifications/summary'), throwsA(isA<ApiError>()));
+      });
+      expect(s.offline, isTrue);
+      down = false;
+      await tester.runAsync(() async {
+        try { await s.call('GET', '/notifications/summary'); } catch (_) {}
+      });
+      expect(s.offline, isFalse);
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.contains('/me')) return _reply(r);
+      if (down) throw const SocketException('no route');
+      return http.Response(jsonEncode({'unread': 0}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
 
   testWidgets('gift sheet: unaffordable gift sends nothing and explains', (tester) async {
     var posts = 0;

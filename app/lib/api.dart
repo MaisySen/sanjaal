@@ -58,6 +58,13 @@ class Session extends ChangeNotifier {
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   Map<String, dynamic>? user;
   bool loading = true;
+  /// True after a request failed for lack of a connection; cleared by the next response.
+  bool offline = false;
+  void setOffline(bool v) {
+    if (offline == v) return;
+    offline = v;
+    notifyListeners();
+  }
 
   Future<void> restore() async {
     final p = await SharedPreferences.getInstance();
@@ -241,8 +248,10 @@ class Session extends ChangeNotifier {
       } on TimeoutException {
         throw ApiError('The server took too long. Try again.');
       } catch (_) {
+        setOffline(true);
         throw ApiError('No connection. Check your internet and try again.');
       }
+      setOffline(false);
       if (r.statusCode == 401 && attempt == 0) {
         _expires = DateTime.fromMillisecondsSinceEpoch(0);
         continue;

@@ -263,7 +263,13 @@ class _HomeShellState extends State<HomeShell> {
       MePage(session: s),
     ];
     return Scaffold(
-      body: IndexedStack(index: tab, children: pages),
+      body: Column(children: [
+        ListenableBuilder(
+          listenable: s,
+          builder: (context, _) => s.offline ? _OfflineBanner(onRetry: _refreshUnread) : const SizedBox.shrink(),
+        ),
+        Expanded(child: IndexedStack(index: tab, children: pages)),
+      ]),
       extendBody: true,
       bottomNavigationBar: GlassNavBar(
         index: tab,
@@ -278,6 +284,32 @@ class _HomeShellState extends State<HomeShell> {
           NavItem(t_('Wallet'), 'wallet', 'wallet-fill'),
           NavItem(t_('Me'), 'user-circle', 'user-circle-fill'),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown above the tabs after a request failed for lack of a connection. Retry makes one
+/// request; the banner clears when any request gets a response.
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner({required this.onRetry});
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+          child: Row(children: [
+            const PhIcon('wifi-slash', size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Text(t_('No connection. Showing what loaded earlier.'), style: Theme.of(context).textTheme.bodyMedium)),
+            TextButton(onPressed: onRetry, child: Text(t_('Retry'))),
+          ]),
+        ),
       ),
     );
   }

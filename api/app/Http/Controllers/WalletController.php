@@ -195,7 +195,7 @@ class WalletController extends Controller
     public function sendGift(Request $request, string $postId): JsonResponse
     {
         $data = $request->validate(['gift' => ['required', 'string', 'max:16']]);
-        $post = \App\Models\Post::where('public_id', $postId)->firstOrFail();
+        $post = $this->visiblePost($request, $postId);
         $me = $request->user();
         try {
             $gift = Wallet::gift($me, $post->user, $data['gift'], $post->id);

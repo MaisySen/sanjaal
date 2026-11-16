@@ -31,6 +31,10 @@ class ChatController extends Controller
     public function callToken(Request $request, string $id): JsonResponse
     {
         $convo = $this->authorized($request, $id);
+        if ($convo->type === 'direct') {
+            $other = $convo->members()->where('users.id', '!=', $request->user()->id)->value('users.id');
+            abort_if($other && $this->cannotContact($request->user(), $other), 404);
+        }
         if (! \App\Services\LiveKit::configured()) {
             return response()->json(['message' => 'Calls are not available yet.'], 503);
         }
@@ -79,6 +83,7 @@ class ChatController extends Controller
             if ($other->id === $me->id) {
                 return response()->json(['message' => 'You cannot message yourself.', 'errors' => ['username' => ['You cannot message yourself.']]], 422);
             }
+            abort_if($this->cannotContact($me, $other->id), 404);
             $key = min($me->id, $other->id).':'.max($me->id, $other->id);
             $existing = Conversation::where('direct_key', $key)->first();
             if ($existing) {
@@ -98,6 +103,7 @@ class ChatController extends Controller
         if ($others->count() !== collect($data['usernames'])->unique()->reject(fn ($u) => $u === $me->username)->count()) {
             return response()->json(['message' => 'One or more users were not found.', 'errors' => ['usernames' => ['One or more users were not found.']]], 422);
         }
+        abort_if($others->contains(fn ($u) => $this->cannotContact($me, $u->id)), 404);
         $convo = DB::transaction(function () use ($me, $others, $data) {
             $c = Conversation::create(['type' => 'group', 'title' => $data['title'], 'created_by' => $me->id]);
             $c->members()->attach($me->id, ['role' => 'owner']);
@@ -249,6 +255,10 @@ class ChatController extends Controller
     public function send(Request $request, string $id): JsonResponse
     {
         $convo = $this->authorized($request, $id);
+        if ($convo->type === 'direct') {
+            $other = $convo->members()->where('users.id', '!=', $request->user()->id)->value('users.id');
+            abort_if($other && $this->cannotContact($request->user(), $other), 404);
+        }
         $data = $request->validate([
             'body' => ['required_without_all:media,shared_post', 'nullable', 'string', 'max:4000'],
             'shared_post' => ['nullable', 'uuid'],

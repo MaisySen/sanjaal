@@ -94,12 +94,12 @@ class PushTest extends TestCase
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'messages:send'));
     }
 
-    public function test_blocked_member_gets_no_push(): void
+    public function test_blocked_direct_message_is_not_sent_or_pushed(): void
     {
         [$a, $ha, $b, $hb, $cid] = $this->chatWithTwo();
         DB::table('blocks')->insert(['blocker_id' => $b->id, 'blocked_id' => $a->id, 'created_at' => now(), 'updated_at' => now()]);
         Http::fake(['oauth2.googleapis.com/*' => Http::response(['access_token' => 'x'], 200), 'fcm.googleapis.com/*' => Http::response([], 200)]);
-        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi'], $ha)->assertCreated();
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi'], $ha)->assertNotFound();
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'messages:send'));
     }
 

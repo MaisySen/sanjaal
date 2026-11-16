@@ -20,7 +20,7 @@ class ExtrasController extends Controller
     public function react(Request $request, string $postId): JsonResponse
     {
         $data = $request->validate(['type' => ['required', 'in:'.implode(',', self::REACTIONS)]]);
-        $post = Post::where('public_id', $postId)->firstOrFail();
+        $post = $this->visiblePost($request, $postId);
         DB::transaction(function () use ($request, $post, $data) {
             $row = $post->likes()->firstOrCreate(['user_id' => $request->user()->id], ['reaction' => $data['type']]);
             if ($row->wasRecentlyCreated) {
@@ -35,7 +35,7 @@ class ExtrasController extends Controller
 
     public function unreact(Request $request, string $postId): JsonResponse
     {
-        $post = Post::where('public_id', $postId)->firstOrFail();
+        $post = $this->visiblePost($request, $postId);
         DB::transaction(function () use ($request, $post) {
             if ($post->likes()->where('user_id', $request->user()->id)->delete()) {
                 $post->decrement('likes_count');
@@ -110,6 +110,7 @@ class ExtrasController extends Controller
     {
         $s = DB::table('stories')->where('public_id', $id)->where('expires_at', '>', now())->first();
         abort_unless($s, 404);
+        abort_if($this->cannotContact($request->user(), $s->user_id), 404);
         DB::table('story_views')->insertOrIgnore(['story_id' => $s->id, 'user_id' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
 
         return response()->json(['viewed' => true]);

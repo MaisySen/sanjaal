@@ -35,7 +35,7 @@ class SocialController extends Controller
         }
         $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
         $viewer = $request->user();
-        $users = User::whereRaw('lower(username) like ?', [$like])->orWhereRaw('lower(name) like ?', [$like])
+        $users = User::where(fn ($w) => $w->whereRaw('lower(username) like ?', [$like])->orWhereRaw('lower(name) like ?', [$like]))
             ->where('id', '!=', $viewer->id)->orderBy('username')->limit(20)->get()
             ->reject(fn ($u) => $this->blocked($viewer, $u))
             ->map(fn ($u) => $this->card($u, $viewer))->values();
@@ -67,19 +67,19 @@ class SocialController extends Controller
         $items = collect();
 
         DB::table('likes')->join('posts', 'posts.id', '=', 'likes.post_id')->join('users', 'users.id', '=', 'likes.user_id')
-            ->where('posts.user_id', $me->id)->where('likes.user_id', '!=', $me->id)->whereNull('posts.deleted_at')
+            ->where('posts.user_id', $me->id)->where('likes.user_id', '!=', $me->id)->whereNotIn('likes.user_id', $blockedIds)->whereNull('posts.deleted_at')
             ->orderByDesc('likes.id')->limit(40)
             ->get(['users.username', 'users.name', 'users.public_id as uid', 'posts.public_id as post', 'posts.body', 'likes.created_at'])
             ->each(fn ($r) => $items->push(['type' => 'like', 'actor' => $r->username, 'actor_id' => $r->uid, 'post_id' => $r->post, 'text' => Str::limit((string) $r->body, 60), 'created_at' => $this->iso($r->created_at)]));
 
         DB::table('comments')->join('posts', 'posts.id', '=', 'comments.post_id')->join('users', 'users.id', '=', 'comments.user_id')
-            ->where('posts.user_id', $me->id)->where('comments.user_id', '!=', $me->id)->whereNull('comments.deleted_at')
+            ->where('posts.user_id', $me->id)->where('comments.user_id', '!=', $me->id)->whereNotIn('comments.user_id', $blockedIds)->whereNull('comments.deleted_at')->whereNull('posts.deleted_at')
             ->orderByDesc('comments.id')->limit(40)
             ->get(['users.username', 'users.public_id as uid', 'posts.public_id as post', 'comments.body', 'comments.created_at'])
             ->each(fn ($r) => $items->push(['type' => 'comment', 'actor' => $r->username, 'actor_id' => $r->uid, 'post_id' => $r->post, 'text' => Str::limit((string) $r->body, 80), 'created_at' => $this->iso($r->created_at)]));
 
         DB::table('follows')->join('users', 'users.id', '=', 'follows.follower_id')
-            ->where('follows.followee_id', $me->id)->orderByDesc('follows.id')->limit(40)
+            ->where('follows.followee_id', $me->id)->whereNotIn('follows.follower_id', $blockedIds)->orderByDesc('follows.id')->limit(40)
             ->get(['users.username', 'users.public_id as uid', 'follows.created_at'])
             ->each(fn ($r) => $items->push(['type' => 'follow', 'actor' => $r->username, 'actor_id' => $r->uid, 'post_id' => null, 'text' => '', 'created_at' => $this->iso($r->created_at)]));
 

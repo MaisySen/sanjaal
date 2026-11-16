@@ -337,7 +337,7 @@ class _PostCardState extends State<PostCard> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: AspectRatio(
-          aspectRatio: 4 / 5,
+          aspectRatio: 0.8 / (MediaQuery.textScalerOf(context).scale(14) / 14 > 1.15 ? MediaQuery.textScalerOf(context).scale(14) / 14 * 0.9 : 1.0),
           child: Stack(fit: StackFit.expand, children: [
             GestureDetector(onTap: () => openImage(context, url), child: _photo(url)),
             const IgnorePointer(

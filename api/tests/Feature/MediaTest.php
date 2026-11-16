@@ -73,8 +73,12 @@ class MediaTest extends TestCase
         $this->assertSame('', $row->data);
         \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r->url() === 'https://up.b2.test/u' && $r->hasHeader('X-Bz-File-Name') && $r->hasHeader('X-Bz-Content-Sha1'));
 
+        // A legacy bucket-wide cached token must never be reused.
+        \Illuminate\Support\Facades\Cache::put('b2.download', 'LEGACY-BUCKET-TOKEN', 3600);
         $get = $this->get('/api/v1/media/'.$row->public_id);
         $get->assertStatus(302);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_ends_with($r->url(), 'b2_get_download_authorization') && $r['fileNamePrefix'] === $row->public_id && $r['validDurationInSeconds'] === 3600);
+        $this->assertStringNotContainsString('LEGACY-BUCKET-TOKEN', (string) $get->headers->get('Location'));
         $this->assertSame('https://dl.b2.test/file/bkt/'.$row->public_id.'?Authorization=dl-token', $get->headers->get('Location'));
     }
 }

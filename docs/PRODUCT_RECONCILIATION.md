@@ -58,3 +58,6 @@ Completion requires a usable integrated product and honest device/release eviden
 ### Subsequent source progress
 
 The next member-discovery/conversation-creation batch closes the audited new-chat response-ordering, retry, pending-controls and discard gaps. It adds an honest unknown-creation outcome path and fixes title truncation in large text. This does not close the profile/first-use or physical-device gates above. See PRODUCT_QUALITY_PLAN.md and VERIFICATION_STATUS.md for scoped tests/pixels and current CI results.
+
+
+Profile hierarchy follow-through: actions now precede real metrics, identity/count headings are smaller and large-text labels use readable rows. Member Message no longer splits inside a fixed half-width button. Normal and large English/Nepali create-action reachability was checked with actual pixels. At large text it still requires scrolling; the overall profile/first-use journey is not declared finished. The broader device, roadmap, wallet/provider and release limitations remain.

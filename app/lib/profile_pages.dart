@@ -22,7 +22,7 @@ String shortCount(int v) {
 }
 
 Widget _stat(BuildContext context, String n, String label) => Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(n, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+      Text(n, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
       Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
     ]);
 
@@ -46,20 +46,27 @@ class ProfileHeader extends StatelessWidget {
           ),
           const SizedBox(width: 18),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 3),
             Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ])),
         ]),
         if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Align(alignment: Alignment.centerLeft, child: Text(bio))),
         const SizedBox(height: 16),
-        Wrap(alignment: WrapAlignment.spaceEvenly, spacing: 20, runSpacing: 12, children: [
-          _stat(context, n('posts_count'), t_('Posts')),
-          _stat(context, n('followers_count'), t_('Followers')),
-          _stat(context, n('following_count'), t_('Following')),
-        ]),
+        Align(alignment: Alignment.centerLeft, child: actions),
         const SizedBox(height: 16),
-        actions,
+        if (MediaQuery.textScalerOf(context).scale(14) > 19)
+          Column(children: [
+            for (final stat in [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')])
+              Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(children: [Expanded(child: Text(t_(stat.$2), style: Theme.of(context).textTheme.bodySmall)), const SizedBox(width: 12), Text(n(stat.$1), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))])),
+          ])
+        else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: _stat(context, n('posts_count'), t_('Posts'))),
+          const SizedBox(width: 8),
+          Expanded(child: _stat(context, n('followers_count'), t_('Followers'))),
+          const SizedBox(width: 8),
+          Expanded(child: _stat(context, n('following_count'), t_('Following'))),
+        ]),
         const Divider(height: 28),
       ]),
     );
@@ -178,7 +185,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         session: widget.session,
         query: {'username': widget.username},
         emptyIcon: Ph.image_outlined,
-        emptyTitle: isMe ? 'You have not posted yet' : 'No posts yet',
+        emptyTitle: t_(isMe ? 'You have not posted yet' : 'No posts yet'),
         header: Column(children: [
           if (error != null) _ProfileReadNotice(message: error!, retry: loading || busy ? null : _load),
           if (loading) const LinearProgressIndicator(),
@@ -186,14 +193,11 @@ class _UserProfilePageState extends State<UserProfilePage> {
           user: user,
           actions: isMe
               ? const SizedBox.shrink()
-              : Row(children: [
-                  Expanded(
-                    child: following
+              : Wrap(spacing: 12, runSpacing: 8, children: [
+                  following
                         ? OutlinedButton(onPressed: busy || loading ? null : _follow, child: Text(t_('Unfollow')))
                         : FilledButton(onPressed: busy || loading || blocked ? null : _follow, child: Text(t_('Follow'))),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: OutlinedButton.icon(onPressed: busy || loading || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message')))),
+                  OutlinedButton.icon(onPressed: busy || loading || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message'))),
                 ]),
         )]),
       ),
@@ -268,7 +272,7 @@ class _MePageState extends State<MePage> {
         session: s,
         query: {'username': (s.user?['username'] ?? '').toString()},
         emptyIcon: Ph.image_outlined,
-        emptyTitle: 'You have not posted yet',
+        emptyTitle: t_('You have not posted yet'),
         emptyHint: t_('A photo, a thought, a little of your day.'),
         emptyAction: widget.onCompose == null ? null : FilledButton.icon(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
         header: Column(children: [

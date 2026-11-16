@@ -252,3 +252,10 @@ Focused40tests passed. Complete local splitFlutter165nonrender+115journey+181ren
 -16small/large-text language/theme/layout cases; actual representative ENlight/NEdark group/error/simulated-keyboard/unknown-result images inspected. Title truncation corrected after the first pixel check. Fixed create action is visible above simulated240dp keyboard space, not native keyboard evidence.
 - At08:40 recorder43959218322 settled API/iOSpass, appfailed earlier cleanup fixture and emulatorfailed; corrected-recorder43961436452 APIpassed/otherspending. Reconciliation43960237408 API/apppassed/iOS+emulatorpending. No green corrected CI claim, APK publication or production mutation.
 - Livev35mediaisolation,uploadOFF,disabledpayouts and fail-closed tag publication unchanged. Whole-product profile/first-use, nativeinput and genuine device proof remain open.
+
+
+## November 17 profile hierarchy candidate
+
+Actions now precede real metrics; smaller identity/count headings, responsive metric rows at large text and natural-width member action wrapping avoid fragmented words. Nepali Saved/empty titles added. Four additional normal/large English/Nepali tests check ordering/count retention/metric label space/create-action scroll reachability. Actual pixels inspected, including the corrected large-text case and actual scrolled create-action location. Large-text create is not above-fold. No invented activity or hidden load failure.
+
+Complete local split491passed/1intentional live skip(165nonrender+145journey+181render),analyzer21info/noerrorswarnings;focusedprofile+firstuse43passed. APIunchanged116/940+14localPG97. This is candidate-only, not published APK, physical-device proof or whole-product completion. PRODUCT_RECONCILIATION.md remains the broader acceptance/path record.

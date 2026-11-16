@@ -128,6 +128,25 @@ void main(){
       },respond:(_)=>pending.future);
     });
   }
+  for(final scale in [1.0,1.8]){for(final lang in ['en','ne']){
+    testWidgets('profile identity actions precede readable real metrics $scale $lang',(t)async{
+      t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+      await fixture(t,(s)=>MePage(session:s,onCompose:()async{}),()async{
+        await flush(t);await t.pumpAndSettle();
+        final edit=find.text(lang=='en'?'Edit profile':'प्रोफाइल सम्पादन');
+        final posts=find.text(lang=='en'?'Posts':'पोस्ट');
+        expect(t.getTopLeft(edit).dy,lessThan(t.getTopLeft(posts).dy));
+        expect(find.text('1.2K'),findsOneWidget);expect(find.text('12'),findsOneWidget);
+        final label=t.widget<Text>(find.text(lang=='en'?'Followers':'फलोअर'));
+        final painter=TextPainter(text:TextSpan(text:label.data,style:Theme.of(t.element(find.byType(ProfileHeader))).textTheme.bodySmall),textDirection:TextDirection.ltr,textScaler:TextScaler.linear(scale))..layout(maxWidth:scale>1?220:80);
+        expect(painter.computeLineMetrics().length,1,reason:'metric label must not split into letter fragments');
+        final create=find.widgetWithText(FilledButton,lang=='en'?'Create a post':'पोस्ट बनाउनुहोस्');
+        await t.ensureVisible(create);await t.pumpAndSettle();
+        expect(t.getBottomRight(create).dy,lessThanOrEqualTo(640));
+        expect(t.takeException(),isNull);await shot(t,'profile_first_action_${lang}_${scale==1?'normal':'large'}');
+      },scale:scale,language:lang,respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(followers:1250,posts:12)}):json({'data':[],'next_cursor':null}));
+    });
+  }}
   for(final page in ['edit','member','me']){for(final lang in ['en','ne']){for(final b in [Brightness.light,Brightness.dark]){
     testWidgets('profile small large text $page $lang ${b.name}',(t)async{
       t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.resetPhysicalSize);addTearDown(t.view.resetDevicePixelRatio);

@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'media_visibility.dart';
 import 'dart:async';
 
 import 'package:image_picker/image_picker.dart';
@@ -119,13 +120,14 @@ class StoryViewer extends StatefulWidget {
   State<StoryViewer> createState() => _StoryViewerState();
 }
 
-class _StoryViewerState extends State<StoryViewer> {
+class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryViewer> {
   late final List<Map<String, dynamic>> items = (widget.group['items'] as List).cast<Map<String, dynamic>>();
   int index = 0;
   Timer? timer;
   VideoPlayerController? video;
   double progress = 0;
   bool paused = false;
+  int _startVersion = 0;
 
   Map<String, dynamic> get author => (widget.group['author'] as Map).cast<String, dynamic>();
   bool get isMine => author['username'] == widget.session.user?['username'];
@@ -138,14 +140,17 @@ class _StoryViewerState extends State<StoryViewer> {
 
   @override
   void dispose() {
+    _startVersion++;
     timer?.cancel();
     video?.dispose();
     super.dispose();
   }
 
   Future<void> _start() async {
+    final version = ++_startVersion;
     timer?.cancel();
     await video?.dispose();
+    if (!mounted || version != _startVersion) return;
     video = null;
     progress = 0;
     final item = items[index];
@@ -156,15 +161,16 @@ class _StoryViewerState extends State<StoryViewer> {
       video = c;
       try {
         await c.initialize();
-        await c.play();
+        if (!mounted || version != _startVersion) return;
+        if (mediaVisible && !paused) await c.play();
         total = c.value.duration > Duration.zero ? c.value.duration : total;
       } catch (_) {}
     }
-    if (!mounted) return;
+    if (!mounted || version != _startVersion) return;
     setState(() {});
     const tick = Duration(milliseconds: 50);
     timer = Timer.periodic(tick, (t) {
-      if (paused) return;
+      if (paused || !mediaVisible) return;
       progress += tick.inMilliseconds / total.inMilliseconds;
       if (progress >= 1) {
         t.cancel();
@@ -173,6 +179,21 @@ class _StoryViewerState extends State<StoryViewer> {
         setState(() {});
       }
     });
+  }
+
+  @override
+  void mediaVisibilityChanged(bool visible) {
+    final ctl = video;
+    if (ctl == null || !ctl.value.isInitialized) return;
+    visible && !paused ? ctl.play() : ctl.pause();
+  }
+
+  void _pause(bool value) {
+    if (!mounted) return;
+    paused = value;
+    final ctl = video;
+    if (ctl == null || !ctl.value.isInitialized) return;
+    !value && mediaVisible ? ctl.play() : ctl.pause();
   }
 
   void _next() {
@@ -190,7 +211,7 @@ class _StoryViewerState extends State<StoryViewer> {
   }
 
   Future<void> _delete() async {
-    paused = true;
+    _pause(true);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -201,21 +222,22 @@ class _StoryViewerState extends State<StoryViewer> {
         ],
       ),
     );
+    if (!mounted) return;
     if (ok != true) {
-      paused = false;
+      _pause(false);
       return;
     }
     try {
       await widget.session.call('DELETE', '/stories/${items[index]['public_id']}');
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      paused = false;
+      _pause(false);
       if (mounted) showError(context, e);
     }
   }
 
   Future<void> _viewers() async {
-    paused = true;
+    _pause(true);
     try {
       final j = await widget.session.call('GET', '/stories/${items[index]['public_id']}/viewers') as Map<String, dynamic>;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
@@ -233,7 +255,7 @@ class _StoryViewerState extends State<StoryViewer> {
     } catch (e) {
       if (mounted) showError(context, e);
     }
-    paused = false;
+    _pause(false);
   }
 
   @override
@@ -260,8 +282,8 @@ class _StoryViewerState extends State<StoryViewer> {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: GestureDetector(
-          onLongPressStart: (_) => paused = true,
-          onLongPressEnd: (_) => paused = false,
+          onLongPressStart: (_) => _pause(true),
+          onLongPressEnd: (_) => _pause(false),
           onTapUp: (d) {
             final w = MediaQuery.of(context).size.width;
             if (d.localPosition.dx < w / 3) {

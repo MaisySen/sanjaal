@@ -1,4 +1,5 @@
 import 'glass_nav.dart';
+import 'media_visibility.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -164,6 +165,7 @@ class _SanjaalAppState extends State<SanjaalApp> {
       listenable: prefs,
       builder: (context, _) => MaterialApp(
         title: 'Sanjaal',
+        navigatorObservers: [mediaRoutes],
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),

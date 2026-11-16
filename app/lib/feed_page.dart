@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'media_visibility.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
@@ -845,7 +846,7 @@ class VideoTile extends StatefulWidget {
   State<VideoTile> createState() => _VideoTileState();
 }
 
-class _VideoTileState extends State<VideoTile> {
+class _VideoTileState extends State<VideoTile> with MediaVisibility<VideoTile> {
   late final VideoPlayerController c = VideoPlayerController.networkUrl(Uri.parse(widget.url));
   bool ready = false;
   bool failed = false;
@@ -864,6 +865,11 @@ class _VideoTileState extends State<VideoTile> {
   }
 
   @override
+  void mediaVisibilityChanged(bool visible) {
+    if (!visible && ready) c.pause();
+  }
+
+  @override
   void dispose() {
     c.dispose();
     super.dispose();
@@ -874,7 +880,7 @@ class _VideoTileState extends State<VideoTile> {
     if (failed) return const SizedBox(height: 80, child: Center(child: Text('Video could not load')));
     if (!ready) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
     return GestureDetector(
-      onTap: () => c.value.isPlaying ? c.pause() : c.play(),
+      onTap: () { if (mediaVisible) c.value.isPlaying ? c.pause() : c.play(); },
       child: Stack(alignment: Alignment.center, children: [
         AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c)),
         if (!c.value.isPlaying) const PhIcon('play-circle-fill', size: 64, color: Colors.white70),

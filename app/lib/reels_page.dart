@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'media_visibility.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'api.dart';
@@ -145,7 +146,7 @@ class ReelItem extends StatefulWidget {
   State<ReelItem> createState() => _ReelItemState();
 }
 
-class _ReelItemState extends State<ReelItem> {
+class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
   VideoPlayerController? c;
   bool ready = false;
   bool failed = false;
@@ -172,7 +173,7 @@ class _ReelItemState extends State<ReelItem> {
       if (!mounted) return;
       ctl.setVolume(widget.muted ? 0 : 1);
       setState(() => ready = true);
-      if (widget.playing) ctl.play();
+      if (widget.playing && mediaVisible) ctl.play();
     }).catchError((_) {
       if (mounted) setState(() => failed = true);
     });
@@ -185,8 +186,15 @@ class _ReelItemState extends State<ReelItem> {
     if (ctl == null || !ready) return;
     if (widget.muted != old.muted) ctl.setVolume(widget.muted ? 0 : 1);
     if (widget.playing != old.playing) {
-      widget.playing ? ctl.play() : ctl.pause();
+      widget.playing && mediaVisible ? ctl.play() : ctl.pause();
     }
+  }
+
+  @override
+  void mediaVisibilityChanged(bool visible) {
+    final ctl = c;
+    if (ctl == null || !ready) return;
+    visible && widget.playing ? ctl.play() : ctl.pause();
   }
 
   @override
@@ -245,7 +253,7 @@ class _ReelItemState extends State<ReelItem> {
         const Center(child: CircularProgressIndicator())
       else
         GestureDetector(
-          onTap: () => ctl.value.isPlaying ? ctl.pause() : ctl.play(),
+          onTap: () { if (mediaVisible && widget.playing) ctl.value.isPlaying ? ctl.pause() : ctl.play(); },
           child: ColoredBox(
             color: Colors.black,
             child: Center(child: AspectRatio(aspectRatio: ctl.value.aspectRatio, child: VideoPlayer(ctl))),

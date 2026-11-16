@@ -11,6 +11,8 @@ Updated November 17, 2026. Source, deployed API, published APK, fixture tests an
 | Calls | Voice/video LiveKit client, history/missed state and control tray | Actual app call on two real devices, audio routing, backgrounding, reconnection and floating minimised tile unverified or not built. |
 | Wallet | Balance/history/send UI; withdrawal groundwork; top-up and cash-out unavailable | Providers not integrated or approved. DisabledPayout remains deployed; no payout execution claim. |
 | Live rooms | Host/speaker/raise hand/gift UI and server code | Real app audio, room lifecycle and host interactions need device verification. |
+| Media lifecycle | Route/tab/background visibility gating for feed/reels/stories, story hold and async-exit guards; real controllers tested with fake video platform | Physical codec/audio, real file loading, interruptions and native teardown still unverified. |
+| Prior roadmap additions | Earlier roadmap messages named polls, Roman Nepali typing, Global Nepali Hour, Blood Connect and festival greetings | Not implemented in the current source. Prior roadmap wording is not proof that any competitor currently supports them. Requirements, safe data/consent and current content provenance still need design and implementation. |
 | Offline states | Error/retry lists and offline banner; unsent-message handling | Physical network transitions/recovery and polish need review. |
 | Push | Client registration and server sender code | Real push delivery and production configuration readiness unverified. |
 | Language | English and Nepali strings | Native Nepali review needed. |

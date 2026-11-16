@@ -1,5 +1,6 @@
 import 'ph.dart';
 import 'dart:async';
+import 'draft_exit_guard.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
@@ -388,6 +389,7 @@ class _ChatPageState extends State<ChatPage> {
   String? error;
   Map<String, dynamic>? replyTo;
   bool recording = false;
+  bool pickingMedia = false;
   List<String> typing = [];
   DateTime _lastTypingPing = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -407,11 +409,13 @@ class _ChatPageState extends State<ChatPage> {
   // arrives, so delivery is near instant without a separate socket server.
   Future<void> _loop() async {
     await _fetch();
+    if (!mounted || _closed) return;
     // Do not immediately hide a first-load error behind a second read.
     if (error != null) await Future<void>.delayed(const Duration(seconds: 2));
     while (mounted && !_closed) {
       final before = DateTime.now();
       await _fetch(wait: true);
+      if (!mounted || _closed) break;
       if (DateTime.now().difference(before) < const Duration(seconds: 2)) {
         await Future<void>.delayed(const Duration(seconds: 2));
       }
@@ -539,7 +543,10 @@ class _ChatPageState extends State<ChatPage> {
     final cid = local['client_id'];
     final replyId = (local['reply_to'] as Map?)?['public_id'];
     try {
-      final j = await widget.session.call('POST', '/conversations/$id/messages', body: {'body': local['body'], 'client_id': cid, if (replyId != null) 'reply_to': replyId}) as Map<String, dynamic>;
+      final file = local['_file'] as UploadFile?;
+      final j = file == null
+          ? await widget.session.call('POST', '/conversations/$id/messages', body: {'body': local['body'], 'client_id': cid, if (replyId != null) 'reply_to': replyId}) as Map<String, dynamic>
+          : await widget.session.upload('/conversations/$id/messages', fields: {'client_id': '$cid', if (replyId != null) 'reply_to': '$replyId'}, file: file);
       final server = (j['message'] as Map).cast<String, dynamic>();
       if (server['public_id'] is! String || server['sender'] is! Map || server['body'] is! String) throw const FormatException('Incomplete message response');
       if (!mounted) return;
@@ -562,10 +569,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _attach() async {
-    final x = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78));
-    if (x == null || !mounted) return;
-    final bytes = await x.readAsBytes();
-    if (mounted) await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));
+    if (hasLocalMedia || pickingMedia) return;
+    setState(() => pickingMedia = true);
+    try {
+      final x = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78));
+      if (x == null || !mounted) return;
+      final bytes = await x.readAsBytes();
+      if (mounted) {
+        setState(() => pickingMedia = false);
+        await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));
+      }
+    } catch (e) { if (mounted) showError(context, e); }
+    finally { if (mounted) setState(() => pickingMedia = false); }
   }
 
   Future<void> _sendVoice(List<int> bytes) async {
@@ -574,22 +589,33 @@ class _ChatPageState extends State<ChatPage> {
     await _sendFile(UploadFile(bytes, 'audio/mp4', 'voice.m4a'));
   }
 
+  bool get hasLocalMedia => msgs.any((m) => m['_file'] is UploadFile);
+
   Future<void> _sendFile(UploadFile file) async {
+    if (!mounted || hasLocalMedia) return;
     final cid = newUploadIntent();
-    final replyId = replyTo?['public_id'];
-    setState(() => replyTo = null);
-    try {
-      final j = await widget.session.upload('/conversations/$id/messages', fields: {'client_id': cid, if (replyId != null) 'reply_to': '$replyId'}, file: file);
-      final server = (j['message'] as Map).cast<String, dynamic>();
-      if (!mounted) return;
-      setState(() {
-        if (!msgs.any((m) => m['public_id'] == server['public_id'])) msgs.add(server);
-        _sortMessages();
-      });
-      _toEnd();
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
+    final me = widget.session.user!;
+    final local = <String, dynamic>{
+      'public_id': 'local-$cid', 'body': '', 'client_id': cid, 'pending': true,
+      'sender': {'public_id': me['public_id'], 'username': me['username']},
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'kind': file.mime.startsWith('audio/') ? 'voice' : 'image',
+      // Never persist private attachment bytes or put them into a public URL.
+      '_file': UploadFile(Uint8List.fromList(file.bytes).asUnmodifiableView(), file.mime, file.name),
+      if (replyTo != null) 'reply_to': {'public_id': replyTo!['public_id'], 'sender': ((replyTo!['sender'] as Map)['username']).toString(), 'kind': replyTo!['kind'] ?? 'text', 'body': replyTo!['body']},
+    };
+    setState(() { replyTo = null; msgs.add(local); });
+    _toEnd();
+    await _deliver(local);
+  }
+
+  Future<void> _removeMediaCopy(Map<String, dynamic> local) async {
+    final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      scrollable: true, title: Text(t_('Remove retry copy?')),
+      content: Text(t_('This removes only the attachment kept on this screen. It does not delete a message that may already be delivered.')),
+      actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Remove retry copy')))],
+    ));
+    if (yes == true && mounted && local['failed'] == true) setState(() => msgs.remove(local));
   }
 
   void _typingPing() {
@@ -671,6 +697,11 @@ class _ChatPageState extends State<ChatPage> {
                   Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
                 ]),
               ),
+            if (m['_file'] is UploadFile) ...[
+              if (m['kind'] == 'image') ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory((m['_file'] as UploadFile).bytes as Uint8List, width: 220, height: 160, fit: BoxFit.cover, errorBuilder: (context, error, stack) => const PhIcon('image-broken'))),
+              Text(t_(m['kind'] == 'voice' ? 'Voice message' : 'Photo')),
+              if (failed) TextButton(onPressed: () => _removeMediaCopy(m), style: TextButton.styleFrom(foregroundColor: scheme.onErrorContainer), child: Text(t_('Remove retry copy'))),
+            ],
             if (m['kind'] == 'image' && m['media_url'] != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
@@ -693,7 +724,11 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
-    return Scaffold(
+    return DraftExitGuard(
+      hasChanges: hasLocalMedia, busy: pickingMedia || msgs.any((m) => m['_file'] is UploadFile && m['pending'] == true),
+      title: 'Leave chat?', message: 'Leaving removes local retry copies, not messages that may have arrived.',
+      keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: 'Your attachment is still sending.',
+      child: Scaffold(
       appBar: AppBar(
         title: InkWell(
           onTap: group ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
@@ -772,16 +807,16 @@ class _ChatPageState extends State<ChatPage> {
                 )
               else
               Row(children: [
-                IconButton(onPressed: _attach, icon: const PhIcon('image')),
+                IconButton(tooltip: t_('Attach photo'), onPressed: hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
                 Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
-                IconButton(onPressed: () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
+                IconButton(onPressed: hasLocalMedia || pickingMedia ? null : () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
                 IconButton.filled(tooltip: 'Send message', onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
               ]),
             ]),
           ),
         ),
       ]),
-    );
+    ));
   }
 }
 

@@ -4,11 +4,12 @@ import 'ui.dart' show t_, showInfo;
 /// Keeps accidental route-back from discarding an in-memory creator draft.
 /// This is not persistent draft storage, and never starts an upload.
 class DraftExitGuard extends StatefulWidget {
-  const DraftExitGuard({super.key, required this.hasChanges, required this.busy, required this.child, this.busyMessage = 'Your upload is still in progress.'});
+  const DraftExitGuard({super.key, required this.hasChanges, required this.busy, required this.child, this.busyMessage = 'Your upload is still in progress.', this.title = 'Discard this draft?', this.message = 'Leaving will remove this draft from this screen.', this.keepLabel = 'Keep editing', this.discardLabel = 'Discard'});
   final bool hasChanges;
   final bool busy;
   final Widget child;
   final String busyMessage;
+  final String title, message, keepLabel, discardLabel;
   @override
   State<DraftExitGuard> createState() => _DraftExitGuardState();
 }
@@ -25,11 +26,11 @@ class _DraftExitGuardState extends State<DraftExitGuard> {
     asking = true;
     final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
       scrollable: true,
-      title: Text(t_('Discard this draft?')),
-      content: Text(t_('Leaving will remove this draft from this screen.')),
+      title: Text(t_(widget.title)),
+      content: Text(t_(widget.message)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Keep editing'))),
-        TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Discard'))),
+        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_(widget.keepLabel))),
+        TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_(widget.discardLabel))),
       ],
     ));
     asking = false;

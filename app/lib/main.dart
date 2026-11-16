@@ -129,7 +129,7 @@ ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamily
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     ),
     chipTheme: ChipThemeData(shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(8))), side: BorderSide(color: scheme.outlineVariant), backgroundColor: Colors.transparent),
-    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: shape, backgroundColor: scheme.onSurface, contentTextStyle: TextStyle(color: scheme.surface)),
+    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: shape, backgroundColor: scheme.onSurface, contentTextStyle: base.bodyMedium?.copyWith(color: scheme.surface)),
     bottomSheetTheme: BottomSheetThemeData(
       showDragHandle: true,
       backgroundColor: scheme.surface,

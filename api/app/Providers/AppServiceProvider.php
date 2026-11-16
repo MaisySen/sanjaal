@@ -11,7 +11,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Cash out is off until a real, authorized PayoutProvider is bound here.
+        $this->app->singleton(\App\Contracts\PayoutProvider::class, \App\Services\DisabledPayout::class);
     }
 
     /**

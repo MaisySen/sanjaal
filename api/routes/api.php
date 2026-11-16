@@ -84,4 +84,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/wallet/transfer', [\App\Http\Controllers\WalletController::class, 'transfer'])->middleware('throttle:30,1');
     Route::post('/wallet/topups', [\App\Http\Controllers\WalletController::class, 'startTopup'])->middleware('throttle:10,1');
     Route::get('/wallet/topups/{id}', [\App\Http\Controllers\WalletController::class, 'topupStatus']);
+    Route::get('/wallet/withdrawals', [\App\Http\Controllers\WalletController::class, 'withdrawals']);
+    Route::post('/wallet/withdrawals', [\App\Http\Controllers\WalletController::class, 'requestWithdrawal'])->middleware('throttle:10,1');
+    Route::post('/wallet/withdrawals/{id}/cancel', [\App\Http\Controllers\WalletController::class, 'cancelWithdrawal'])->middleware('throttle:10,1');
 });

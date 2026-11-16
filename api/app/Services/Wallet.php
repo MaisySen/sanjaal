@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
-/** Internal coin ledger. 1 coin = NPR 1 of verified top up. There is no cash out. */
+/** Internal coin ledger. 1 coin = NPR 1 of verified top up. Cash out is the Withdrawals service and stays disabled until a payout provider is configured. */
 class Wallet
 {
     public const MAX_TRANSFER = 100000;
@@ -80,7 +80,7 @@ class Wallet
         return $gift + ['key' => $giftKey];
     }
 
-    private static function write(int $uid, string $kind, int $amount, int $balance, ?int $counterparty, string $ref, ?string $note): void
+    public static function write(int $uid, string $kind, int $amount, int $balance, ?int $counterparty, string $ref, ?string $note): void
     {
         DB::table('wallet_entries')->insert([
             'public_id' => (string) Str::uuid(),

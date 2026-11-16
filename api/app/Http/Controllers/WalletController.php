@@ -27,6 +27,7 @@ class WalletController extends Controller
                 'min' => 10,
                 'max' => 100000,
             ],
+            'cashout' => ['available' => \App\Services\Withdrawals::enabled(), 'min' => \App\Services\Withdrawals::MIN, 'max' => \App\Services\Withdrawals::MAX],
             'entries' => $this->entries($me->id, 20),
         ]);
     }
@@ -72,6 +73,43 @@ class WalletController extends Controller
         ]);
 
         return response()->json(['topup_id' => $id, 'pay_url' => url('/pay/esewa/'.$id)], 201);
+    }
+
+    public function withdrawals(Request $request): JsonResponse
+    {
+        $rows = DB::table('wallet_withdrawals')->where('user_id', $request->user()->id)->orderByDesc('id')->limit(30)->get();
+
+        return response()->json(['data' => $rows->map(fn ($w) => \App\Services\Withdrawals::present($w))->values()]);
+    }
+
+    public function requestWithdrawal(Request $request): JsonResponse
+    {
+        if (! \App\Services\Withdrawals::enabled()) {
+            return response()->json(['message' => 'Cash out is not switched on yet.'], 503);
+        }
+        $data = $request->validate([
+            'coins' => ['required', 'integer'],
+            'client_id' => ['required', 'string', 'min:8', 'max:64'],
+        ]);
+        try {
+            [$w, $created] = \App\Services\Withdrawals::request($request->user(), (int) $data['coins'], $data['client_id']);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'withdrawal' => \App\Services\Withdrawals::present($w),
+            'balance' => (int) $request->user()->fresh()->coin_balance,
+        ], $created ? 201 : 200);
+    }
+
+    public function cancelWithdrawal(Request $request, string $id): JsonResponse
+    {
+        if (! \App\Services\Withdrawals::cancel($request->user(), $id)) {
+            return response()->json(['message' => 'This cash out is already being processed and cannot be canceled.'], 409);
+        }
+
+        return response()->json(['canceled' => true, 'balance' => (int) $request->user()->fresh()->coin_balance]);
     }
 
     public function topupStatus(Request $request, string $id): JsonResponse

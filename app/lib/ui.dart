@@ -96,6 +96,10 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Earlier messages could not be loaded.': 'अघिल्ला सन्देशहरू लोड हुन सकेनन्।',
+  'Load earlier messages': 'अघिल्ला सन्देशहरू हेर्नुहोस्',
+  'Start of conversation': 'कुराकानीको सुरुवात',
+  'New messages': 'नयाँ सन्देशहरू',
   'Messages could not be loaded.': 'सन्देशहरू लोड हुन सकेनन्।',
   'Delivery could not be confirmed.': 'सन्देश पुगेको पुष्टि हुन सकेन।',
   'Delivery unconfirmed. Tap to retry.': 'सन्देश पुगेको पुष्टि भएन। फेरि प्रयास गर्न थिच्नुहोस्।',

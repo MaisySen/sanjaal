@@ -376,6 +376,15 @@ class _ChatPageState extends State<ChatPage> {
   Timer? timer;
   bool loading = true;
   bool fetching = false;
+  bool loadingOlder = false;
+  bool hasOlder = false;
+  int? historyBoundary;
+  String? olderError;
+  int unseen = 0;
+  final historyCenter = const ValueKey('chat-recent-center');
+  bool get nearEnd => !scroll.hasClients || scroll.position.extentAfter < 80;
+  int get firstSeq => msgs.where((m) => m['seq'] != null).fold(1 << 62, (a, m) => (m['seq'] as num).toInt() < a ? (m['seq'] as num).toInt() : a);
+
   String? error;
   Map<String, dynamic>? replyTo;
   bool recording = false;
@@ -388,6 +397,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    scroll.addListener(() { if (unseen > 0 && nearEnd && mounted) setState(() => unseen = 0); });
     _loop();
   }
 
@@ -430,20 +440,51 @@ class _ChatPageState extends State<ChatPage> {
 
   void _toEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && scroll.hasClients) scroll.jumpTo(scroll.position.maxScrollExtent);
+      if (mounted && scroll.hasClients) {
+        scroll.jumpTo(scroll.position.maxScrollExtent);
+        if (unseen != 0) setState(() => unseen = 0);
+      }
     });
+  }
+
+  Future<void> _older() async {
+    if (loadingOlder || !hasOlder || historyBoundary == null) return;
+    final before = firstSeq;
+    setState(() { loadingOlder = true; olderError = null; });
+    try {
+      final j = await widget.session.call('GET', '/conversations/$id/messages', query: {'before_seq': '$before'}) as Map<String, dynamic>;
+      final page = (j['data'] as List).cast<Map<String, dynamic>>();
+      if (page.any((m) => m['seq'] is! num || (m['seq'] as num) >= before)) throw const FormatException('Invalid history cursor');
+      if (!mounted) return;
+      setState(() {
+        final known = msgs.map((m) => m['public_id']).toSet();
+        msgs.addAll(page.where((m) => known.add(m['public_id'])));
+        _sortMessages();
+        hasOlder = page.length >= 50;
+      });
+      // Older rows grow in the sliver before the center. Its offset stays fixed
+      // without guessing text/image heights or moving a user reading history.
+    } catch (e) {
+      if (mounted) setState(() => olderError = e is ApiError ? e.message : t_('Earlier messages could not be loaded.'));
+    } finally { if (mounted) setState(() => loadingOlder = false); }
   }
 
   Future<void> _fetch({bool wait = false}) async {
     if (fetching) return;
     fetching = true;
     try {
-      final first = msgs.isEmpty;
+      final first = historyBoundary == null;
       final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20', 'typing': typing.join(',')}) as Map<String, dynamic>;
       final nowTyping = ((j['typing'] as List?) ?? const []).map((e) => e.toString()).toList();
       if (mounted && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
+      final follow = nearEnd;
+      if (first) {
+        final seqs = items.map((m) => (m['seq'] as num?)?.toInt()).whereType<int>();
+        historyBoundary = seqs.isEmpty ? 0 : seqs.reduce((a, b) => a < b ? a : b);
+        hasOlder = items.length >= 50;
+      }
       if (error != null) setState(() => error = null);
       final known = msgs.map((m) => m['public_id']).toSet();
       final fresh = items.where((m) => known.add(m['public_id'])).toList();
@@ -456,7 +497,11 @@ class _ChatPageState extends State<ChatPage> {
           _sortMessages();
           error = null;
         });
-        _toEnd();
+        if (first || follow) {
+          _toEnd();
+        } else if (fresh.isNotEmpty) {
+          setState(() => unseen += fresh.length);
+        }
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
     } catch (e) {
@@ -498,12 +543,13 @@ class _ChatPageState extends State<ChatPage> {
       final server = (j['message'] as Map).cast<String, dynamic>();
       if (server['public_id'] is! String || server['sender'] is! Map || server['body'] is! String) throw const FormatException('Incomplete message response');
       if (!mounted) return;
+      final follow = nearEnd;
       setState(() {
         msgs.removeWhere((m) => m['client_id'] == cid && (m['sender'] as Map?)?['public_id'] == widget.session.user?['public_id']);
         if (!msgs.any((m) => m['public_id'] == server['public_id'])) msgs.add(server);
         _sortMessages();
       });
-      _toEnd();
+      if (follow) _toEnd();
     } catch (e) {
       if (!mounted || !msgs.contains(local)) return;
       setState(() {
@@ -595,6 +641,54 @@ class _ChatPageState extends State<ChatPage> {
     ));
   }
 
+  Widget _messageTile(Map<String, dynamic> m, {required bool group, required String? myId}) {
+    final mine = (m['sender'] as Map)['public_id'] == myId;
+    final failed = m['failed'] == true;
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      key: ValueKey(m['public_id']),
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: failed && m['unavailable'] != true ? () => _retry(m) : null,
+        onLongPress: () => _messageMenu(m),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+          decoration: BoxDecoration(
+            color: failed ? scheme.errorContainer : (mine ? scheme.primary : scheme.surfaceContainerHigh),
+            borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
+          ),
+          child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+            if (m['reply_to'] is Map)
+              Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                ]),
+              ),
+            if (m['kind'] == 'image' && m['media_url'] != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: GestureDetector(
+                  onTap: () => openImage(context, m['media_url'] as String, headers: widget.session.mediaHeaders),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeaders, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
+                ),
+              ),
+            if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
+            if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
+            if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
+            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
+          ])),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final myId = widget.session.user?['public_id'];
@@ -624,59 +718,33 @@ class _ChatPageState extends State<ChatPage> {
               ? const Center(child: CircularProgressIndicator())
               : msgs.isEmpty
                   ? error == null ? const Center(child: Text('Say hello.')) : EmptyState(icon: Ph.cloud_off, title: error!, action: OutlinedButton(onPressed: fetching ? null : () => _fetch(), child: Text(t_('Try again'))))
-                  : ListView.builder(
-                      controller: scroll,
-                      padding: const EdgeInsets.all(12),
-                      itemCount: msgs.length,
-                      itemBuilder: (context, i) {
-                        final m = msgs[i];
-                        final mine = (m['sender'] as Map)['public_id'] == myId;
-                        final failed = m['failed'] == true;
-                        final scheme = Theme.of(context).colorScheme;
-                        return Align(
-                          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                          child: GestureDetector(
-                            onTap: failed && m['unavailable'] != true ? () => _retry(m) : null,
-                            onLongPress: () => _messageMenu(m),
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 3),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                              decoration: BoxDecoration(
-                                color: failed ? scheme.errorContainer : (mine ? scheme.primary : scheme.surfaceContainerHigh),
-                                borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
-                              ),
-                              child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                if (m['reply_to'] is Map)
-                                  Container(
-                                    margin: const EdgeInsets.only(bottom: 4),
-                                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                                    decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
-                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                      Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                                    ]),
-                                  ),
-                                if (m['kind'] == 'image' && m['media_url'] != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: GestureDetector(
-                                      onTap: () => openImage(context, m['media_url'] as String, headers: widget.session.mediaHeaders),
-                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeaders, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
-                                    ),
-                                  ),
-                                if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
-                                if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
-                                if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-                                Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
-                              ])),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                  : Builder(builder: (context) {
+                      final older = msgs.where((m) => m['seq'] is num && (m['seq'] as num) < (historyBoundary ?? 0)).toList().reversed.toList();
+                      final recent = msgs.where((m) => m['seq'] is! num || (m['seq'] as num) >= (historyBoundary ?? 0)).toList();
+                      SliverList rows(List<Map<String, dynamic>> data, {Key? key}) => SliverList(key: key, delegate: SliverChildBuilderDelegate(
+                        (_, i) => Padding(key: ValueKey(data[i]['public_id']), padding: const EdgeInsets.symmetric(horizontal: 12), child: _messageTile(data[i], group: group, myId: myId)),
+                        childCount: data.length,
+                        findChildIndexCallback: (key) { final i = data.indexWhere((m) => ValueKey(m['public_id']) == key); return i < 0 ? null : i; },
+                      ));
+                      return Stack(children: [
+                        CustomScrollView(key: const ValueKey('chat-history-scroll'), controller: scroll, center: historyCenter, slivers: [
+                          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+                            if (olderError != null) Text(olderError!),
+                            if (loadingOlder) const Center(child: CircularProgressIndicator())
+                            else if (hasOlder) TextButton(onPressed: _older, child: Text(t_(olderError == null ? 'Load earlier messages' : 'Try again')))
+                            else Text(t_('Start of conversation'), style: Theme.of(context).textTheme.labelMedium),
+                          ]))),
+                          rows(older),
+                          rows(recent, key: historyCenter),
+                          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                        ]),
+                        if (unseen > 0) Positioned(bottom: 8, left: 0, right: 0, child: Center(child: FilledButton.tonalIcon(
+                          onPressed: _toEnd, icon: const PhIcon('arrow-down', size: 18), label: Text(t_('New messages')),
+                        ))),
+                      ]);
+                    }),
         ),
+
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(8),
@@ -705,7 +773,7 @@ class _ChatPageState extends State<ChatPage> {
               else
               Row(children: [
                 IconButton(onPressed: _attach, icon: const PhIcon('image')),
-                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
+                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
                 IconButton(onPressed: () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
                 IconButton.filled(tooltip: 'Send message', onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
               ]),

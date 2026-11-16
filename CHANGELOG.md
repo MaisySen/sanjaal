@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 5: room screen
+
+- Room: LIVE tag and listener count on one line (no more wrapped status), stage as large avatar tiles with a speaking ring and mic state, gift in the top bar, mute button beside the message field, Raise hand kept as a labelled button. Same controls and callbacks as before. Checked with flutter analyze and widget renders; not on a device.
+
 ## Redesign pass 4: chats and rooms actions
 
 - Chats: New chat moves from a floating button to a top bar action. Live rooms: Go live moves from a floating pill to a top bar button. Flows test taps New chat by tooltip. Fixes a compile error in the dark capture test (ThemeMode import). Checked locally with flutter analyze (no errors) and the render and unit tests (all pass); not run on a device.

@@ -15,6 +15,7 @@
 - Group info page: tap the group name in a group chat to see its members (tap one to open their profile). Add people and Leave are not offered because the server has no such endpoint yet.
 - Call screen split into a LiveKit-free view so it can be rendered offline: rounded tiles that fill the area, name chips, own preview top right, glass control tray. Rendered with fixture tiles, not a live call.
 - Wallet: balance card, Add coins, Send and Cash out buttons (Add coins and Cash out shown disabled with the honest note), Activity rows with direction icons. Fixture render only. Added docs/GAPS.md listing built features against functional gaps. Added a tap-through widget test for the Create sheet.
+- Live host sheet: raised hands list is one row per person (name, Dismiss, Let speak) under a count header; the stacked layout is kept at large text sizes. Existing callback test passes.
 - The red logo tile is gone: the header and sign-in show the Devanagari wordmark alone. This is a draft identity, not an approved logo.
 - Checked with flutter analyze and a widget render of the shell (fixture data, not a device). Glass performance on a phone is untested. Other screens are not yet restyled.
 

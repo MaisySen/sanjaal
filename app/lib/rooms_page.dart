@@ -421,23 +421,34 @@ class RoomView extends StatelessWidget {
               if (isHost && hands.isNotEmpty)
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(children: [
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 0), child: Text('Raised hands (${hands.length})', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.4))),
                     for (final h in hands.entries)
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            const PhIcon('hand-waving', size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(child: Text(h.value.isEmpty ? 'Member' : h.value, maxLines: 2, overflow: TextOverflow.ellipsis)),
-                          ]),
-                          const SizedBox(height: 6),
-                          Wrap(spacing: 8, runSpacing: 4, children: [
-                            TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
-                            FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
-                          ]),
-                        ]),
+                        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+                        child: MediaQuery.textScalerOf(context).scale(14) / 14 > 1.3
+                            ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  const PhIcon('hand-waving', size: 20),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(h.value.isEmpty ? 'Member' : h.value, maxLines: 2, overflow: TextOverflow.ellipsis)),
+                                ]),
+                                const SizedBox(height: 6),
+                                Wrap(spacing: 8, runSpacing: 4, children: [
+                                  TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
+                                  FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
+                                ]),
+                              ])
+                            : Row(children: [
+                                const PhIcon('hand-waving', size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(child: Text(h.value.isEmpty ? 'Member' : h.value, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
+                                const SizedBox(width: 4),
+                                FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 38), padding: const EdgeInsets.symmetric(horizontal: 16)), onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
+                              ]),
                       ),
+                    const SizedBox(height: 4),
                   ]),
                 ),
               Padding(

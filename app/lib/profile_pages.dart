@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'draft_exit_guard.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'actions.dart';
@@ -20,9 +21,9 @@ String shortCount(int v) {
   return v.toString();
 }
 
-Widget _stat(BuildContext context, String n, String label) => Column(children: [
+Widget _stat(BuildContext context, String n, String label) => Column(mainAxisSize: MainAxisSize.min, children: [
       Text(n, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
+      Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
     ]);
 
 class ProfileHeader extends StatelessWidget {
@@ -52,7 +53,7 @@ class ProfileHeader extends StatelessWidget {
         ]),
         if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Align(alignment: Alignment.centerLeft, child: Text(bio))),
         const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+        Wrap(alignment: WrapAlignment.spaceEvenly, spacing: 20, runSpacing: 12, children: [
           _stat(context, n('posts_count'), t_('Posts')),
           _stat(context, n('followers_count'), t_('Followers')),
           _stat(context, n('following_count'), t_('Following')),
@@ -77,6 +78,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
   Map<String, dynamic>? u;
   String? error;
   bool busy = false;
+  bool loading = false;
+  int read = 0;
 
   @override
   void initState() {
@@ -85,20 +88,28 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final request = ++read;
+    setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/${widget.username}') as Map<String, dynamic>;
-      if (mounted) setState(() => u = (j['user'] as Map).cast<String, dynamic>());
-    } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.status == 404 ? 'That member does not exist.' : e.message);
-    }
+      if (mounted && request == read) setState(() => u = (j['user'] as Map).cast<String, dynamic>());
+    } catch (e) {
+      if (mounted && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : e.message) : t_('Profile could not be loaded.'));
+    } finally { if (mounted && request == read) setState(() => loading = false); }
   }
 
   Future<void> _follow() async {
+    if (busy || loading || u == null) return;
     final me = u!;
     final was = me['following'] == true;
     setState(() => busy = true);
     try {
       await widget.session.call(was ? 'DELETE' : 'POST', '/users/${widget.username}/follow');
+      if (!mounted) return;
+      setState(() {
+        u = {...u!, 'following': !was, 'followers_count': (((u!['followers_count'] as num?)?.toInt() ?? 0) + (was ? -1 : 1)).clamp(0, 1 << 31)};
+      });
       await _load();
     } catch (e) {
       if (mounted) showError(context, e);
@@ -107,6 +118,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Future<void> _message() async {
+    if (busy || loading) return;
     setState(() => busy = true);
     try {
       final j = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': widget.username}) as Map<String, dynamic>;
@@ -119,6 +131,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Future<void> _menu(String v) async {
+    if (busy || loading) return;
     if (v == 'report') return reportFlow(context, widget.session, 'user', widget.username);
     if (v == 'block') {
       if (await blockFlow(context, widget.session, widget.username) && mounted) Navigator.of(context).pop();
@@ -139,7 +152,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     if (user == null) {
       return Scaffold(
         appBar: AppBar(title: Text('@${widget.username}')),
-        body: error != null ? EmptyState(icon: Ph.person_off_outlined, title: error!) : const Center(child: CircularProgressIndicator()),
+        body: error != null ? EmptyState(icon: Ph.person_off_outlined, title: error!, action: OutlinedButton(onPressed: loading ? null : _load, child: Text(t_('Try again')))) : const Center(child: CircularProgressIndicator()),
       );
     }
     final isMe = user['is_me'] == true;
@@ -149,8 +162,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
       appBar: AppBar(
         title: Text('@${user['username']}'),
         actions: [
+          IconButton(tooltip: t_('Refresh profile'), onPressed: loading || busy ? null : _load, icon: const PhIcon('arrow-clockwise')),
           if (!isMe)
             PopupMenuButton<String>(
+              enabled: !busy && !loading,
               onSelected: _menu,
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'report', child: Text(t_('Report'))),
@@ -164,20 +179,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
         query: {'username': widget.username},
         emptyIcon: Ph.image_outlined,
         emptyTitle: isMe ? 'You have not posted yet' : 'No posts yet',
-        header: ProfileHeader(
+        header: Column(children: [
+          if (error != null) _ProfileReadNotice(message: error!, retry: loading || busy ? null : _load),
+          if (loading) const LinearProgressIndicator(),
+          ProfileHeader(
           user: user,
           actions: isMe
               ? const SizedBox.shrink()
               : Row(children: [
                   Expanded(
                     child: following
-                        ? OutlinedButton(onPressed: busy ? null : _follow, child: Text(t_('Unfollow')))
-                        : FilledButton(onPressed: busy || blocked ? null : _follow, child: Text(t_('Follow'))),
+                        ? OutlinedButton(onPressed: busy || loading ? null : _follow, child: Text(t_('Unfollow')))
+                        : FilledButton(onPressed: busy || loading || blocked ? null : _follow, child: Text(t_('Follow'))),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: OutlinedButton.icon(onPressed: busy || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message')))),
+                  Expanded(child: OutlinedButton.icon(onPressed: busy || loading || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message')))),
                 ]),
-        ),
+        )]),
       ),
     );
   }
@@ -196,6 +214,9 @@ class MePage extends StatefulWidget {
 class _MePageState extends State<MePage> {
   Map<String, dynamic>? counts;
   int _refresh = 0;
+  int read = 0;
+  String? error;
+  bool loading = false;
 
   @override
   void initState() {
@@ -213,12 +234,17 @@ class _MePageState extends State<MePage> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     final name = widget.session.user?['username'];
     if (name == null) return;
+    final request = ++read;
+    setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/$name') as Map<String, dynamic>;
-      if (mounted) setState(() => counts = (j['user'] as Map).cast<String, dynamic>());
-    } catch (_) {}
+      if (mounted && request == read) setState(() => counts = (j['user'] as Map).cast<String, dynamic>());
+    } catch (e) {
+      if (mounted && request == read) setState(() => error = e is ApiError ? e.message : t_('Profile could not be loaded.'));
+    } finally { if (mounted && request == read) setState(() => loading = false); }
   }
 
   @override
@@ -229,6 +255,7 @@ class _MePageState extends State<MePage> {
       appBar: AppBar(
         title: Text(t_('Me')),
         actions: [
+          IconButton(tooltip: t_('Refresh profile'), onPressed: loading ? null : _load, icon: const PhIcon('arrow-clockwise')),
           IconButton(
             tooltip: t_('Settings'),
             icon: const PhIcon('gear'),
@@ -244,7 +271,10 @@ class _MePageState extends State<MePage> {
         emptyTitle: 'You have not posted yet',
         emptyHint: t_('A photo, a thought, a little of your day.'),
         emptyAction: widget.onCompose == null ? null : FilledButton.icon(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
-        header: ProfileHeader(
+        header: Column(children: [
+          if (error != null) _ProfileReadNotice(message: error!, retry: loading ? null : _load),
+          if (loading) const LinearProgressIndicator(),
+          ProfileHeader(
           user: me,
           actions: Wrap(spacing: 10, runSpacing: 8, children: [
             OutlinedButton.icon(
@@ -264,7 +294,7 @@ class _MePageState extends State<MePage> {
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SavedPage(session: s))),
             ),
           ]),
-        ),
+        )]),
       ),
     );
   }
@@ -283,24 +313,42 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late final bio = TextEditingController(text: (widget.session.user?['bio'] ?? '').toString());
   final _form = GlobalKey<FormState>();
   bool busy = false;
+  bool saved = false;
+  late final (String, String, String) initial;
+
+  @override
+  void initState() {
+    super.initState();
+    initial = (name.text, username.text, bio.text);
+    for (final field in [name, username, bio]) { field.addListener(_changed); }
+  }
+  void _changed() { if (mounted) setState(() {}); }
+  @override
+  void dispose() { for (final field in [name, username, bio]) { field.dispose(); } super.dispose(); }
+
 
   Future<void> _avatar() async {
-    final f = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 78));
-    if (f == null) return;
+    if (busy) return;
     setState(() => busy = true);
     try {
-      await widget.session.uploadAvatar(UploadFile(await f.readAsBytes(), mimeFor(f.name), f.name));
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
-    if (mounted) setState(() => busy = false);
+      final f = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 78));
+      if (f == null || !mounted) return;
+      final bytes = await f.readAsBytes();
+      if (!mounted) return;
+      await widget.session.uploadAvatar(UploadFile(bytes, mimeFor(f.name), f.name));
+      if (mounted) showInfo(context, t_('Photo saved. Text changes still need Save.'));
+    } catch (e) { if (mounted) showError(context, e); }
+    finally { if (mounted) setState(() => busy = false); }
   }
 
   Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+    if (busy || !_form.currentState!.validate()) return;
     setState(() => busy = true);
     try {
       await widget.session.updateProfile({'name': name.text.trim(), 'username': username.text.trim(), 'bio': bio.text.trim()});
+      if (!mounted) return;
+      setState(() { saved = true; busy = false; });
+      await WidgetsBinding.instance.endOfFrame;
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -312,8 +360,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(t_('Edit profile')), actions: [
+    return DraftExitGuard(hasChanges: !saved && (name.text, username.text, bio.text) != initial, busy: busy, busyMessage: 'Your profile is still updating.', child: Scaffold(
+      appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Edit profile'), maxLines: 2, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)), actions: [
         Padding(padding: const EdgeInsets.only(right: 8), child: FilledButton(onPressed: busy ? null : _save, child: Text(t_('Save')))),
       ]),
       body: Form(
@@ -325,23 +373,33 @@ class _EditProfilePageState extends State<EditProfilePage> {
               Positioned(
                 right: 0,
                 bottom: 0,
-                child: CircleAvatar(radius: 18, backgroundColor: Colors.white, child: IconButton(tooltip: 'Change photo', padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.black), onPressed: busy ? null : _avatar)),
+                child: CircleAvatar(radius: 18, backgroundColor: Colors.white, child: IconButton(tooltip: t_('Change photo'), padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.black), onPressed: busy ? null : _avatar)),
               ),
             ]),
           ),
           const SizedBox(height: 24),
-          TextFormField(controller: name, maxLength: 80, decoration: const InputDecoration(labelText: 'Name', border: OutlineInputBorder()), validator: (v) => (v ?? '').trim().isEmpty ? 'Required' : null),
+          TextFormField(key: const ValueKey('profile-name'), controller: name, enabled: !busy, maxLength: 80, decoration: InputDecoration(labelText: t_('Name'), border: const OutlineInputBorder()), validator: (v) => (v ?? '').trim().isEmpty ? t_('Required') : null),
           const SizedBox(height: 12),
           TextFormField(
+            key: const ValueKey('profile-username'),
             controller: username,
-            decoration: const InputDecoration(labelText: 'Username', border: OutlineInputBorder()),
-            validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch((v ?? '').trim()) ? null : 'Use 3 to 30 letters, numbers, dots or underscores',
+            enabled: !busy,
+            decoration: InputDecoration(labelText: t_('Username'), border: const OutlineInputBorder()),
+            validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch((v ?? '').trim()) ? null : t_('Use 3 to 30 letters, numbers, dots or underscores'),
           ),
           const SizedBox(height: 12),
-          TextFormField(controller: bio, maxLength: 160, maxLines: 3, decoration: const InputDecoration(labelText: 'Bio', border: OutlineInputBorder())),
+          TextFormField(key: const ValueKey('profile-bio'), controller: bio, enabled: !busy, maxLength: 160, maxLines: 3, decoration: InputDecoration(labelText: t_('Bio'), border: const OutlineInputBorder())),
           if (busy) const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator()),
         ]),
       ),
-    );
+    ));
   }
+}
+
+class _ProfileReadNotice extends StatelessWidget {
+  const _ProfileReadNotice({required this.message, required this.retry});
+  final String message;
+  final VoidCallback? retry;
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.all(12), child: Column(children: [Text(message), TextButton(onPressed: retry, child: Text(t_('Try again')))]));
 }

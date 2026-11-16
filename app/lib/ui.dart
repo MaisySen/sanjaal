@@ -96,6 +96,18 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Your profile is still updating.': 'तपाईंको प्रोफाइल अद्यावधिक हुँदैछ।',
+  'Photo saved. Text changes still need Save.': 'फोटो सुरक्षित भयो। लेखेका परिवर्तन सुरक्षित गर्न सेभ थिच्नुहोस्।',
+  'Refresh profile': 'प्रोफाइल पुनः लोड गर्नुहोस्',
+  'Profile could not be loaded.': 'प्रोफाइल लोड हुन सकेन।',
+  'That member does not exist.': 'त्यो सदस्य भेटिएन।',
+  'Name': 'नाम',
+  'Username': 'प्रयोगकर्ता नाम',
+  'Bio': 'परिचय',
+  'Required': 'आवश्यक छ',
+  'Change photo': 'फोटो बदल्नुहोस्',
+  'Use 3 to 30 letters, numbers, dots or underscores': '३ देखि ३० अक्षर, अंक, डट वा अन्डरस्कोर प्रयोग गर्नुहोस्',
+
   'Comment posted.': 'टिप्पणी पोस्ट भयो।',
   'Original comment removed. Choose another reply or cancel.': 'पहिलेको टिप्पणी हटाइएको छ। अर्को टिप्पणी छान्नुहोस् वा जवाफ रद्द गर्नुहोस्।',
   'Your comment is still updating.': 'तपाईंको टिप्पणी अद्यावधिक हुँदैछ।',

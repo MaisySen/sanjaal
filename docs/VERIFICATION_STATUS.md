@@ -173,3 +173,11 @@ API local:107/855 SQLite and PostgreSQL normal/cached. Real PostgreSQL races:10/
 - Comments reply and ambiguous-outcome fixtures inspected at 320x640, 1.8x, light/dark, English/Nepali, with simulated keyboard space. Not device or native-IME evidence.
 - CI5af6f73 settled at https://github.com/MaisySen/sanjaal/actions/runs/43940599271 : API, Flutter/release-APK build and unsigned iOS passed; emulator failed the preserved poll native-IME assertion; release skipped. Actual native screenshot shows Option 2 focused without a visible keyboard; test/platform insets were both 0 with mocked=false. No full-pass claim, new APK publication or speculative keyboard-harness change.
 - Live v35 media isolation unchanged. Upload receipt rollout still defaults OFF. Comments have no exactly-once protocol; ambiguous sends require review rather than blind retry.
+
+## November 17 profile continuity candidate
+
+- 31 focused profile tests: retry/read ordering, follow reconciliation without a repeated mutation, pending and rejected saves, unchanged/changed draft exit, controller/picker disposal, immediate-photo versus unsaved-text state, invalid-form no-send and English/Nepali light/dark/large-text layouts.
+- Complete local Flutter: 195 non-render +177 screen-render +4 base-render =376 passed; one intentional live-test skip. Analyzer20info, zero errors/warnings. API unchanged from109/880 and12 real local PostgreSQL concurrency tests/81assertions.
+- Actual profile retry/edit/member/own PNGs inspected, including simulated keyboard space. The simulated space is not a native keyboard result.
+- CI12cb11d https://github.com/MaisySen/sanjaal/actions/runs/43943507650 : API/app/unsigned iOS pass; emulator fails only native poll inset (test/platform0,mocked=false), release skipped. Native screenshot inspected: Option2 focused, no visible keyboard. Monitor removed after settlement.
+- No production changes. Livev35 media isolation, disabled payouts and upload-intent rolloutOFF preserved. No new APK publication or physical Samsung/iPhone claim.

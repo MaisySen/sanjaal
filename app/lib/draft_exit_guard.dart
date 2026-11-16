@@ -4,10 +4,11 @@ import 'ui.dart' show t_, showInfo;
 /// Keeps accidental route-back from discarding an in-memory creator draft.
 /// This is not persistent draft storage, and never starts an upload.
 class DraftExitGuard extends StatefulWidget {
-  const DraftExitGuard({super.key, required this.hasChanges, required this.busy, required this.child});
+  const DraftExitGuard({super.key, required this.hasChanges, required this.busy, required this.child, this.busyMessage = 'Your upload is still in progress.'});
   final bool hasChanges;
   final bool busy;
   final Widget child;
+  final String busyMessage;
   @override
   State<DraftExitGuard> createState() => _DraftExitGuardState();
 }
@@ -18,11 +19,12 @@ class _DraftExitGuardState extends State<DraftExitGuard> {
   Future<void> confirm() async {
     if (asking) return;
     if (widget.busy) {
-      showInfo(context, t_('Your upload is still in progress.'));
+      showInfo(context, t_(widget.busyMessage));
       return;
     }
     asking = true;
     final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+      scrollable: true,
       title: Text(t_('Discard this draft?')),
       content: Text(t_('Leaving will remove this draft from this screen.')),
       actions: [

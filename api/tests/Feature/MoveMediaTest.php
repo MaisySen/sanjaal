@@ -15,6 +15,7 @@ class MoveMediaTest extends TestCase
     {
         DB::table('media_blobs')->insert(['public_id' => $id, 'mime' => 'image/png', 'size' => $size ?? strlen($bytes), 'storage' => 'db',
             'data' => base64_encode($bytes), 'created_at' => now(), 'updated_at' => now()]);
+        \App\Models\User::factory()->create(['avatar' => $id]);
     }
 
     private string $served = 'hello';
@@ -73,4 +74,15 @@ class MoveMediaTest extends TestCase
         $this->artisan('media:move-to-b2 --dry-run');
         $this->assertSame('db', DB::table('media_blobs')->where('public_id', '00000004-0000-4000-8000-000000000004')->value('storage'));
     }
+    public function test_unclassified_private_upload_is_not_copied_to_b2(): void
+    {
+        $this->b2();
+        $id = '00000009-0000-4000-8000-000000000009';
+        DB::table('media_blobs')->insert(['public_id' => $id, 'mime' => 'image/png', 'size' => 5, 'storage' => 'db', 'data' => base64_encode('hello'), 'created_at' => now(), 'updated_at' => now()]);
+        $this->artisan('media:move-to-b2')->assertSuccessful();
+        Http::assertNothingSent();
+        $this->assertSame('db', DB::table('media_blobs')->where('public_id', $id)->value('storage'));
+        $this->assertSame(base64_encode('hello'), DB::table('media_blobs')->where('public_id', $id)->value('data'));
+    }
+
 }

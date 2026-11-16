@@ -9,6 +9,10 @@ $app = require __DIR__.'/../../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
 $kernel->bootstrap();
 config(['services.auth0.domain' => 'tenant.example.auth0.com', 'services.auth0.audience' => 'https://api.test', 'services.auth0.jwks' => json_decode(file_get_contents($jwksFile), true)]);
+if (getenv('PAYOUT_FAKE') === '1') {
+    require_once __DIR__.'/FakePayout.php';
+    $app->instance(App\Contracts\PayoutProvider::class, new Tests\Concurrency\FakePayout());
+}
 $deadline = microtime(true) + 30;
 while (! file_exists($go) && microtime(true) < $deadline) {
     usleep(500);

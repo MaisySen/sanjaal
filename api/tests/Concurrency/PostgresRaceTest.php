@@ -108,4 +108,51 @@ class PostgresRaceTest extends TestCase
         $this->assertCount(2, $rows);
         $this->assertSame(1, $rows->where('role', 'owner')->count(), 'exactly one owner');
     }
+    private function funded(string $name, int $coins): User
+    {
+        $u = $this->user($name);
+        \App\Services\Wallet::credit($u, $coins, 'topup', 'seed:'.$name);
+
+        return $u;
+    }
+
+    public function test_simultaneous_cash_outs_cannot_overspend_the_balance(): void
+    {
+        putenv('PAYOUT_FAKE=1');
+        $u = $this->funded('asha', 1000);
+        $calls = array_map(fn ($i) => ['asha', 'POST', '/api/v1/wallet/withdrawals', ['coins' => 600, 'client_id' => "client-race-$i"]], range(1, 5));
+        $codes = $this->race($calls);
+        putenv('PAYOUT_FAKE');
+        sort($codes);
+        $this->assertSame([201, 422, 422, 422, 422], $codes, 'only one 600 fits in 1000');
+        $this->assertSame(400, (int) $u->fresh()->coin_balance);
+        $this->assertSame(400, (int) DB::table('wallet_entries')->where('user_id', $u->id)->sum('amount'), 'ledger sum equals balance');
+        $this->assertSame(1, DB::table('wallet_withdrawals')->count());
+    }
+
+    public function test_the_same_client_id_sent_four_times_at_once_holds_once(): void
+    {
+        putenv('PAYOUT_FAKE=1');
+        $u = $this->funded('asha', 2000);
+        $calls = array_map(fn ($i) => ['asha', 'POST', '/api/v1/wallet/withdrawals', ['coins' => 600, 'client_id' => 'client-same-1']], range(1, 4));
+        $codes = $this->race($calls);
+        putenv('PAYOUT_FAKE');
+        sort($codes);
+        $this->assertSame([200, 200, 200, 201], $codes);
+        $this->assertSame(1400, (int) $u->fresh()->coin_balance);
+        $this->assertSame(1, DB::table('wallet_entries')->where('kind', 'withdraw_hold')->count());
+    }
+
+    public function test_two_simultaneous_cancels_release_the_hold_once(): void
+    {
+        putenv('PAYOUT_FAKE=1');
+        $u = $this->funded('asha', 1000);
+        [$w] = \App\Services\Withdrawals::request($u, 600, 'client-cancel-1');
+        $codes = $this->race(array_map(fn () => ['asha', 'POST', "/api/v1/wallet/withdrawals/{$w->public_id}/cancel", []], range(1, 3)));
+        putenv('PAYOUT_FAKE');
+        sort($codes);
+        $this->assertSame([200, 409, 409], $codes);
+        $this->assertSame(1000, (int) $u->fresh()->coin_balance);
+        $this->assertSame(1, DB::table('wallet_entries')->where('kind', 'withdraw_release')->count());
+    }
 }

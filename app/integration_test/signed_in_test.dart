@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
 import 'package:sanjaal/ui.dart' show prefs;
-import 'package:flutter/material.dart' show ThemeMode;
+import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _token = String.fromEnvironment('E2E_TOKEN');

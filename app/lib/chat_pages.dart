@@ -110,6 +110,7 @@ class _ChatsPageState extends State<ChatsPage> {
       appBar: AppBar(
         title: Text(showArchived ? 'Archived' : t_('Chats')),
         actions: [
+          IconButton(tooltip: t_('New chat'), icon: const Icon(Icons.edit_square), onPressed: _new),
           IconButton(
             tooltip: 'Live rooms',
             icon: const Icon(Icons.podcasts),
@@ -133,7 +134,6 @@ class _ChatsPageState extends State<ChatsPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.add_comment), label: Text(t_('New chat'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: loading

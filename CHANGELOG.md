@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 4: chats and rooms actions
+
+- Chats: New chat moves from a floating button to a top bar action. Live rooms: Go live moves from a floating pill to a top bar button. Flows test taps New chat by tooltip. Fixes a compile error in the dark capture test (ThemeMode import). Checked locally with flutter analyze (no errors) and the render and unit tests (all pass); not run on a device.
+
 ## Redesign pass 3: onboarding
 
 - Onboarding drops the gradient circle for a left-aligned editorial layout: large light numeral, short crimson rule, small icon, headline and body. Slide text now goes through the translation helper. Not yet compiled or captured; CI will be the first check.

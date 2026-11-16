@@ -74,8 +74,12 @@ class _RoomsPageState extends State<RoomsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Live rooms'))),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _start, icon: const Icon(Icons.mic), label: Text(t_('Go live'))),
+      appBar: AppBar(title: Text(t_('Live rooms')), actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilledButton.icon(onPressed: _start, icon: const Icon(Icons.mic, size: 18), label: Text(t_('Go live')), style: FilledButton.styleFrom(minimumSize: const Size(64, 36))),
+        ),
+      ]),
       body: RefreshIndicator(
         onRefresh: _load,
         child: loading

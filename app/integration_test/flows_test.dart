@@ -84,7 +84,7 @@ void main() {
     await step('s2', () async {
       await tester.tap(find.text('Chats'));
       await _settle(tester, 4);
-      await tester.tap(find.text('New chat'));
+      await tester.tap(find.byTooltip('New chat'));
       await _settle(tester, 3);
       await _type(tester, find.byType(TextField), 'asha');
       await _settle(tester, 4);

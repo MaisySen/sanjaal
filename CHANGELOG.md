@@ -1,5 +1,9 @@
 # Changelog
 
+## CI honesty
+
+- Emulator job no longer hides a failing flows test (continue-on-error removed). New docs/VERIFICATION_STATUS.md lists which flows pass, fail or are unverified.
+
 ## Redesign pass 2
 
 - Compose moved from a floating button (it covered post actions) to the Home app bar. Profile Edit button uses the primary crimson. Notification icon colours use the ink palette.

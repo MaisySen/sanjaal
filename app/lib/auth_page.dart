@@ -17,6 +17,7 @@ class _AuthPageState extends State<AuthPage> {
   final _password = TextEditingController();
   late bool register = widget.initialRegister;
   bool busy = false;
+  bool showPassword = false;
   String? error;
 
   @override
@@ -28,33 +29,36 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Future<void> _submit() async {
-    if (!_form.currentState!.validate()) return;
+    if (busy || !_form.currentState!.validate()) return;
+    final email = _email.text.trim(), username = _username.text.trim(), password = _password.text;
+    final creating = register;
     setState(() {
       busy = true;
       error = null;
     });
     try {
-      if (register) {
-        await widget.session.register(_email.text.trim(), _username.text.trim(), _password.text);
+      if (creating) {
+        await widget.session.register(email, username, password);
       } else {
-        await widget.session.login(_email.text.trim(), _password.text);
+        await widget.session.login(email, password);
       }
-    } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Sign in failed. Try again.'));
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
   Future<void> _social(String connection) async {
+    if (busy) return;
     setState(() {
       busy = true;
       error = null;
     });
     try {
       await widget.session.loginSocial(connection);
-    } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Sign in failed. Try again.'));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -83,13 +87,16 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 28),
                     TextFormField(
                       controller: _email,
+                      enabled: !busy,
+                      autocorrect: false,
+                      textInputAction: TextInputAction.next,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
-                      decoration: InputDecoration(labelText: register ? 'Email' : 'Email or username', border: const OutlineInputBorder()),
+                      decoration: InputDecoration(labelText: t_(register ? 'Email' : 'Email or username'), floatingLabelBehavior: FloatingLabelBehavior.always, errorMaxLines: 4, border: const OutlineInputBorder()),
                       validator: (v) {
                         final t = (v ?? '').trim();
-                        if (t.isEmpty) return 'Required';
-                        if (register && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(t)) return 'Enter a valid email';
+                        if (t.isEmpty) return t_('Required');
+                        if (register && !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(t)) return t_('Enter a valid email');
                         return null;
                       },
                     ),
@@ -97,17 +104,22 @@ class _AuthPageState extends State<AuthPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _username,
-                        decoration: const InputDecoration(labelText: 'Username', helperText: '3 to 30 letters, numbers, dots or underscores', border: OutlineInputBorder()),
-                        validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch((v ?? '').trim()) ? null : 'Use 3 to 30 letters, numbers, dots or underscores',
+                        enabled: !busy,
+                        autocorrect: false,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(labelText: t_('Username'), helperText: t_('3 to 30 letters, numbers, dots or underscores'), helperMaxLines: 4, errorMaxLines: 4, floatingLabelBehavior: FloatingLabelBehavior.always, border: const OutlineInputBorder()),
+                        validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch((v ?? '').trim()) ? null : t_('Use 3 to 30 letters, numbers, dots or underscores'),
                       ),
                     ],
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _password,
-                      obscureText: true,
-                      autofillHints: const [AutofillHints.password],
-                      decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
-                      validator: (v) => (v ?? '').length < 8 ? 'At least 8 characters' : null,
+                      enabled: !busy,
+                      textInputAction: TextInputAction.done,
+                      obscureText: !showPassword,
+                      autofillHints: [register ? AutofillHints.newPassword : AutofillHints.password],
+                      decoration: InputDecoration(labelText: t_('Password'), errorMaxLines: 4, floatingLabelBehavior: FloatingLabelBehavior.always, border: const OutlineInputBorder(), suffixIcon: IconButton(onPressed: busy ? null : () => setState(() => showPassword = !showPassword), tooltip: t_(showPassword ? 'Hide password' : 'Show password'), icon: Icon(showPassword ? Icons.visibility_off : Icons.visibility))),
+                      validator: (v) => (v ?? '').length < 8 ? t_('At least 8 characters') : null,
                       onFieldSubmitted: (_) => busy ? null : _submit(),
                     ),
                     if (error != null) ...[
@@ -125,19 +137,20 @@ class _AuthPageState extends State<AuthPage> {
                       onPressed: busy ? null : () => setState(() {
                         register = !register;
                         error = null;
+                        showPassword = false;
                       }),
                       child: Text(t_(register ? 'I already have an account' : 'Create an account')),
                     ),
                     const SizedBox(height: 8),
                     const Divider(),
-                    OutlinedButton(onPressed: busy ? null : () => _social('google-oauth2'), child: const Text('Continue with Google')),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text('Social sign in is in testing.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+                    OutlinedButton(onPressed: busy ? null : () => _social('google-oauth2'), child: Text(t_('Continue with Google'), textAlign: TextAlign.center)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(t_('Social sign in is in testing.'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
                     ),
-                    if (busy) const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text('The first request can take up to a minute while the server wakes up.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+                    if (busy) Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(t_('The first request can take up to a minute while the server wakes up.'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
                     ),
                   ],
                 ),

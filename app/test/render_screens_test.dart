@@ -301,4 +301,110 @@ void main() {
     }));
     expect(posts, 0);
   });
+
+  testWidgets('gift sheet: affordable gift posts exactly one gift', (tester) async {
+    final posts = <String>[];
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: Builder(builder: (c) => Scaffold(body: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))));
+      await tester.tap(find.text('Send a gift'));
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Rose'));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+    }, () => MockClient((r) async {
+      if (r.method == 'POST' && r.url.path.endsWith('/gifts')) posts.add(r.url.path);
+      return _reply(r);
+    }));
+    expect(posts.length, 1);
+  });
+
+  testWidgets('blocked people: Unblock sends one DELETE for that person', (tester) async {
+    final calls = <String>[];
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      await tester.pumpWidget(MaterialApp(home: BlockedPage(session: s)));
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Unblock').first);
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+    }, () => MockClient((r) async {
+      if (r.method == 'DELETE') calls.add(r.url.path);
+      return _reply(r);
+    }));
+    expect(calls, ['/api/v1/users/raju_k/block']);
+  });
+
+  testWidgets('search: tapping a person opens that profile request', (tester) async {
+    final gets = <String>[];
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      await tester.pumpWidget(MaterialApp(home: SearchPage(session: s)));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.enterText(find.byType(EditableText), 'ash');
+      await tester.pump(const Duration(milliseconds: 500));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Asha Gurung'));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+    }, () => MockClient((r) async {
+      gets.add('${r.method} ${r.url.path}');
+      return _reply(r);
+    }));
+    expect(gets.any((g) => g.startsWith('GET /api/v1/users/asha')), isTrue, reason: gets.join(', '));
+  });
+
+  testWidgets('room: host buttons call the right callbacks', (tester) async {
+    final log = <String>[];
+    final chat = TextEditingController();
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(home: RoomView(
+      title: 'Test room', status: 'Live', failed: false, isHost: true, speaker: true, muted: false, handUp: false, inRoom: 3,
+      hands: const {'u1': 'Bikash Thapa'},
+      stage: const [(id: 'me', name: 'Bidur', host: true, you: true, muted: false, speaking: false), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: false, speaking: false)],
+      messages: const [], chat: chat,
+      onEnd: () => log.add('end'), onToggleMic: () => log.add('mic'), onRaise: () => log.add('raise'), onGift: () => log.add('gift'),
+      onAllow: (id, allow) => log.add('allow $id $allow'), onDismissHand: (id) => log.add('dismiss $id'), onSend: () => log.add('send'),
+    )));
+    await tester.pump();
+    await tester.tap(find.text('Let speak'));
+    await tester.tap(find.text('Dismiss'));
+    await tester.tap(find.text('Move to listeners'));
+    await tester.tap(find.byTooltip('Mute'));
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+    expect(log, ['allow u1 true', 'dismiss u1', 'allow u3 false', 'mic', 'send']);
+  });
 }

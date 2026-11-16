@@ -2,6 +2,7 @@
 
 ## Pass 11: About and Search render coverage
 
+- Widget interaction tests (local, no device, mocked API): affordable gift posts exactly one gift (unaffordable posts none, already covered); Unblock sends one DELETE for the chosen person; tapping a search result requests that profile; room host buttons (Let speak, Dismiss, Move to listeners, Mute, Send) call the matching callbacks. These test app callbacks and requests against a fake server, not the real API.
 - Render coverage for Search no-matches and error, the story viewer (layout only; the fixture image cannot load so the viewer shows its broken-image fallback), and a reel item (layout only; the video does not load in a widget test so it shows "Video could not load"). Playback is not tested.
 - Room with an empty chat uses the shared empty state (icon, title, hint) instead of one plain line. Render added for a quiet room (one speaker, no messages).
 - Render coverage also for New chat and the stories row (real HomeShell, fixture stories).

@@ -1,15 +1,18 @@
 """Unit contracts with fake Android tools. Not APK signature or device evidence."""
-import base64,contextlib,hashlib,importlib.util,io,json,shutil,sys,tempfile,unittest,zipfile
+import base64,contextlib,hashlib,importlib.util,io,json,shutil,struct,sys,tempfile,unittest,zipfile
 from pathlib import Path
 from unittest.mock import patch
 spec=importlib.util.spec_from_file_location('preview',Path(__file__).with_name('finalize_phone_preview.py'))
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+def elf(alignment=16384):
+ b=bytearray(120);b[:6]=b'\x7fELF\x02\x01';struct.pack_into('<H',b,18,183);struct.pack_into('<Q',b,32,64);struct.pack_into('<HH',b,54,56,1);struct.pack_into('<I',b,64,1);struct.pack_into('<Q',b,112,alignment)
+ return bytes(b)+m.PRODUCTION_API
 class Contracts(unittest.TestCase):
  def setUp(self):
   self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.d=Path(self.temp.name)
   self.inp=self.d/'input.apk';self.out=self.d/'final.apk'
   with zipfile.ZipFile(self.inp,'w') as z:
-   for n,b in [('AndroidManifest.xml',b'fake'),('classes.dex',b'fake'),('lib/arm64-v8a/libapp.so',m.PRODUCTION_API)]:z.writestr(n,b)
+   for n,b in [('AndroidManifest.xml',b'fake'),('classes.dex',b'fake'),('lib/arm64-v8a/libapp.so',elf())]:z.writestr(n,b)
   self.run={'id':1,'status':'completed','conclusion':'success','head_sha':'abc','html_url':'https://example.invalid/fixture'}
   self.jobs={'jobs':[{'name':n,'status':'completed','conclusion':'success'} for n in ['api','app','ios','emulator']]}
   self.evidence={'run_id':1,'head_sha':'abc','apk_sha256':m.sha(self.inp)}
@@ -48,6 +51,10 @@ class Contracts(unittest.TestCase):
  def test_backup_enabled_is_not_signable(self):self.backup='0xffffffff';self.fails()
  def test_debuggable_is_not_signable(self):self.debug='android:debuggable(0x0101000f)=(type 0x12)0xffffffff';self.fails()
  def test_wrong_final_certificate_is_not_signable(self):self.cert='bad';self.fails()
+ def test_native_4kb_load_alignment_is_rejected(self):
+  with self.assertRaises(AssertionError):m.check_elf16k(elf(4096),'fixture.so')
+ def test_non_elf_native_payload_is_rejected(self):
+  with self.assertRaises(AssertionError):m.check_elf16k(b'fake','fixture.so')
  def test_fixture_marker_is_not_signable(self):
   with zipfile.ZipFile(self.inp,'a') as z:z.writestr('forbidden',b'local-e2e')
   self.evidence['apk_sha256']=m.sha(self.inp);self.fails()

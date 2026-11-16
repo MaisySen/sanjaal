@@ -5,7 +5,7 @@ Key/password values are read from private files, never command arguments or logs
 The required evidence is downloaded from the selected successful CI run, including
 jobs with all four required checks; the input APK digest must match that download.
 """
-import argparse,base64,hashlib,json,os,re,subprocess,tempfile,zipfile
+import argparse,base64,hashlib,json,os,re,struct,subprocess,tempfile,zipfile
 from pathlib import Path
 
 PACKAGE='au.fintex.sanjaal'
@@ -15,6 +15,22 @@ FORBIDDEN=[b'trycloudflare',b'local-e2e',b'10.0.2.2',b'E2E_TOKEN']
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def call(*args):return subprocess.check_output([str(x) for x in args],stderr=subprocess.STDOUT).decode()
+def check_elf16k(blob,name):
+    assert len(blob)>=64 and blob[:6]==b'\x7fELF\x02\x01','Invalid ARM64 ELF '+name
+    assert struct.unpack_from('<H',blob,18)[0]==183,'Non-ARM64 native library '+name
+    offset=struct.unpack_from('<Q',blob,32)[0]
+    size,count=struct.unpack_from('<HH',blob,54)
+    assert size>=56 and count>0 and offset+size*count<=len(blob),'Invalid ELF program headers '+name
+    loads=0
+    for i in range(count):
+        h=offset+i*size
+        if struct.unpack_from('<I',blob,h)[0]!=1:continue
+        loads+=1
+        file_offset,address=struct.unpack_from('<QQ',blob,h+8)
+        alignment=struct.unpack_from('<Q',blob,h+48)[0]
+        assert alignment>=16384 and alignment&(alignment-1)==0 and file_offset%alignment==address%alignment,'Native PT_LOAD is not 16KB-compatible '+name
+    assert loads>0,'Native library has no loadable segments '+name
+
 def check_payload(path,tool,version,code):
     badging=call(tool/'aapt','dump','badging',path)
     assert re.search(r"package: name='"+re.escape(PACKAGE)+r"' versionCode='"+str(code)+r"' versionName='"+re.escape(version)+"'",badging),'Wrong package or version'
@@ -29,6 +45,7 @@ def check_payload(path,tool,version,code):
         for name in names:
             if name.endswith('/'):continue
             blob=z.read(name)
+            if name.startswith('lib/arm64-v8a/') and name.endswith('.so'):check_elf16k(blob,name)
             assert not any(term in blob for term in FORBIDDEN),'Test endpoint/token/tunnel marker in '+name
         assert PRODUCTION_API in z.read('lib/arm64-v8a/libapp.so'),'Production API not found in app code'
     return badging
@@ -60,7 +77,7 @@ def main():
         call(tool/'zipalign','-c','-P','16','4',candidate)
         check_payload(candidate,tool,a.version,a.version_code)
         os.replace(candidate,out)
-    report={'package':PACKAGE,'version_name':a.version,'version_code':a.version_code,'abi':'arm64-v8a','certificate_sha256':CERT,'sha256':sha(out),'bytes':out.stat().st_size,'source_commit':run['head_sha'],'ci_run_id':run['id'],'ci_url':run['html_url'],'production_api':PRODUCTION_API.decode(),'checks':['all_four_ci_jobs_passed','input_archive_digest','package_version_abi','v2_v3_signature','stable_certificate','16kb_alignment','no_fixture_or_tunnel_markers','production_api','backup_disabled','not_debuggable']}
+    report={'package':PACKAGE,'version_name':a.version,'version_code':a.version_code,'abi':'arm64-v8a','certificate_sha256':CERT,'sha256':sha(out),'bytes':out.stat().st_size,'source_commit':run['head_sha'],'ci_run_id':run['id'],'ci_url':run['html_url'],'production_api':PRODUCTION_API.decode(),'checks':['all_four_ci_jobs_passed','input_archive_digest','package_version_abi','v2_v3_signature','stable_certificate','16kb_zip_and_native_segments','no_fixture_or_tunnel_markers','production_api','backup_disabled','not_debuggable']}
     out.with_suffix('.verification.json').write_text(json.dumps(report,indent=2)+'\n')
     out.parent.joinpath('SHA256SUMS.txt').write_text(report['sha256']+'  '+out.name+'\n')
     print(json.dumps(report,indent=2))

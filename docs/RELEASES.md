@@ -1,5 +1,14 @@
 # Releases
 
+## Recovery verification, 2026-11-17 (not a shipped app release)
+
+- Live API image v31-7e2e68c from source 7e2e68c deployed on the existing Render Free service. The five additive migrations are applied on Aiven. Private backup restore and code-only rollback were tested before deployment; existing row counts are unchanged. Health is 200; protected new routes return 401 without credentials. This is not signed-in live journey evidence.
+- Android candidate 0.5.0+5 (arm64 versionCode 2005), source 7e2e68c, signed with the stable upload key. Signature v2/v3 and 16 KB alignment verified. Three older public release certificates differ, so those particular installs cannot update directly to this certificate. No uninstall recommendation is made. Not delivered yet.
+- CI run 43881881863: app, API and unsigned iOS passed. Emulator smoke and signed-in fixture checks passed in earlier run 43878910020, but the interaction flow failed on stale reaction/composer finders. Test-only correction b25139b is running in 43884625758. The emulator gate remains mandatory. These are isolated fixtures, not Samsung or live-auth tests.
+- Local payout hardening: once a payout attempt may have gone out, later runs only look it up. Unknown/not-found results can lag a payment and never authorize a resend. Holds remain until resolved or operator review. Regression covers unknown, lookup error and late paid confirmation. Local PHP 8.4.27 suite: 85 tests, 618 assertions passed; withdrawal subset 12 tests, 95 assertions. Production still binds DisabledPayout unconditionally. This hardening is not deployed yet.
+- Samsung remote testing is not done. Free registration reached the AU form but the site denied access before submission. No account was created. Audio, push and real multi-device behavior remain unverified. Historical sections below describe earlier states, not the current deployment or completion.
+
+
 Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
 ## Unreleased (API image v9)

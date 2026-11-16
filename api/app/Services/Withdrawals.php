@@ -15,7 +15,7 @@ use InvalidArgumentException;
  *  - cancel: only while "requested". The hold is released once (reference wd:<id>:release).
  *  - payout run: requested -> processing -> paid, or failed with the hold released once.
  *  - the provider idempotency key is the withdrawal public_id. attempts is persisted before each call; after a call
- *    that may have gone out, the next run asks lookup() first and only calls pay() again when the provider has no record.
+ *    that may have gone out, later runs only ask lookup(). A not-found answer may be eventual consistency, never permission to resend.
  *  - after MAX_ATTEMPTS unresolved tries the row moves to "review": coins stay held, nothing is retried or released
  *    until an operator resolves it with wallet:resolve.
  *  - paid and failed are final. A paid request is never silently reversed here.
@@ -121,9 +121,8 @@ class Withdrawals
                 if ((int) $w->attempts > 0) {
                     // An earlier call may have reached the provider: look it up under the same key, do not re-send blindly.
                     $r = $provider->lookup($id);
-                    if (($r['status'] ?? 'unknown') === 'unknown') {
-                        $r = null;
-                    }
+                    // Even a not-found result can lag a successful payment. Never resend an attempted payout.
+                    $r ??= ['status' => 'unknown'];
                 }
                 $r ??= $provider->pay($id, (int) $w->coins);
             } catch (\Throwable) {

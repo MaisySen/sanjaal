@@ -19,7 +19,8 @@ interface PayoutProvider
 
     /**
      * Ask the rail what happened to a payment sent with this idempotency key, without sending anything.
-     * 'unknown' must mean the provider positively has no record of the key. If it cannot tell (timeout, error), throw.
+     * 'unknown' includes not found or an indeterminate outcome. Never treat it as proof that a prior payment failed.
+     * Lookups must never send payments. Timeouts may throw; all unresolved outcomes retain the hold.
      * @return array{status: 'paid'|'pending'|'failed'|'unknown', ref?: string, reason?: string}
      */
     public function lookup(string $withdrawalId): array;

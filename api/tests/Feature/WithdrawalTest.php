@@ -167,6 +167,7 @@ class WithdrawalTest extends TestCase
         $this->assertSame('processing', DB::table('wallet_withdrawals')->value('status'));
         $this->assertSame(400, (int) $u->fresh()->coin_balance, 'not released while the outcome is unknown');
         $p->throw = false;
+        $p->lookupAnswer = ['status' => 'paid', 'ref' => 'LATE-PAID'];
         Withdrawals::run();
         $this->assertSame('paid', DB::table('wallet_withdrawals')->value('status'));
         $this->assertSame(400, (int) $u->fresh()->coin_balance);
@@ -193,7 +194,7 @@ class WithdrawalTest extends TestCase
         $this->assertSame(400, (int) $u->fresh()->coin_balance);
     }
 
-    public function test_lookup_unknown_resends_with_the_same_key_and_lookup_error_never_resends(): void
+    public function test_lookup_unknown_or_error_never_resends_even_if_record_is_not_found(): void
     {
         $p = $this->fake('pending', true, true);
         [$u, $h] = $this->funded('asha', 1000);
@@ -206,9 +207,15 @@ class WithdrawalTest extends TestCase
         $p->lookupAnswer = ['status' => 'unknown'];
         $p->throw = false;
         Withdrawals::run();
-        $this->assertCount(2, $p->calls);
+        $this->assertCount(1, $p->calls, 'not found can be eventual consistency, not permission to resend');
         $this->assertSame($id, $p->calls[0][0]);
-        $this->assertSame($id, $p->calls[1][0], 'same idempotency key');
+        $this->assertSame('processing', DB::table('wallet_withdrawals')->value('status'));
+        $this->assertSame(400, (int) $u->fresh()->coin_balance);
+        $p->lookupAnswer = ['status' => 'paid', 'ref' => 'LATE-1'];
+        Withdrawals::run();
+        $this->assertCount(1, $p->calls);
+        $this->assertSame('paid', DB::table('wallet_withdrawals')->value('status'));
+        $this->assertSame('LATE-1', DB::table('wallet_withdrawals')->value('provider_ref'));
     }
 
     public function test_repeated_unknown_outcomes_park_in_review_and_nothing_releases_or_resends(): void

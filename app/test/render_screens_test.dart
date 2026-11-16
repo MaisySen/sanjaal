@@ -505,6 +505,65 @@ void main() {
     }));
   });
 
+  testWidgets('wallet: Cash out is off unless the server says so; a retry after a server error reuses the request id', (tester) async {
+    final bodies = <Map<String, dynamic>>[];
+    var available = false;
+    var failNext = true;
+    var balance = 2000;
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+      }
+      await tester.pumpWidget(MaterialApp(home: WalletPage(session: s, key: UniqueKey())));
+      await settle();
+      expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Cash out')).onPressed, isNull);
+      available = true;
+      await tester.pumpWidget(MaterialApp(home: WalletPage(session: s, key: UniqueKey())));
+      await settle();
+      expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Cash out')).onPressed, isNotNull);
+      Future<void> cash() async {
+        await tester.tap(find.widgetWithText(OutlinedButton, 'Cash out'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '600');
+        await tester.tap(find.widgetWithText(FilledButton, 'Cash out'));
+        await settle();
+      }
+      await cash();
+      expect(bodies.length, 1);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await cash();
+      expect(bodies.length, 2);
+      expect(bodies[1]['client_id'], bodies[0]['client_id'], reason: 'same request, so a lost reply cannot hold coins twice');
+      expect(bodies[1]['coins'], 600);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await cash();
+      expect(bodies.length, 3);
+      expect(bodies[2]['client_id'], isNot(bodies[1]['client_id']), reason: 'a finished request starts a new id');
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      if (r.method == 'POST' && r.url.path.endsWith('/wallet/withdrawals')) {
+        bodies.add((jsonDecode(r.body) as Map).cast<String, dynamic>());
+        if (failNext) {
+          failNext = false;
+          return http.Response(jsonEncode({'message': 'Server error'}), 500, headers: {'content-type': 'application/json'});
+        }
+        balance -= 600;
+        return http.Response(jsonEncode({'withdrawal': {'public_id': 'w1', 'status': 'requested'}, 'balance': balance}), 201, headers: {'content-type': 'application/json'});
+      }
+      return http.Response(jsonEncode({'balance': balance, 'topup': {'esewa': true, 'esewa_mode': 'test'}, 'cashout': {'available': available, 'min': 500, 'max': 100000}, 'entries': []}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
   testWidgets('saved posts: menu toggles save with one request, failure reverts', (tester) async {
     final calls = <String>[];
     var fail = false;

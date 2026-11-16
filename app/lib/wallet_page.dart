@@ -17,6 +17,9 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   int balance = 0;
   List<Map<String, dynamic>> entries = [];
   Map<String, dynamic> topup = {};
+  Map<String, dynamic> cashout = {};
+  String? cashoutId; // reused on a retry of the same request so a lost reply cannot hold coins twice
+  int? cashoutCoins;
   bool loading = true;
   String? error;
   String? pendingTopup;
@@ -48,6 +51,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         balance = (j['balance'] as num).toInt();
         entries = (j['entries'] as List).cast<Map<String, dynamic>>();
         topup = (j['topup'] as Map).cast<String, dynamic>();
+        cashout = ((j['cashout'] as Map?) ?? const {}).cast<String, dynamic>();
         error = null;
         loading = false;
       });
@@ -142,6 +146,48 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _cashout() async {
+    final min = (cashout['min'] as num?)?.toInt() ?? 500;
+    final amt = TextEditingController(text: cashoutCoins?.toString() ?? '');
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t_('Cash out')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(controller: amt, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Coins (at least $min)')),
+          const SizedBox(height: 10),
+          Text(t_('The coins leave your balance now. If the payout fails, they come back.'), style: Theme.of(ctx).textTheme.bodySmall),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t_('Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t_('Cash out'))),
+        ],
+      ),
+    );
+    if (go != true) return;
+    final coins = int.tryParse(amt.text.trim()) ?? 0;
+    if (cashoutId == null || cashoutCoins != coins) {
+      cashoutId = 'co-${DateTime.now().microsecondsSinceEpoch}-$coins';
+      cashoutCoins = coins;
+    }
+    try {
+      await widget.session.call('POST', '/wallet/withdrawals', body: {'coins': coins, 'client_id': cashoutId});
+      cashoutId = null;
+      cashoutCoins = null;
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Cash out requested.'))));
+    } on ApiError catch (e) {
+      // A refusal means nothing was held: the next try is a new request. Anything else may have landed: keep the id.
+      if (e.status != null && e.status! >= 400 && e.status! < 500) {
+        cashoutId = null;
+        cashoutCoins = null;
+      }
+      if (mounted) showError(context, e);
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
   String _label(Map<String, dynamic> e) {
     final who = e['counterparty'] == null ? '' : '@${e['counterparty']}';
     return switch (e['kind']) {
@@ -150,6 +196,8 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       'transfer_out' => 'To $who',
       'gift_in' => 'Gift from $who',
       'gift_out' => 'Gift to $who',
+      'withdraw_hold' => 'Cash out',
+      'withdraw_release' => 'Cash out returned',
       _ => e['kind'].toString(),
     };
   }
@@ -157,6 +205,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final esewa = topup['esewa'] == true;
+    final canCash = cashout['available'] == true && balance >= ((cashout['min'] as num?)?.toInt() ?? 500);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: Text(t_('Wallet'))),
@@ -185,12 +234,12 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                   final buttons = <Widget>[
                     FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: esewa ? _topup : null, child: Text(t_('Add coins'), maxLines: 1, softWrap: false)),
                     OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: balance > 0 ? _send : null, child: Text(t_('Send'), maxLines: 1, softWrap: false)),
-                    OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: null, child: Text(t_('Cash out'), maxLines: 1, softWrap: false)),
+                    OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: canCash ? _cashout : null, child: Text(t_('Cash out'), maxLines: 1, softWrap: false)),
                   ];
                   if (big) return Column(children: [for (final b in buttons) Padding(padding: const EdgeInsets.only(bottom: 8), child: SizedBox(width: double.infinity, child: b))]);
                   return Row(children: [for (var i = 0; i < buttons.length; i++) ...[if (i > 0) const SizedBox(width: 10), Expanded(child: buttons[i])]]);
                 }),
-                if (!esewa)
+                if (!esewa || cashout['available'] != true)
                   Container(
                     margin: const EdgeInsets.only(top: 12),
                     padding: const EdgeInsets.all(14),
@@ -198,7 +247,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       PhIcon('info', size: 20, color: scheme.onSurfaceVariant),
                       const SizedBox(width: 10),
-                      const Expanded(child: Text('Adding coins is not switched on yet. Cash out is not available.')),
+                      Expanded(child: Text(!esewa && cashout['available'] != true ? 'Adding coins is not switched on yet. Cash out is not available.' : !esewa ? 'Adding coins is not switched on yet.' : 'Cash out is not available yet.')),
                     ]),
                   ),
                 const SizedBox(height: 22),

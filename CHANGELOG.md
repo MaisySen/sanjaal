@@ -1,5 +1,7 @@
 # Changelog
 
+- Small-phone regression capture now waits for the enabled-button transition before taking its screenshot. Continue is readable and within bounds at 320x640. Debug banner disabled in the fixture capture only; production unchanged.
+
 ## Small-phone Create sheet fix (candidate, not shipped)
 
 - CI 43884625758 found a real 12px Create-sheet overflow on a 320x640 emulator: Continue was clipped. The modal now uses the available screen height, with scroll fallback. Regression opens the real modal at 320x640, selects Reel, taps Continue and checks the returned type and no rendering exception. Local focused widget test passes. New Android artifact and emulator journey are still pending.

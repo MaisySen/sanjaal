@@ -1002,6 +1002,7 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(RepaintBoundary(key: const ValueKey('small-create'), child: MaterialApp(
+      debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.dark, fontFamily: 'Roboto', fontFamilyFallback: []),
       home: Builder(builder: (c) => Scaffold(body: Center(child: FilledButton(onPressed: () async => result = await showModalBottomSheet<String>(context: c, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet()), child: const Text('open'))))),
     )));
@@ -1009,7 +1010,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue')).onPressed, isNull);
     await tester.tap(find.text('Reel'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue')).onPressed, isNotNull);
     final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('small-create')));
     await tester.runAsync(() async {

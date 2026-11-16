@@ -418,6 +418,7 @@ class RoomView extends StatelessWidget {
                   if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const PhIcon('hand-waving', size: 18), label: Text(handUp ? 'Hand raised' : 'Raise hand'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
                 ]),
               ),
+              Flexible(child: SingleChildScrollView(child: Column(children: [
               if (isHost && hands.isNotEmpty)
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -491,6 +492,7 @@ class RoomView extends StatelessWidget {
                   ])),
                   ),
                 ),
+              ]))),
               Divider(height: 1, color: scheme.outlineVariant),
               Expanded(
                 child: messages.isEmpty

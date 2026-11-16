@@ -47,8 +47,10 @@ String _ago(int mins) => DateTime.now().toUtc().subtract(Duration(minutes: mins)
 http.Response _json(Object o) => http.Response(jsonEncode(o), 200, headers: {'content-type': 'application/json'});
 
 bool _voiceMsgs = false;
+bool _failSend = false;
 
 Future<http.Response> _reply(http.Request r) async {
+  if (_failSend && r.method == 'POST' && r.url.path.endsWith('/messages')) return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
   final p = r.url.path;
   if (p == '/oauth/token') return _json({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'});
   if (p.endsWith('/auth/me')) return _json({'user': {'public_id': 'me', 'name': 'Bidur', 'username': 'bidur'}});
@@ -214,18 +216,23 @@ void main() {
     cv.drawPath(ui.Path()..moveTo(0, 760)..lineTo(260, 430)..lineTo(420, 620)..lineTo(580, 380)..lineTo(800, 700)..lineTo(800, h)..lineTo(0, h)..close(), ui.Paint()..color = const Color(0xFF1B1F2A));
     final img = await rec.endRecording().toImage(w.toInt(), h.toInt());
     final bytes = (await img.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
-    feedImageProvider = (url) => MemoryImage(bytes);
+    // A real CC0 photograph (Wikimedia Commons, Billjones94, licence checked live) is used when it has been downloaded
+    // to /tmp/photos by the reviewer. It is never committed. Otherwise the generated picture above is used.
+    final real = File('/tmp/photos/photo_portrait.jpg');
+    final photoBytes = real.existsSync() ? real.readAsBytesSync() : bytes;
+    feedImageProvider = (url) => MemoryImage(photoBytes);
     await _loadFont('MaterialIcons', ['$dir/MaterialIcons-Regular.otf']);
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
           _voiceMsgs = name == 'chat_voice';
+          _failSend = name == 'chat_unsent';
           await tester.runAsync(() => prefs.setLang(name.endsWith('_ne') ? 'ne' : 'en'));
           final key = GlobalKey();
           tester.view.physicalSize = name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
@@ -262,6 +269,7 @@ void main() {
             'group_info' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}),
             'call_video' => CallView(title: 'Asha Gurung', status: 'Connected', failed: false, video: true, muted: false, camOn: true, tiles: [CallTile(name: 'Asha Gurung', video: Image(image: feedImageProvider!('x'), fit: BoxFit.cover)), const CallTile(name: 'Bikash Thapa')], selfPreview: Image(image: feedImageProvider!('y'), fit: BoxFit.cover), onMute: () {}, onCamera: () {}, onEnd: () {}),
             'call_voice' => CallView(title: 'Asha Gurung', status: 'Connected', failed: false, video: false, muted: true, camOn: false, tiles: const [CallTile(name: 'Asha Gurung')], onMute: () {}, onCamera: () {}, onEnd: () {}),
+            'chat_unsent' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             'chat' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
@@ -272,6 +280,21 @@ void main() {
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
           if (base == 'gift' || base == 'gift_short') {
             await tester.tap(find.text('Send a gift'));
+          }
+          if (base == 'chat_unsent') {
+            for (var i = 0; i < 4; i++) {
+              await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+              await tester.pump(const Duration(milliseconds: 100));
+            }
+            await tester.enterText(find.byType(EditableText), 'See you at 6');
+            await tester.pump();
+            await tester.tap(find.byTooltip('Send message'));
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(find.text('Not sent. Tap to retry.'), findsOneWidget);
+            ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first)).hideCurrentSnackBar();
+            await tester.pump(const Duration(seconds: 6));
+            await tester.pump(const Duration(seconds: 1));
           }
           if (base.startsWith('search_')) {
             await tester.pump();

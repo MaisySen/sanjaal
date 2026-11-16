@@ -16,6 +16,7 @@
 - Call screen split into a LiveKit-free view so it can be rendered offline: rounded tiles that fill the area, name chips, own preview top right, glass control tray. Rendered with fixture tiles, not a live call.
 - Wallet: balance card, Add coins, Send and Cash out buttons (Add coins and Cash out shown disabled with the honest note), Activity rows with direction icons. Fixture render only. Added docs/GAPS.md listing built features against functional gaps. Added a tap-through widget test for the Create sheet.
 - Live host sheet: raised hands list is one row per person (name, Dismiss, Let speak) under a count header; the stacked layout is kept at large text sizes. Existing callback test passes.
+- Unsent message state: a failed send keeps the bubble with "Not sent. Tap to retry." in a stronger red on white bubbles. Tap-through render test (send with a failing fixture server) asserts the label. Fixture renders can now use a real CC0 photograph from Wikimedia Commons (Billjones94, licence read from the Commons API) kept in /tmp only and never committed.
 - The red logo tile is gone: the header and sign-in show the Devanagari wordmark alone. This is a draft identity, not an approved logo.
 - Checked with flutter analyze and a widget render of the shell (fixture data, not a device). Glass performance on a phone is untested. Other screens are not yet restyled.
 

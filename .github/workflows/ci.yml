@@ -193,6 +193,7 @@ jobs:
         run: |
           set -e
           composer install --no-interaction --prefer-dist --no-progress
+          python3 tests/E2E/native_input_contract.py
           mkdir -p /tmp/e2e && touch /tmp/e2e/db.sqlite .env
           php artisan migrate --force
           php tests/E2E/prepare.php /tmp/e2e
@@ -215,6 +216,7 @@ jobs:
             app/build/screenshots/*.png
             app/build/screenshots/*.mp4
             app/build/screenshots/*.txt
+            app/build/screenshots/*.xml
             /tmp/drive_*.log
           if-no-files-found: warn
       - name: Publish emulator screenshots

@@ -48,6 +48,19 @@ void main() {
     await p.setString('refresh_token', 'local-e2e');
     app.main();
     await _settle(tester, 24);
+    // Synthetic Flutter taps can run behind Android's notification permission
+    // window. Resolve only that expected permission for the throwaway CI app,
+    // and require native window focus before any input/keyboard assertions.
+    final ready = await tester.runAsync(() => http.post(
+      Uri.parse('${const String.fromEnvironment('E2E_TOKEN_BASE')}/e2e/native-tap'),
+      headers: {'Authorization': 'Bearer ${const String.fromEnvironment('E2E_TOKEN')}', 'Content-Type': 'application/json'},
+      body: jsonEncode({'prepare_notifications': true}),
+    ).timeout(const Duration(seconds: 45)));
+    expect(ready?.statusCode, 200, reason: 'CI notification setup must return native focus to the fixture app. See native_window/native_before artifacts.');
+    final nativeReady = jsonDecode(ready!.body) as Map;
+    expect(nativeReady['app_focused'], isTrue);
+    expect(nativeReady['notification_permission_prepared'], isTrue);
+    await tester.pump();
     expect(find.textContaining('Sunrise over Phewa'), findsWidgets);
 
     // The native-input gate runs before screenshot conversion ever swaps the

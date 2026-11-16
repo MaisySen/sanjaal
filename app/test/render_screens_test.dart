@@ -22,7 +22,7 @@ import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
 import 'package:sanjaal/share_post.dart' show SharedPostCard;
-import 'package:sanjaal/feed_page.dart' show SavedPage, FeedPage;
+import 'package:sanjaal/feed_page.dart' show SavedPage, FeedPage, FeedList, FeedListState;
 import 'package:sanjaal/profile_pages.dart' show MePage, EditProfilePage;
 import 'package:sanjaal/stories_page.dart' show StoryViewer;
 import 'package:sanjaal/reels_page.dart' show ReelItem;
@@ -545,6 +545,51 @@ void main() {
       }));
     });
   }
+
+  testWidgets('home pager: swipe moves one post at a time and loads the next page once near the end', (tester) async {
+    final reqs = <String>[];
+    Map<String, dynamic> post(int i) => {'public_id': 'p$i', 'kind': 'post', 'body': 'Post number $i', 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [{'type': 'image', 'url': 'http://fixture.invalid/$i.jpg'}], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': false, 'created_at': '2026-11-16T00:00:00Z'};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: FeedPage(session: s, onCompose: () async {})));
+      Future<void> settle() async {
+        for (var i = 0; i < 5; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 150));
+        }
+      }
+      await settle();
+      double page() => tester.stateList<FeedListState>(find.byType(FeedList)).first.pager.page!;
+      expect(page(), 0.0);
+      expect(find.text('Post number 1'), findsOneWidget);
+      expect(reqs.where((r) => r.contains('cursor')).length, 0);
+      await tester.fling(find.byWidgetPredicate((w) => w is PageView && w.scrollDirection == Axis.vertical), const Offset(0, -150), 2000);
+      await settle();
+      await tester.pump(const Duration(seconds: 1));
+      expect(page(), 1.0, reason: 'one swipe moves exactly one post');
+      await tester.fling(find.byWidgetPredicate((w) => w is PageView && w.scrollDirection == Axis.vertical), const Offset(0, -150), 2000);
+      await settle();
+      await tester.pump(const Duration(seconds: 1));
+      expect(page(), 2.0);
+      await tester.fling(find.byWidgetPredicate((w) => w is PageView && w.scrollDirection == Axis.vertical), const Offset(0, -150), 2000);
+      await settle();
+      await tester.pump(const Duration(seconds: 1));
+      expect(page(), 3.0);
+      expect(reqs.where((r) => r.contains('cursor=c1')).length, 1, reason: 'next page requested once');
+      await tester.pumpWidget(const SizedBox());
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      if (r.url.path.endsWith('/stories')) return http.Response(jsonEncode({'data': <dynamic>[]}), 200, headers: {'content-type': 'application/json'});
+      reqs.add(r.url.toString());
+      final more = r.url.queryParameters['cursor'] == 'c1';
+      return http.Response(jsonEncode({'data': more ? [post(5)] : [post(1), post(2), post(3), post(4)], 'next_cursor': more ? null : 'c1'}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
 
   testWidgets('share to chat: tapping a chat sends the post once; nothing is sent before', (tester) async {
     final calls = <String>[];

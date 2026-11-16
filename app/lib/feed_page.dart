@@ -107,6 +107,7 @@ class FeedListState extends State<FeedList> {
   @override
   void dispose() {
     scroll.dispose();
+    pager.dispose();
     super.dispose();
   }
 
@@ -140,8 +141,49 @@ class FeedListState extends State<FeedList> {
   }
 
   @override
+  final pager = PageController();
+
+  Widget _pager() {
+    return Column(children: [
+      if (widget.header != null) widget.header!,
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: () => load(refresh: true),
+          child: PageView.builder(
+            controller: pager,
+            scrollDirection: Axis.vertical,
+            physics: const AlwaysScrollableScrollPhysics(parent: PageScrollPhysics()),
+            itemCount: posts.length,
+            onPageChanged: (i) {
+              if (i >= posts.length - 3) load();
+            },
+            itemBuilder: (context, i) {
+              final p = posts[i];
+              final hasPhoto = (p['media'] as List).any((m) => (m as Map)['type'] == 'image') && !(p['media'] as List).any((m) => (m as Map)['type'] != 'image');
+              final card = PostCard(
+                key: ValueKey(p['public_id']),
+                session: widget.session,
+                post: p,
+                immersive: true,
+                fill: true,
+                onRemoved: () => setState(() => posts.removeWhere((x) => x['public_id'] == p['public_id'])),
+              );
+              // Room under the page for the floating nav bar.
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 84),
+                child: hasPhoto ? card : SingleChildScrollView(physics: const ClampingScrollPhysics(), child: card),
+              );
+            },
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final hasHeader = widget.header != null;
+    if (widget.immersive && posts.isNotEmpty) return _pager();
     return RefreshIndicator(
       onRefresh: () => load(refresh: true),
       child: ListView.builder(
@@ -184,8 +226,10 @@ class FeedListState extends State<FeedList> {
 }
 
 class PostCard extends StatefulWidget {
-  const PostCard({super.key, required this.session, required this.post, required this.onRemoved, this.immersive = false});
+  const PostCard({super.key, required this.session, required this.post, required this.onRemoved, this.immersive = false, this.fill = false});
   final bool immersive;
+  /// In the pager the photo card fills the page instead of using its own shape.
+  final bool fill;
   final Session session;
   final Map<String, dynamic> post;
   final VoidCallback onRemoved;
@@ -361,9 +405,8 @@ class _PostCardState extends State<PostCard> {
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
-        child: AspectRatio(
-          aspectRatio: 0.8 / (MediaQuery.textScalerOf(context).scale(14) / 14 > 1.15 ? MediaQuery.textScalerOf(context).scale(14) / 14 * 0.9 : 1.0),
-          child: Stack(fit: StackFit.expand, children: [
+        child: _shape(
+          Stack(fit: StackFit.expand, children: [
             GestureDetector(onTap: () => openImage(context, url), child: _photo(url)),
             const IgnorePointer(
               child: DecoratedBox(
@@ -418,6 +461,12 @@ class _PostCardState extends State<PostCard> {
         ),
       ),
     );
+  }
+
+  Widget _shape(Widget child) {
+    if (widget.fill) return SizedBox.expand(child: child);
+    final k = MediaQuery.textScalerOf(context).scale(14) / 14;
+    return AspectRatio(aspectRatio: 0.8 / (k > 1.15 ? k * 0.9 : 1.0), child: child);
   }
 
   Widget _photo(String url) {

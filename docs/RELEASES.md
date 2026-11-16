@@ -15,6 +15,8 @@ Pass 14c: camera capture choices for Story and Reel. Fake-picker widget test onl
 
 Pass 14d: accurate failed-load copy and icons, picker failure handling, compose bar overflow fix, capture tests. Mock and widget tests only; not on a device; no app release.
 
+Pass 14e: Home pager (one post per page) for For you and Following. Widget tests only; not on a device; no app release.
+
 Pass 11: render coverage for About and Search. About text says adding coins is not switched on yet (deletion route kept); privacy claims flagged for grounded review. No app release.
 
 Pass 10: flows test finder import fix (material_ui), large-text layout fixes in room and settings, photo-based feed render check. Widget renders only; not on a device. No app release.

@@ -2,6 +2,7 @@ import 'glass_nav.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'auth_page.dart';
@@ -17,10 +18,14 @@ import 'wallet_page.dart';
 
 void main() {
   registerPhosphorLicense();
+  LicenseRegistry.addLicense(() async* {
+    final text = await rootBundle.loadString('assets/fonts/OFL-NotoSansDevanagari.txt');
+    yield LicenseEntryWithLineBreaks(['Noto Sans Devanagari'], text);
+  });
   runApp(const SanjaalApp());
 }
 
-ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamilyFallback}) {
+ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamilyFallback = const ['NotoDev']}) {
   final light = b == Brightness.light;
   // Near-black surface, white primary actions, quiet greys (reviewed direction, Nov 16 2026).
   final scheme = ColorScheme(

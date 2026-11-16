@@ -217,7 +217,7 @@ void main() {
     final root = Platform.environment['FLUTTER_ROOT'] ?? '';
     final dir = '$root/bin/cache/artifacts/material_fonts';
     await _loadFont('Roboto', ['$dir/Roboto-Regular.ttf', '$dir/Roboto-Medium.ttf', '$dir/Roboto-Bold.ttf']);
-    if (File('/tmp/ndev.ttf').existsSync()) await _loadFont('NotoDev', ['/tmp/ndev.ttf']);
+    await _loadFont('NotoDev', ['assets/fonts/NotoSansDevanagari.ttf']);
     // Generated fixture photo (plain gradient and shapes drawn in code) so feed renders show a photo underlay offline.
     final rec = ui.PictureRecorder();
     final cv = ui.Canvas(rec);

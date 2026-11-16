@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
+import 'package:sanjaal/api.dart' show Session;
+import 'package:sanjaal/refresh_store.dart';
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -62,5 +64,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
     await binding.takeScreenshot('dark_wallet');
+
+    // This runs on Android's real plugin, not the unit-test secure-store mock.
+    // The fixture credential must migrate out of ordinary preferences and let
+    // a fresh Session restore. This is local fixture evidence, not Auth0 proof.
+    expect(p.getString('refresh_token'), isNull);
+    expect(await RefreshStore.read(), 'local-e2e');
+    final restored = Session();
+    await restored.restore();
+    expect(restored.user?['name'], 'Synthetic Member');
+    await restored.logout();
+    expect(await RefreshStore.read(), isNull);
+    expect(p.getString('refresh_token'), isNull);
+    // ignore: avoid_print
+    print('Secure storage migration, new-session restore and logout passed on Android');
   });
 }

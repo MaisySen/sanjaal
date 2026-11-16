@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 6: chat bubbles
+
+- Received bubbles are white with a hairline border, sent bubbles keep the warm tint, corners are asymmetric toward the sender. Better contrast in light and dark. Checked with flutter analyze and widget renders; not on a device.
+
 ## Redesign pass 5: room screen
 
 - Room: LIVE tag and listener count on one line (no more wrapped status), stage as large avatar tiles with a speaking ring and mic state, gift in the top bar, mute button beside the message field, Raise hand kept as a labelled button. Same controls and callbacks as before. Checked with flutter analyze and widget renders; not on a device.

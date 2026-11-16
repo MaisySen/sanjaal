@@ -558,7 +558,11 @@ class _ChatPageState extends State<ChatPage> {
                               margin: const EdgeInsets.symmetric(vertical: 3),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                              decoration: BoxDecoration(color: mine ? scheme.primaryContainer : scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+                              decoration: BoxDecoration(
+                                color: mine ? scheme.primaryContainer : scheme.surfaceContainerLowest,
+                                border: mine ? null : Border.all(color: scheme.outlineVariant),
+                                borderRadius: BorderRadius.only(topLeft: const Radius.circular(16), topRight: const Radius.circular(16), bottomLeft: Radius.circular(mine ? 16 : 4), bottomRight: Radius.circular(mine ? 4 : 16)),
+                              ),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                 if (m['reply_to'] is Map)

@@ -189,7 +189,7 @@ class _VoiceBubbleState extends State<VoiceBubble> {
         IconButton(onPressed: _toggle, icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36, color: scheme.primary)),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2)),
+            LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2), backgroundColor: scheme.onSurface.withOpacity(0.28), color: scheme.primary),
             const SizedBox(height: 4),
             Text(_total == Duration.zero ? 'Voice message' : '${_clock(_playing || _pos > Duration.zero ? _pos : _total)} / ${_clock(_total)}', style: const TextStyle(fontSize: 11)),
           ]),

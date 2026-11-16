@@ -1,5 +1,9 @@
 # Changelog
 
+## Voice bubble contrast
+
+- Progress track in voice bubbles uses a visible track colour (was faint in light mode).
+
 ## Emulator text entry finder
 
 - Flow test targets the single visible text field without a first-element finder, which failed inside the Flutter finder.

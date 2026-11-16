@@ -2,6 +2,7 @@ import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'profile_pages.dart';
+import 'post_page.dart';
 import 'ui.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -24,7 +25,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Future<void> _load() async {
     try {
       final j = await widget.session.call('GET', '/notifications') as Map<String, dynamic>;
-      if (mounted) setState(() => items = (j['data'] as List).cast<Map<String, dynamic>>());
+      if (mounted) setState(() { items = (j['data'] as List).cast<Map<String, dynamic>>(); error = null; });
     } on ApiError catch (e) {
       if (mounted) setState(() => error = e.message);
     }
@@ -58,7 +59,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
               leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: PhIcon(icon, color: color, size: 20)),
               title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(type == 'like' && (n['text'] ?? '').toString().isNotEmpty ? '${n['text']}  ·  ${ago(n['created_at'].toString())}' : ago(n['created_at'].toString())),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: n['actor'].toString()))),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => n['post_id'] is String
+                  ? PostPage(session: widget.session, postId: n['post_id'] as String)
+                  : UserProfilePage(session: widget.session, username: n['actor'].toString()))),
             );
           },
         ),

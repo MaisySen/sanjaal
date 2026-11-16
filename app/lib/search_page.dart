@@ -32,19 +32,22 @@ class _SearchPageState extends State<SearchPage> {
 
   void _changed(String v) {
     _debounce?.cancel();
-    if (v.trim().isEmpty) {
-      setState(() {
-        users = [];
-        tags = [];
-        searched = false;
-        error = null;
-      });
-      return;
-    }
+    // Invalidate at edit time, not after the next debounce. A slow response
+    // for the old query must not repopulate cleared or newly edited results.
+    ++_seq;
+    setState(() {
+      users = [];
+      tags = [];
+      searched = false;
+      error = null;
+      loading = v.trim().isNotEmpty;
+    });
+    if (v.trim().isEmpty) return;
     _debounce = Timer(const Duration(milliseconds: 350), _run);
   }
 
   Future<void> _run() async {
+    _debounce?.cancel();
     final q = input.text.trim();
     if (q.isEmpty) return;
     final seq = ++_seq;
@@ -81,7 +84,7 @@ class _SearchPageState extends State<SearchPage> {
         ),
       ),
       body: error != null
-          ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!)
+          ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!, action: OutlinedButton(onPressed: _run, child: Text(t_('Try again'))))
           : !searched
               ? const EmptyState(icon: Ph.search, title: 'Find people to follow', hint: 'Type a name, a username or a hashtag.')
               : users.isEmpty && tags.isEmpty

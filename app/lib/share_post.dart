@@ -92,9 +92,10 @@ class _ShareSheetState extends State<_ShareSheet> {
 
 /// The card shown in a chat bubble for a shared post. A missing preview (deleted, or the author is blocked) says so.
 class SharedPostCard extends StatelessWidget {
-  const SharedPostCard({super.key, required this.post, this.onOpenAuthor});
+  const SharedPostCard({super.key, required this.post, this.onOpenAuthor, this.onOpenPost});
   final Map<String, dynamic>? post;
   final void Function(String username)? onOpenAuthor;
+  final void Function(String postId)? onOpenPost;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +118,7 @@ class SharedPostCard extends StatelessWidget {
     final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
     final img = p['image_url'] as String?;
     return GestureDetector(
-      onTap: onOpenAuthor == null ? null : () => onOpenAuthor!(author['username'].toString()),
+      onTap: onOpenPost != null ? () => onOpenPost!(p['public_id'].toString()) : onOpenAuthor == null ? null : () => onOpenAuthor!(author['username'].toString()),
       child: Container(
         width: 230,
         margin: const EdgeInsets.only(bottom: 4),

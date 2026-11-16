@@ -20,6 +20,11 @@ class PostgresRaceTest extends TestCase
             $this->markTestSkipped('Set PG_RACE=1 and DB_CONNECTION=pgsql against a throwaway local database.');
         }
         parent::setUp();
+        // Fail closed before destructive setup, including a DB_URL override.
+        $connection = DB::connection();
+        $this->assertSame('pgsql', $connection->getDriverName());
+        $this->assertContains($connection->getConfig('host'), ['127.0.0.1', 'localhost', '::1']);
+        $this->assertMatchesRegularExpression('/(?:_test$|^sjrace_)/', $connection->getDatabaseName());
         // Fresh schema for each test. No rollback afterwards: other processes commit real rows here.
         $this->artisan('migrate:fresh', ['--force' => true]);
     }

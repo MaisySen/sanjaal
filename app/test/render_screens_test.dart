@@ -17,6 +17,7 @@ import 'package:sanjaal/ph.dart' show PhIcon, PhData;
 import 'package:sanjaal/calls_page.dart' show CallsPage, IncomingCallPage;
 import 'package:sanjaal/call_page.dart' show CallView, CallTile;
 import 'package:sanjaal/chat_pages.dart' show ChatPage, ChatsPage, GroupInfoPage;
+import 'package:sanjaal/post_page.dart';
 import 'package:sanjaal/notifications_page.dart' show NotificationsPage;
 import 'package:sanjaal/settings_page.dart' show SettingsPage;
 import 'package:sanjaal/auth_page.dart' show AuthPage;
@@ -142,6 +143,10 @@ Future<http.Response> _reply(http.Request r) async {
   if (p == '/api/v1/users/asha') {
     return _json({'user': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 2, 'followers_count': 1240, 'following_count': 87, 'following': false, 'is_me': false}});
   }
+  if (p.endsWith('/posts/fixture')) {
+    if (_communicationState.contains('unavailable')) return http.Response(jsonEncode({'message': 'Not found'}), 404);
+    return _json({'post': {'public_id': 'fixture', 'kind': 'post', 'body': 'Evening light on the ridge. Tea after the walk. Where should we meet next Saturday?', 'media': [{'type': 'image', 'url': 'http://fixture.invalid/a.jpg'}], 'author': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha'}, 'likes_count': 342, 'comments_count': 31, 'created_at': _ago(300)}});
+  }
   if (p.endsWith('/posts') && r.url.queryParameters['kind'] == 'reel') {
     if (_communicationState.contains('reels_error')) return http.Response(jsonEncode({'message': 'Could not load reels. Try again.'}), 503);
     return _json({'data': _communicationState.contains('shell_reel') ? [
@@ -251,7 +256,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['post_detail', 'post_detail_small_big', 'post_unavailable_small_big', 'search_error_small_big', 'poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -270,6 +275,7 @@ void main() {
           final theme = buildTheme(b, fontFamily: 'Roboto', fontFamilyFallback: ['NotoDev']);
           final base = name.replaceAll('chat_shared', 'chat').replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '').replaceAll('_small', '');
           final Widget home = switch (base) {
+            'post_detail' || 'post_unavailable' => PostPage(session: s, postId: 'fixture'),
             'wallet' => WalletPage(session: s),
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
             'rooms' || 'rooms_empty' || 'rooms_error' => RoomsPage(session: s),

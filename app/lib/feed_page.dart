@@ -554,8 +554,8 @@ class _PostCardState extends State<PostCard> {
         onTap: () => openImage(context, url),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 440, minHeight: 160),
-          child: Image.network(
-            url,
+          child: Image(
+            image: (feedImageProvider ?? NetworkImage.new)(url),
             width: double.infinity,
             fit: BoxFit.cover,
             loadingBuilder: (c, child, prog) => prog == null ? child : SizedBox(height: 240, child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.outline))),

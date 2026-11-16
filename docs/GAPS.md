@@ -14,6 +14,7 @@ Updated November 17, 2026. Source, deployed API, published APK, fixture tests an
 | Media lifecycle | Route/tab/background visibility gating for feed/reels/stories, story hold and async-exit guards; real controllers tested with fake video platform | Physical codec/audio, real file loading, interruptions and native teardown still unverified. |
 | Polls | Source-only single-choice polls: question, 2-4 options, aggregate results, change/remove own vote; capability-gated composer | Not deployed, no published APK or device evidence. Local API, PostgreSQL race and widget checks pass. |
 | Prior roadmap additions | Earlier roadmap messages named Roman Nepali typing, Global Nepali Hour, Blood Connect and festival greetings | These are not implemented in the current source. Prior roadmap wording is not proof that any competitor currently supports them. Requirements, safe data/consent and current content provenance still need design and implementation. |
+| Discovery | Search response ordering/retry; post notifications and shared cards open current post, including unavailable/error recovery in source and widget checks | Candidate only, not a published app or genuine device result. |
 | Offline states | Error/retry lists and offline banner; unsent-message handling | Physical network transitions/recovery and polish need review. |
 | Push | Client registration and server sender code | Real push delivery and production configuration readiness unverified. |
 | Language | English and Nepali strings | Native Nepali review needed. |

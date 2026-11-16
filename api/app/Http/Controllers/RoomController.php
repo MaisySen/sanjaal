@@ -16,10 +16,10 @@ class RoomController extends Controller
 {
     private const MAX_LIVE_PER_HOST = 1;
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $rows = DB::table('rooms')->join('users', 'users.id', '=', 'rooms.host_id')
-            ->where('rooms.status', 'live')->orderByDesc('rooms.id')->limit(30)
+            ->where('rooms.status', 'live')->whereNotIn('rooms.host_id', \App\Http\Resources\Present::hiddenAuthors([$request->user()->id]))->orderByDesc('rooms.id')->limit(30)
             ->get(['rooms.public_id', 'rooms.title', 'rooms.created_at', 'users.username as host_username', 'users.name as host_name']);
         $rows->transform(function ($r) {
             $r->host_name = User::safeName($r->host_name, $r->host_username);
@@ -56,6 +56,7 @@ class RoomController extends Controller
             return response()->json(['message' => 'This room has ended.'], 410);
         }
         $me = $request->user();
+        abort_if($this->cannotContact($me, $room->host_id), 404);
 
         return response()->json($this->join($me, $id, $room->host_id === $me->id) + ['room_id' => $id, 'title' => $room->title, 'is_host' => $room->host_id === $me->id, 'host_name' => User::safeName(User::find($room->host_id)?->name, User::find($room->host_id)?->username), 'host_identity' => 'u'.$room->host_id]);
     }
@@ -89,6 +90,7 @@ class RoomController extends Controller
             return response()->json(['message' => 'This room has ended.'], 410);
         }
         $me = $request->user();
+        abort_if($this->cannotContact($me, $room->host_id), 404);
         $host = User::findOrFail($room->host_id);
         try {
             $gift = Wallet::gift($me, $host, $data['gift'], null, $room->id);

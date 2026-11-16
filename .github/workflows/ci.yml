@@ -9,6 +9,17 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015
+        env:
+          POSTGRES_USER: sanjaal
+          POSTGRES_PASSWORD: local-fixture-only
+          POSTGRES_DB: sanjaal_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sanjaal -d sanjaal_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     defaults:
       run:
         working-directory: api
@@ -17,7 +28,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, gd
+          extensions: mbstring, pdo_sqlite, sqlite3, pdo_pgsql, bcmath, gd
           coverage: none
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: touch .env && php artisan test
@@ -31,6 +42,22 @@ jobs:
           php artisan route:clear && php artisan event:clear
         env:
           APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+
+      - name: PostgreSQL 18 API and concurrent invariant checks (throwaway service only)
+        run: |
+          php artisan test
+          php artisan route:cache && php artisan event:cache
+          php artisan test
+          php artisan route:clear && php artisan event:clear
+          PG_RACE=1 php artisan test tests/Concurrency
+        env:
+          APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: sanjaal_test
+          DB_USERNAME: sanjaal
+          DB_PASSWORD: local-fixture-only
 
   app:
     runs-on: ubuntu-latest
@@ -170,7 +197,7 @@ jobs:
           php artisan migrate --force
           php tests/E2E/prepare.php /tmp/e2e
           echo "::add-mask::$(cat /tmp/e2e/token.txt)"
-          E2E_JWKS_FILE=/tmp/e2e/jwks.json nohup php -S 0.0.0.0:8000 -t public tests/E2E/server.php > /tmp/e2e/server.log 2>&1 &
+          E2E_NATIVE_INPUT=1 E2E_JWKS_FILE=/tmp/e2e/jwks.json nohup php -S 0.0.0.0:8000 -t public tests/E2E/server.php > /tmp/e2e/server.log 2>&1 &
           sleep 3
           curl -s -o /dev/null -w "unauthenticated /me status %{http_code}\n" http://127.0.0.1:8000/api/v1/auth/me -H 'Accept: application/json'
       - name: Smoke test on emulator
@@ -187,6 +214,8 @@ jobs:
           path: |
             app/build/screenshots/*.png
             app/build/screenshots/*.mp4
+            app/build/screenshots/*.txt
+            /tmp/drive_*.log
           if-no-files-found: warn
       - name: Publish emulator screenshots
         if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'

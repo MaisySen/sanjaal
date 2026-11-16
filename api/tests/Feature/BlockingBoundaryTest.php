@@ -74,4 +74,19 @@ class BlockingBoundaryTest extends TestCase
         $this->deleteJson("/api/v1/posts/$id", [], $ha)->assertOk();
         $this->getJson('/api/v1/notifications', $ha)->assertOk()->assertJsonCount(0, 'data');
     }
+    public function test_block_hides_hosted_rooms_and_stops_join_and_gift(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        config(['services.livekit.url' => 'wss://fixture.invalid', 'services.livekit.key' => 'fixture-key', 'services.livekit.secret' => str_repeat('x', 40)]);
+        $id = (string) \Illuminate\Support\Str::uuid();
+        DB::table('rooms')->insert(['public_id' => $id, 'host_id' => $a->id, 'title' => 'A room', 'status' => 'live', 'created_at' => now(), 'updated_at' => now()]);
+        $this->getJson('/api/v1/rooms', $hb)->assertOk()->assertJsonCount(1, 'data');
+        $this->postJson('/api/v1/users/asha/block', [], $hb)->assertOk();
+        $this->getJson('/api/v1/rooms', $hb)->assertOk()->assertJsonCount(0, 'data');
+        $this->postJson("/api/v1/rooms/$id/join", [], $hb)->assertNotFound();
+        $this->postJson("/api/v1/rooms/$id/gifts", ['gift' => 'rose'], $hb)->assertNotFound();
+        $this->assertDatabaseCount('gifts', 0);
+    }
+
 }

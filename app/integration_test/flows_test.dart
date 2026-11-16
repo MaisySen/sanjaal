@@ -1,6 +1,9 @@
 // Interaction run on an Android emulator against a LOCAL copy of this API with a synthetic member
 // (api/tests/E2E). Real taps and typing, real HTTP to the local API. It is not evidence about Auth0,
 // the live service, LiveKit, push or media. Nothing here is a real account.
+import 'dart:convert';
+import 'dart:ui' as ui;
+import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
@@ -112,15 +115,24 @@ void main() {
       await tester.tap(find.text('Poll'));
       await _settle(tester, 2);
       await tester.scrollUntilVisible(find.text('Option 2'), 120, scrollable: find.byType(Scrollable).first);
-      await _type(tester, find.widgetWithText(TextField, 'Option 2'), 'Sunday');
-      await _settle(tester, 2);
-      // Text injected through the integration channel can leave the real IME
-      // closed. Explicitly request it and wait on platform-reported geometry.
-      await SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+      // Use a native Android pointer for this gate, not the synthetic text
+      // channel. This bridge exists only in the throwaway CI fixture router.
+      final field = find.widgetWithText(TextField, 'Option 2');
+      final point = tester.getCenter(field) * tester.view.devicePixelRatio;
+      final native = await tester.runAsync(() => http.post(
+        Uri.parse('${const String.fromEnvironment('E2E_TOKEN_BASE')}/e2e/native-tap'),
+        headers: {'Authorization': 'Bearer ${const String.fromEnvironment('E2E_TOKEN')}', 'Content-Type': 'application/json'},
+        body: jsonEncode({'x': point.dx.round(), 'y': point.dy.round()}),
+      ).timeout(const Duration(seconds: 20)));
+      expect(native?.statusCode, 200, reason: 'Native fixture tap must execute, not silently fall back to a mock.');
       for (var i = 0; i < 30 && tester.view.viewInsets.bottom == 0; i++) {
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
         await tester.pump();
       }
+      // ignore: avoid_print
+      print('Native IME geometry: test=${tester.view.viewInsets.bottom}, platform=${ui.PlatformDispatcher.instance.implicitView?.viewInsets.bottom}, mocked=${binding.testTextInput.isRegistered}');
+      expect(binding.testTextInput.isRegistered, isFalse);
+      expect(tester.state<EditableTextState>(find.descendant(of: field, matching: find.byType(EditableText))).widget.focusNode.hasFocus, isTrue, reason: 'The native pointer must focus Option 2, not another control.');
       final inset = tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
       expect(inset, greaterThan(0), reason: 'This check requires the native emulator keyboard, not only synthetic text input.');
       final remove = find.widgetWithText(TextButton, 'Remove poll');

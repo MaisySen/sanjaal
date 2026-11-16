@@ -12,6 +12,9 @@ import 'reactions.dart';
 import 'stories_page.dart';
 import 'ui.dart';
 
+/// Test seam: lets widget tests supply a local image instead of a network fetch.
+ImageProvider Function(String url)? feedImageProvider;
+
 /// Home tab: For you and Following, with search and notifications on top.
 class FeedPage extends StatelessWidget {
   const FeedPage({super.key, required this.session, required this.onCompose});
@@ -37,6 +40,7 @@ class FeedPage extends StatelessWidget {
             key: const PageStorageKey('forYou'),
             session: session,
             query: const {'kind': 'post'},
+            immersive: true,
             header: StoriesBar(session: session),
             emptyIcon: Ph.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
@@ -46,6 +50,7 @@ class FeedPage extends StatelessWidget {
             key: const PageStorageKey('following'),
             session: session,
             query: const {'scope': 'following', 'kind': 'post'},
+            immersive: true,
             emptyIcon: Ph.group_add_outlined,
             emptyTitle: 'Follow people to fill this tab',
             emptyHint: 'Use search to find members and tap Follow.',
@@ -66,7 +71,9 @@ class FeedList extends StatefulWidget {
     this.emptyIcon = Ph.dynamic_feed_outlined,
     this.emptyTitle = 'No posts yet',
     this.emptyHint,
+    this.immersive = false,
   });
+  final bool immersive;
   final Session session;
   final Map<String, String> query;
   final Widget? header;
@@ -161,6 +168,7 @@ class FeedListState extends State<FeedList> {
             key: ValueKey(p['public_id']),
             session: widget.session,
             post: p,
+            immersive: widget.immersive,
             onRemoved: () => setState(() => posts.removeWhere((x) => x['public_id'] == p['public_id'])),
           );
         },
@@ -170,7 +178,8 @@ class FeedListState extends State<FeedList> {
 }
 
 class PostCard extends StatefulWidget {
-  const PostCard({super.key, required this.session, required this.post, required this.onRemoved});
+  const PostCard({super.key, required this.session, required this.post, required this.onRemoved, this.immersive = false});
+  final bool immersive;
   final Session session;
   final Map<String, dynamic> post;
   final VoidCallback onRemoved;
@@ -243,6 +252,9 @@ class _PostCardState extends State<PostCard> {
     final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     final single = images.length == 1;
+    if (widget.immersive && images.isNotEmpty && videos.isEmpty) {
+      return _immersive(images, name, body, mine, scheme);
+    }
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)))),
       padding: const EdgeInsets.only(top: 14, bottom: 6),
@@ -297,6 +309,102 @@ class _PostCardState extends State<PostCard> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _immersive(List<Map<String, dynamic>> images, String name, String body, bool mine, ColorScheme scheme) {
+    final p = widget.post;
+    const shadow = [Shadow(blurRadius: 6, color: Colors.black54)];
+    Widget plate(Widget child) => Container(
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.38), borderRadius: BorderRadius.circular(28)),
+          child: child,
+        );
+    Widget railItem(String icon, String label, VoidCallback onTap) => plate(InkWell(
+          borderRadius: BorderRadius.circular(28),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              PhIcon(icon, size: 28, color: Colors.white),
+              const SizedBox(height: 2),
+              Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ]),
+          ),
+        ));
+    final url = images.first['url'] as String;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: AspectRatio(
+          aspectRatio: 4 / 5,
+          child: Stack(fit: StackFit.expand, children: [
+            GestureDetector(onTap: () => openImage(context, url), child: _photo(url)),
+            const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.0, 0.45, 1.0], colors: [Color(0x00000000), Color(0x00000000), Color(0xCC000000)])),
+              ),
+            ),
+            if (images.length > 1) Positioned(top: 12, right: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)), child: Text('+${images.length - 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))),
+            Positioned(
+              right: 8,
+              bottom: 16,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                plate(ReactionButton(session: widget.session, post: p, dark: true)),
+                const SizedBox(height: 8),
+                railItem('chat-teardrop', '$comments', _comments),
+                if (!mine) ...[
+                  const SizedBox(height: 8),
+                  railItem('gift', t_('Gift'), () => showGiftSheet(context, widget.session, p['public_id'] as String, author['username'].toString())),
+                ],
+              ]),
+            ),
+            Positioned(
+              left: 14,
+              right: 76,
+              bottom: 14,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Row(children: [
+                  GestureDetector(onTap: _openAuthor, child: Avatar(user: author, radius: 18)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _openAuthor,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15, shadows: shadow)),
+                        Text(ago((p['created_at'] ?? '').toString()), style: const TextStyle(color: Colors.white70, fontSize: 12, shadows: shadow)),
+                      ]),
+                    ),
+                  ),
+                  SizedBox(width: 36, height: 36, child: PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    iconSize: 20,
+                    icon: const PhIcon('dots-three', color: Colors.white),
+                    onSelected: _menu,
+                    itemBuilder: (_) => mine
+                        ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                        : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+                  )),
+                ]),
+                if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.3, shadows: shadow))),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _photo(String url) {
+    final override = feedImageProvider;
+    if (override != null) return Image(image: override(url), fit: BoxFit.cover, width: double.infinity, height: double.infinity);
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      loadingBuilder: (c, child, prog) => prog == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      errorBuilder: (c, e, s) => const ColoredBox(color: Color(0xFF16181D), child: Center(child: Text('Image could not load', style: TextStyle(color: Colors.white70)))),
     );
   }
 

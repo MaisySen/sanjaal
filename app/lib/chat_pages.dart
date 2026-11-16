@@ -600,7 +600,7 @@ class _ChatPageState extends State<ChatPage> {
                                   ),
                                 if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String),
                                 if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? scheme.error : (mine ? scheme.onPrimary.withValues(alpha: 0.6) : scheme.onSurfaceVariant))),
+                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.error : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
                               ])),
                             ),
                           ),

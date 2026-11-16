@@ -28,7 +28,7 @@ import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
 import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
 import 'package:sanjaal/main.dart' show buildTheme, HomeShell;
-import 'package:sanjaal/feed_page.dart' show ComposePage;
+import 'package:sanjaal/feed_page.dart' show ComposePage, feedImageProvider;
 import 'package:sanjaal/wallet_page.dart' show WalletPage;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -123,6 +123,17 @@ Future<http.Response> _reply(http.Request r) async {
   if (p == '/api/v1/users/asha') {
     return _json({'user': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 2, 'followers_count': 1240, 'following_count': 87, 'following': false, 'is_me': false}});
   }
+  if (p.endsWith('/posts') && r.url.queryParameters['username'] == null && r.method == 'GET') {
+    Map<String, dynamic> fp(String id, String body, int likes, List<dynamic> media) => {
+          'public_id': id, 'kind': 'post', 'body': body, 'media': media, 'hashtags': <dynamic>[],
+          'author': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'avatar_url': null},
+          'likes_count': likes, 'comments_count': 31, 'liked': false, 'my_reaction': null, 'reactions': {'like': likes}, 'created_at': _ago(300),
+        };
+    return _json({'data': [
+      fp('f1', 'Evening light on the ridge. Tea after the walk.', 342, [{'type': 'image', 'url': 'http://fixture.invalid/a.jpg'}]),
+      fp('f2', 'Rehearsal tonight, come early.', 54, <dynamic>[]),
+    ], 'next_cursor': null});
+  }
   if (p.endsWith('/posts') && r.url.queryParameters['username'] == 'asha') {
     Map<String, dynamic> post(String id, String body, int likes) => {
           'public_id': id, 'kind': 'post', 'body': body, 'media': <dynamic>[], 'hashtags': ['pokhara'],
@@ -194,6 +205,15 @@ void main() {
     final dir = '$root/bin/cache/artifacts/material_fonts';
     await _loadFont('Roboto', ['$dir/Roboto-Regular.ttf', '$dir/Roboto-Medium.ttf', '$dir/Roboto-Bold.ttf']);
     if (File('/tmp/ndev.ttf').existsSync()) await _loadFont('NotoDev', ['/tmp/ndev.ttf']);
+    // Generated fixture photo (plain gradient and shapes drawn in code) so feed renders show a photo underlay offline.
+    final rec = ui.PictureRecorder();
+    final cv = ui.Canvas(rec);
+    const w = 800.0, h = 1000.0;
+    cv.drawRect(const ui.Rect.fromLTWH(0, 0, w, h), ui.Paint()..shader = ui.Gradient.linear(const ui.Offset(0, 0), const ui.Offset(0, h), const [Color(0xFF16254F), Color(0xFFD9708A), Color(0xFFF2B77A)], const [0.0, 0.6, 1.0]));
+    cv.drawPath(ui.Path()..moveTo(0, 760)..lineTo(260, 430)..lineTo(420, 620)..lineTo(580, 380)..lineTo(800, 700)..lineTo(800, h)..lineTo(0, h)..close(), ui.Paint()..color = const Color(0xFF1B1F2A));
+    final img = await rec.endRecording().toImage(w.toInt(), h.toInt());
+    final bytes = (await img.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
+    feedImageProvider = (url) => MemoryImage(bytes);
     await _loadFont('MaterialIcons', ['$dir/MaterialIcons-Regular.otf']);
   });
 

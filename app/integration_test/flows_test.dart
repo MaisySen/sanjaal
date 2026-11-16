@@ -73,7 +73,7 @@ void main() {
     await step('s1', () async {
       await tester.tap(find.byTooltip('Post'));
       await _until(tester, find.byType(TextField));
-      await _type(tester, find.byType(TextField).first, 'Posted from the emulator run #sanjaal');
+      await _type(tester, find.byType(TextField), 'Posted from the emulator run #sanjaal');
       await tester.pump();
       await binding.takeScreenshot('flow3_compose');
       await tester.tap(find.widgetWithText(FilledButton, 'Post'));
@@ -86,12 +86,12 @@ void main() {
       await _settle(tester, 4);
       await tester.tap(find.text('New chat'));
       await _settle(tester, 3);
-      await _type(tester, find.byType(TextField).first, 'asha');
+      await _type(tester, find.byType(TextField), 'asha');
       await _settle(tester, 4);
       await binding.takeScreenshot('flow5_find_member');
       await tester.tap(find.text('Asha Gurung').first);
       await _settle(tester, 6);
-      await _type(tester, find.byType(TextField).last, 'Hello from the emulator run');
+      await _type(tester, find.byType(TextField), 'Hello from the emulator run');
       await tester.pump();
       await tester.tap(find.byIcon(Icons.send));
       await _settle(tester, 6);

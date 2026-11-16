@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator text entry finder
+
+- Flow test targets the single visible text field without a first-element finder, which failed inside the Flutter finder.
+
 ## Emulator typing helper
 
 - Flow test types through the text input channel and prints a short stack for failed steps.

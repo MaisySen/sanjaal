@@ -575,11 +575,10 @@ class _ChatPageState extends State<ChatPage> {
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                               decoration: BoxDecoration(
-                                color: mine ? scheme.primaryContainer : scheme.surfaceContainerLowest,
-                                border: mine ? null : Border.all(color: scheme.outlineVariant),
-                                borderRadius: BorderRadius.only(topLeft: const Radius.circular(16), topRight: const Radius.circular(16), bottomLeft: Radius.circular(mine ? 16 : 4), bottomRight: Radius.circular(mine ? 4 : 16)),
+                                color: mine ? scheme.primary : scheme.surfaceContainerHigh,
+                                borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
                               ),
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              child: DefaultTextStyle.merge(style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                 if (m['reply_to'] is Map)
                                   Container(
@@ -601,8 +600,8 @@ class _ChatPageState extends State<ChatPage> {
                                   ),
                                 if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String),
                                 if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? scheme.error : null)),
-                              ]),
+                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? scheme.error : (mine ? scheme.onPrimary.withValues(alpha: 0.6) : scheme.onSurfaceVariant))),
+                              ])),
                             ),
                           ),
                         );
@@ -637,9 +636,9 @@ class _ChatPageState extends State<ChatPage> {
               else
               Row(children: [
                 IconButton(onPressed: _attach, icon: const PhIcon('image')),
-                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder()))),
+                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
                 IconButton(onPressed: () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
-                IconButton(onPressed: _send, icon: const PhIcon('paper-plane-tilt-fill')),
+                IconButton.filled(onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
               ]),
             ]),
           ),

@@ -6,6 +6,7 @@
 - Icons: Material icons replaced by Phosphor Icons (MIT, notice added to the licences page and docs/THIRD_PARTY.md). New dependency flutter_svg.
 - Navigation: the bottom bar is now a floating, blurred glass bar; content scrolls under it. The blur falls back to a solid fill when high contrast is on (the closest Flutter flag; not the iOS Reduce Transparency setting).
 - Theme: near-black surface, white primary buttons, 14 px control radius; a matching light theme. Default mode is dark (a user choice in Settings still wins).
+- Chat thread: outgoing bubbles white with dark text, incoming grey, 20/6 px corners, pill composer with a white send button. Widget render of a fixture only.
 - The red logo tile is gone: the header and sign-in show the Devanagari wordmark alone. This is a draft identity, not an approved logo.
 - Checked with flutter analyze and a widget render of the shell (fixture data, not a device). Glass performance on a phone is untested. Other screens are not yet restyled.
 

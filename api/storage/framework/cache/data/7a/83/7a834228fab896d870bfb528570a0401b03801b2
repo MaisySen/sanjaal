@@ -1,0 +1,1 @@
+1794837594a:5:{s:3:"iss";s:33:"https://tenant.example.auth0.com/";s:3:"aud";s:16:"https://api.test";s:3:"sub";s:19:"auth0|e2e-synthetic";s:3:"iat";i:1794836733;s:3:"exp";i:1794839743;}

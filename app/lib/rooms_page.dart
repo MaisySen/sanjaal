@@ -495,7 +495,7 @@ class RoomView extends StatelessWidget {
               ]))),
               Divider(height: 1, color: scheme.outlineVariant),
               _fx(context, 1, messages.isEmpty
-                    ? const EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')
+                    ? (_large(context) ? const EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.') : const SingleChildScrollView(child: EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')))
                     : ListView.builder(
                         reverse: !_large(context),
                         shrinkWrap: _large(context),

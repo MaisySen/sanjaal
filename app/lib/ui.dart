@@ -96,6 +96,17 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Open original': 'पहिलेको खोल्नुहोस्',
+  'Prepare a new post': 'नयाँ पोस्ट तयार गर्नुहोस्',
+  'Prepare a new story': 'नयाँ स्टोरी तयार गर्नुहोस्',
+  'Start a separate upload?': 'छुट्टै अपलोड सुरु गर्ने?',
+  'Prepare new upload': 'नयाँ अपलोड तयार गर्नुहोस्',
+  'The earlier attempt may already be posted. Check it first to avoid a duplicate. Your current draft will be kept.': 'पहिलेको प्रयास पोस्ट भइसकेको हुन सक्छ। दोहोरिन नदिन पहिले जाँच्नुहोस्। तपाईंको हालको मस्यौदा सुरक्षित रहनेछ।',
+  'This draft was already shared with different content.': 'यो मस्यौदा फरक सामग्रीसहित पहिले नै साझा भएको छ।',
+  'The original upload was removed or expired.': 'पहिलेको अपलोड हटाइएको छ वा म्याद सकिएको छ।',
+  'Upload interrupted. Your draft is kept. Retry to check the original result.': 'अपलोड रोकियो। मस्यौदा सुरक्षित छ। पहिलेको नतिजा जाँच्न फेरि प्रयास गर्नुहोस्।',
+  'The upload result is unknown. Check your posts or stories before sharing again.': 'अपलोडको नतिजा थाहा भएन। फेरि साझा गर्नुअघि आफ्ना पोस्ट वा स्टोरी जाँच्नुहोस्।',
+  'The original story was removed or expired.': 'पहिलेको स्टोरी हटाइएको छ वा म्याद सकिएको छ।',
   'Disappears after 24 hours': '२४ घण्टापछि हराउँछ',
   'Preview': 'पूर्वावलोकन',
   'Your story': 'तपाईंको स्टोरी',

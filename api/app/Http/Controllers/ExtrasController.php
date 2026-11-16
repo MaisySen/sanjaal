@@ -88,22 +88,27 @@ class ExtrasController extends Controller
 
     public function storeStory(Request $request): JsonResponse
     {
-        $request->validate([
+        $data = $request->validate([
+            'upload_intent' => \App\Support\UploadIntent::RULE,
             'media' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,mp4,mov', 'max:25600'],
             'caption' => ['nullable', 'string', 'max:200'],
         ]);
         $file = $request->file('media');
-        $blob = (string) Str::uuid();
-        $mime = $file->getMimeType();
-        \App\Support\MediaStore::putFile($blob, $file);
-        $pid = (string) Str::uuid();
-        DB::table('stories')->insert([
-            'public_id' => $pid, 'user_id' => $request->user()->id, 'media_id' => $blob, 'media_mime' => $mime,
-            'caption' => $request->input('caption'), 'expires_at' => now()->addHours(24),
-            'created_at' => now(), 'updated_at' => now(),
-        ]);
-
-        return response()->json(['story' => self::story(DB::table('stories')->where('public_id', $pid)->first(), false)], 201);
+        $caption = trim($data['caption'] ?? '');
+        return \App\Support\UploadIntent::run($request, 'story', \App\Support\UploadIntent::fingerprint([$caption], [$file]),
+            function (bool $keyed) use ($request, $file, $caption) {
+                $blob = (string) Str::uuid();
+                \App\Support\MediaStore::putFile($blob, $file, $keyed);
+                $pid = (string) Str::uuid();
+                DB::table('stories')->insert([
+                    'public_id' => $pid, 'user_id' => $request->user()->id, 'media_id' => $blob, 'media_mime' => $file->getMimeType(),
+                    'caption' => $caption === '' ? null : $caption, 'expires_at' => now()->addHours(24), 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                return $pid;
+            }, function (string $id) use ($request) {
+                $story = DB::table('stories')->where('public_id', $id)->where('user_id', $request->user()->id)->where('expires_at', '>', now())->first();
+                return $story ? self::story($story, false) : null;
+            });
     }
 
     public function viewStory(Request $request, string $id): JsonResponse

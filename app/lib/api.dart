@@ -35,6 +35,40 @@ class ApiError implements Exception {
   String toString() => message;
 }
 
+/// Stable per-draft key, never an account credential.
+String newUploadIntent() => List.generate(24, (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+
+class UploadError extends ApiError {
+  UploadError(String message, {int? status, this.code, this.resourceId, this.uncertain = false}) : super(message, status);
+  final String? code;
+  final String? resourceId;
+  final bool uncertain;
+  bool get terminal => code == 'upload_intent_conflict' || code == 'upload_intent_gone' || uncertain;
+}
+
+UploadError _uploadFailure(http.Response r, {bool replaySafe = false}) {
+  Map<String, dynamic> data = {};
+  try { data = (jsonDecode(r.body) as Map).cast<String, dynamic>(); } catch (_) {}
+  final message = switch(data['code']) {
+    'upload_intent_conflict' => 'This draft was already shared with different content.',
+    'upload_intent_gone' => 'The original upload was removed or expired.',
+    _ => !replaySafe && r.statusCode >= 500 ? 'The upload result is unknown. Check your posts or stories before sharing again.' : _errorText(r),
+  };
+  return UploadError(message, status: r.statusCode, code: data['code'] as String?, resourceId: data['resource_id'] as String?, uncertain: !replaySafe && r.statusCode >= 500);
+}
+
+UploadError _interruptedUpload(bool replaySafe) => UploadError(
+  replaySafe ? 'Upload interrupted. Your draft is kept. Retry to check the original result.' : 'The upload result is unknown. Check your posts or stories before sharing again.', uncertain: !replaySafe,
+);
+
+Map<String, dynamic> _uploadResult(http.Response r, String operation, bool replaySafe) {
+  try {
+    final value = (jsonDecode(r.body) as Map).cast<String, dynamic>();
+    if (value[operation] is! Map) throw const FormatException('Missing uploaded resource');
+    return value;
+  } catch (_) { throw _interruptedUpload(replaySafe); }
+}
+
 String _errorText(http.Response r) {
   try {
     final j = jsonDecode(r.body);
@@ -59,6 +93,7 @@ class Session extends ChangeNotifier {
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   Map<String, dynamic>? user;
   bool pollsEnabled = false;
+  bool uploadIntentsEnabled = false;
   bool loading = true;
   /// Sign-in header for files that need it (chat photos). Used by widgets that cannot await.
   Map<String, String> get mediaHeaders => {if (_access != null) 'Authorization': 'Bearer $_access'};
@@ -222,6 +257,7 @@ class Session extends ChangeNotifier {
     final j = await call('GET', '/auth/me') as Map<String, dynamic>;
     user = (j['user'] ?? j) as Map<String, dynamic>;
     pollsEnabled = (j['features'] as Map?)?['polls'] == true;
+    uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     unawaited(Push.register(this));
   }
 
@@ -236,6 +272,7 @@ class Session extends ChangeNotifier {
     _refresh = null;
     user = null;
     pollsEnabled = false;
+    uploadIntentsEnabled = false;
     await RefreshStore.clear();
   }
 
@@ -291,12 +328,13 @@ class Session extends ChangeNotifier {
   }
 
   /// Posts text and up to 4 files. [files] are (bytes, mime, filename).
-  Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false, List<String>? pollOptions}) async {
+  Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false, List<String>? pollOptions, String? intent}) async {
     final token = await _token();
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/posts'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
       ..fields['kind'] = reel ? 'reel' : 'post';
+    if (uploadIntentsEnabled && intent != null) req.fields['upload_intent'] = intent;
     if (body.isNotEmpty) req.fields['body'] = body;
     if (pollOptions != null) {
       for (var i = 0; i < pollOptions.length; i++) req.fields['poll_options[$i]'] = pollOptions[i];
@@ -308,20 +346,21 @@ class Session extends ChangeNotifier {
     try {
       r = await http.Response.fromStream(await req.send().timeout(_wait));
     } catch (_) {
-      throw ApiError('Upload failed. Check your connection and try again.');
+      throw _interruptedUpload(uploadIntentsEnabled && intent != null);
     }
-    if (r.statusCode != 201 && r.statusCode != 200) throw ApiError(_errorText(r), r.statusCode);
-    final j = jsonDecode(r.body) as Map<String, dynamic>;
-    return (j['post'] ?? j) as Map<String, dynamic>;
+    if (r.statusCode != 201 && r.statusCode != 200) throw _uploadFailure(r, replaySafe: uploadIntentsEnabled && intent != null);
+    final j = _uploadResult(r, 'post', uploadIntentsEnabled && intent != null);
+    return (j['post'] as Map).cast<String, dynamic>();
   }
 
   /// Multipart POST with one optional file. Returns the decoded JSON object.
-  Future<Map<String, dynamic>> upload(String path, {Map<String, String> fields = const {}, String field = 'media', UploadFile? file}) async {
+  Future<Map<String, dynamic>> upload(String path, {Map<String, String> fields = const {}, String field = 'media', UploadFile? file, String? intent}) async {
     final token = await _token();
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase$path'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
       ..fields.addAll(fields);
+    if (path == '/stories' && uploadIntentsEnabled && intent != null) req.fields['upload_intent'] = intent;
     if (file != null) {
       req.files.add(http.MultipartFile.fromBytes(field, file.bytes, filename: file.name, contentType: MediaType.parse(file.mime)));
     }
@@ -329,10 +368,11 @@ class Session extends ChangeNotifier {
     try {
       r = await http.Response.fromStream(await req.send().timeout(_wait));
     } catch (_) {
-      throw ApiError('Upload failed. Check your connection and try again.');
+      if (path != '/stories') throw ApiError('Upload failed. Check your connection and try again.');
+      throw _interruptedUpload(uploadIntentsEnabled && intent != null);
     }
-    if (r.statusCode != 200 && r.statusCode != 201) throw ApiError(_errorText(r), r.statusCode);
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode != 200 && r.statusCode != 201) throw path == '/stories' ? _uploadFailure(r, replaySafe: uploadIntentsEnabled && intent != null) : ApiError(_errorText(r), r.statusCode);
+    return path == '/stories' ? _uploadResult(r, 'story', uploadIntentsEnabled && intent != null) : jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<void> uploadAvatar(UploadFile f) async {

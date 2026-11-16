@@ -181,4 +181,42 @@ class PostgresRaceTest extends TestCase
         $this->assertSame(0, DB::table('poll_votes')->where('post_id', $p->id)->count());
     }
 
+    public function test_keyed_post_and_story_retries_create_one_resource_and_one_blob(): void
+    {
+        $this->user('asha');
+        $file = tempnam(sys_get_temp_dir(), 'upload-fixture');
+        file_put_contents($file, \Illuminate\Http\UploadedFile::fake()->image('same.png')->get());
+        try {
+            foreach (['posts', 'stories'] as $route) {
+                $body = ['upload_intent' => 'race-upload-intent-001', '_fixture_file' => $file, 'body' => 'Race post', 'caption' => 'Race story'];
+                $codes = $this->race(array_fill(0, 4, ['asha', 'POST', '/api/v1/'.$route, $body]));
+                sort($codes);
+                $this->assertSame([200, 200, 200, 201], $codes);
+                $this->assertSame(1, DB::table($route)->count());
+            }
+            $this->assertSame(2, DB::table('upload_receipts')->count());
+            $this->assertSame(2, DB::table('media_blobs')->count());
+            $this->assertSame(1, DB::table('post_media')->count());
+        } finally { unlink($file); }
+    }
+
+    public function test_same_intent_with_different_concurrent_payload_conflicts_without_orphan_media(): void
+    {
+        $this->user('asha');
+        $file = tempnam(sys_get_temp_dir(), 'upload-fixture');
+        file_put_contents($file, \Illuminate\Http\UploadedFile::fake()->image('same.png')->get());
+        try {
+            $body = ['upload_intent' => 'race-upload-intent-002', '_fixture_file' => $file];
+            $codes = $this->race([
+                ['asha', 'POST', '/api/v1/posts', $body + ['body' => 'First payload']],
+                ['asha', 'POST', '/api/v1/posts', $body + ['body' => 'Second payload']],
+            ]);
+            sort($codes);
+            $this->assertSame([201, 409], $codes);
+            $this->assertSame(1, DB::table('posts')->count());
+            $this->assertSame(1, DB::table('media_blobs')->count());
+            $this->assertSame(1, DB::table('upload_receipts')->count());
+        } finally { unlink($file); }
+    }
+
 }

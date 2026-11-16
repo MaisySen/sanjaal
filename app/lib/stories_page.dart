@@ -1,5 +1,6 @@
 import 'ph.dart';
 import 'draft_exit_guard.dart';
+import 'upload_notice.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'media_visibility.dart';
@@ -379,20 +380,39 @@ class _StoryComposePageState extends State<StoryComposePage> {
   late final Future<Uint8List> bytes = widget.file.readAsBytes();
   bool busy = false;
   String? error;
+  String intent = newUploadIntent();
+  UploadError? uploadError;
   @override
   void dispose() { caption.dispose(); super.dispose(); }
 
   Future<void> share() async {
-    if (busy) return;
-    setState(() { busy = true; error = null; });
+    if (busy || uploadError?.terminal == true) return;
+    setState(() { busy = true; error = null; uploadError = null; });
     try {
       final data = await bytes;
       if (data.length > 25 * 1024 * 1024) throw ApiError(t_('That file is over 25 MB. Choose a smaller one.'));
-      await widget.session.upload('/stories', fields: {'caption': caption.text.trim()}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name));
+      await widget.session.upload('/stories', fields: {'caption': caption.text.trim()}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name), intent: intent);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted) setState(() { busy = false; error = e.toString(); });
+      if (mounted) setState(() { busy = false; error = e.toString(); uploadError = e is UploadError ? e : null; });
     }
+  }
+
+  Future<void> openOriginal() async {
+    final id = uploadError?.resourceId;
+    if (id == null) return;
+    try {
+      final result = await widget.session.call('GET', '/stories') as Map;
+      for (final value in result['data'] as List) {
+        final group = (value as Map).cast<String, dynamic>();
+        final original = (group['items'] as List).where((item) => item['public_id'] == id).toList();
+        if (original.isNotEmpty && mounted) {
+          await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewer(session: widget.session, group: {'author': group['author'], 'items': original})));
+          return;
+        }
+      }
+      if (mounted) showInfo(context, t_('The original story was removed or expired.'));
+    } catch (e) { if (mounted) showError(context, e); }
   }
 
   @override
@@ -412,10 +432,17 @@ class _StoryComposePageState extends State<StoryComposePage> {
         const SizedBox(height: 16),
         TextField(controller: caption, enabled: !busy, maxLength: 200, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: t_('Caption (optional)'))),
       ])),
-      if (error != null) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : share,
+      if (error != null) UploadNotice(
+        message: error!,
+        openOriginal: uploadError?.resourceId == null ? null : openOriginal,
+        prepareNew: uploadError?.terminal == true ? () async {
+          if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); error = null; uploadError = null; });
+        } : null,
+        newLabel: 'Prepare a new story',
+      ),
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy || uploadError?.terminal == true ? null : share,
         icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt', size: 20),
-        label: Text(t_(busy ? 'Sharing...' : error != null ? 'Try again' : 'Share story'))))),
+        label: Text(t_(busy ? 'Sharing...' : error != null && uploadError?.terminal != true ? 'Try again' : 'Share story'))))),
     ])),
   ));
 }

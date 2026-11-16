@@ -8,6 +8,7 @@ require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
 $kernel->bootstrap();
+config(['services.uploads.replay_safe' => true]);
 config(['services.auth0.domain' => 'tenant.example.auth0.com', 'services.auth0.audience' => 'https://api.test', 'services.auth0.jwks' => json_decode(file_get_contents($jwksFile), true)]);
 if (getenv('PAYOUT_FAKE') === '1') {
     require_once __DIR__.'/FakePayout.php';
@@ -17,6 +18,15 @@ $deadline = microtime(true) + 30;
 while (! file_exists($go) && microtime(true) < $deadline) {
     usleep(500);
 }
-$req = Request::create($uri, $method, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token], $json);
+$body = json_decode($json, true);
+if (isset($body['_fixture_file'])) {
+    $path = $body['_fixture_file'];
+    unset($body['_fixture_file']);
+    $file = new \Illuminate\Http\UploadedFile($path, 'fixture.png', 'image/png', null, true);
+    $files = str_ends_with($uri, '/stories') ? ['media' => $file] : ['media' => [$file]];
+    $req = Request::create($uri, $method, $body, [], $files, ['HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token]);
+} else {
+    $req = Request::create($uri, $method, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token], $json);
+}
 $res = $kernel->handle($req);
 echo $res->getStatusCode();

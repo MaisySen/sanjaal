@@ -1,6 +1,8 @@
 import 'ph.dart';
 import 'photo_gallery.dart';
 import 'draft_exit_guard.dart';
+import 'upload_notice.dart';
+import 'post_page.dart';
 import 'poll_card.dart';
 import 'media_visibility.dart';
 import 'package:image_picker/image_picker.dart';
@@ -703,6 +705,8 @@ class _ComposePageState extends State<ComposePage> {
   List<XFile> images = [];
   XFile? video;
   bool busy = false;
+  String intent = newUploadIntent();
+  UploadError? uploadError;
   List<TextEditingController>? pollOptions;
 
   @override
@@ -766,7 +770,7 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _post() async {
-    if (busy) return;
+    if (busy || uploadError?.terminal == true) return;
     final body = text.text.trim();
     final options = pollOptions?.map((c) => c.text.trim()).toList();
     if (options != null && (body.isEmpty || options.any((v) => v.isEmpty) || options.map((v) => v.toLowerCase()).toSet().length != options.length)) {
@@ -776,19 +780,19 @@ class _ComposePageState extends State<ComposePage> {
       showError(context, 'Write something or add a photo or video.');
       return;
     }
-    setState(() => busy = true);
+    setState(() { busy = true; uploadError = null; });
     try {
       final files = <UploadFile>[];
       for (final f in images) {
         files.add(UploadFile(await f.readAsBytes(), mimeFor(f.name), f.name));
       }
       if (video != null) files.add(UploadFile(await video!.readAsBytes(), mimeFor(video!.name, video: true), video!.name));
-      final post = await widget.session.createPost(body, files: files, reel: video != null, pollOptions: options);
+      final post = await widget.session.createPost(body, files: files, reel: video != null, pollOptions: options, intent: intent);
       if (mounted) Navigator.of(context).pop(post);
     } catch (e) {
       if (mounted) {
-        setState(() => busy = false);
-        showError(context, e);
+        setState(() { busy = false; uploadError = e is UploadError ? e : null; });
+        if (e is! UploadError) showError(context, e);
       }
     }
   }
@@ -802,10 +806,18 @@ class _ComposePageState extends State<ComposePage> {
       appBar: AppBar(title: Text(t_('New post')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton(onPressed: busy ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
+          child: FilledButton(onPressed: busy || uploadError?.terminal == true ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
         ),
       ]),
       body: Column(children: [
+        if (uploadError != null) UploadNotice(
+          message: uploadError!.message,
+          openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),
+          prepareNew: uploadError!.terminal ? () async {
+            if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); uploadError = null; });
+          } : null,
+          retry: !busy && !uploadError!.terminal ? _post : null,
+        ),
         Expanded(child: ListView(
         padding: const EdgeInsets.all(16),
         children: [

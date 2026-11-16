@@ -48,6 +48,9 @@ return [
         'secret' => env('ESEWA_SECRET'),
     ],
 
+    // Roll out only after receipt migration and DB-media capacity review.
+    'uploads' => ['replay_safe' => env('UPLOAD_INTENTS_ENABLED', false)],
+
     'b2' => [
         'key_id' => env('B2_KEY_ID'),
         'key' => env('B2_APP_KEY'),

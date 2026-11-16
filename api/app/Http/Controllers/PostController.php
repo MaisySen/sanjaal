@@ -73,6 +73,7 @@ class PostController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'upload_intent' => \App\Support\UploadIntent::RULE,
             'kind' => ['nullable', 'in:post,reel'],
             'body' => ['nullable', 'string', 'max:2000'],
             'media' => ['nullable', 'array', 'max:4'],
@@ -100,24 +101,25 @@ class PostController extends Controller
             }
         }
 
-        $post = DB::transaction(function () use ($request, $data, $kind, $files, $options) {
-            $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $data['body'] ?? null, 'poll_options' => $options]);
-            foreach ($files as $file) {
-                $mime = $file->getMimeType();
-                $blob = (string) \Illuminate\Support\Str::uuid();
-                \App\Support\MediaStore::putFile($blob, $file);
-                $path = $blob;
-                $post->media()->create([
-                    'type' => str_starts_with($mime, 'video/') ? 'video' : 'image',
-                    'path' => $path, 'mime' => $mime, 'size' => $file->getSize(),
-                ]);
-            }
-            $this->syncHashtags($post);
-
-            return $post;
-        });
-
-        return response()->json(['post' => Present::post($post->load(self::WITH), $request->user())], 201);
+        $body = trim($data['body'] ?? '');
+        $fingerprint = \App\Support\UploadIntent::fingerprint([$kind, $body, $options], $files);
+        return \App\Support\UploadIntent::run($request, 'post', $fingerprint,
+            function (bool $keyed) use ($request, $body, $kind, $files, $options) {
+                $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $body === '' ? null : $body, 'poll_options' => $options]);
+                foreach ($files as $file) {
+                    $mime = $file->getMimeType();
+                    $blob = (string) Str::uuid();
+                    // Keyed bytes commit atomically with the receipt. Public migration can
+                    // move positively referenced objects later; no remote orphan on rollback.
+                    \App\Support\MediaStore::putFile($blob, $file, $keyed);
+                    $post->media()->create(['type' => str_starts_with($mime, 'video/') ? 'video' : 'image', 'path' => $blob, 'mime' => $mime, 'size' => $file->getSize()]);
+                }
+                $this->syncHashtags($post);
+                return $post->public_id;
+            }, function (string $id) use ($request) {
+                $post = Post::with(self::WITH)->where('public_id', $id)->where('user_id', $request->user()->id)->first();
+                return $post ? Present::post($post, $request->user()) : null;
+            });
     }
 
     public function show(Request $request, string $publicId): JsonResponse

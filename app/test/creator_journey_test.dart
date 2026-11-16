@@ -14,13 +14,13 @@ import 'package:sanjaal/api.dart';
 import 'package:sanjaal/feed_page.dart';
 import 'package:sanjaal/stories_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
-import 'package:sanjaal/ui.dart' show prefs;
+import 'package:sanjaal/ui.dart' show prefs, t_;
 import 'package:shared_preferences/shared_preferences.dart';
 
 late Uint8List photo;
 http.Response json(Object body, [int status = 200]) => http.Response(jsonEncode(body), status);
 Future<void> flush(WidgetTester t) async { await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30))); await t.pumpAndSettle(); }
-Future<void> fixture(WidgetTester t, Widget Function(Session) page, Future<void> Function() run, {Future<http.Response> Function(http.Request)? respond, Brightness brightness = Brightness.light, double scale = 1, String language = 'en'}) async {
+Future<void> fixture(WidgetTester t, Widget Function(Session) page, Future<void> Function() run, {Future<http.Response> Function(http.Request)? respond, Brightness brightness = Brightness.light, double scale = 1, String language = 'en', bool intents = true}) async {
   SharedPreferences.setMockInitialValues({});
   prefs.lang = language; addTearDown(() => prefs.lang = 'en');
   await http.runWithClient(() async {
@@ -31,7 +31,7 @@ Future<void> fixture(WidgetTester t, Widget Function(Session) page, Future<void>
     await t.pumpWidget(const SizedBox()); await t.pump(const Duration(seconds: 1));
   }, () => MockClient((r) async {
     if (r.url.path.endsWith('/oauth/token')) return json({'access_token':'fixture','expires_in':3600});
-    if (r.url.path.endsWith('/auth/me')) return json({'features':{'polls':true},'user':{'public_id':'me','username':'fixture'}});
+    if (r.url.path.endsWith('/auth/me')) return json({'features':{'polls':true,'upload_intents':intents},'user':{'public_id':'me','username':'fixture'}});
     return respond == null ? json({}) : respond(r);
   }));
 }
@@ -95,6 +95,125 @@ void main() {
       await t.pageBack(); await t.pumpAndSettle(); await t.tap(find.text('Discard')); await t.pumpAndSettle(); expect(find.byType(StoryComposePage),findsNothing);
     },respond:(_)async=>throw StateError('Discard must not upload'));
   });
+
+  testWidgets('response lost after post commit retries the same intent and returns the original', (t) async {
+    final keys=<String>[]; var created=0;
+    await fixture(t,(s)=>ComposePage(session:s),() async {
+      await t.enterText(find.byType(TextField),'A retry-safe post');
+      await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      expect(find.text('Upload interrupted. Your draft is kept. Retry to check the original result.'),findsOneWidget);
+      await t.tap(find.text('Try again')); await flush(t);
+      expect(keys.length,2); expect(keys[0],isNotEmpty); expect(keys[1],keys[0]); expect(created,1);
+      expect(find.byType(ComposePage),findsNothing);
+    },respond:(r)async {
+      final body=latin1.decode(r.bodyBytes);
+      final key=RegExp(r'name="upload_intent"\r\n\r\n([^\r]+)').firstMatch(body)!.group(1)!;
+      keys.add(key);
+      if(keys.length==1) {created++;throw const SocketException('fixture lost response after commit');}
+      return json({'post':{'public_id':'original'},'replayed':true});
+    });
+  });
+  testWidgets('story response loss retries the original key and keeps caption bytes', (t) async {
+    final keys=<String>[];
+    await fixture(t,story,() async {
+      await t.enterText(find.byType(TextField),'Original caption'); await t.tap(find.text('Share story')); await flush(t);
+      expect(find.text('Original caption'),findsOneWidget);
+      await t.tap(find.text('Try again')); await flush(t); expect(keys.length,2); expect(keys[0],keys[1]); expect(find.byType(StoryComposePage),findsNothing);
+    },respond:(r)async {
+      final body=latin1.decode(r.bodyBytes); expect(body,contains('Original caption'));
+      keys.add(RegExp(r'name="upload_intent"\r\n\r\n([^\r]+)').firstMatch(body)!.group(1)!);
+      if(keys.length==1) throw const SocketException('fixture lost response');
+      return json({'story':{'public_id':'original'},'replayed':true});
+    });
+  });
+  testWidgets('changed draft conflict preserves edits and requires explicit new preparation before a new send', (t) async {
+    final keys=<String>[];
+    await fixture(t,(s)=>ComposePage(session:s),() async {
+      await t.enterText(find.byType(TextField),'Original'); await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      await t.enterText(find.byType(TextField),'Edited draft'); await t.tap(find.text('Try again')); await flush(t);
+      expect(find.text('Open original'),findsOneWidget); expect(find.text('Edited draft'),findsOneWidget);
+      expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
+      await t.tap(find.text('Prepare a new post')); await t.pumpAndSettle(); await t.tap(find.text('Prepare new upload')); await t.pumpAndSettle(); expect(keys.length,2,reason:'preparation alone cannot send');
+      await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      expect(keys[0],keys[1]); expect(keys[2],isNot(keys[0]));
+    },respond:(r)async {
+      keys.add(RegExp(r'name="upload_intent"\r\n\r\n([^\r]+)').firstMatch(latin1.decode(r.bodyBytes))!.group(1)!);
+      if(keys.length==1) throw const SocketException('fixture lost response');
+      if(keys.length==2) return json({'message':'Original already exists','code':'upload_intent_conflict','resource_id':'original'},409);
+      return json({'post':{'public_id':'new'}});
+    });
+  });
+  testWidgets('old API transport ambiguity blocks ordinary retry and sends no unsupported intent', (t) async {
+    var writes=0;
+    await fixture(t,story,() async {
+      await t.tap(find.text('Share story')); await flush(t);
+      expect(find.text('The upload result is unknown. Check your posts or stories before sharing again.'),findsOneWidget);
+      expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNull);
+      expect(writes,1);
+    },intents:false,respond:(r)async {writes++;expect(latin1.decode(r.bodyBytes),isNot(contains('upload_intent')));throw const SocketException('fixture unknown');});
+  });
+  testWidgets('removed or expired upload never retries the same terminal intent automatically', (t) async {
+    var writes=0;
+    await fixture(t,story,() async {
+      await t.tap(find.text('Share story')); await flush(t); expect(writes,1);
+      expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNull);
+      await t.tap(find.text('Prepare a new story')); await t.pumpAndSettle(); await t.tap(find.text('Prepare new upload')); await t.pumpAndSettle(); expect(writes,1); expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNotNull);
+    },respond:(r)async {writes++;return json({'message':'Original expired','code':'upload_intent_gone'},410);});
+  });
+
+
+  testWidgets('malformed success is ambiguous and does not turn a legacy retry into a second send', (t) async {
+    var writes=0;
+    await fixture(t,(s)=>ComposePage(session:s),() async {
+      await t.enterText(find.byType(TextField),'An unconfirmed upload');
+      await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      expect(find.byType(ComposePage),findsOneWidget); expect(find.text('The upload result is unknown. Check your posts or stories before sharing again.'),findsOneWidget);
+      expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull); expect(writes,1);
+    },intents:false,respond:(_)async {writes++;return http.Response('<html>proxy page</html>',200);});
+  });
+  testWidgets('new-upload preparation can be cancelled without changing the old terminal intent', (t) async {
+    var writes=0;
+    await fixture(t,story,() async {
+      await t.tap(find.text('Share story')); await flush(t);
+      await t.tap(find.text('Prepare a new story')); await t.pumpAndSettle(); await t.tap(find.text('Cancel')); await t.pumpAndSettle();
+      expect(writes,1); expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNull);
+    },respond:(_)async {writes++;return json({'message':'Gone','code':'upload_intent_gone'},410);});
+  });
+  testWidgets('story conflict opens the current original without sending the edited draft', (t) async {
+    var writes=0;
+    await fixture(t,story,() async {
+      await t.tap(find.text('Share story')); await flush(t);
+      await t.tap(find.text('Open original')); await flush(t);
+      expect(find.byType(StoryViewer),findsOneWidget); expect(writes,1);
+    },respond:(r)async {
+      if(r.method=='POST') {
+        if(r.url.path.endsWith('/view')) return json({});
+        writes++;return json({'message':'Original already exists','code':'upload_intent_conflict','resource_id':'original'},409);
+      }
+      return json({'data':[{'author':{'username':'fixture'},'items':[{'public_id':'original','type':'image','url':'https://fixture.invalid/photo','created_at':'2026-11-17T00:00:00Z','caption':'Original caption'}]}]});
+    });
+  });
+  for (final b in [Brightness.light,Brightness.dark]) {
+    for (final lang in ['en','ne']) {
+    for (final isStory in [false,true]) {
+      testWidgets('upload conflict layout ${b.name} story=$isStory $lang small large-text and keyboard inset', (t) async {
+        t.view.physicalSize=const Size(960,1920); t.view.devicePixelRatio=3; addTearDown(t.view.reset);
+        await fixture(t,isStory?story:(s)=>ComposePage(session:s),() async {
+          if(!isStory) await t.enterText(find.byType(TextField),'An edited draft worth keeping');
+          await t.tap(find.text(t_(isStory?'Share story':'Post'))); await flush(t);
+          expect(find.text(t_('Open original')),findsOneWidget);
+          await shot(t,'upload_conflict_${isStory?'story':'post'}_${b.name}_$lang');
+          t.view.viewInsets=const FakeViewPadding(bottom:720); await t.pumpAndSettle();
+          expect(t.takeException(),isNull);
+          await shot(t,'upload_conflict_keyboard_${isStory?'story':'post'}_${b.name}_$lang');
+          t.view.viewInsets=const FakeViewPadding(); await t.pumpAndSettle();
+          await t.tap(find.text(t_(isStory?'Prepare a new story':'Prepare a new post'))); await t.pumpAndSettle();
+          expect(t.takeException(),isNull); await shot(t,'upload_new_confirmation_${isStory?'story':'post'}_${b.name}_$lang');
+        },brightness:b,scale:1.8,language:lang,respond:(_)async=>json({'message':'This draft was already submitted with different content. Check the original before sharing again.','code':'upload_intent_conflict','resource_id':'original'},409));
+      });
+    }
+  }
+    }
   for (final b in [Brightness.light,Brightness.dark]) {
     for (final lang in ['en','ne']) {
     testWidgets('story review and discard layout ${b.name} $lang small/large text', (t) async {

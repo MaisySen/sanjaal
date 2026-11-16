@@ -36,9 +36,9 @@ class MoveMediaTest extends TestCase
     public function test_moves_rows_and_empties_database_copy(): void
     {
         $this->b2();
-        $this->row('a1', 'hello');
+        $this->row('00000001-0000-4000-8000-000000000001', 'hello');
         $this->artisan('media:move-to-b2')->assertSuccessful();
-        $r = DB::table('media_blobs')->where('public_id', 'a1')->first();
+        $r = DB::table('media_blobs')->where('public_id', '00000001-0000-4000-8000-000000000001')->first();
         $this->assertSame('b2', $r->storage);
         $this->assertSame('', $r->data);
         Http::assertSent(fn ($req) => $req->url() === 'https://up.test/x' && $req->body() === 'hello' && $req->header('X-Bz-Content-Sha1')[0] === sha1('hello'));
@@ -48,18 +48,18 @@ class MoveMediaTest extends TestCase
     {
         $this->served = 'HELLO';
         $this->b2();
-        $this->row('a5', 'hello');
+        $this->row('00000005-0000-4000-8000-000000000005', 'hello');
         $this->artisan('media:move-to-b2')->assertFailed();
-        $this->assertSame('db', DB::table('media_blobs')->where('public_id', 'a5')->value('storage'));
+        $this->assertSame('db', DB::table('media_blobs')->where('public_id', '00000005-0000-4000-8000-000000000005')->value('storage'));
     }
 
     public function test_failed_upload_keeps_the_database_copy(): void
     {
         $this->served = 'bytes';
         $this->b2(500);
-        $this->row('a2', 'bytes');
+        $this->row('00000002-0000-4000-8000-000000000002', 'bytes');
         $this->artisan('media:move-to-b2')->assertFailed();
-        $r = DB::table('media_blobs')->where('public_id', 'a2')->first();
+        $r = DB::table('media_blobs')->where('public_id', '00000002-0000-4000-8000-000000000002')->first();
         $this->assertSame('db', $r->storage);
         $this->assertSame(base64_encode('bytes'), $r->data);
     }
@@ -67,10 +67,10 @@ class MoveMediaTest extends TestCase
     public function test_size_mismatch_is_skipped_and_dry_run_changes_nothing(): void
     {
         $this->b2();
-        $this->row('a3', 'xyz', 99);
+        $this->row('00000003-0000-4000-8000-000000000003', 'xyz', 99);
         $this->artisan('media:move-to-b2')->assertFailed();
-        $this->row('a4', 'ok');
+        $this->row('00000004-0000-4000-8000-000000000004', 'ok');
         $this->artisan('media:move-to-b2 --dry-run');
-        $this->assertSame('db', DB::table('media_blobs')->where('public_id', 'a4')->value('storage'));
+        $this->assertSame('db', DB::table('media_blobs')->where('public_id', '00000004-0000-4000-8000-000000000004')->value('storage'));
     }
 }

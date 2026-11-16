@@ -160,8 +160,9 @@ class ChatController extends Controller
         }
         $me = $request->user();
         DB::transaction(function () use ($convo, $me) {
-            $wasOwner = $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists();
             Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            // Read the role only after the lock: another leave may have just promoted this member to owner.
+            $wasOwner = $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists();
             $convo->members()->detach($me->id);
             if (! $convo->members()->exists()) {
                 $convo->messages()->delete();

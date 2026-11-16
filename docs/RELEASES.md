@@ -19,6 +19,8 @@ Pass 14e: Home pager (one post per page) for For you and Following. Widget tests
 
 Pass 14f: pager scroll hand-off and gesture tests. Widget tests only; not on a device; no app release.
 
+Pass 14g: Postgres race tests (local), owner-leave race fix, B2 chat media tests (faked B2), Postgres-clean test fixtures. Local tests only; nothing deployed or migrated live.
+
 Pass 11: render coverage for About and Search. About text says adding coins is not switched on yet (deletion route kept); privacy claims flagged for grounded review. No app release.
 
 Pass 10: flows test finder import fix (material_ui), large-text layout fixes in room and settings, photo-based feed render check. Widget renders only; not on a device. No app release.

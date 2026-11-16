@@ -115,6 +115,12 @@ void main() {
       await tester.tap(find.text('Poll'));
       await _settle(tester, 2);
       await tester.scrollUntilVisible(find.text('Option 2'), 120, scrollable: find.byType(Scrollable).first);
+      // Screenshot conversion is expensive and changes the Android surface.
+      // Restore the normal surface before testing actual Android input/IME.
+      const screenshotChannel = MethodChannel('plugins.flutter.io/integration_test');
+      await screenshotChannel.invokeMethod<void>('revertFlutterImage');
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 800)));
+      await tester.pump();
       // Use a native Android pointer for this gate, not the synthetic text
       // channel. This bridge exists only in the throwaway CI fixture router.
       final field = find.widgetWithText(TextField, 'Option 2');
@@ -138,6 +144,9 @@ void main() {
       final remove = find.widgetWithText(TextButton, 'Remove poll');
       expect(remove.hitTestable(), findsOneWidget);
       expect(tester.getBottomLeft(remove).dy, lessThanOrEqualTo(tester.view.physicalSize.height / tester.view.devicePixelRatio - inset));
+      // Reconvert only after the native gate, to capture the framework view.
+      await screenshotChannel.invokeMethod<void>('convertFlutterSurfaceToImage');
+      await tester.pump();
       await binding.takeScreenshot('flow_poll_native_keyboard');
       await tester.tap(remove);
       await _settle(tester, 2);

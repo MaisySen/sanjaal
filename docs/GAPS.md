@@ -12,3 +12,5 @@ Status of features from the design review against what is built. Updated with ea
 | Live rooms | Host, speaker, raise hand, gifts | Host raise-hand sheet restyle not reviewed |
 | Offline states | Error and retry on lists | Unsent message and offline banner states not restyled |
 | Language | English and Nepali strings | Nepali strings need native review |
+
+- Offline banner: not built. Detecting connectivity needs either a new package or inferring from failed calls, to be decided; no connectivity plugin added.

@@ -304,7 +304,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               Positioned(
                 right: 0,
                 bottom: 0,
-                child: CircleAvatar(radius: 18, backgroundColor: brandRed, child: IconButton(padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.white), onPressed: busy ? null : _avatar)),
+                child: CircleAvatar(radius: 18, backgroundColor: Colors.white, child: IconButton(tooltip: 'Change photo', padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.black), onPressed: busy ? null : _avatar)),
               ),
             ]),
           ),

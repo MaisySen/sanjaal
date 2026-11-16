@@ -418,7 +418,7 @@ class RoomView extends StatelessWidget {
                   if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const PhIcon('hand-waving', size: 18), label: Text(handUp ? 'Hand raised' : 'Raise hand'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
                 ]),
               ),
-              Flexible(child: SingleChildScrollView(child: Column(children: [
+              Flexible(flex: 3, child: SingleChildScrollView(child: Column(children: [
               if (isHost && hands.isNotEmpty)
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -462,7 +462,7 @@ class RoomView extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.34),
+                    constraints: const BoxConstraints(),
                     child: SingleChildScrollView(child: Wrap(spacing: 12, runSpacing: 16, children: [
                     for (final m in stage)
                       SizedBox(
@@ -495,6 +495,7 @@ class RoomView extends StatelessWidget {
               ]))),
               Divider(height: 1, color: scheme.outlineVariant),
               Expanded(
+                flex: 1,
                 child: messages.isEmpty
                     ? const EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')
                     : ListView.builder(

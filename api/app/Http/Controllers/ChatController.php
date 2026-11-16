@@ -265,7 +265,7 @@ class ChatController extends Controller
             $mediaMime = $file->getMimeType();
             $kind = str_starts_with($mediaMime, 'image/') ? 'image' : 'voice';
             $mediaId = (string) \Illuminate\Support\Str::uuid();
-            \App\Support\MediaStore::putFile($mediaId, $file);
+            \App\Support\MediaStore::putFile($mediaId, $file, private: true);
         }
         $sharedId = null;
         if (! empty($data['shared_post'])) {

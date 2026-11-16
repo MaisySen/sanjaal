@@ -124,6 +124,9 @@ class _VoiceRecorderBarState extends State<VoiceRecorderBar> with MediaVisibilit
         return;
       }
       final bytes = await File(path).readAsBytes();
+      // Finish private-file cleanup before handing bytes to a callback that
+      // can remove this widget or start an upload. Recheck visibility afterward.
+      await _cancelNative();
       if (_active && !_notified) { _notified = true; widget.onDone(bytes); }
     } catch (_) {
       _error('Could not save the recording.');

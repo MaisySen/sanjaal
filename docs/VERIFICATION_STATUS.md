@@ -234,3 +234,12 @@ The user's full-product quality correction is still the acceptance criterion. Bu
 - CI43957455274: API/app/unsigned iOS passed, emulator still running at 08:24. CI43959218322: API passed; other build/native jobs still running. No native pass or new APK claimed.
 - Historical tag publication omitted the emulator dependency and would have published ordinary debug-signed APK artifacts. Candidate workflow now depends on all four jobs and is explicitly disabled in source until stable-key signing and final artifact verification are integrated. Do not remove the disabled condition merely because tests pass. No tag or variable was changed by this source correction.
 - Durable drafts/outbox, physical input/audio/camera/network/push, two-device calls, iOS signing, remaining Nepal-focused roadmap and cohesive product polish remain open. Upload-intent rollout stays OFF and DisabledPayout stays bound. No broad deployment performed.
+
+
+## November 17 recorder CI correction
+
+Recorder CI43959218322 failed one widget assertion: delivery was observed before final temporary-file deletion completed. API and unsigned iOS passed; the app test step failed and did not build an APK. Local success had not proved CI success. Playback CI43957455274 settled API/app/unsigned iOS pass, native poll IME failure and release skipped; actual native display again shows Option2 focused with no keyboard.
+
+Candidate correction awaits private-file cleanup before handing bytes to onDone, then rechecks visibility. A new callback-boundary regression requires the directory to be empty inside delivery. The test pumps both fake-zone continuations and actual file I/O until the delivery event, with a bounded timeout, rather than assuming a fixed50ms drain means cleanup completed. Bytes-once, no-cancel and file-deletion assertions remain. This changes no codec/permission/native-IME claim.
+
+Focused40tests passed. Complete local splitFlutter165nonrender+115journey+181render=461passed,1intentional live skip;analyzer21info/noerrorswarnings. A combined command finished all journeys but hit its budget during renders; a complete181render rerun passed. No new APK, production deployment or physical-device result. Whole-product work remains open per PRODUCT_RECONCILIATION.md.

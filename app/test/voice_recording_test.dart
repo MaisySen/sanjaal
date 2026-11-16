@@ -23,9 +23,10 @@ class Recorder extends RecordPlatform {
  @override Future<void> dispose(String id)async{calls.add('dispose');}
  @override dynamic noSuchMethod(Invocation i)=>super.noSuchMethod(i);
 }
-class Output {int canceled=0;final errors=<String>[];final sent=<List<int>>[];Widget bar()=>VoiceRecorderBar(onCancel:()=>canceled++,onError:errors.add,onDone:sent.add);}
+class Output {int canceled=0;final errors=<String>[];final sent=<List<int>>[];final delivered=Completer<void>();Widget bar()=>VoiceRecorderBar(onCancel:()=>canceled++,onError:errors.add,onDone:(bytes){sent.add(bytes);if(!delivered.isCompleted)delivered.complete();});}
 Future<void> flush(WidgetTester t)async{for(var i=0;i<5;i++){await t.pump();await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:10)));}await t.pump();await t.pump(const Duration(milliseconds:400));}
 Widget app(Widget child,{GlobalKey<NavigatorState>? nav})=>MaterialApp(navigatorKey:nav,navigatorObservers:[mediaRoutes],home:Scaffold(body:child));
+Future<void> waitFor(WidgetTester t,bool Function() done)async{for(var i=0;i<500&&!done();i++){await t.pump();await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:10)));}expect(done(),isTrue,reason:'real file I/O and fake-zone continuations must both settle');await t.pump();}
 Future<void> close(WidgetTester t)async{await t.pumpWidget(const SizedBox());await flush(t);}
 void main(){
  late Recorder rec;late RecordPlatform old;late Directory directory;Completer<String>? pendingDirectory;
@@ -58,7 +59,10 @@ void main(){
   final o=Output();rec.stopping=Completer<void>();await t.pumpWidget(app(o.bar()));await flush(t);await t.pump(const Duration(seconds:1));await t.tap(find.byTooltip('Send voice message'));await flush(t);t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);rec.stopping!.complete();await flush(t);expect(o.sent,isEmpty);expect(o.canceled,1);expect(File(rec.path!).existsSync(),isFalse);t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);await close(t);
  });
  testWidgets('send and discard cannot stack while stopping; bytes delivered once',(t)async{
-  final o=Output();rec.stopping=Completer<void>();await t.pumpWidget(app(o.bar()));await flush(t);await t.pump(const Duration(seconds:1));await t.tap(find.byTooltip('Send voice message'));await flush(t);await t.tap(find.byTooltip('Discard'));await t.tap(find.byTooltip('Send voice message'));await flush(t);expect(rec.calls.where((c)=>c=='stop').length,1);rec.stopping!.complete();await flush(t);expect(o.sent,[[1,2,3,4]]);expect(o.canceled,0);expect(File(rec.path!).existsSync(),isFalse);await close(t);
+  final o=Output();rec.stopping=Completer<void>();await t.pumpWidget(app(o.bar()));await flush(t);await t.pump(const Duration(seconds:1));await t.tap(find.byTooltip('Send voice message'));await flush(t);await t.tap(find.byTooltip('Discard'));await t.tap(find.byTooltip('Send voice message'));await flush(t);expect(rec.calls.where((c)=>c=='stop').length,1);rec.stopping!.complete();await waitFor(t,()=>o.delivered.isCompleted);await flush(t);expect(o.sent,[[1,2,3,4]]);expect(o.canceled,0);expect(File(rec.path!).existsSync(),isFalse);await close(t);
+ });
+ testWidgets('delivery callback observes completed private-file cleanup',(t)async{
+  final delivered=Completer<void>();var count=0;await t.pumpWidget(app(VoiceRecorderBar(onCancel:(){},onError:(_){},onDone:(bytes){expect(directory.listSync(),isEmpty);expect(bytes,[1,2,3,4]);count++;delivered.complete();})));await flush(t);await t.pump(const Duration(seconds:1));await t.tap(find.byTooltip('Send voice message'));await waitFor(t,()=>delivered.isCompleted);expect(count,1);await close(t);
  });
  for(final stage in ['permission','start','stop','short']){
  testWidgets('$stage failure cancels without upload and cleans private files',(t)async{
@@ -71,7 +75,7 @@ void main(){
   t.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);final o=Output();await t.pumpWidget(app(o.bar()));await flush(t);expect(rec.calls,isNot(contains('permission')));expect(rec.calls,isNot(contains('start')));expect(o.canceled,1);await close(t);t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
  });
  testWidgets('duration limit stops and delivers one copy with no remaining temp file',(t)async{
-  final o=Output();await t.pumpWidget(app(o.bar()));await flush(t);await t.pump(const Duration(seconds:120));await flush(t);expect(rec.calls.where((c)=>c=='stop').length,1);expect(o.sent.length,1);expect(directory.listSync(),isEmpty);await close(t);
+  final o=Output();await t.pumpWidget(app(o.bar()));await flush(t);await t.pump(const Duration(seconds:120));await waitFor(t,()=>o.delivered.isCompleted);await flush(t);expect(rec.calls.where((c)=>c=='stop').length,1);expect(o.sent.length,1);expect(directory.listSync(),isEmpty);await close(t);
  });
  for(final lang in ['en','ne']){for(final b in [Brightness.light,Brightness.dark]){
  testWidgets('recording controls fit large text $lang ${b.name}',(t)async{

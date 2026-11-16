@@ -1,0 +1,44 @@
+name: Remote test APK (synthetic, NOT for users)
+
+# Builds a DEBUG apk that talks to a throwaway test API (synthetic data only) through a temporary tunnel.
+# It is never a release: the file name says so, and the app refuses a test token endpoint in release builds.
+# Trigger: push to the branch `remotetest` after putting the tunnel address in .github/remote-test-url.txt.
+on:
+  push:
+    branches: ['remotetest']
+    paths: ['.github/remote-test-url.txt', '.github/workflows/remote-test-apk.yml']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read and check the test API address
+        id: url
+        run: |
+          u="$(tr -d '[:space:]' < .github/remote-test-url.txt)"
+          echo "$u" | grep -Eq '^https://[a-z0-9-]+\.trycloudflare\.com$' || { echo "::error::address must be a https://*.trycloudflare.com tunnel"; exit 1; }
+          echo "u=$u" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: app
+      - name: Build debug apk against the synthetic API
+        working-directory: app
+        run: |
+          flutter build apk --debug \
+            --dart-define=API_BASE_URL=${{ steps.url.outputs.u }}/api/v1 \
+            --dart-define=E2E_TOKEN_BASE=${{ steps.url.outputs.u }}
+          mkdir -p /tmp/out
+          cp build/app/outputs/flutter-apk/app-debug.apk /tmp/out/sanjaal-SYNTHETIC-REMOTE-TEST-debug-NOT-FOR-USERS.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sanjaal-remote-test-synthetic
+          path: /tmp/out/*.apk
+          retention-days: 3

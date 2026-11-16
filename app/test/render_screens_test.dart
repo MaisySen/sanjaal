@@ -408,6 +408,26 @@ void main() {
     expect(gets.any((g) => g.startsWith('GET /api/v1/users/asha')), isTrue, reason: gets.join(', '));
   });
 
+  testWidgets('create sheet: Continue stays off until a type is picked, then returns that type', (tester) async {
+    String? result;
+    tester.view.physicalSize = const Size(1080, 2160);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      theme: buildTheme(Brightness.dark, fontFamily: 'Roboto', fontFamilyFallback: []),
+      home: Builder(builder: (c) => Scaffold(body: Center(child: FilledButton(onPressed: () async => result = await showModalBottomSheet<String>(context: c, builder: (_) => const CreateSheet()), child: const Text('open'))))),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue')).onPressed, isNull);
+    await tester.tap(find.text('Reel'));
+    await tester.pump();
+    expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue')).onPressed, isNotNull);
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(result, 'reel');
+  });
+
   testWidgets('room: host buttons call the right callbacks', (tester) async {
     final log = <String>[];
     final chat = TextEditingController();

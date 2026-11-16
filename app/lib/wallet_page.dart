@@ -157,8 +157,9 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final esewa = topup['esewa'] == true;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Coin wallet')),
+      appBar: AppBar(title: Text(t_('Wallet'))),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -166,34 +167,47 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
               child: ListView(padding: const EdgeInsets.all(16), children: [
                 if (error != null) Text(error!),
                 Container(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 20),
-                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(28), border: Border.all(color: scheme.outlineVariant)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(t_('Balance'), style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, letterSpacing: 0.6)),
-                    const SizedBox(height: 4),
-                    Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                      Text('$balance', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w800, letterSpacing: -1.5, height: 1.1)),
-                      const SizedBox(width: 8),
-                      Text('coins', style: Theme.of(context).textTheme.titleMedium),
-                    ]),
-                    const SizedBox(height: 16),
                     Row(children: [
-                      FilledButton.icon(onPressed: esewa ? _topup : null, icon: const PhIcon('plus', size: 18), label: Text(t_('Add coins'))),
-                      const SizedBox(width: 10),
-                      OutlinedButton.icon(onPressed: balance > 0 ? _send : null, icon: const PhIcon('arrow-up-right', size: 18), label: Text(t_('Send'))),
+                      PhIcon('coins', size: 20, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text(t_('Coins'), style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 15)),
                     ]),
-                    if (!esewa) const Padding(padding: EdgeInsets.only(top: 10), child: Text('Adding coins is not switched on yet.')),
-                    const Padding(padding: EdgeInsets.only(top: 6), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),
+                    const SizedBox(height: 8),
+                    Text('$balance', style: const TextStyle(fontSize: 52, fontWeight: FontWeight.w800, letterSpacing: -1.5, height: 1.1)),
                   ]),
                 ),
-                const SizedBox(height: 16),
-                Text('History', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: esewa ? _topup : null, child: Text(t_('Add coins'), maxLines: 1, softWrap: false))),
+                  const SizedBox(width: 10),
+                  Expanded(child: OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: balance > 0 ? _send : null, child: Text(t_('Send'), maxLines: 1, softWrap: false))),
+                  const SizedBox(width: 10),
+                  Expanded(child: OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: null, child: Text(t_('Cash out'), maxLines: 1, softWrap: false))),
+                ]),
+                if (!esewa)
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: scheme.outlineVariant)),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      PhIcon('info', size: 20, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 10),
+                      const Expanded(child: Text('Adding coins is not switched on yet. Cash out is not available.')),
+                    ]),
+                  ),
+                const SizedBox(height: 22),
+                Text(t_('Activity'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                 if (entries.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('No activity yet.')),
                 for (final e in entries)
                   ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(backgroundColor: scheme.surfaceContainerHigh, child: PhIcon((e['amount'] as num) > 0 ? 'arrow-down-left' : 'arrow-up-right', size: 20)),
                     title: Text(_label(e)),
                     subtitle: Text([ago((e['created_at'] ?? '').toString()), if (e['note'] != null) e['note']].join('  ')),
-                    trailing: Text('${(e['amount'] as num) > 0 ? '+' : ''}${e['amount']}'),
+                    trailing: Text('${(e['amount'] as num) > 0 ? '+' : ''}${e['amount']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                   ),
               ]),
             ),

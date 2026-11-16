@@ -69,7 +69,49 @@ class PushTest extends TestCase
         ]);
         $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->json('conversation.public_id');
         $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'namaste'], $ha)->assertCreated();
-        Http::assertSent(fn ($r) => str_contains($r->url(), 'messages:send') && $r['message']['token'] === 'tok-'.$b->id && $r['message']['notification']['body'] === 'namaste');
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'messages:send') && $r['message']['token'] === 'tok-'.$b->id && $r['message']['notification']['body'] === 'New message' && ! str_contains(json_encode($r->data()), 'namaste'));
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'messages:send') && $r['message']['token'] === 'tok-'.$a->id);
+    }
+
+    private function chatWithTwo(): array
+    {
+        config(['services.fcm.credentials' => $this->fakeCreds()]);
+        Cache::forget('fcm_access_token');
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        DB::table('device_tokens')->insert(['user_id' => $b->id, 'token' => 'tok-b', 'platform' => 'android', 'created_at' => now(), 'updated_at' => now()]);
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->json('conversation.public_id');
+
+        return [$a, $ha, $b, $hb, $cid];
+    }
+
+    public function test_muted_member_gets_no_push(): void
+    {
+        [$a, $ha, $b, $hb, $cid] = $this->chatWithTwo();
+        DB::table('conversation_members')->where('user_id', $b->id)->update(['muted' => true]);
+        Http::fake(['oauth2.googleapis.com/*' => Http::response(['access_token' => 'x'], 200), 'fcm.googleapis.com/*' => Http::response([], 200)]);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi'], $ha)->assertCreated();
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'messages:send'));
+    }
+
+    public function test_blocked_member_gets_no_push(): void
+    {
+        [$a, $ha, $b, $hb, $cid] = $this->chatWithTwo();
+        DB::table('blocks')->insert(['blocker_id' => $b->id, 'blocked_id' => $a->id, 'created_at' => now(), 'updated_at' => now()]);
+        Http::fake(['oauth2.googleapis.com/*' => Http::response(['access_token' => 'x'], 200), 'fcm.googleapis.com/*' => Http::response([], 200)]);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi'], $ha)->assertCreated();
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'messages:send'));
+    }
+
+    public function test_provider_failure_never_fails_the_send_and_keeps_valid_tokens(): void
+    {
+        [$a, $ha, $b, $hb, $cid] = $this->chatWithTwo();
+        Http::fake(['oauth2.googleapis.com/*' => Http::response(['access_token' => 'x'], 200), 'fcm.googleapis.com/*' => Http::response(['error' => ['status' => 'UNAVAILABLE']], 503)]);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi'], $ha)->assertCreated();
+        $this->assertDatabaseHas('device_tokens', ['token' => 'tok-b']);
+        Http::fake(['oauth2.googleapis.com/*' => Http::response([], 500)]);
+        Cache::forget('fcm_access_token');
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'again'], $ha)->assertCreated();
+        $this->assertDatabaseHas('device_tokens', ['token' => 'tok-b']);
     }
 }

@@ -38,25 +38,41 @@ class Push
         }
         $sent = 0;
         foreach ($tokens as $token) {
-            $res = Http::withToken($access)->timeout(8)->post(
-                'https://fcm.googleapis.com/v1/projects/'.$creds['project_id'].'/messages:send',
-                ['message' => [
-                    'token' => $token,
-                    'notification' => ['title' => $title, 'body' => $body],
-                    'data' => array_map('strval', $data),
-                    'android' => ['priority' => 'high'],
-                ]]
-            );
+            try {
+                $res = Http::withToken($access)->timeout(8)->post(
+                    'https://fcm.googleapis.com/v1/projects/'.$creds['project_id'].'/messages:send',
+                    ['message' => [
+                        'token' => $token,
+                        'notification' => ['title' => $title, 'body' => $body],
+                        'data' => array_map('strval', $data),
+                        'android' => ['priority' => 'high'],
+                    ]]
+                );
+            } catch (\Throwable) {
+                Log::warning('push send error'); // transient network problem: keep the token
+                continue;
+            }
             if ($res->successful()) {
                 $sent++;
-            } elseif ($res->status() === 404 || str_contains((string) $res->body(), 'UNREGISTERED')) {
-                DB::table('device_tokens')->where('token', $token)->delete(); // stale device
+            } elseif ($this->isUnregistered($res)) {
+                DB::table('device_tokens')->where('token', $token)->delete(); // the device is gone for good
             } else {
-                Log::warning('push send failed', ['status' => $res->status()]);
+                Log::warning('push send failed', ['status' => $res->status()]); // transient or config: keep the token
             }
         }
 
         return $sent;
+    }
+
+    private function isUnregistered($res): bool
+    {
+        foreach ((array) $res->json('error.details', []) as $d) {
+            if (($d['errorCode'] ?? '') === 'UNREGISTERED') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function credentials(): ?array

@@ -196,19 +196,26 @@ class ChatController extends Controller
         return response()->json(['message' => Present::message($msg)], 201);
     }
 
-    /** Best effort push to the other members who have not muted the chat. Runs after the response. */
+    /**
+     * Best effort push to the other members who have not muted the chat and are not blocked either way.
+     * The text on the lock screen is generic on purpose: no message content leaves the server in a push.
+     * Runs after the response, and a failure never affects the send.
+     */
     private function push(Conversation $convo, User $me, $msg): void
     {
-        $body = match ($msg->kind) {
-            'voice' => 'Voice message',
-            'image' => 'Photo',
-            default => \Illuminate\Support\Str::limit((string) $msg->body, 80),
-        };
-        $ids = $convo->members()->where('users.id', '!=', $me->id)->wherePivot('muted', false)->pluck('users.id')->all();
+        $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
+            ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();
+        $ids = $convo->members()->where('users.id', '!=', $me->id)->wherePivot('muted', false)->pluck('users.id')
+            ->reject(fn ($id) => in_array($id, $blocked))->values()->all();
         if ($ids === []) {
             return;
         }
-        $title = $convo->type === 'group' && $convo->title ? $convo->title.': '.$me->name : $me->name;
+        $title = $convo->type === 'group' && $convo->title ? $convo->title : $me->name;
+        $body = match ($msg->kind) {
+            'voice' => 'Voice message',
+            'image' => 'Photo',
+            default => 'New message',
+        };
         app()->terminating(function () use ($ids, $title, $body, $convo) {
             try {
                 app(\App\Services\Push::class)->toUsers($ids, $title, $body, ['type' => 'message', 'conversation' => $convo->public_id]);

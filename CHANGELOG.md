@@ -1,5 +1,9 @@
 # Changelog
 
+## Push hardening
+
+- Pushes carry no message text (title is the sender or group, body is "New message", "Voice message" or "Photo"). Muted members and anyone blocked either way get none. Failed or slow provider calls never fail a send, and only an explicit UNREGISTERED answer removes a device token.
+
 ## Push sender (server)
 
 - API can send chat message pushes through FCM HTTP v1 with a service account (FCM_CREDENTIALS). Off until set. CI tests use a faked provider and a generated key. Not verified against Firebase, no device receipt, iOS not covered.

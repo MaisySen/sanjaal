@@ -101,7 +101,10 @@ jobs:
           n=0
           for f in *.apk; do
             n=$((n+1))
-            mkdir -p "/tmp/x/$f"; unzip -qo "$f" -d "/tmp/x/$f"
+            echo "checking $f"
+            mkdir -p "/tmp/x/$f"
+            unzip -qo "$f" -d "/tmp/x/$f" || echo "unzip exit $? (warnings are tolerated, contents checked below)"
+            [ -f "/tmp/x/$f/AndroidManifest.xml" ] || { echo "::error::unzip produced no manifest for $f"; exit 1; }
             if grep -raEl 'trycloudflare|local-e2e|10\.0\.2\.2|E2E_TOKEN' "/tmp/x/$f"; then echo "::error::test-only string found in $f"; exit 1; fi
             grep -qa 'sanjaal-api.onrender.com' -r "/tmp/x/$f/lib" || { echo "::error::expected API default not found in $f"; exit 1; }
           done

@@ -23,7 +23,7 @@ if (isset($body['_fixture_file'])) {
     $path = $body['_fixture_file'];
     unset($body['_fixture_file']);
     $file = new \Illuminate\Http\UploadedFile($path, 'fixture.png', 'image/png', null, true);
-    $files = str_ends_with($uri, '/stories') ? ['media' => $file] : ['media' => [$file]];
+    $files = (str_ends_with($uri, '/stories') || str_ends_with($uri, '/messages')) ? ['media' => $file] : ['media' => [$file]];
     $req = Request::create($uri, $method, $body, [], $files, ['HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token]);
 } else {
     $req = Request::create($uri, $method, [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$token], $json);

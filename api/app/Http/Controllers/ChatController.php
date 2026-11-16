@@ -200,6 +200,10 @@ class ChatController extends Controller
             $wasOwner = $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists();
             $convo->members()->detach($me->id);
             if (! $convo->members()->exists()) {
+                // Current private uploads are DB-only. Clean their bytes in the
+                // same transaction; legacy B2 cleanup stays a separate review.
+                $media = $convo->messages()->withTrashed()->whereNotNull('media_id')->pluck('media_id');
+                DB::table('media_blobs')->whereIn('public_id', $media)->where('storage', 'db')->delete();
                 $convo->messages()->delete();
                 $convo->delete();
 
@@ -268,35 +272,42 @@ class ChatController extends Controller
             'reply_to' => ['nullable', 'uuid'],
         ]);
         $me = $request->user();
-        $kind = 'text';
-        $mediaId = null;
-        $mediaMime = null;
-        if ($file = $request->file('media')) {
-            $mediaMime = $file->getMimeType();
-            $kind = str_starts_with($mediaMime, 'image/') ? 'image' : 'voice';
-            $mediaId = (string) \Illuminate\Support\Str::uuid();
-            \App\Support\MediaStore::putFile($mediaId, $file, private: true);
-        }
-        $sharedId = null;
-        if (! empty($data['shared_post'])) {
-            $sp = \App\Models\Post::where('public_id', $data['shared_post'])->first();
-            if (! $sp || in_array($sp->user_id, Present::hiddenAuthors([$me->id]), true)) {
-                return response()->json(['message' => 'That post is not available to share.', 'errors' => ['shared_post' => ['That post is not available to share.']]], 422);
+        [$msg, $replayed, $myFrom] = DB::transaction(function () use ($convo, $me, $data, $request) {
+            // Leave/add also lock the conversation. Recheck membership only after
+            // acquiring it so a queued send cannot act as a departed member.
+            $convo = Conversation::whereKey($convo->id)->lockForUpdate()->firstOrFail();
+            abort_unless($convo->hasMember($me), 404);
+            if ($convo->type === 'direct') {
+                $other = $convo->members()->where('users.id', '!=', $me->id)->value('users.id');
+                abort_if($other && $this->cannotContact($me, $other), 404);
             }
-            $sharedId = $sp->id;
-            $kind = 'post';
-        }
-        $myFrom = (int) ($convo->members()->where('users.id', $me->id)->first()?->pivot->history_from_id ?? 0);
-        $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->where('id', '>', $myFrom)->value('id') : null;
-
-        if (! empty($data['client_id'])) {
-            $dupe = $convo->messages()->where('user_id', $me->id)->where('client_id', $data['client_id'])->first();
-            if ($dupe) {
-                return response()->json(['message' => Present::message($dupe->load('user', 'conversation'))]);
+            $myFrom = (int) ($convo->members()->where('users.id', $me->id)->first()?->pivot->history_from_id ?? 0);
+            if (! empty($data['client_id'])) {
+                $dupe = $convo->messages()->withTrashed()->where('user_id', $me->id)->where('client_id', $data['client_id'])->first();
+                if ($dupe) {
+                    abort_if($dupe->trashed() || $dupe->id <= $myFrom, 410, 'The original message is no longer available.');
+                    return [$dupe, true, $myFrom];
+                }
             }
-        }
-
-        $msg = DB::transaction(function () use ($convo, $me, $data, $kind, $mediaId, $mediaMime, $replyTo, $sharedId) {
+            $sharedId = null;
+            $kind = 'text';
+            if (! empty($data['shared_post'])) {
+                $sp = \App\Models\Post::where('public_id', $data['shared_post'])->first();
+                abort_if(! $sp || in_array($sp->user_id, Present::hiddenAuthors([$me->id]), true), 422, 'That post is not available to share.');
+                $sharedId = $sp->id;
+                $kind = 'post';
+            }
+            $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->where('id', '>', $myFrom)->value('id') : null;
+            $mediaId = null;
+            $mediaMime = null;
+            if ($file = $request->file('media')) {
+                $mediaMime = $file->getMimeType();
+                $kind = str_starts_with($mediaMime, 'image/') ? 'image' : 'voice';
+                $mediaId = (string) \Illuminate\Support\Str::uuid();
+                // Private bytes are DB-only and commit with their message. A
+                // rejected or replayed send must not leave an unreferenced blob.
+                \App\Support\MediaStore::putFile($mediaId, $file, private: true);
+            }
             $m = $convo->messages()->create([
                 'user_id' => $me->id, 'body' => $data['body'] ?? '', 'client_id' => $data['client_id'] ?? null,
                 'kind' => $kind, 'media_id' => $mediaId, 'media_mime' => $mediaMime,
@@ -304,10 +315,13 @@ class ChatController extends Controller
             ]);
             $convo->update(['last_message_at' => $m->created_at]);
             $convo->members()->updateExistingPivot($me->id, ['last_read_message_id' => $m->id]);
-
-            return $m;
+            return [$m, false, $myFrom];
         });
         $msg->load('user', 'conversation');
+        if ($replayed) {
+            return response()->json(['message' => Present::message($msg, $myFrom, Present::hiddenAuthors([$me->id]))]);
+        }
+
 
         try {
             broadcast(new MessageSent($msg))->toOthers();

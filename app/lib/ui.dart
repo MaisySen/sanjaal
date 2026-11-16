@@ -96,6 +96,10 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Messages could not be loaded.': 'सन्देशहरू लोड हुन सकेनन्।',
+  'Delivery could not be confirmed.': 'सन्देश पुगेको पुष्टि हुन सकेन।',
+  'Delivery unconfirmed. Tap to retry.': 'सन्देश पुगेको पुष्टि भएन। फेरि प्रयास गर्न थिच्नुहोस्।',
+  'Original message unavailable.': 'पहिलेको सन्देश उपलब्ध छैन।',
   'Your profile is still updating.': 'तपाईंको प्रोफाइल अद्यावधिक हुँदैछ।',
   'Photo saved. Text changes still need Save.': 'फोटो सुरक्षित भयो। लेखेका परिवर्तन सुरक्षित गर्न सेभ थिच्नुहोस्।',
   'Refresh profile': 'प्रोफाइल पुनः लोड गर्नुहोस्',

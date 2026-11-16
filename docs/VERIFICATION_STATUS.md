@@ -181,3 +181,13 @@ API local:107/855 SQLite and PostgreSQL normal/cached. Real PostgreSQL races:10/
 - Actual profile retry/edit/member/own PNGs inspected, including simulated keyboard space. The simulated space is not a native keyboard result.
 - CI12cb11d https://github.com/MaisySen/sanjaal/actions/runs/43943507650 : API/app/unsigned iOS pass; emulator fails only native poll inset (test/platform0,mocked=false), release skipped. Native screenshot inspected: Option2 focused, no visible keyboard. Monitor removed after settlement.
 - No production changes. Livev35 media isolation, disabled payouts and upload-intent rolloutOFF preserved. No new APK publication or physical Samsung/iPhone claim.
+
+## November 17 chat recovery candidate
+
+- API115tests/919assertions, SQLite and PostgreSQL18 normal/cached. Six focused message tests cover immutable replay/reply, sender+conversation key scope, soft deletion/rejoin history, rollback after bytes insert, no extra replay blob, and final-leave DB cleanup with legacy B2 isolation/no remote calls.
+- Real local PostgreSQL races14/97: four-way text/media same-key requests and final-group-leave/send included. Not live service/load evidence.
+- Flutter211non-render+177screen-render+4base-render=392passed, one intentional live-test skip;16 focused chat tests. Analyzer21info/noerrorswarnings.
+- Actual320x640/1.8x English/Nepali light/dark chat retry pixels inspected; low-contrast status corrected. Simulated keyboard space only.
+- Profile CIcb792b6 https://github.com/MaisySen/sanjaal/actions/runs/43947579638 passed API/app/unsigned iOS, failed only unchanged native poll IME0inset/mocked=false; release skipped. Native screenshot inspected and monitor deleted. No APK publication or live API mutation.
+- Existing private DB media isolation and positive current public-reference rule preserved. Final-leave cleanup only deletes DB blobs belonging to that conversation; legacy B2 deletion remains separate. Upload receipt rolloutOFF and payouts disabled.
+- Remaining chat gaps: durable outbox/drafts, failed media selection retention/retry, before-sequence history paging in the client, foreground/background network recovery and real device delivery.

@@ -373,7 +373,7 @@ void main() {
             await tester.tap(find.byTooltip('Send message'));
             await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
             await tester.pump(const Duration(milliseconds: 300));
-            expect(find.text('Not sent. Tap to retry.'), findsOneWidget);
+            expect(find.text('Delivery unconfirmed. Tap to retry.'), findsOneWidget);
             ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first)).hideCurrentSnackBar();
             await tester.pump(const Duration(seconds: 6));
             await tester.pump(const Duration(seconds: 1));

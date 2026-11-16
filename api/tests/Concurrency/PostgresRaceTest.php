@@ -251,4 +251,46 @@ class PostgresRaceTest extends TestCase
         $this->assertSame(0, $p->fresh()->comments_count);
     }
 
+    public function test_parallel_same_chat_key_returns_one_text_or_media_message_without_orphan_bytes(): void
+    {
+        $a = $this->user('asha');
+        $b = $this->user('bina');
+        $c = $this->group($a, [$b]);
+        $route = "/api/v1/conversations/{$c->public_id}/messages";
+        $codes = $this->race(array_fill(0, 4, ['asha', 'POST', $route, ['body' => 'Same text', 'client_id' => 'race-text']]));
+        sort($codes); $this->assertSame([200, 200, 200, 201], $codes);
+        $file = tempnam(sys_get_temp_dir(), 'chat-fixture');
+        file_put_contents($file, \Illuminate\Http\UploadedFile::fake()->image('same.png')->get());
+        try {
+            $codes = $this->race(array_fill(0, 4, ['asha', 'POST', $route, ['client_id' => 'race-media', '_fixture_file' => $file]]));
+            sort($codes); $this->assertSame([200, 200, 200, 201], $codes);
+            $this->assertSame(2, \App\Models\Message::where('conversation_id', $c->id)->count());
+            $this->assertSame(1, DB::table('media_blobs')->count());
+            $this->assertSame('db', DB::table('media_blobs')->value('storage'));
+        } finally { unlink($file); }
+    }
+
+    public function test_group_send_racing_last_leave_cannot_leave_message_or_private_orphan(): void
+    {
+        $a = $this->user('asha');
+        $c = $this->group($a, []);
+        $oldMedia = (string) \Illuminate\Support\Str::uuid();
+        \App\Support\MediaStore::put($oldMedia, 'image/png', 'fixture-bytes', private: true);
+        $c->messages()->create(['user_id' => $a->id, 'body' => '', 'kind' => 'image', 'media_id' => $oldMedia, 'media_mime' => 'image/png']);
+
+        $file = tempnam(sys_get_temp_dir(), 'chat-fixture');
+        file_put_contents($file, \Illuminate\Http\UploadedFile::fake()->image('same.png')->get());
+        try {
+            $codes = $this->race([
+                ['asha', 'POST', "/api/v1/conversations/{$c->public_id}/leave", []],
+                ['asha', 'POST', "/api/v1/conversations/{$c->public_id}/messages", ['client_id' => 'race-leave', '_fixture_file' => $file]],
+            ]);
+            $this->assertSame(200, $codes[0]);
+            $this->assertContains($codes[1], [201, 404]);
+            $this->assertSame(0, Conversation::whereKey($c->id)->count());
+            $this->assertSame(0, \App\Models\Message::count());
+            $this->assertSame(0, DB::table('media_blobs')->count());
+        } finally { unlink($file); }
+    }
+
 }

@@ -377,7 +377,6 @@ class _ChatPageState extends State<ChatPage> {
   bool loading = true;
   bool fetching = false;
   String? error;
-  int _n = 0;
   Map<String, dynamic>? replyTo;
   bool recording = false;
   List<String> typing = [];
@@ -398,6 +397,8 @@ class _ChatPageState extends State<ChatPage> {
   // arrives, so delivery is near instant without a separate socket server.
   Future<void> _loop() async {
     await _fetch();
+    // Do not immediately hide a first-load error behind a second read.
+    if (error != null) await Future<void>.delayed(const Duration(seconds: 2));
     while (mounted && !_closed) {
       final before = DateTime.now();
       await _fetch(wait: true);
@@ -412,12 +413,24 @@ class _ChatPageState extends State<ChatPage> {
     _closed = true;
     timer?.cancel();
     scroll.dispose();
+    input.dispose();
     super.dispose();
+  }
+
+  void _sortMessages() {
+    msgs.sort((a, b) {
+      final sa = (a['seq'] as num?)?.toInt();
+      final sb = (b['seq'] as num?)?.toInt();
+      if (sa != null && sb != null) return sa.compareTo(sb);
+      if (sa != null) return -1;
+      if (sb != null) return 1;
+      return a['created_at'].toString().compareTo(b['created_at'].toString());
+    });
   }
 
   void _toEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scroll.hasClients) scroll.jumpTo(scroll.position.maxScrollExtent);
+      if (mounted && scroll.hasClients) scroll.jumpTo(scroll.position.maxScrollExtent);
     });
   }
 
@@ -431,20 +444,23 @@ class _ChatPageState extends State<ChatPage> {
       if (mounted && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
+      if (error != null) setState(() => error = null);
       final known = msgs.map((m) => m['public_id']).toSet();
-      final fresh = items.where((m) => !known.contains(m['public_id'])).toList();
+      final fresh = items.where((m) => known.add(m['public_id'])).toList();
       // A server copy replaces the local pending copy that has the same client id.
-      msgs.removeWhere((m) => m['pending'] == true && items.any((s) => s['client_id'] == m['client_id']));
-      if (fresh.isNotEmpty || first) {
+      final before = msgs.length;
+      msgs.removeWhere((m) => (m['pending'] == true || m['failed'] == true) && items.any((s) => s['client_id'] == m['client_id'] && (s['sender'] as Map?)?['public_id'] == (m['sender'] as Map?)?['public_id']));
+      if (fresh.isNotEmpty || first || before != msgs.length) {
         setState(() {
           msgs.addAll(fresh);
+          _sortMessages();
           error = null;
         });
         _toEnd();
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
-    } on ApiError catch (e) {
-      if (mounted && msgs.isEmpty) setState(() => error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Messages could not be loaded.'));
     } finally {
       fetching = false;
       if (mounted && loading) setState(() => loading = false);
@@ -455,7 +471,7 @@ class _ChatPageState extends State<ChatPage> {
     final t = input.text.trim();
     if (t.isEmpty) return;
     input.clear();
-    final cid = '${DateTime.now().microsecondsSinceEpoch}-${_n++}';
+    final cid = newUploadIntent();
     final me = widget.session.user!;
     final local = <String, dynamic>{
       'public_id': 'local-$cid',
@@ -467,26 +483,35 @@ class _ChatPageState extends State<ChatPage> {
       'kind': 'text',
       if (replyTo != null) 'reply_to': {'public_id': replyTo!['public_id'], 'sender': ((replyTo!['sender'] as Map)['username']).toString(), 'kind': replyTo!['kind'] ?? 'text', 'body': replyTo!['body']},
     };
-    final replyId = replyTo?['public_id'];
     replyTo = null;
     setState(() => msgs.add(local));
     _toEnd();
+    await _deliver(local);
+  }
+
+  Future<void> _deliver(Map<String, dynamic> local) async {
+    if (local['pending'] != true) return;
+    final cid = local['client_id'];
+    final replyId = (local['reply_to'] as Map?)?['public_id'];
     try {
-      final j = await widget.session.call('POST', '/conversations/$id/messages', body: {'body': t, 'client_id': cid, if (replyId != null) 'reply_to': replyId}) as Map<String, dynamic>;
+      final j = await widget.session.call('POST', '/conversations/$id/messages', body: {'body': local['body'], 'client_id': cid, if (replyId != null) 'reply_to': replyId}) as Map<String, dynamic>;
       final server = (j['message'] as Map).cast<String, dynamic>();
+      if (server['public_id'] is! String || server['sender'] is! Map || server['body'] is! String) throw const FormatException('Incomplete message response');
       if (!mounted) return;
       setState(() {
-        msgs.removeWhere((m) => m['client_id'] == cid);
+        msgs.removeWhere((m) => m['client_id'] == cid && (m['sender'] as Map?)?['public_id'] == widget.session.user?['public_id']);
         if (!msgs.any((m) => m['public_id'] == server['public_id'])) msgs.add(server);
+        _sortMessages();
       });
       _toEnd();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !msgs.contains(local)) return;
       setState(() {
         local['pending'] = false;
         local['failed'] = true;
+        local['unavailable'] = e is ApiError && e.status == 410;
       });
-      showError(context, e);
+      showError(context, e is ApiError ? e : ApiError(t_('Delivery could not be confirmed.')));
     }
   }
 
@@ -494,16 +519,17 @@ class _ChatPageState extends State<ChatPage> {
     final x = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78));
     if (x == null || !mounted) return;
     final bytes = await x.readAsBytes();
-    await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));
+    if (mounted) await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));
   }
 
   Future<void> _sendVoice(List<int> bytes) async {
+    if (!mounted) return;
     setState(() => recording = false);
     await _sendFile(UploadFile(bytes, 'audio/mp4', 'voice.m4a'));
   }
 
   Future<void> _sendFile(UploadFile file) async {
-    final cid = '${DateTime.now().microsecondsSinceEpoch}-${_n++}';
+    final cid = newUploadIntent();
     final replyId = replyTo?['public_id'];
     setState(() => replyTo = null);
     try {
@@ -512,6 +538,7 @@ class _ChatPageState extends State<ChatPage> {
       if (!mounted) return;
       setState(() {
         if (!msgs.any((m) => m['public_id'] == server['public_id'])) msgs.add(server);
+        _sortMessages();
       });
       _toEnd();
     } catch (e) {
@@ -556,9 +583,10 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _retry(Map<String, dynamic> m) async {
-    setState(() => msgs.remove(m));
-    input.text = m['body'].toString();
-    await _send();
+    if (!mounted || !msgs.contains(m) || m['failed'] != true || m['pending'] == true || m['unavailable'] == true) return;
+    // Retry the immutable original, never the newer composer or its reply.
+    setState(() { m['failed'] = false; m['pending'] = true; });
+    await _deliver(m);
   }
 
   void _call(bool video) {
@@ -587,11 +615,15 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
       body: Column(children: [
+        if (error != null && msgs.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: Row(children: [
+          Expanded(child: Text(error!, maxLines: 2, overflow: TextOverflow.ellipsis)),
+          TextButton(onPressed: fetching ? null : () => _fetch(), child: Text(t_('Try again'))),
+        ])),
         Expanded(
           child: loading
               ? const Center(child: CircularProgressIndicator())
               : msgs.isEmpty
-                  ? Center(child: Text(error ?? 'Say hello.'))
+                  ? error == null ? const Center(child: Text('Say hello.')) : EmptyState(icon: Ph.cloud_off, title: error!, action: OutlinedButton(onPressed: fetching ? null : () => _fetch(), child: Text(t_('Try again'))))
                   : ListView.builder(
                       controller: scroll,
                       padding: const EdgeInsets.all(12),
@@ -604,17 +636,17 @@ class _ChatPageState extends State<ChatPage> {
                         return Align(
                           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                           child: GestureDetector(
-                            onTap: failed ? () => _retry(m) : null,
+                            onTap: failed && m['unavailable'] != true ? () => _retry(m) : null,
                             onLongPress: () => _messageMenu(m),
                             child: Container(
                               margin: const EdgeInsets.symmetric(vertical: 3),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                               decoration: BoxDecoration(
-                                color: mine ? scheme.primary : scheme.surfaceContainerHigh,
+                                color: failed ? scheme.errorContainer : (mine ? scheme.primary : scheme.surfaceContainerHigh),
                                 borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
                               ),
-                              child: DefaultTextStyle.merge(style: TextStyle(color: mine ? scheme.onPrimary : scheme.onSurface), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                 if (m['reply_to'] is Map)
                                   Container(
@@ -637,7 +669,7 @@ class _ChatPageState extends State<ChatPage> {
                                 if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
                                 if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
                                 if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? (mine ? const Color(0xFFB3261E) : scheme.error) : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
+                                Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
                               ])),
                             ),
                           ),

@@ -1,5 +1,9 @@
 # Changelog
 
+## Avatar cleanup
+
+- Removed an unused variable after the redesign.
+
 ## CI analyze output
 
 - Analyze step reports error and warning lines in any format.

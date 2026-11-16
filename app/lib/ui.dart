@@ -153,7 +153,6 @@ class Avatar extends StatelessWidget {
     final url = user?['avatar_url'] as String?;
     final name = (user?['username'] ?? user?['name'] ?? '?').toString();
     final letter = name.isEmpty ? '?' : name.characters.first.toUpperCase();
-    final scheme = Theme.of(context).colorScheme;
     return CircleAvatar(
       radius: radius,
       backgroundColor: _tones[name.hashCode.abs() % _tones.length],

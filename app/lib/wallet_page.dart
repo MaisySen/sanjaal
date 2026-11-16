@@ -22,6 +22,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   String? cashoutId; // reused on a retry of the same request so a lost reply cannot hold coins twice
   int? cashoutCoins;
   bool loading = true;
+  bool loaded = false; // a failed first load must not show a made-up zero balance
   String? error;
   String? pendingTopup;
 
@@ -54,6 +55,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         topup = (j['topup'] as Map).cast<String, dynamic>();
         cashout = ((j['cashout'] as Map?) ?? const {}).cast<String, dynamic>();
         error = null;
+        loaded = true;
         loading = false;
       });
       _loadWithdrawals();
@@ -242,7 +244,21 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       appBar: AppBar(title: Text(t_('Wallet'))),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : (error != null && !loaded)
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Text(error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      FilledButton(onPressed: () {
+                        setState(() => loading = true);
+                        _load();
+                      }, child: Text(t_('Try again'))),
+                    ]),
+                  ),
+                )
+              : RefreshIndicator(
               onRefresh: _load,
               child: ListView(padding: const EdgeInsets.all(16), children: [
                 if (error != null) Text(error!),

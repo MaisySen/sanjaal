@@ -107,3 +107,17 @@ An isolated security branch based on the prior production source scopes B2 publi
 ## Blocking boundary audit
 
 Source fixes now apply the same block policy to remembered direct post/comment/reaction/gift URLs, new follows, direct messages/call-token requests and new groups. Hidden comments/replies and notification actors are filtered; comments on deleted posts no longer create notification entries. Historical direct-chat access is not destroyed by a block. Existing shared-group interaction policy is not claimed fully audited. Local source API suite passes 93 tests / 749 assertions, including the new boundary regressions, repeated with cached routes on the exact production PHP runtime. These broader source changes are not part of the isolated live media image.
+
+### Deployed isolated media safeguard
+
+The live API now runs `sanjaalapp/sanjaal-api:v34-media-f47350b`, manifest `sha256:ffd7f4af418133adf447e3a6985579bec5c8691f3037be1476cc098f6d0dbd65`. Deploy succeeded with no migrations; actual dashboard pixels/logs were inspected and health/ping returned 200.
+
+https://dashboard.render.com/web/srv-dbs73e67bikc73epiodg/deploys/dep-dbtjbiu1egvs73b47as0?r=live
+
+This image is the old production source plus only the three media-safety files, not the whole recovered branch or polls. On the preceding containment image, live public-object HEAD checks showed a new token worked for its own object (200), failed for another public object (401), and carried a one-hour timestamp interval. An old token still worked on its original public object, so revocation was not claimed. No private file bytes were queried. Keep the database-only private path in any rollback. The immediately previous v33 containment image is a safer rollback than the older v31 image.
+
+### Native poll IME gate result
+
+`fe6111a` API, app and unsigned iOS jobs passed, but the new emulator poll gate failed because the actual platform inset stayed zero. Its failure screenshot was inspected and contains no native keyboard. This is not native-keyboard proof. Smoke and signed-in groups passed. The nonzero-inset assertion remains; source `66129e7` explicitly requests the IME and waits on platform geometry rather than assuming synthetic text entry opened it. That revised gate is pending: https://github.com/MaisySen/sanjaal/actions/runs/43913465904 . No new APK is released.
+
+Earlier `8f8c6dd` API/app/emulator passed but iOS was cancelled, not a code-test failure and not an all-green run. Its URL remains https://github.com/MaisySen/sanjaal/actions/runs/43907420534 .

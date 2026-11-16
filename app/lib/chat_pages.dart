@@ -148,20 +148,35 @@ class _ChatsPageState extends State<ChatsPage> {
                       final last = c['last_message'] as Map<String, dynamic>?;
                       final unread = (c['unread'] as num?)?.toInt() ?? 0;
                       final title = (c['title'] ?? 'Chat').toString();
-                      return ListTile(
-                        leading: CircleAvatar(child: Icon(c['type'] == 'group' ? Icons.groups : Icons.person)),
-                        title: Row(children: [
-                          Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : null))),
-                          if (c['pinned'] == true) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.push_pin, size: 14)),
-                          if (c['muted'] == true) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.notifications_off, size: 14)),
-                        ]),
-                        subtitle: Text(_preview(last), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        onLongPress: () => _menu(c),
-                        trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          if (last != null) Text(ago(last['created_at'].toString()), style: const TextStyle(fontSize: 12)),
-                          if (unread > 0) Badge(label: Text('$unread'), backgroundColor: c['muted'] == true ? Colors.grey : null),
-                        ]),
+                      final scheme = Theme.of(context).colorScheme;
+                      return InkWell(
                         onTap: () => _open(c),
+                        onLongPress: () => _menu(c),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          child: Row(children: [
+                            c['type'] == 'group'
+                                ? CircleAvatar(radius: 24, backgroundColor: scheme.surfaceContainerHigh, child: Icon(Icons.groups, color: scheme.onSurfaceVariant))
+                                : Avatar(user: {'name': title, 'username': title, 'avatar_url': c['avatar_url']}, radius: 24),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(children: [
+                                  Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w600))),
+                                  if (c['pinned'] == true) Padding(padding: const EdgeInsets.only(left: 6), child: Icon(Icons.push_pin, size: 13, color: scheme.onSurfaceVariant)),
+                                  if (c['muted'] == true) Padding(padding: const EdgeInsets.only(left: 4), child: Icon(Icons.notifications_off, size: 13, color: scheme.onSurfaceVariant)),
+                                ]),
+                                const SizedBox(height: 2),
+                                Text(_preview(last), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: unread > 0 ? scheme.onSurface : scheme.onSurfaceVariant, fontWeight: unread > 0 ? FontWeight.w600 : FontWeight.w400)),
+                              ]),
+                            ),
+                            const SizedBox(width: 10),
+                            Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                              if (last != null) Text(ago(last['created_at'].toString()), style: TextStyle(fontSize: 12, color: unread > 0 ? scheme.primary : scheme.onSurfaceVariant)),
+                              if (unread > 0) Padding(padding: const EdgeInsets.only(top: 4), child: Badge(label: Text('$unread'), backgroundColor: c['muted'] == true ? scheme.outline : scheme.primary, textColor: scheme.onPrimary)),
+                            ]),
+                          ]),
+                        ),
                       );
                     },
                   ),

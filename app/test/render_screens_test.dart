@@ -12,7 +12,12 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
-import 'package:sanjaal/chat_pages.dart' show ChatPage;
+import 'package:sanjaal/chat_pages.dart' show ChatPage, ChatsPage;
+import 'package:sanjaal/notifications_page.dart' show NotificationsPage;
+import 'package:sanjaal/settings_page.dart' show SettingsPage;
+import 'package:sanjaal/auth_page.dart' show AuthPage;
+import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
+import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
 import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
@@ -51,6 +56,26 @@ Future<http.Response> _reply(http.Request r) async {
       ]
     });
   }
+  if (p.endsWith('/conversations') && r.method == 'GET') {
+    Map<String, dynamic> msg(String b, int mins) => {'kind': 'text', 'body': b, 'created_at': _ago(mins)};
+    return _json({
+      'data': [
+        {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung', 'unread': 2, 'pinned': true, 'last_message': msg('Perfect. Dal bhat after the music.', 45)},
+        {'public_id': 'c2', 'type': 'group', 'title': 'Sydney Nepali meetup', 'unread': 0, 'last_message': msg('Venue is booked for Saturday', 190)},
+        {'public_id': 'c3', 'type': 'direct', 'title': 'Bikash Thapa', 'unread': 5, 'muted': true, 'last_message': {'kind': 'voice', 'body': '', 'created_at': _ago(600)}},
+        {'public_id': 'c4', 'type': 'direct', 'title': 'सुनिता राई', 'unread': 0, 'last_message': msg('धन्यवाद, भोलि भेटौँला', 1500)},
+      ]
+    });
+  }
+  if (p.endsWith('/notifications')) {
+    return _json({
+      'data': [
+        {'type': 'like', 'actor': 'asha', 'text': 'Sunrise over Phewa lake', 'created_at': _ago(20)},
+        {'type': 'comment', 'actor': 'bikash', 'text': 'Which chord is that?', 'created_at': _ago(95)},
+        {'type': 'follow', 'actor': 'sunita', 'created_at': _ago(600)},
+      ]
+    });
+  }
   if (p.endsWith('/rooms')) {
     return _json({
       'data': [
@@ -79,7 +104,7 @@ Future<http.Response> _reply(http.Request r) async {
         {'kind': 'gift_out', 'amount': -20, 'created_at': _ago(90), 'counterparty': 'asha', 'note': 'Khada'},
         {'kind': 'gift_in', 'amount': 55, 'created_at': _ago(30), 'counterparty': 'bikash', 'note': null},
       ],
-      'topup': {'esewa': true, 'esewa_mode': 'test'},
+      'topup': {'esewa': false, 'esewa_mode': 'off'},
     });
   }
   if (p.endsWith('/messages')) {
@@ -134,26 +159,33 @@ void main() {
     final root = Platform.environment['FLUTTER_ROOT'] ?? '';
     final dir = '$root/bin/cache/artifacts/material_fonts';
     await _loadFont('Roboto', ['$dir/Roboto-Regular.ttf', '$dir/Roboto-Medium.ttf', '$dir/Roboto-Bold.ttf']);
+    if (File('/tmp/ndev.ttf').existsSync()) await _loadFont('NotoDev', ['/tmp/ndev.ttf']);
     await _loadFont('MaterialIcons', ['$dir/MaterialIcons-Regular.otf']);
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
           final s = Session();
           await tester.runAsync(() => s.restore());
           _voiceMsgs = name == 'chat_voice';
+          await tester.runAsync(() => prefs.setLang(name.endsWith('_ne') ? 'ne' : 'en'));
           final key = GlobalKey();
           tester.view.physicalSize = name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
-          final theme = buildTheme(b, fontFamily: 'Roboto');
+          final theme = buildTheme(b, fontFamily: 'Roboto').copyWith(textTheme: buildTheme(b, fontFamily: 'Roboto').textTheme.apply(fontFamilyFallback: ['NotoDev']));
           final Widget home = switch (name) {
             'wallet' => WalletPage(session: s),
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
             'rooms' => RoomsPage(session: s),
+            'chats' || 'chats_ne' => ChatsPage(session: s),
+            'notifications' => NotificationsPage(session: s),
+            'settings' => SettingsPage(session: s),
+            'auth' => AuthPage(session: s),
+            'onboarding' => const OnboardingPage(),
             'room_host' => _room(isHost: true, speaker: true, hands: {'u1': 'Bikash Thapa', 'u2': ''}, stage: [(id: 'me', name: 'Bidur Khatri', host: true, you: true, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false), (id: 'u4', name: 'Asha Gurung', host: false, you: false, muted: false, speaking: false)]),
             'room_listener' => _room(isHost: false, speaker: false, handUp: true, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true), (id: 'u3', name: 'Sunita Rai', host: false, you: false, muted: true, speaking: false)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
@@ -162,8 +194,8 @@ void main() {
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = name != 'gift' && name != 'gift_short';
-          await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
+          final pushed = name != 'gift' && name != 'gift_short' && name != 'onboarding' && name != 'auth';
+          await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, builder: (c, child) => Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]), debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));
           if (name == 'gift' || name == 'gift_short') {

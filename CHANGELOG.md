@@ -1,5 +1,9 @@
 # Changelog
 
+## Redesign pass 8: chats list and render coverage
+
+- Chats list rows: ink-tone initial avatars, bold unread preview, crimson time and badge for unread, muted chats grey. Render tests now cover chats (English and Nepali), notifications, settings, sign in and onboarding, show a visible demo-data strip, use the five-tab nav, and render the wallet with top up switched off. Checked with flutter analyze and widget renders; not on a device.
+
 ## Redesign pass 7: media-led feed rows and calmer dark primary
 
 - Feed rows: author header on top (avatar, name, handle and time), body at full width, photos and video edge to edge, actions below. Dark theme primary changes from a bright pink to a deeper rose with checked contrast. Render test now includes an invented photo post (original art in test/fixtures, test only) served through a test-only HTTP override. Checked with flutter analyze and widget renders; not on a device.

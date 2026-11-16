@@ -108,10 +108,11 @@ Widget _screen(Session s, int tab) {
             ProfileHeader(user: profile, actions: Row(mainAxisAlignment: MainAxisAlignment.center, children: [FilledButton(onPressed: () {}, child: const Text('Follow')), const SizedBox(width: 12), OutlinedButton(onPressed: () {}, child: const Text('Message'))])),
             const EmptyState(icon: Icons.photo_library_outlined, title: 'No posts yet', hint: 'Posts will show here.'),
           ]),
-    bottomNavigationBar: NavigationBar(selectedIndex: tab, destinations: const [
+    bottomNavigationBar: NavigationBar(selectedIndex: tab == 0 ? 0 : 4, destinations: const [
       NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
       NavigationDestination(icon: Icon(Icons.play_circle_outline), label: 'Reels'),
       NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chats'),
+      NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
       NavigationDestination(icon: Icon(Icons.person_outline), label: 'Me'),
     ]),
   );
@@ -135,7 +136,7 @@ void main() {
         tester.view.devicePixelRatio = 3;
         addTearDown(tester.view.reset);
         final theme = buildTheme(b, fontFamily: 'Roboto');
-        await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(theme: theme, debugShowCheckedModeBanner: false, home: _screen(Session(), tab))));
+        await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(theme: theme, builder: (c, child) => Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]), debugShowCheckedModeBanner: false, home: _screen(Session(), tab))));
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
         await tester.pump(const Duration(milliseconds: 300));

@@ -24,6 +24,18 @@ class MoveMediaToB2 extends Command
         $moved = 0;
         $failed = 0;
         foreach ($rows as $row) {
+            // Only positively identified public media may enter the shared bucket.
+            // Excluding chat references alone is insufficient for in-flight or
+            // orphaned private uploads that have no message row yet.
+            $private = DB::table('messages')->where('media_id', $row->public_id)->exists();
+            $public = DB::table('post_media')->where('path', $row->public_id)->exists()
+                || DB::table('users')->where('avatar', $row->public_id)->exists()
+                || DB::table('stories')->where('media_id', $row->public_id)->exists();
+            if ($private || ! $public) {
+                $this->line('skip private or unclassified media');
+
+                continue;
+            }
             $bytes = base64_decode((string) $row->data, true);
             if ($bytes === false || strlen($bytes) !== (int) $row->size) {
                 $this->warn("skip {$row->public_id}: stored bytes do not match recorded size");

@@ -95,6 +95,9 @@ class B2ChatMediaTest extends TestCase
         $this->assertSame('db', DB::table('media_blobs')->where('public_id', $rawId)->value('storage'));
         $this->assertNotEmpty(DB::table('media_blobs')->where('public_id', $rawId)->value('data'));
         Http::assertNothingSent();
+        $this->artisan('media:move-to-b2')->assertSuccessful();
+        Http::assertNothingSent();
+        $this->assertSame('db', DB::table('media_blobs')->where('public_id', $rawId)->value('storage'));
         $this->get("/api/v1/media/$rawId")->assertNotFound();
         $this->get("/api/v1/conversations/$cid/messages/$mid/media", $ha)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
     }

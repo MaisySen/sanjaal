@@ -2,6 +2,7 @@
 
 ## Pass 11: About and Search render coverage
 
+- Render coverage for Search no-matches and error, the story viewer (layout only; the fixture image cannot load so the viewer shows its broken-image fallback), and a reel item (layout only; the video does not load in a widget test so it shows "Video could not load"). Playback is not tested.
 - Room with an empty chat uses the shared empty state (icon, title, hint) instead of one plain line. Render added for a quiet room (one speaker, no messages).
 - Render coverage also for New chat and the stories row (real HomeShell, fixture stories).
 - Render tests added for About (normal and 1.8x text), Search (empty and results) and Blocked people. Widget renders only, fixture data.

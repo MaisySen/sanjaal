@@ -19,6 +19,8 @@ import 'package:sanjaal/auth_page.dart' show AuthPage;
 import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
+import 'package:sanjaal/stories_page.dart' show StoryViewer;
+import 'package:sanjaal/reels_page.dart' show ReelItem;
 import 'package:sanjaal/chat_pages.dart' show NewChatPage;
 import 'package:sanjaal/settings_page.dart' show BlockedPage;
 import 'package:sanjaal/search_page.dart' show SearchPage;
@@ -84,6 +86,12 @@ Future<http.Response> _reply(http.Request r) async {
       {'username': 'raju_k', 'name': 'Raju K'},
       {'username': 'spam_account', 'name': 'Promo Offers'},
     ]}), 200, headers: {'content-type': 'application/json'});
+  }
+  if (p.endsWith('/users/search') && r.url.queryParameters['q'] == 'zzz') {
+    return _json({'users': [], 'hashtags': []});
+  }
+  if (p.endsWith('/users/search') && r.url.queryParameters['q'] == 'boom') {
+    return http.Response(jsonEncode({'message': 'Search is not available right now. Try again in a moment.'}), 503, headers: {'content-type': 'application/json'});
   }
   if (p.endsWith('/users/search')) {
     return http.Response(jsonEncode({
@@ -191,7 +199,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -212,7 +220,12 @@ void main() {
             'shell' => HomeShell(session: s),
             'compose' => ComposePage(session: s),
             'about' || 'about_big' => const AboutPage(),
-            'search' || 'search_results' => SearchPage(session: s),
+            'search' || 'search_results' || 'search_none' || 'search_error' => SearchPage(session: s),
+            'story' => StoryViewer(session: s, group: {'author': {'username': 'asha', 'name': 'Asha Gurung'}, 'items': [
+              {'public_id': 's1', 'type': 'image', 'created_at': _ago(90), 'url': 'http://fixture.invalid/s1.jpg', 'caption': 'Morning at Phewa lake'},
+              {'public_id': 's2', 'type': 'image', 'created_at': _ago(30), 'url': 'http://fixture.invalid/s2.jpg', 'caption': ''},
+            ]}),
+            'reel' => Scaffold(backgroundColor: Colors.black, body: ReelItem(session: s, playing: true, muted: false, onToggleMute: () {}, reel: {'public_id': 'r1', 'body': 'Dal bhat after the boat ride #pokhara', 'comments_count': 14, 'likes_count': 212, 'author': {'username': 'asha', 'name': 'Asha Gurung', 'public_id': 'u1', 'following': false}, 'media': [{'type': 'video', 'url': 'http://fixture.invalid/r1.mp4'}]})),
             'blocked' => BlockedPage(session: s),
             'new_chat' => NewChatPage(session: s),
             'chats' || 'chats_ne' => ChatsPage(session: s),
@@ -236,11 +249,11 @@ void main() {
           if (base == 'gift' || base == 'gift_short') {
             await tester.tap(find.text('Send a gift'));
           }
-          if (base == 'search_results') {
+          if (base.startsWith('search_')) {
             await tester.pump();
             await tester.pump(const Duration(milliseconds: 600));
             await tester.pump(const Duration(milliseconds: 600));
-            await tester.enterText(find.byType(EditableText), 'ash');
+            await tester.enterText(find.byType(EditableText), base == 'search_none' ? 'zzz' : base == 'search_error' ? 'boom' : 'ash');
             await tester.pump(const Duration(milliseconds: 400));
           }
           for (var i = 0; i < 6; i++) {

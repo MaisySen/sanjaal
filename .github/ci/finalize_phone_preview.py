@@ -69,8 +69,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix='sanjaal-final-') as tmp:
         tmp=Path(tmp);key=tmp/'upload.p12';key.write_bytes(base64.b64decode(Path(a.keystore_base64_file).read_text().strip(),validate=True));key.chmod(0o600)
         aligned=tmp/'aligned.apk';candidate=tmp/'signed.apk'
+        # apksigner consumes successive lines when the same password file is reused.
+        # Separate private files supply the same existing key/store password safely.
+        keypass=tmp/'key-password';keypass.write_bytes(Path(a.password_file).read_bytes());keypass.chmod(0o600)
         call(tool/'zipalign','-P','16','-f','4',inp,aligned)
-        call(tool/'apksigner','sign','--ks',key,'--ks-key-alias','upload','--ks-pass','file:'+a.password_file,'--key-pass','file:'+a.password_file,'--out',candidate,aligned)
+        call(tool/'apksigner','sign','--ks',key,'--ks-key-alias','upload','--ks-pass','file:'+a.password_file,'--key-pass','file:'+str(keypass),'--out',candidate,aligned)
         result=call(tool/'apksigner','verify','--verbose','--print-certs',candidate)
         assert 'Signer #1 certificate SHA-256 digest: '+CERT in result,'Wrong signing identity'
         assert 'Verified using v2 scheme (APK Signature Scheme v2): true' in result and 'Verified using v3 scheme (APK Signature Scheme v3): true' in result,'Missing v2/v3 signature'

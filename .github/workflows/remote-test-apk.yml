@@ -37,6 +37,10 @@ jobs:
             --dart-define=E2E_TOKEN_BASE=${{ steps.url.outputs.u }}
           mkdir -p /tmp/out
           cp build/app/outputs/flutter-apk/app-debug.apk /tmp/out/sanjaal-SYNTHETIC-REMOTE-TEST-debug-NOT-FOR-USERS.apk
+      - name: Control - this debug build must contain the tunnel address (proves the check in ci.yml can see it)
+        run: |
+          mkdir -p /tmp/y && unzip -qo /tmp/out/*.apk -d /tmp/y
+          grep -raql "${{ steps.url.outputs.u }}" /tmp/y || { echo "::error::tunnel address not found in debug apk"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: sanjaal-remote-test-synthetic

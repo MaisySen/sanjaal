@@ -8,6 +8,7 @@ import 'auth_page.dart';
 import 'calls_page.dart';
 import 'chat_pages.dart';
 import 'feed_page.dart';
+import 'stories_page.dart' show addStory;
 import 'onboarding_page.dart';
 import 'profile_pages.dart';
 import 'reels_page.dart';
@@ -238,7 +239,13 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _compose() async {
-    final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session)));
+    final what = await showModalBottomSheet<String>(context: context, showDragHandle: true, builder: (_) => const CreateSheet());
+    if (what == null || !mounted) return;
+    if (what == 'story') {
+      if (await addStory(context, widget.session) && mounted) showInfo(context, 'Your story is up. It shows in the row at the top of Home.');
+      return;
+    }
+    final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session, startWithVideo: what == 'reel')));
     if (p != null && mounted) {
       showInfo(context, p['kind'] == 'reel' ? 'Your reel is live in the Reels tab.' : 'Posted. Pull down on Home to refresh.');
       setState(() => tab = p['kind'] == 'reel' ? 1 : 0);

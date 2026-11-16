@@ -28,7 +28,7 @@ import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
 import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
 import 'package:sanjaal/main.dart' show buildTheme, HomeShell;
-import 'package:sanjaal/feed_page.dart' show ComposePage, feedImageProvider;
+import 'package:sanjaal/feed_page.dart' show ComposePage, CreateSheet, feedImageProvider;
 import 'package:sanjaal/wallet_page.dart' show WalletPage;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -218,7 +218,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -238,6 +238,7 @@ void main() {
             'rooms' => RoomsPage(session: s),
             'shell' => HomeShell(session: s),
             'compose' => ComposePage(session: s),
+            'create' => const Scaffold(backgroundColor: Colors.black, body: Align(alignment: Alignment.bottomCenter, child: Material(color: Color(0xFF1A1D24), borderRadius: BorderRadius.vertical(top: Radius.circular(28)), child: CreateSheet()))),
             'about' || 'about_big' => const AboutPage(),
             'search' || 'search_results' || 'search_none' || 'search_error' => SearchPage(session: s),
             'story' => StoryViewer(session: s, group: {'author': {'username': 'asha', 'name': 'Asha Gurung'}, 'items': [
@@ -261,7 +262,7 @@ void main() {
             _ => Builder(builder: (c) => Scaffold(appBar: AppBar(title: const Text('Post')), body: Center(child: FilledButton(onPressed: () => showGiftSheet(c, s, 'p1', 'asha'), child: const Text('Send a gift'))))),
           };
           final nav = GlobalKey<NavigatorState>();
-          final pushed = base != 'gift' && base != 'gift_short' && base != 'onboarding' && base != 'auth' && base != 'shell';
+          final pushed = base != 'create' && base != 'gift' && base != 'gift_short' && base != 'onboarding' && base != 'auth' && base != 'shell';
           await tester.pumpWidget(RepaintBoundary(key: key, child: MaterialApp(navigatorKey: nav, theme: theme, builder: (c, child0) { final child = name.endsWith('_big') ? MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.8)), child: child0!) : child0; return Column(children: [Expanded(child: child!), Container(width: double.infinity, color: const Color(0xFF444444), padding: const EdgeInsets.symmetric(vertical: 2), child: const Text('DEMO DATA: test fixture, not live', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Roboto', color: Colors.white, fontSize: 10, decoration: TextDecoration.none, fontWeight: FontWeight.w400)))]); }, debugShowCheckedModeBanner: false, home: pushed ? const Scaffold(body: SizedBox()) : home)));
           // The real app opens these screens with Navigator.push, so the app bar shows a back button.
           if (pushed) nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => home));

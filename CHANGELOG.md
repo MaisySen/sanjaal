@@ -11,6 +11,7 @@
 - Feed post: single photos get rounded corners and side margins, softer dividers. Analyzer and shell render pass; no fixture post with a photo was rendered.
 - Reel action rail: round dark backplates for contrast over video. The fixture has no video, so the backplate is invisible in the render and contrast over real footage is unchecked.
 - Home feed: posts with photos are now full-width rounded photo cards (4:5) with the author and caption over a bottom gradient and a right-hand rail (reaction, comments, gift) on dark backplates. Text-only posts and video posts keep the plain card. Profiles and hashtag pages keep the plain card. Fixture render uses a generated gradient picture, not a real photo, so contrast over real photos is still unmeasured. Chat timestamps on white bubbles darkened.
+- Create sheet: the Home plus button now opens Create (Post, Reel, Story, choose then Continue). Post opens the composer, Reel opens it with the video picker, Story picks a photo or video and posts it. Rendered (unselected state) from fixture; the three destinations were not run on a device.
 - The red logo tile is gone: the header and sign-in show the Devanagari wordmark alone. This is a draft identity, not an approved logo.
 - Checked with flutter analyze and a widget render of the shell (fixture data, not a device). Glass performance on a phone is untested. Other screens are not yet restyled.
 

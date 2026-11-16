@@ -572,8 +572,9 @@ class HashtagPage extends StatelessWidget {
 }
 
 class ComposePage extends StatefulWidget {
-  const ComposePage({super.key, required this.session});
+  const ComposePage({super.key, required this.session, this.startWithVideo = false});
   final Session session;
+  final bool startWithVideo;
   @override
   State<ComposePage> createState() => _ComposePageState();
 }
@@ -583,6 +584,12 @@ class _ComposePageState extends State<ComposePage> {
   List<XFile> images = [];
   XFile? video;
   bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startWithVideo) WidgetsBinding.instance.addPostFrameCallback((_) => _pickVideo());
+  }
 
   Future<void> _pick() async {
     final fs = await ImagePicker().pickMultiImage(maxWidth: 1280, imageQuality: 78, limit: 4);
@@ -725,6 +732,63 @@ class _VideoTileState extends State<VideoTile> {
         AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c)),
         if (!c.value.isPlaying) const PhIcon('play-circle-fill', size: 64, color: Colors.white70),
       ]),
+    );
+  }
+}
+
+
+/// Create sheet: pick what to make, then Continue.
+class CreateSheet extends StatefulWidget {
+  const CreateSheet({super.key});
+  @override
+  State<CreateSheet> createState() => _CreateSheetState();
+}
+
+class _CreateSheetState extends State<CreateSheet> {
+  String? picked;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget option(String id, String icon, String title, String sub) {
+      final on = picked == id;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Material(
+          color: on ? scheme.surfaceContainerHighest : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => setState(() => picked = id),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Row(children: [
+                Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(14)), child: Center(child: PhIcon(icon, size: 24))),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  Text(sub, style: TextStyle(color: scheme.onSurfaceVariant)),
+                ])),
+                PhIcon(on ? 'check-circle-fill' : 'circle', color: on ? scheme.primary : scheme.outline),
+              ]),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.fromLTRB(4, 4, 0, 12), child: Text(t_('Create'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700))),
+          option('post', 'image', t_('Post'), t_('Photos or a text update')),
+          option('reel', 'video-camera', t_('Reel'), t_('Short video')),
+          option('story', 'camera', t_('Story'), t_('Disappears after 24 hours')),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, height: 52, child: FilledButton(onPressed: picked == null ? null : () => Navigator.pop(context, picked), child: Text(t_('Continue')))),
+        ]),
+      ),
     );
   }
 }

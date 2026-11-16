@@ -41,30 +41,7 @@ class _StoriesBarState extends State<StoriesBar> {
   }
 
   Future<void> _add() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const PhIcon('image'), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
-          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
-        ]),
-      ),
-    );
-    if (source == null) return;
-    final x = source == 'photo'
-        ? await picker.pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78)
-        : await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 20));
-    if (x == null || !mounted) return;
-    final bytes = await x.readAsBytes();
-    if (!mounted) return;
-    try {
-      showInfo(context, t_('Posting your story...'));
-      await widget.session.upload('/stories', file: UploadFile(bytes, mimeFor(x.name, video: source == 'video'), x.name));
-      await _load();
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
+    if (await addStory(context, widget.session)) await _load();
   }
 
   @override
@@ -326,3 +303,33 @@ class _StoryViewerState extends State<StoryViewer> {
     );
   }
 }
+
+/// Picks a photo or video and posts it as a story. Returns true when it was posted.
+Future<bool> addStory(BuildContext context, Session session) async {
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const PhIcon('image'), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
+          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
+        ]),
+      ),
+    );
+    if (source == null) return false;
+    final x = source == 'photo'
+        ? await picker.pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78)
+        : await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 20));
+    if (x == null || !context.mounted) return false;
+    final bytes = await x.readAsBytes();
+    if (!context.mounted) return false;
+    try {
+      showInfo(context, t_('Posting your story...'));
+      await session.upload('/stories', file: UploadFile(bytes, mimeFor(x.name, video: source == 'video'), x.name));
+      return true;
+    } catch (e) {
+      if (context.mounted) showError(context, e);
+      return false;
+    }
+  }
+

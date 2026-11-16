@@ -20,7 +20,6 @@ file_put_contents("$out/jwks.json", json_encode(['keys' => [['kty' => 'RSA', 'us
 
 $me = User::create(['name' => 'Synthetic Member', 'username' => 'synthetic_member', 'email' => 'synthetic@example.invalid', 'auth0_sub' => 'auth0|e2e-synthetic', 'password' => bin2hex(random_bytes(16))]);
 $asha = User::create(['name' => 'Asha Gurung', 'username' => 'asha_e2e', 'email' => 'asha@example.invalid', 'auth0_sub' => 'auth0|e2e-asha', 'password' => bin2hex(random_bytes(16))]);
-Post::create(['user_id' => $asha->id, 'kind' => 'post', 'body' => 'Sunrise over Phewa lake. Test post for the emulator run.']);
 Post::create(['user_id' => $me->id, 'kind' => 'post', 'body' => 'My own synthetic post.']);
 // Test-only filler so layouts can be reviewed with a fuller feed. Invented text, fake people, local database only.
 $bikram = User::create(['name' => 'Bikram Test', 'username' => 'bikram_e2e', 'email' => 'bikram@example.invalid', 'auth0_sub' => 'auth0|e2e-bikram', 'password' => bin2hex(random_bytes(16))]);
@@ -28,6 +27,8 @@ $sita = User::create(['name' => 'Sita Test Account With A Long Display Name', 'u
 Post::create(['user_id' => $bikram->id, 'kind' => 'post', 'body' => 'नमस्ते साथीहरू, यो परीक्षणको लागि बनाइएको पोस्ट हो। #test #nepali']);
 Post::create(['user_id' => $sita->id, 'kind' => 'post', 'body' => 'A longer synthetic post to check how a paragraph wraps in the feed row. It has several sentences so the line height, the spacing under the author line and the action row can be judged together. #layout']);
 Post::create(['user_id' => $bikram->id, 'kind' => 'post', 'body' => 'Short one.']);
+// Newest on purpose: the home feed shows one post per page, so the post the tests look for must be page one.
+Post::create(['user_id' => $asha->id, 'kind' => 'post', 'body' => 'Sunrise over Phewa lake. Test post for the emulator run.']);
 
 $tok = JWT::encode(['iss' => 'https://tenant.example.auth0.com/', 'aud' => 'https://api.test', 'sub' => 'auth0|e2e-synthetic', 'iat' => time() - 10, 'exp' => time() + 3000], $pem, 'RS256', $kid);
 file_put_contents("$out/token.txt", $tok);

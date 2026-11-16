@@ -215,7 +215,7 @@ class CallView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(title: Text(title), backgroundColor: Colors.black, foregroundColor: Colors.white),
+      appBar: AppBar(leading: Navigator.of(context).canPop() ? BackButton(color: Colors.white, style: IconButton.styleFrom(foregroundColor: Colors.white), onPressed: onEnd) : null, title: Text(title, style: const TextStyle(color: Colors.white)), iconTheme: const IconThemeData(color: Colors.white), backgroundColor: Colors.black, foregroundColor: Colors.white),
       body: Column(children: [
         Expanded(
           child: tiles.isEmpty

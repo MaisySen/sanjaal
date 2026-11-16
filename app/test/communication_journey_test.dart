@@ -130,6 +130,7 @@ void main() {
       onMute: () => fail('microphone must be disabled'),
       onCamera: () => fail('camera must be disabled'), onEnd: () => ended = true,
     )));
+    expect(t.widget<Text>(find.text('Fixture')).style?.color, Colors.white, reason: 'call header must stay readable on its black surface in the light theme');
     final buttons = t.widgetList<IconButton>(find.byType(IconButton)).toList();
     expect(buttons[0].onPressed, isNull);
     expect(buttons[1].onPressed, isNull);

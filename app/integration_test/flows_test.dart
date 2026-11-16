@@ -95,9 +95,8 @@ void main() {
       await binding.takeScreenshot('flow3_compose');
       await tester.tap(find.widgetWithText(FilledButton, 'Post'));
       await _settle(tester, 8);
-      // Compose confirms success; refresh the existing pager to fetch the newest post.
-      await tester.drag(find.byType(PageView).first, const Offset(0, 450));
-      await _settle(tester, 8);
+      // Returning from publish must reveal the post without a manual refresh.
+      await _until(tester, find.textContaining('Posted from the emulator run'));
       expect(find.textContaining('Posted from the emulator run'), findsWidgets);
       await binding.takeScreenshot('flow4_post_in_feed');
     });

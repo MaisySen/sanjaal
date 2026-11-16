@@ -18,9 +18,10 @@ ImageProvider Function(String url)? feedImageProvider;
 
 /// Home tab: For you and Following, with search and notifications on top.
 class FeedPage extends StatelessWidget {
-  const FeedPage({super.key, required this.session, required this.onCompose});
+  const FeedPage({super.key, required this.session, required this.onCompose, this.forYouKey});
   final Session session;
   final Future<void> Function() onCompose;
+  final GlobalKey<FeedListState>? forYouKey;
 
   @override
   Widget build(BuildContext context) {
@@ -38,14 +39,15 @@ class FeedPage extends StatelessWidget {
         ),
         body: TabBarView(children: [
           FeedList(
-            key: const PageStorageKey('forYou'),
+            key: forYouKey ?? const PageStorageKey('forYou'),
             session: session,
             query: const {'kind': 'post'},
             immersive: true,
             header: StoriesBar(session: session),
             emptyIcon: Ph.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
-            emptyHint: 'Be the first. Tap + to share a photo or a thought.',
+            emptyHint: t_('Share something that matters to you.'),
+            emptyAction: FilledButton.icon(onPressed: onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
           ),
           FeedList(
             key: const PageStorageKey('following'),
@@ -54,7 +56,8 @@ class FeedPage extends StatelessWidget {
             immersive: true,
             emptyIcon: Ph.group_add_outlined,
             emptyTitle: 'Follow people to fill this tab',
-            emptyHint: 'Use search to find members and tap Follow.',
+            emptyHint: t_('Posts from the people you follow will appear here.'),
+            emptyAction: FilledButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session))), icon: const PhIcon('magnifying-glass', size: 18), label: Text(t_('Find people'))),
           ),
         ]),
       ),
@@ -72,6 +75,7 @@ class FeedList extends StatefulWidget {
     this.emptyIcon = Ph.dynamic_feed_outlined,
     this.emptyTitle = 'No posts yet',
     this.emptyHint,
+    this.emptyAction,
     this.immersive = false,
     this.path = '/posts',
   });
@@ -83,6 +87,7 @@ class FeedList extends StatefulWidget {
   final PhData emptyIcon;
   final String emptyTitle;
   final String? emptyHint;
+  final Widget? emptyAction;
   @override
   State<FeedList> createState() => FeedListState();
 }
@@ -93,6 +98,7 @@ class FeedListState extends State<FeedList> {
   String? cursor;
   bool loading = false;
   bool done = false;
+  bool _refreshQueued = false;
   String? error;
 
   @override
@@ -114,7 +120,11 @@ class FeedListState extends State<FeedList> {
   void insertFirst(Map<String, dynamic> p) => setState(() => posts.insert(0, p));
 
   Future<void> load({bool refresh = false}) async {
-    if (loading || (done && !refresh)) return;
+    if (loading) {
+      if (refresh) _refreshQueued = true;
+      return;
+    }
+    if (done && !refresh) return;
     setState(() {
       loading = true;
       error = null;
@@ -130,13 +140,26 @@ class FeedListState extends State<FeedList> {
         cursor = j['next_cursor'] as String?;
         done = cursor == null;
       });
+      if (refresh) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (pager.hasClients) pager.jumpToPage(0);
+          if (scroll.hasClients) scroll.jumpTo(0);
+        });
+      }
     } on ApiError catch (e) {
       if (mounted) setState(() => error = e.message);
     } catch (_) {
       // A reply the app could not read must not look like an empty list.
       if (mounted) setState(() => error = 'Could not load posts. Try again.');
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() => loading = false);
+        if (_refreshQueued) {
+          _refreshQueued = false;
+          load(refresh: true);
+        }
+      }
     }
   }
 
@@ -202,7 +225,7 @@ class FeedListState extends State<FeedList> {
                 action: OutlinedButton(onPressed: () => load(refresh: true), child: Text(t_('Try again'))),
               );
             }
-            return Padding(padding: const EdgeInsets.only(top: 40), child: EmptyState(icon: widget.emptyIcon, title: widget.emptyTitle, hint: widget.emptyHint));
+            return Padding(padding: const EdgeInsets.only(top: 40), child: EmptyState(icon: widget.emptyIcon, title: widget.emptyTitle, hint: widget.emptyHint, action: widget.emptyAction));
           }
           if (k == posts.length) {
             if (error != null) {
@@ -419,27 +442,26 @@ class _PostCardState extends State<PostCard> {
   Widget _immersive(List<Map<String, dynamic>> images, String name, String body, bool mine, ColorScheme scheme) {
     final p = widget.post;
     const shadow = [Shadow(blurRadius: 6, color: Colors.black54)];
-    Widget plate(Widget child) => Container(
-          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.white24)),
-          child: child,
-        );
-    Widget railItem(String icon, String label, VoidCallback onTap) => plate(InkWell(
-          borderRadius: BorderRadius.circular(28),
+    Widget railItem(String icon, String label, VoidCallback onTap) => InkWell(
+          borderRadius: BorderRadius.circular(16),
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              PhIcon(icon, size: 28, color: Colors.white),
-              const SizedBox(height: 2),
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-            ]),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                PhIcon(icon, size: 28, color: Colors.white),
+                const SizedBox(height: 3),
+                Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+              ]),
+            ),
           ),
-        ));
+        );
     final url = images.first['url'] as String;
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(20),
         child: _shape(
           Stack(fit: StackFit.expand, children: [
             GestureDetector(onTap: () => openImage(context, url), child: _photo(url)),
@@ -448,12 +470,18 @@ class _PostCardState extends State<PostCard> {
                 decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.0, 0.4, 0.7, 1.0], colors: [Color(0x00000000), Color(0x00000000), Color(0x99000000), Color(0xE6000000)])),
               ),
             ),
+            const Positioned(
+              right: 0, top: 0, bottom: 0, width: 84,
+              child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [Colors.transparent, Color(0x77000000)]),
+              ))),
+            ),
             if (images.length > 1) Positioned(top: 12, right: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)), child: Text('+${images.length - 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))),
             Positioned(
               right: 8,
               bottom: 16,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                plate(ReactionButton(session: widget.session, post: p, dark: true)),
+                ReactionButton(session: widget.session, post: p, dark: true),
                 const SizedBox(height: 8),
                 railItem('chat-teardrop', '$comments', _comments),
                 if (!mine) ...[

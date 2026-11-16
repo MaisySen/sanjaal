@@ -38,14 +38,19 @@ class ProfileHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
       child: Column(children: [
-        GestureDetector(
-          onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()),
-          child: Avatar(user: user, radius: 46),
-        ),
-        const SizedBox(height: 12),
-        if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-        Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.outline)),
-        if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(bio, textAlign: TextAlign.center)),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          GestureDetector(
+            onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()),
+            child: Avatar(user: user, radius: 36),
+          ),
+          const SizedBox(width: 18),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 3),
+            Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ])),
+        ]),
+        if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Align(alignment: Alignment.centerLeft, child: Text(bio))),
         const SizedBox(height: 16),
         Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
           _stat(context, n('posts_count'), t_('Posts')),
@@ -180,8 +185,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
 /// The Me tab: own profile with edit and settings.
 class MePage extends StatefulWidget {
-  const MePage({super.key, required this.session});
+  const MePage({super.key, required this.session, this.onCompose, this.contentRevision = 0});
   final Session session;
+  final Future<void> Function()? onCompose;
+  final int contentRevision;
   @override
   State<MePage> createState() => _MePageState();
 }
@@ -194,6 +201,15 @@ class _MePageState extends State<MePage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant MePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contentRevision != widget.contentRevision) {
+      _refresh++;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -226,13 +242,12 @@ class _MePageState extends State<MePage> {
         query: {'username': (s.user?['username'] ?? '').toString()},
         emptyIcon: Ph.image_outlined,
         emptyTitle: 'You have not posted yet',
-        emptyHint: 'Your posts show up here. Tap + on Home to share one.',
+        emptyHint: t_('A photo, a thought, a little of your day.'),
+        emptyAction: widget.onCompose == null ? null : FilledButton.icon(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
         header: ProfileHeader(
           user: me,
-          actions: Column(children: [
-            SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
+          actions: Wrap(spacing: 10, runSpacing: 8, children: [
+            OutlinedButton.icon(
               icon: const PhIcon('pencil-simple', size: 18),
               label: Text(t_('Edit profile')),
               onPressed: () async {
@@ -243,9 +258,11 @@ class _MePageState extends State<MePage> {
                 }
               },
             ),
-          ),
-            const SizedBox(height: 8),
-            SizedBox(width: double.infinity, child: OutlinedButton.icon(icon: const PhIcon('bookmark-simple', size: 18), label: Text(t_('Saved')), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SavedPage(session: s))))),
+            OutlinedButton.icon(
+              icon: const PhIcon('bookmark-simple', size: 18),
+              label: Text(t_('Saved')),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SavedPage(session: s))),
+            ),
           ]),
         ),
       ),

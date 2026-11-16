@@ -115,8 +115,8 @@ ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamily
         iconColor: WidgetStateProperty.resolveWith((st) => st.contains(WidgetState.selected) ? scheme.primary : scheme.onSurfaceVariant),
       ),
     ),
-    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: shape, minimumSize: const Size(64, 44), textStyle: labelStyle)),
-    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(shape: shape, minimumSize: const Size(64, 44), side: BorderSide(color: scheme.outlineVariant), textStyle: labelStyle)),
+    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: shape, minimumSize: const Size(64, 48), textStyle: labelStyle)),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(shape: shape, minimumSize: const Size(64, 48), side: BorderSide(color: scheme.outlineVariant), textStyle: labelStyle)),
     textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: shape, foregroundColor: scheme.onSurfaceVariant, textStyle: labelStyle)),
     iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(foregroundColor: scheme.onSurface)),
     inputDecorationTheme: InputDecorationTheme(
@@ -149,6 +149,7 @@ class SanjaalApp extends StatefulWidget {
 
 class _SanjaalAppState extends State<SanjaalApp> {
   final session = Session();
+  bool _createAccount = false;
 
   @override
   void initState() {
@@ -176,7 +177,12 @@ class _SanjaalAppState extends State<SanjaalApp> {
                 return const Scaffold(body: Center(child: Logo(size: 96)));
               }
               if (session.user == null) {
-                return prefs.seenOnboarding ? AuthPage(session: session) : const OnboardingPage();
+                return prefs.seenOnboarding
+                    ? AuthPage(session: session, initialRegister: _createAccount)
+                    : OnboardingPage(onContinue: (create) {
+                        setState(() => _createAccount = create);
+                        prefs.finishOnboarding();
+                      });
               }
               return HomeShell(session: session);
             },
@@ -197,6 +203,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int tab = 0;
   int unread = 0;
+  int _contentRevision = 0;
   Timer? _poll;
   Timer? _ring;
   bool _ringing = false;
@@ -252,8 +259,14 @@ class _HomeShellState extends State<HomeShell> {
     }
     final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session, startWithVideo: what == 'reel')));
     if (p != null && mounted) {
-      showInfo(context, p['kind'] == 'reel' ? 'Your reel is live in the Reels tab.' : 'Posted. Pull down on Home to refresh.');
-      setState(() => tab = p['kind'] == 'reel' ? 1 : 0);
+      showInfo(context, p['kind'] == 'reel' ? 'Your reel is live in the Reels tab.' : 'Your post is up.');
+      if (p['kind'] != 'reel') {
+        unawaited(feedKey.currentState?.load(refresh: true));
+      }
+      setState(() {
+        _contentRevision++;
+        tab = p['kind'] == 'reel' ? 1 : 0;
+      });
     }
   }
 
@@ -261,11 +274,11 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final s = widget.session;
     final pages = [
-      FeedPage(session: s, onCompose: _compose),
+      FeedPage(session: s, onCompose: _compose, forYouKey: feedKey),
       ReelsPage(session: s, active: tab == 1),
       ChatsPage(session: s),
       WalletPage(session: s),
-      MePage(session: s),
+      MePage(session: s, onCompose: _compose, contentRevision: _contentRevision),
     ];
     return Scaffold(
       body: Column(children: [

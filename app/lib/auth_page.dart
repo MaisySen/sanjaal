@@ -3,8 +3,9 @@ import 'api.dart';
 import 'ui.dart';
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({super.key, required this.session});
+  const AuthPage({super.key, required this.session, this.initialRegister = false});
   final Session session;
+  final bool initialRegister;
   @override
   State<AuthPage> createState() => _AuthPageState();
 }
@@ -14,9 +15,17 @@ class _AuthPageState extends State<AuthPage> {
   final _email = TextEditingController();
   final _username = TextEditingController();
   final _password = TextEditingController();
-  bool register = false;
+  late bool register = widget.initialRegister;
   bool busy = false;
   String? error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _username.dispose();
+    _password.dispose();
+    super.dispose();
+  }
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
@@ -66,12 +75,12 @@ class _AuthPageState extends State<AuthPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: Logo(size: 84)),
-                    const SizedBox(height: 16),
-                    Text('Sanjaal', textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 4),
-                    Text(t_('Your Nepali community'), textAlign: TextAlign.center),
-                    const SizedBox(height: 32),
+                    const Align(alignment: Alignment.centerLeft, child: Logo(size: 60)),
+                    const SizedBox(height: 36),
+                    Text(t_(register ? 'Make yourself at home' : 'Welcome back'), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.6)),
+                    const SizedBox(height: 8),
+                    Text(t_(register ? 'Create your place in the community.' : 'Sign in to pick up where you left off.'), style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 28),
                     TextFormField(
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,
@@ -117,7 +126,7 @@ class _AuthPageState extends State<AuthPage> {
                         register = !register;
                         error = null;
                       }),
-                      child: Text(register ? 'I already have an account' : 'Create an account'),
+                      child: Text(t_(register ? 'I already have an account' : 'Create an account')),
                     ),
                     const SizedBox(height: 8),
                     const Divider(),

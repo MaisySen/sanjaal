@@ -273,7 +273,7 @@ void main() {
             'notifications' => NotificationsPage(session: s),
             'settings' => SettingsPage(session: s),
             'shared_card' => Scaffold(appBar: AppBar(title: const Text('Shared post')), body: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SharedPostCard(post: const {'public_id': 'p1', 'author': {'name': 'Asha Gurung', 'username': 'asha'}, 'excerpt': 'Evening light on the ridge. Tea after the walk.', 'image_url': null}), SharedPostCard(post: null)]))),
-            'me' => MePage(session: s),
+            'me' => MePage(session: s, onCompose: () async {}),
             'edit_profile' => EditProfilePage(session: s),
             'auth' => AuthPage(session: s),
             'onboarding' => const OnboardingPage(),

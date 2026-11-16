@@ -38,7 +38,7 @@ Establish one reusable system before broad screen edits:
 
 - Type roles for display, page title, section, body, metadata and controls; Nepali fallback bundled; text scaling checked.
 - Spacing/density scale and a small set of surface/radius treatments. Large rounded containers must earn their space rather than surround every object.
-- Common top-level header and consistent nested navigation. Evaluate the current floating navigation against real content bounds, keyboard and gesture insets. Do not change destination order casually.
+- Common top-level header and consistent nested navigation. Preserve the floating iOS-style glass bar explicitly requested November 16. Evaluate it against real content bounds, keyboard and gesture insets; reduce competing chrome rather than remove that requirement. Do not change destination order casually.
 - One action hierarchy: primary, secondary, quiet and destructive. Shared loading, pressed, disabled and progress treatment; tap areas and contrast checked.
 - Avatar/content identity rules, real-image crop rules, media placeholders, unread/status badges and timestamps.
 - Shared empty, error, offline, permission, loading and recovery states. Skeletons only where they explain incoming content. Preserve unsent work.
@@ -77,3 +77,7 @@ One versioned release candidate after connected journeys and regression checks, 
 ## Working discipline
 
 Maintain this plan against actual findings, not optimistic status labels. Each batch records what changed, before/after visual evidence, tests and remaining gaps. Continue independent engineering overnight; route only material unavoidable decisions to the parent. Do not wake the user for routine progress, create new paid services, touch unrelated phone data or ship a replacement merely because it compiles.
+
+## Source-informed implementation now in progress
+
+The first connected slice replaces four feature-introduction slides with one optional welcome and separate existing-member/account-creation paths, aligns the sign-in heading with that welcome, adds direct create/search actions to empty Home/Following/Profile, and refreshes Home after publishing rather than telling the user to pull down manually. This is working source, not a completed redesign or released APK. Preserve the requested floating glass bar. Contextual-help and actionable-empty-state rationale: https://www.nngroup.com/articles/onboarding-tutorials/ and https://www.nngroup.com/articles/empty-state-interface-design/ . Touch targets are checked against https://support.google.com/accessibility/android/answer/7101858?hl=en . Native Nepali copy review remains owed.

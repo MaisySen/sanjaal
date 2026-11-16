@@ -2,6 +2,7 @@ import 'dart:async';
 import 'push.dart';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:flutter/foundation.dart';
@@ -58,6 +59,17 @@ class Session extends ChangeNotifier {
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   Map<String, dynamic>? user;
   bool loading = true;
+  /// Sign-in header for files that need it (chat photos). Used by widgets that cannot await.
+  Map<String, String> get mediaHeaders => {if (_access != null) 'Authorization': 'Bearer $_access'};
+
+  /// Downloads a file that needs sign-in, such as a chat voice message.
+  Future<Uint8List> fetchBytes(String url) async {
+    final token = await _token();
+    final r = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'}).timeout(_wait);
+    if (r.statusCode != 200) throw ApiError('Could not load this file.', r.statusCode);
+    return r.bodyBytes;
+  }
+
   /// True after a request failed for lack of a connection; cleared by the next response.
   bool offline = false;
   void setOffline(bool v) {

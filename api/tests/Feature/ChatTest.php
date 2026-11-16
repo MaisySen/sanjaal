@@ -135,6 +135,56 @@ class ChatTest extends TestCase
         $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'still here?', 'client_id' => 'q3'], $hc)->assertNotFound();
     }
 
+    public function test_chat_media_needs_sign_in_and_current_membership(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        [$d, $hd] = $this->member('dipesh');
+        $cid = $this->group($ha, ['bina']);
+        $first = $this->post("/api/v1/conversations/$cid/messages", ['media' => UploadedFile::fake()->image('a.jpg', 30, 30)], $ha)->assertCreated();
+        $url = $first->json('message.media_url');
+        $this->assertStringContainsString("/conversations/$cid/messages/", $url);
+        $this->assertStringEndsWith('/media', $url);
+        $path = parse_url($url, PHP_URL_PATH);
+        $rawId = \DB::table('messages')->where('public_id', $first->json('message.public_id'))->value('media_id');
+
+        // Members can fetch it; nobody without a token can; an outsider cannot; the old public address no longer works.
+        $this->get($path, $ha)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+        $this->get($path, $hb)->assertOk();
+        $this->getJson($path)->assertUnauthorized();
+        $this->get($path, $hc)->assertNotFound();
+        $this->get("/api/v1/media/$rawId")->assertNotFound();
+        // A message from a different conversation cannot be reached through this one.
+        $other = $this->group($hb, ['dipesh'], 'Other');
+        $this->get("/api/v1/conversations/$other/messages/".$first->json('message.public_id').'/media', $hb)->assertNotFound();
+
+        // Joined later: the earlier photo stays closed, a later one opens.
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $ha)->assertOk();
+        $this->get($path, $hc)->assertNotFound();
+        $later = $this->post("/api/v1/conversations/$cid/messages", ['media' => UploadedFile::fake()->image('b.jpg', 30, 30)], $ha)->assertCreated();
+        $laterPath = parse_url($later->json('message.media_url'), PHP_URL_PATH);
+        $this->get($laterPath, $hc)->assertOk();
+        // Removed: access ends at once, including for photos that were open to them.
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $hc)->assertOk();
+        $this->get($laterPath, $hc)->assertNotFound();
+        // Text-only messages have no media route.
+        $txt = $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi', 'client_id' => 't1'], $ha)->assertCreated()->json('message');
+        $this->assertNull($txt['media_url']);
+        $this->get("/api/v1/conversations/$cid/messages/{$txt['public_id']}/media", $ha)->assertNotFound();
+    }
+
+    public function test_the_live_channel_payload_carries_no_content(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        $this->member('bina');
+        $cid = $this->group($ha, ['bina']);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'secret words', 'client_id' => 'e1'], $ha)->assertCreated();
+        $payload = (new \App\Events\MessageSent(\App\Models\Message::where('client_id', 'e1')->firstOrFail()))->broadcastWith();
+        $this->assertSame(['seq', 'conversation_id'], array_keys($payload['message']));
+        $this->assertStringNotContainsString('secret', json_encode($payload));
+    }
+
     public function test_group_capacity_is_fifty(): void
     {
         [$a, $ha] = $this->member('asha');

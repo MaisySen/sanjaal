@@ -203,13 +203,13 @@ class Logo extends StatelessWidget {
 }
 
 /// Opens a picture full screen with pinch zoom.
-void openImage(BuildContext context, String url) {
+void openImage(BuildContext context, String url, {Map<String, String>? headers}) {
   Navigator.of(context).push(MaterialPageRoute(
     fullscreenDialog: true,
     builder: (_) => Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
-      body: Center(child: InteractiveViewer(child: Image.network(url, fit: BoxFit.contain))),
+      body: Center(child: InteractiveViewer(child: Image.network(url, headers: headers, fit: BoxFit.contain))),
     ),
   ));
 }

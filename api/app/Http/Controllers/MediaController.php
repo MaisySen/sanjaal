@@ -15,10 +15,39 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class MediaController extends Controller
 {
+    /** Public post media. Files that belong to a chat message are never served here. */
     public function show(Request $request, string $publicId): Response
+    {
+        abort_if(DB::table('messages')->where('media_id', $publicId)->exists(), 404);
+
+        return $this->serve($request, $publicId, false);
+    }
+
+    /** Chat media: only current members, and only for messages from after they joined. Sign-in required. */
+    public function chat(Request $request, string $conversationId, string $messageId): Response
+    {
+        $convo = \App\Models\Conversation::where('public_id', $conversationId)->firstOrFail();
+        $me = $request->user();
+        $member = $convo->members()->where('users.id', $me->id)->first();
+        abort_unless($member, 404);
+        $msg = $convo->messages()->where('public_id', $messageId)->where('id', '>', (int) $member->pivot->history_from_id)->firstOrFail();
+        abort_unless($msg->media_id, 404);
+
+        return $this->serve($request, $msg->media_id, true);
+    }
+
+    private function serve(Request $request, string $publicId, bool $private): Response
     {
         $meta = DB::table('media_blobs')->select('public_id', 'mime', 'size', 'storage')->where('public_id', $publicId)->first();
         abort_unless($meta, 404);
+
+        if ($meta->storage === 'b2' && $private) {
+            // The B2 link carries a bucket-wide token, so it must never reach a client for chat media. Fetch it here instead.
+            $r = \Illuminate\Support\Facades\Http::timeout(30)->get(\App\Support\MediaStore::url($publicId));
+            abort_unless($r->successful(), 404);
+
+            return response($r->body(), 200, ['Content-Type' => $meta->mime, 'Cache-Control' => 'private, no-store']);
+        }
 
         if ($meta->storage === 'b2') {
             // Bytes live in object storage: send the client straight there (Range works there too).
@@ -31,7 +60,7 @@ class MediaController extends Controller
         $headers = [
             'Content-Type' => $meta->mime,
             'Accept-Ranges' => 'bytes',
-            'Cache-Control' => 'public, max-age=31536000, immutable',
+            'Cache-Control' => $private ? 'private, no-store' : 'public, max-age=31536000, immutable',
             'ETag' => '"'.$publicId.'"',
         ];
 

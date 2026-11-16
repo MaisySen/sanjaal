@@ -96,22 +96,49 @@ class Present
     }
 
     /** $replyHiddenUpTo: reply previews of messages with an id at or below it are left out (history a viewer must not see). */
-    public static function message(Message $m, int $replyHiddenUpTo = 0): array
+    public static function message(Message $m, int $replyHiddenUpTo = 0, array $hiddenAuthors = []): array
     {
         return [
             'public_id' => $m->public_id,
             'conversation_id' => $m->conversation->public_id,
             'body' => $m->body,
             'kind' => $m->kind ?? 'text',
-            'media_url' => $m->media_id ? url('/api/v1/media/'.$m->media_id) : null,
+            'media_url' => $m->media_id ? url('/api/v1/conversations/'.$m->conversation->public_id.'/messages/'.$m->public_id.'/media') : null,
             'media_mime' => $m->media_mime,
             'duration_ms' => $m->duration_ms,
+            'shared_post' => $m->shared_post_id ? self::sharedPreview($m->shared_post_id, $hiddenAuthors) : null,
             'reply_to' => $m->reply_to_id && $m->reply_to_id > $replyHiddenUpTo ? self::replyPreview($m->reply_to_id) : null,
             'sender' => self::user($m->user),
             'client_id' => $m->client_id,
             'created_at' => $m->created_at->toIso8601String(),
             'seq' => $m->id,
         ];
+    }
+
+    /** A small card for a post shared in chat. Left out when the post is gone or its author is hidden from the viewer. */
+    private static function sharedPreview(int $postId, array $hiddenAuthors): ?array
+    {
+        $p = Post::with('user', 'media')->find($postId);
+        if (! $p || in_array($p->user_id, $hiddenAuthors, true)) {
+            return null;
+        }
+        $img = $p->media->firstWhere('type', 'image');
+
+        return [
+            'public_id' => $p->public_id,
+            'author' => self::user($p->user),
+            'excerpt' => mb_substr((string) $p->body, 0, 140),
+            'image_url' => $img ? url('/api/v1/media/'.$img->path) : null,
+            'kind' => $p->kind,
+        ];
+    }
+
+    /** Authors a set of users have blocked or been blocked by, for filtering shared previews. */
+    public static function hiddenAuthors(array $userIds): array
+    {
+        $rows = \Illuminate\Support\Facades\DB::table('blocks')->whereIn('blocker_id', $userIds)->orWhereIn('blocked_id', $userIds)->get(['blocker_id', 'blocked_id']);
+
+        return $rows->flatMap(fn ($r) => [$r->blocker_id, $r->blocked_id])->unique()->reject(fn ($id) => in_array($id, $userIds, true))->values()->all();
     }
 
     private static function replyPreview(int $id): ?array

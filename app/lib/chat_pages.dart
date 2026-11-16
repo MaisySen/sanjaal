@@ -599,11 +599,11 @@ class _ChatPageState extends State<ChatPage> {
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: GestureDetector(
-                                      onTap: () => openImage(context, m['media_url'] as String),
-                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
+                                      onTap: () => openImage(context, m['media_url'] as String, headers: widget.session.mediaHeaders),
+                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeaders, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
                                     ),
                                   ),
-                                if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String),
+                                if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
                                 if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
                                 Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? (mine ? const Color(0xFFB3261E) : scheme.error) : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
                               ])),

@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'api.dart' show Session;
 import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
@@ -118,8 +119,11 @@ class _VoiceRecorderBarState extends State<VoiceRecorderBar> {
 
 /// Play and pause a received or sent voice message.
 class VoiceBubble extends StatefulWidget {
-  const VoiceBubble({super.key, required this.url});
+  const VoiceBubble({super.key, required this.url, this.session});
   final String url;
+
+  /// When set, the file is fetched with the person's sign-in (chat voice messages need it).
+  final Session? session;
   @override
   State<VoiceBubble> createState() => _VoiceBubbleState();
 }
@@ -160,7 +164,8 @@ class _VoiceBubbleState extends State<VoiceBubble> {
         await p.pause();
         setState(() => _playing = false);
       } else {
-        await p.play(UrlSource(widget.url));
+        final s = widget.session;
+        await p.play(s == null ? UrlSource(widget.url) : BytesSource(await s.fetchBytes(widget.url)));
         setState(() => _playing = true);
       }
     } catch (_) {

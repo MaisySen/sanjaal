@@ -23,9 +23,8 @@ class MessageSent implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        // One payload goes to every member, so a reply preview is only included when it points at a message every member may see.
-        $hidden = (int) \Illuminate\Support\Facades\DB::table('conversation_members')->where('conversation_id', $this->message->conversation_id)->max('history_from_id');
-
-        return ['message' => \App\Http\Resources\Present::message($this->message->loadMissing('user', 'conversation'), $hidden)];
+        // The live channel only says that something new exists. Content is fetched through the authenticated
+        // messages route, so removing someone from a group also cuts them off from anything sent later.
+        return ['message' => ['seq' => $this->message->id, 'conversation_id' => $this->message->conversation->public_id]];
     }
 }

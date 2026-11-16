@@ -478,6 +478,29 @@ void main() {
     }));
   });
 
+  testWidgets('chat media: files are fetched with sign-in, and a refusal is an error', (tester) async {
+    final seen = <String, String?>{};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      expect(s.mediaHeaders['Authorization'], startsWith('Bearer '));
+      await tester.runAsync(() async {
+        final bytes = await s.fetchBytes('https://api.test/api/v1/conversations/c1/messages/m1/media');
+        expect(bytes, [1, 2, 3]);
+        await expectLater(s.fetchBytes('https://api.test/api/v1/conversations/c1/messages/gone/media'), throwsA(isA<ApiError>()));
+      });
+      expect(seen['m1'], startsWith('Bearer '), reason: 'the media request carries the access token');
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      if (r.url.path.endsWith('/m1/media')) {
+        seen['m1'] = r.headers['Authorization'];
+        return http.Response.bytes([1, 2, 3], 200);
+      }
+      return http.Response('', 404);
+    }));
+  });
+
   testWidgets('gift sheet: unaffordable gift sends nothing and explains', (tester) async {
     var posts = 0;
     await http.runWithClient(() async {

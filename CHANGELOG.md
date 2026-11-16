@@ -1,5 +1,9 @@
 # Changelog
 
+## Emulator typing helper
+
+- Flow test types through the text input channel and prints a short stack for failed steps.
+
 ## Emulator flow test robustness
 
 - Waits for the compose page, and returns to the tabs after a failed step so later steps still run.

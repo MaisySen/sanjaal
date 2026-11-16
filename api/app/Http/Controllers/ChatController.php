@@ -128,13 +128,24 @@ class ChatController extends Controller
         }
         $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
             ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();
-        $existing = $convo->members()->pluck('users.id')->all();
-        $fresh = $users->reject(fn ($u) => in_array($u->id, $existing, true) || in_array($u->id, $blocked, true));
-        if (count($existing) + $fresh->count() > 50) {
+        $over = DB::transaction(function () use ($convo, $users, $blocked) {
+            // Lock the conversation row so two invitations cannot both pass the capacity check.
+            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            $existing = $convo->members()->pluck('users.id')->all();
+            $fresh = $users->reject(fn ($u) => in_array($u->id, $existing, true) || in_array($u->id, $blocked, true));
+            if (count($existing) + $fresh->count() > 50) {
+                return true;
+            }
+            if ($fresh->isNotEmpty()) {
+                // New members see messages from now on, not the history from before they joined.
+                $from = (int) $convo->messages()->max('id');
+                $convo->members()->attach($fresh->pluck('id')->all(), ['role' => 'member', 'history_from_id' => $from, 'last_read_message_id' => $from]);
+            }
+
+            return false;
+        });
+        if ($over) {
             return response()->json(['message' => 'A group can have at most 50 members.', 'errors' => ['usernames' => ['A group can have at most 50 members.']]], 422);
-        }
-        if ($fresh->isNotEmpty()) {
-            $convo->members()->attach($fresh->pluck('id')->all(), ['role' => 'member']);
         }
 
         return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
@@ -150,7 +161,14 @@ class ChatController extends Controller
         $me = $request->user();
         DB::transaction(function () use ($convo, $me) {
             $wasOwner = $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists();
+            Conversation::whereKey($convo->id)->lockForUpdate()->first();
             $convo->members()->detach($me->id);
+            if (! $convo->members()->exists()) {
+                $convo->messages()->delete();
+                $convo->delete();
+
+                return;
+            }
             if ($wasOwner) {
                 $next = $convo->members()->orderBy('conversation_members.created_at')->orderBy('users.id')->first();
                 if ($next) {
@@ -166,7 +184,8 @@ class ChatController extends Controller
     public function messages(Request $request, string $id): JsonResponse
     {
         $convo = $this->authorized($request, $id);
-        $q = $convo->messages()->with('user', 'conversation');
+        $from = (int) ($convo->members()->where('users.id', $request->user()->id)->first()?->pivot->history_from_id ?? 0);
+        $q = $convo->messages()->with('user', 'conversation')->where('id', '>', $from);
         if ($request->filled('after_seq')) {
             $after = (int) $request->after_seq;
             // Long poll: hold the request open (up to 20 s) until a newer message exists.
@@ -297,8 +316,8 @@ class ChatController extends Controller
 
     private function present(Conversation $c, User $me): array
     {
-        $last = $c->messages()->with('user', 'conversation')->latest('id')->first();
         $pivot = $c->members->firstWhere('id', $me->id)?->pivot;
+        $last = $c->messages()->with('user', 'conversation')->where('id', '>', $pivot?->history_from_id ?? 0)->latest('id')->first();
         $other = $c->type === 'direct' ? $c->members->firstWhere('id', '!=', $me->id) : null;
 
         return [
@@ -308,7 +327,7 @@ class ChatController extends Controller
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
             'last_message' => $last ? Present::message($last) : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
-            'unread' => $c->messages()->where('id', '>', $pivot?->last_read_message_id ?? 0)->where('user_id', '!=', $me->id)->count(),
+            'unread' => $c->messages()->where('id', '>', max($pivot?->last_read_message_id ?? 0, $pivot?->history_from_id ?? 0))->where('user_id', '!=', $me->id)->count(),
         ];
     }
 }

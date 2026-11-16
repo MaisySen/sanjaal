@@ -61,6 +61,11 @@ abstract class TestCase extends BaseTestCase
     }
 
     /** Create a local member and return [user, auth headers]. */
+    protected function hdr(string $username): array
+    {
+        return ['Authorization' => 'Bearer '.$this->token("auth0|$username"), 'Accept' => 'application/json'];
+    }
+
     protected function member(string $username): array
     {
         $user = User::factory()->create(['username' => $username, 'auth0_sub' => "auth0|$username"]);

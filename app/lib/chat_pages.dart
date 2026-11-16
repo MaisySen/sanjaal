@@ -674,7 +674,11 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       context: context,
       builder: (c) => AlertDialog(
         title: Text(t_('Add people')),
-        content: TextField(controller: ctrl, autofocus: true, decoration: InputDecoration(hintText: t_('Usernames, separated by commas'))),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          TextField(controller: ctrl, autofocus: true, decoration: InputDecoration(hintText: t_('Usernames, separated by commas'))),
+          const SizedBox(height: 12),
+          Text(t_('New members see messages from when they join, not earlier ones.'), style: Theme.of(context).textTheme.bodySmall),
+        ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: Text(t_('Cancel'))),
           FilledButton(

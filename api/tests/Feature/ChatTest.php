@@ -29,25 +29,119 @@ class ChatTest extends TestCase
         $this->getJson('/api/v1/notifications/summary', $ha)->assertJsonPath('unread_messages', 0);
     }
 
-    public function test_group_add_members_and_leave(): void
+    private function group(array $headers, array $usernames, string $title = 'Trek'): string
+    {
+        return $this->postJson('/api/v1/conversations', ['type' => 'group', 'title' => $title, 'usernames' => $usernames], $headers)->assertCreated()->json('conversation.public_id');
+    }
+
+    public function test_group_add_members_by_a_member_only(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $this->member('dipesh');
+        $cid = $this->group($ha, ['bina']);
+
+        // An outsider can neither add anyone nor see the group.
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['dipesh']], $hc)->assertNotFound();
+        $this->assertSame(2, \DB::table('conversation_members')->count());
+        // A member adds two people; adding someone who is already in is a no-op.
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra', 'bina', 'dipesh']], $hb)->assertOk()->assertJsonCount(4, 'conversation.members');
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $hb)->assertOk()->assertJsonCount(4, 'conversation.members');
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertOk();
+    }
+
+    public function test_group_add_with_an_unknown_name_writes_nothing(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        $this->member('bina');
+        $this->member('chandra');
+        $cid = $this->group($ha, ['bina']);
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra', 'nobody_here']], $ha)->assertStatus(422);
+        $this->assertSame(2, \DB::table('conversation_members')->count());
+    }
+
+    public function test_group_add_skips_people_blocked_either_way(): void
     {
         [$a, $ha] = $this->member('asha');
         [$b, $hb] = $this->member('bina');
         [$c, $hc] = $this->member('chandra');
         [$d, $hd] = $this->member('dipesh');
-        $cid = $this->postJson('/api/v1/conversations', ['type' => 'group', 'title' => 'Trek', 'usernames' => ['bina']], $ha)->assertCreated()->json('conversation.public_id');
+        $cid = $this->group($ha, ['bina']);
+        \DB::table('blocks')->insert(['blocker_id' => $a->id, 'blocked_id' => $c->id, 'created_at' => now(), 'updated_at' => now()]);
+        \DB::table('blocks')->insert(['blocker_id' => $d->id, 'blocked_id' => $a->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra', 'dipesh']], $ha)->assertOk()->assertJsonCount(2, 'conversation.members');
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertNotFound();
+        $this->getJson("/api/v1/conversations/$cid/messages", $hd)->assertNotFound();
+    }
 
-        // A non-member cannot add anyone.
-        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['dipesh']], $hc)->assertNotFound();
-        // A member adds two people; adding someone already in is a no-op.
-        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra', 'bina']], $hb)->assertOk()->assertJsonCount(3, 'conversation.members');
-        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertOk();
-        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['nobody_here']], $hb)->assertStatus(422);
+    public function test_new_members_do_not_see_earlier_messages(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $cid = $this->group($ha, ['bina']);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'before', 'client_id' => 'x1'], $ha)->assertCreated();
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $ha)->assertOk();
 
-        // The owner leaves: the group stays and bina, the longest standing member, becomes owner.
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/v1/conversations', $hc)->assertJsonPath('data.0.last_message', null)->assertJsonPath('data.0.unread', 0);
+        $this->getJson('/api/v1/notifications/summary', $hc)->assertJsonPath('unread_messages', 0);
+
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'after', 'client_id' => 'x2'], $hb)->assertCreated();
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertJsonCount(1, 'data')->assertJsonPath('data.0.body', 'after');
+        $this->getJson('/api/v1/conversations', $hc)->assertJsonPath('data.0.unread', 1);
+        // Existing members keep the whole history.
+        $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonCount(2, 'data');
+    }
+
+    public function test_group_capacity_is_fifty(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        $names = [];
+        for ($i = 1; $i <= 49; $i++) {
+            $this->member("user$i");
+            $names[] = "user$i";
+        }
+        $this->member('extra');
+        $this->member('extra2');
+        $cid = $this->group($ha, $names);
+        $this->assertSame(50, \DB::table('conversation_members')->count());
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['extra']], $ha)->assertStatus(422);
+        $this->assertSame(50, \DB::table('conversation_members')->count());
+        // One leaves, then exactly one more fits, and the second does not.
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $this->hdr('user1'))->assertOk();
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['extra', 'extra2']], $ha)->assertStatus(422);
+        $this->assertSame(49, \DB::table('conversation_members')->count());
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['extra']], $ha)->assertOk();
+        $this->assertSame(50, \DB::table('conversation_members')->count());
+    }
+
+    public function test_group_leave_transfers_ownership_and_last_leaver_removes_the_group(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $cid = $this->group($ha, ['bina', 'chandra']);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'hi', 'client_id' => 'x1'], $ha)->assertCreated();
+
         $this->postJson("/api/v1/conversations/$cid/leave", [], $ha)->assertOk()->assertJsonPath('left', true);
         $this->getJson("/api/v1/conversations/$cid/messages", $ha)->assertNotFound();
         $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $b->id)->value('role'));
+        $this->assertSame('member', \DB::table('conversation_members')->where('user_id', $c->id)->value('role'));
+        // Leaving twice is rejected, not repeated.
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $ha)->assertNotFound();
+
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $hb)->assertOk();
+        $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $c->id)->value('role'));
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $hc)->assertOk();
+        $this->assertSame(0, \DB::table('conversations')->count());
+        $this->assertSame(0, \DB::table('messages')->count());
+        // A non-member cannot leave someone else's group.
+        $cid2 = $this->group($hb, ['chandra']);
+        [$d, $hd] = $this->member('dipesh');
+        $this->postJson("/api/v1/conversations/$cid2/leave", [], $hd)->assertNotFound();
+        $this->assertSame(2, \DB::table('conversation_members')->count());
     }
 
     public function test_cannot_add_to_or_leave_a_direct_chat(): void

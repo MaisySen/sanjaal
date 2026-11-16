@@ -20,6 +20,7 @@ class WalletController extends Controller
 
         return response()->json([
             'balance' => (int) $me->coin_balance,
+            'transfer_replay' => true,
             'topup' => [
                 'esewa' => Esewa::configured(),
                 'esewa_mode' => config('services.esewa.env') === 'live' ? 'live' : 'test',
@@ -42,21 +43,17 @@ class WalletController extends Controller
     public function transfer(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'client_id' => ['required', 'string', 'min:16', 'max:80', 'regex:/^[A-Za-z0-9_-]+$/'],
             'username' => ['required', 'string', 'max:40'],
             'amount' => ['required', 'integer', 'min:1', 'max:'.Wallet::MAX_TRANSFER],
             'note' => ['nullable', 'string', 'max:140'],
         ]);
-        $to = User::where('username', ltrim($data['username'], '@'))->first();
-        if (! $to) {
-            return response()->json(['message' => 'No member with that username.'], 404);
-        }
         try {
-            Wallet::transfer($request->user(), $to, (int) $data['amount'], $data['note'] ?? null);
+            $result = \App\Services\MemberTransfers::send($request->user(), $data['client_id'], $data['username'], (int) $data['amount'], $data['note'] ?? null);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
-
-        return response()->json(['balance' => (int) $request->user()->fresh()->coin_balance]);
+        return response()->json($result + ['balance' => (int) $request->user()->fresh()->coin_balance]);
     }
 
     /** Start an eSewa top up. The app opens pay_url in the browser. */

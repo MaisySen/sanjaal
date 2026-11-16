@@ -96,6 +96,20 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Review transfer': 'स्थानान्तरण जाँच्नुहोस्',
+  'Confirm send': 'पठाउने पुष्टि गर्नुहोस्',
+  'Resolve the saved original transfer first.': 'पहिले सुरक्षित गरिएको स्थानान्तरण पुष्टि गर्नुहोस्।',
+  'Retry original transfer': 'पहिलेको स्थानान्तरण फेरि प्रयास गर्नुहोस्',
+  'Retrying checks the same transfer. It will not send it twice.': 'फेरि प्रयास गर्दा यही स्थानान्तरण जाँचिन्छ। दुई पटक पठाइँदैन।',
+  '{amount} coins to @{member}': '@{member} लाई {amount} सिक्का',
+  'Original transfer needs confirmation.': 'पहिलेको स्थानान्तरण पुष्टि गर्न बाँकी छ।',
+  'Reload pending transfer': 'बाँकी स्थानान्तरण फेरि लोड गर्नुहोस्',
+  'Sending coins is unavailable until transfer safety is ready.': 'सुरक्षित स्थानान्तरण तयार नहुँदासम्म सिक्का पठाउन मिल्दैन।',
+  'Transfer confirmed.': 'सिक्का पठाएको पुष्टि भयो।',
+  'Transfer was not sent because its details could not be saved.': 'विवरण सुरक्षित नभएकाले सिक्का पठाइएको छैन।',
+  'Transfer result unconfirmed. Retry only this original transfer.': 'सिक्का पठाएको पुष्टि भएन। यही पहिलेको स्थानान्तरण मात्र फेरि प्रयास गर्नुहोस्।',
+  'Pending transfer could not be saved. Sending is paused.': 'बाँकी स्थानान्तरण सुरक्षित भएन। सिक्का पठाउन रोकिएको छ।',
+  'Pending transfer could not be read. Sending is paused.': 'बाँकी स्थानान्तरण पढ्न सकिएन। सिक्का पठाउन रोकिएको छ।',
   'The coins leave your balance now. If the payout fails, they come back.': 'अहिले सिक्का तपाईंको मौज्दातबाट घट्छ। भुक्तानी असफल भएमा सिक्का फिर्ता आउँछ।',
   'Cash out requested.': 'रकम निकाल्ने अनुरोध गरियो।',
   'Cash out canceled.': 'रकम निकाल्ने अनुरोध रद्द भयो।',

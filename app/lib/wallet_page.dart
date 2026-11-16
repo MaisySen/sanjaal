@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'wallet_transfer_store.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,7 +8,8 @@ import 'ui.dart';
 
 /// Coin history and member transfers. Funding/payout availability comes from the server.
 class WalletPage extends StatefulWidget {
-  const WalletPage({super.key, required this.session});
+  const WalletPage({super.key, required this.session, this.transferStore = const SecureWalletTransferStore()});
+  final WalletTransferStore transferStore;
   final Session session;
 
   @override
@@ -27,13 +30,18 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   String? pendingTopup;
   bool refreshing = false;
   bool operationBusy = false;
-  bool transferUnconfirmed = false;
+  Map<String, dynamic>? pendingTransfer;
+  String? transferStoreError;
+  bool transferStoreReady = false;
+  bool transferReplay = false;
+  late final String? transferOwner = widget.session.user?['public_id'] as String?;
+  String? get transferStoreKey => transferOwner == null ? null : 'wallet_transfer_v1_$transferOwner';
   bool checkingTopup = false;
   String? withdrawalError;
   int loadGeneration = 0;
   int withdrawalGeneration = 0;
 
-  bool get canAct => loaded && !loading && !refreshing && !operationBusy && error == null;
+  bool get canAct => widget.session.user?['public_id'] == transferOwner && loaded && !loading && !refreshing && !operationBusy && error == null;
 
   Future<void> _runOperation(Future<void> Function() operation) async {
     if (!canAct) return;
@@ -49,6 +57,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _restoreTransfer();
     _load();
   }
 
@@ -62,6 +71,64 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Back from the payment page in the browser.
     if (state == AppLifecycleState.resumed && pendingTopup != null) _checkTopup();
+  }
+
+  Future<void> _restoreTransfer() async {
+    try {
+      final key = transferStoreKey;
+      if (key == null) throw const FormatException('Missing member identity');
+      final store = widget.transferStore;
+      final raw = await store.read(key);
+      final data = raw == null ? null : (jsonDecode(raw) as Map).cast<String, dynamic>();
+      if (data != null && (data['client_id'] is! String || !RegExp(r'^[A-Za-z0-9_-]{16,80}$').hasMatch(data['client_id']) || data['username'] is! String || data['amount'] is! int || data['amount'] < 1 || data['amount'] > 100000 || (data['note'] != null && data['note'] is! String))) throw const FormatException('Invalid pending transfer');
+      if (mounted) setState(() { pendingTransfer = data; transferStoreReady = true; transferStoreError = null; });
+    } catch (_) {
+      if (mounted) setState(() { transferStoreError = t_('Pending transfer could not be read. Sending is paused.'); transferStoreReady = false; });
+    }
+  }
+
+  Future<void> _submitTransfer(Map<String, dynamic> body) async {
+    if (!mounted || !transferReplay || widget.session.user?['public_id'] != transferOwner) return;
+    setState(() { pendingTransfer = Map.unmodifiable(body); transferStoreError = null; });
+    var saved = false;
+    try {
+      final key = transferStoreKey;
+      if (key == null) throw const FormatException('Missing member identity');
+      final store = widget.transferStore;
+      final existing = await store.read(key);
+      if (existing != null && (jsonDecode(existing) as Map)['client_id'] != body['client_id']) {
+        await _restoreTransfer();
+        if (mounted) showInfo(context, t_('Resolve the saved original transfer first.'));
+        return;
+      }
+      await store.write(key, jsonEncode(body));
+      saved = true;
+      if (!mounted || widget.session.user?['public_id'] != transferOwner) return;
+      final result = await widget.session.call('POST', '/wallet/transfer', body: body) as Map;
+      final receipt = result['transfer'] as Map;
+      if (receipt['status'] != 'completed' || receipt['client_id'] != body['client_id'] || receipt['amount'] != body['amount'] || receipt['public_id'] is! String) throw const FormatException('Unconfirmed transfer receipt');
+      await store.remove(key);
+      if (mounted) {
+        setState(() => pendingTransfer = null);
+        await _load();
+        if (mounted) showInfo(context, t_('Transfer confirmed.'));
+      }
+    } catch (e) {
+      final rejected = saved && e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500 && e.status != 408 && e.status != 409;
+      if (rejected) {
+        try {
+          final store = widget.transferStore;
+          await store.remove(transferStoreKey!);
+          if (mounted) setState(() => pendingTransfer = null);
+        } catch (_) {
+          if (mounted) setState(() => transferStoreError = t_('Pending transfer could not be saved. Sending is paused.'));
+        }
+      }
+      if (mounted) {
+        showError(context, rejected ? e : saved ? t_('Transfer result unconfirmed. Retry only this original transfer.') : t_('Transfer was not sent because its details could not be saved.'));
+        await _load();
+      }
+    }
   }
 
   Future<void> _load() async {
@@ -81,6 +148,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         entries = nextEntries;
         topup = nextTopup;
         cashout = nextCashout;
+        transferReplay = j['transfer_replay'] == true;
         error = null;
         loaded = true;
         loading = false;
@@ -153,6 +221,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   }
 
   Future<void> _send() async {
+    if (pendingTransfer != null || !transferReplay || !transferStoreReady || widget.session.user?['public_id'] != transferOwner) return;
     final form = GlobalKey<FormState>();
     final body = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -162,28 +231,26 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         title: Text(t_('Send coins'), style: Theme.of(ctx).textTheme.titleMedium),
         content: SingleChildScrollView(padding: const EdgeInsets.symmetric(vertical: 12), child: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextFormField(controller: user, autocorrect: false, decoration: InputDecoration(labelText: t_('Username'), floatingLabelBehavior: FloatingLabelBehavior.always), validator: (v) => (v ?? '').trim().isEmpty ? t_('Required') : null),
-          TextFormField(controller: amt, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t_('Coins'), floatingLabelBehavior: FloatingLabelBehavior.always, errorMaxLines: 4), validator: (v) { final n = int.tryParse((v ?? '').trim()); return n == null || n < 1 || n > balance ? t_('Enter a whole coin amount within your balance.') : null; }),
+          TextFormField(controller: amt, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t_('Coins'), floatingLabelBehavior: FloatingLabelBehavior.always, errorMaxLines: 4), validator: (v) { final n = int.tryParse((v ?? '').trim()); return n == null || n < 1 || n > 100000 || n > balance ? t_('Enter a whole coin amount within your balance.') : null; }),
           TextFormField(controller: note, maxLength: 140, decoration: InputDecoration(labelText: t_('Note (optional)'), floatingLabelBehavior: FloatingLabelBehavior.always)),
         ]))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t_('Cancel'))),
-          FilledButton(onPressed: () { if (form.currentState!.validate()) Navigator.pop(ctx, <String, dynamic>{'username': user.text.trim(), 'amount': int.parse(amt.text.trim()), if (note.text.trim().isNotEmpty) 'note': note.text.trim()}); }, child: Text(t_('Send'))),
+          FilledButton(onPressed: () { if (form.currentState!.validate()) Navigator.pop(ctx, <String, dynamic>{'username': user.text.trim(), 'amount': int.parse(amt.text.trim()), 'client_id': newUploadIntent(), if (note.text.trim().isNotEmpty) 'note': note.text.trim()}); }, child: Text(t_('Send'))),
         ],
       ); }),
     );
     if (!mounted || body == null) return;
-    try {
-      await widget.session.call('POST', '/wallet/transfer', body: body);
-      await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Sent.'))));
-    } catch (e) {
-      final rejected = e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500 && e.status != 408;
-      if (mounted) {
-        if (!rejected) setState(() => transferUnconfirmed = true);
-        showError(context, rejected ? e : t_('Transfer result unconfirmed. Check Activity before sending again.'));
-      }
-      await _load();
-    }
+    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(t_('Review transfer'), style: Theme.of(ctx).textTheme.titleMedium),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t_('{amount} coins to @{member}').replaceAll('{amount}', '${body['amount']}').replaceAll('{member}', '${body['username']}')),
+        if (body['note'] != null) ...[const SizedBox(height: 12), Text('${body['note']}')],
+      ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t_('Cancel'))), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t_('Confirm send')))],
+    ));
+    if (!mounted || confirmed != true) return;
+    await _submitTransfer(body);
   }
 
   Future<void> _loadWithdrawals() async {
@@ -330,7 +397,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                   });
                   final buttons = <Widget>[
                     FilledButton(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: canAct && esewa ? () => _runOperation(_topup) : null, child: Text(t_('Add coins'), maxLines: 1, softWrap: false)),
-                    OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: canAct && balance > 0 && !transferUnconfirmed ? () => _runOperation(_send) : null, child: Text(t_('Send'), maxLines: 1, softWrap: false)),
+                    OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: canAct && balance > 0 && transferReplay && transferStoreReady && pendingTransfer == null ? () => _runOperation(_send) : null, child: Text(t_('Send'), maxLines: 1, softWrap: false)),
                     OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52), padding: const EdgeInsets.symmetric(horizontal: 6)), onPressed: canAct && canCash ? () => _runOperation(_cashout) : null, child: Text(t_('Cash out'), maxLines: 1, softWrap: false)),
                   ];
                   if (big) return Column(children: [for (final b in buttons) Padding(padding: const EdgeInsets.only(bottom: 8), child: SizedBox(width: double.infinity, child: b))]);
@@ -347,7 +414,23 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                       Expanded(child: Text(t_(!esewa && cashout['available'] != true ? 'Adding coins is not switched on yet. Cash out is not available.' : !esewa ? 'Adding coins is not switched on yet.' : 'Cash out is not available yet.'))),
                     ]),
                   ),
-                if (transferUnconfirmed) Padding(padding: const EdgeInsets.only(top: 12), child: Text(t_('Transfer result unconfirmed. Check Activity before sending again.'))),
+                if (!transferReplay) Padding(padding: const EdgeInsets.only(top: 12), child: Text(t_('Sending coins is unavailable until transfer safety is ready.'))),
+                if (transferStoreError != null) ...[
+                  Text(transferStoreError!),
+                  TextButton(onPressed: operationBusy ? null : _restoreTransfer, child: Text(t_('Reload pending transfer'))),
+                ],
+                if (pendingTransfer != null) Container(
+                  margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(border: Border.all(color: scheme.outlineVariant), borderRadius: BorderRadius.circular(16)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(t_('Original transfer needs confirmation.'), style: Theme.of(context).textTheme.titleSmall),
+                    Text(t_('{amount} coins to @{member}').replaceAll('{amount}', '${pendingTransfer!['amount']}').replaceAll('{member}', '${pendingTransfer!['username']}')),
+                    if (pendingTransfer!['note'] != null) Text('${pendingTransfer!['note']}'),
+                    const SizedBox(height: 8),
+                    Text(t_('Retrying checks the same transfer. It will not send it twice.')),
+                    TextButton(onPressed: canAct && transferReplay && transferStoreReady ? () => _runOperation(() => _submitTransfer(pendingTransfer!)) : null, child: Text(t_('Retry original transfer'))),
+                  ]),
+                ),
                 if (withdrawalError != null) ...[
                   const SizedBox(height: 12),
                   Text(withdrawalError!),

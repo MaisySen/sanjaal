@@ -293,4 +293,34 @@ class PostgresRaceTest extends TestCase
         } finally { unlink($file); }
     }
 
+    public function test_member_transfer_same_key_parallel_requests_debit_once(): void
+    {
+        $a = $this->user('asha'); $b = $this->user('bina');
+        \App\Services\Wallet::credit($a, 100, 'topup', 'transfer-race-seed');
+        $codes = $this->race(array_fill(0, 5, ['asha', 'POST', '/api/v1/wallet/transfer', ['client_id' => 'fixture-parallel-transfer-001', 'username' => 'bina', 'amount' => 25]]));
+        $this->assertSame([200,200,200,200,200], $codes);
+        $this->assertSame(75, (int) $a->fresh()->coin_balance);
+        $this->assertSame(25, (int) $b->fresh()->coin_balance);
+        $this->assertSame(1, DB::table('wallet_transfers')->count());
+        $this->assertSame(1, DB::table('wallet_entries')->where('kind', 'transfer_out')->count());
+        $this->assertSame(1, DB::table('wallet_entries')->where('kind', 'transfer_in')->count());
+    }
+    public function test_member_transfer_different_keys_cannot_overdraw_and_opposite_sends_keep_ledger_conserved(): void
+    {
+        $a = $this->user('asha'); $b = $this->user('bina');
+        \App\Services\Wallet::credit($a, 100, 'topup', 'transfer-race-seed-a');
+        $calls = array_map(fn ($i) => ['asha', 'POST', '/api/v1/wallet/transfer', ['client_id' => "fixture-parallel-distinct-$i", 'username' => 'bina', 'amount' => 60]], range(1,4));
+        $codes=$this->race($calls); sort($codes);
+        $this->assertSame([200,422,422,422], $codes);
+        $this->assertSame(40, (int)$a->fresh()->coin_balance); $this->assertSame(60, (int)$b->fresh()->coin_balance);
+        $codes=$this->race([
+            ['asha','POST','/api/v1/wallet/transfer',['client_id'=>'fixture-opposite-key-asha','username'=>'bina','amount'=>5]],
+            ['bina','POST','/api/v1/wallet/transfer',['client_id'=>'fixture-opposite-key-bina','username'=>'asha','amount'=>5]],
+        ]);
+        $this->assertSame([200,200],$codes);
+        $this->assertSame(40, (int)$a->fresh()->coin_balance); $this->assertSame(60, (int)$b->fresh()->coin_balance);
+        foreach([$a,$b] as $u) $this->assertSame((int)$u->fresh()->coin_balance, (int)DB::table('wallet_entries')->where('user_id',$u->id)->sum('amount'));
+        $this->assertSame(3,DB::table('wallet_transfers')->count());
+    }
+
 }

@@ -31,7 +31,7 @@ class WalletTest extends TestCase
         [$b, $hb] = $this->member('bina');
         Wallet::credit($a, 500, 'topup', 'seed-1');
 
-        $this->postJson('/api/v1/wallet/transfer', ['username' => '@bina', 'amount' => 120, 'note' => 'momo'], $ha)->assertOk()->assertJsonPath('balance', 380);
+        $this->postJson('/api/v1/wallet/transfer', ['client_id' => 'fixture-wallet-test-key-001', 'username' => '@bina', 'amount' => 120, 'note' => 'momo'], $ha)->assertOk()->assertJsonPath('balance', 380);
         $this->getJson('/api/v1/wallet', $hb)->assertJsonPath('balance', 120)->assertJsonPath('entries.0.kind', 'transfer_in')->assertJsonPath('entries.0.counterparty', 'asha');
         $this->getJson('/api/v1/wallet/entries', $ha)->assertJsonPath('data.0.amount', -120)->assertJsonPath('data.0.balance_after', 380);
     }
@@ -41,10 +41,10 @@ class WalletTest extends TestCase
         [$a, $ha] = $this->member('asha');
         $this->member('bina');
         Wallet::credit($a, 50, 'topup', 'seed-2');
-        $this->postJson('/api/v1/wallet/transfer', ['username' => 'bina', 'amount' => 51], $ha)->assertStatus(422);
-        $this->postJson('/api/v1/wallet/transfer', ['username' => 'asha', 'amount' => 5], $ha)->assertStatus(422);
-        $this->postJson('/api/v1/wallet/transfer', ['username' => 'nobody', 'amount' => 5], $ha)->assertStatus(404);
-        $this->postJson('/api/v1/wallet/transfer', ['username' => 'bina', 'amount' => 0], $ha)->assertStatus(422);
+        $this->postJson('/api/v1/wallet/transfer', ['client_id' => 'fixture-wallet-test-key-001', 'username' => 'bina', 'amount' => 51], $ha)->assertStatus(422);
+        $this->postJson('/api/v1/wallet/transfer', ['client_id' => 'fixture-wallet-test-key-001', 'username' => 'asha', 'amount' => 5], $ha)->assertStatus(422);
+        $this->postJson('/api/v1/wallet/transfer', ['client_id' => 'fixture-wallet-test-key-001', 'username' => 'nobody', 'amount' => 5], $ha)->assertStatus(404);
+        $this->postJson('/api/v1/wallet/transfer', ['client_id' => 'fixture-wallet-test-key-001', 'username' => 'bina', 'amount' => 0], $ha)->assertStatus(422);
         $this->getJson('/api/v1/wallet', $ha)->assertJsonPath('balance', 50);
     }
 

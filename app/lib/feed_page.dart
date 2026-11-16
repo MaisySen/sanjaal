@@ -9,6 +9,7 @@ import 'notifications_page.dart';
 import 'profile_pages.dart';
 import 'search_page.dart';
 import 'reactions.dart';
+import 'share_post.dart';
 import 'stories_page.dart';
 import 'ui.dart';
 
@@ -215,6 +216,8 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
+  PopupMenuItem<String> shareItem() => PopupMenuItem(value: 'share', child: Text(t_('Share to chat')));
+
   PopupMenuItem<String> saveItem() => PopupMenuItem(value: 'save', child: Text(widget.post['saved'] == true ? t_('Remove from saved') : t_('Save')));
 
   Future<void> _toggleSave() async {
@@ -232,6 +235,7 @@ class _PostCardState extends State<PostCard> {
 
   Future<void> _menu(String v) async {
     if (v == 'save') return _toggleSave();
+    if (v == 'share') return shareToChat(context, widget.session, id);
     if (v == 'delete') return _delete();
     if (v == 'report') return reportFlow(context, widget.session, 'post', id);
     if (v == 'block') {
@@ -299,8 +303,8 @@ class _PostCardState extends State<PostCard> {
                 icon: PhIcon('dots-three', color: scheme.onSurfaceVariant),
                 onSelected: _menu,
                 itemBuilder: (_) => mine
-                    ? [saveItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                    : [saveItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+                    ? [saveItem(), shareItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                    : [saveItem(), shareItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
               )),
             ]),
           ),
@@ -400,8 +404,8 @@ class _PostCardState extends State<PostCard> {
                     icon: const PhIcon('dots-three', color: Colors.white),
                     onSelected: _menu,
                     itemBuilder: (_) => mine
-                        ? [saveItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                        : [saveItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+                        ? [saveItem(), shareItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                        : [saveItem(), shareItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
                   )),
                 ]),
                 if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.3, shadows: shadow))),

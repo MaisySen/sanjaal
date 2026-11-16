@@ -10,10 +10,12 @@ import 'calls_page.dart';
 import 'rooms_page.dart';
 import 'ui.dart';
 import 'voice.dart';
+import 'share_post.dart';
 
 String kindLabel(Object? kind, Object? body) {
   if (kind == 'image') return 'Photo';
   if (kind == 'voice') return 'Voice message';
+  if (kind == 'post') return 'Shared a post';
   return '${body ?? ''}';
 }
 
@@ -603,6 +605,7 @@ class _ChatPageState extends State<ChatPage> {
                                       child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeaders, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
                                     ),
                                   ),
+                                if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
                                 if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
                                 if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
                                 Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? (mine ? const Color(0xFFB3261E) : scheme.error) : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),

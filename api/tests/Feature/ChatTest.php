@@ -185,6 +185,37 @@ class ChatTest extends TestCase
         $this->assertStringNotContainsString('secret', json_encode($payload));
     }
 
+    public function test_sharing_a_post_into_a_chat(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $post = $this->postJson('/api/v1/posts', ['body' => 'Sunrise over Phewa lake'], $hc)->assertCreated()->json('post.public_id');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->json('conversation.public_id');
+
+        $sent = $this->postJson("/api/v1/conversations/$cid/messages", ['shared_post' => $post, 'client_id' => 's1'], $ha)->assertCreated();
+        $sent->assertJsonPath('message.kind', 'post')->assertJsonPath('message.shared_post.public_id', $post)->assertJsonPath('message.shared_post.author.username', 'chandra');
+        $list = $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonPath('data.0.shared_post.excerpt', 'Sunrise over Phewa lake');
+        $this->getJson('/api/v1/conversations', $hb)->assertJsonPath('data.0.last_message.shared_post.public_id', $post);
+
+        // Someone who has blocked the author sees no preview, only that a post was shared.
+        \DB::table('blocks')->insert(['blocker_id' => $b->id, 'blocked_id' => $c->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonPath('data.0.shared_post', null);
+        $this->assertStringNotContainsString('Phewa', $this->getJson('/api/v1/conversations', $hb)->getContent());
+        \DB::table('blocks')->delete();
+
+        // A sender cannot share a post by someone blocked either way, a missing post, or nothing at all.
+        \DB::table('blocks')->insert(['blocker_id' => $c->id, 'blocked_id' => $a->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['shared_post' => $post, 'client_id' => 's2'], $ha)->assertStatus(422);
+        \DB::table('blocks')->delete();
+        $this->postJson("/api/v1/conversations/$cid/messages", ['shared_post' => (string) \Illuminate\Support\Str::uuid(), 'client_id' => 's3'], $ha)->assertStatus(422);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['client_id' => 's4'], $ha)->assertStatus(422);
+
+        // The author deleting the post removes the preview.
+        $this->deleteJson("/api/v1/posts/$post", [], $hc)->assertOk();
+        $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonPath('data.0.shared_post', null);
+    }
+
     public function test_group_capacity_is_fifty(): void
     {
         [$a, $ha] = $this->member('asha');

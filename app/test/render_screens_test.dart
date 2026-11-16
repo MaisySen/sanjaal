@@ -20,6 +20,7 @@ import 'package:sanjaal/auth_page.dart' show AuthPage;
 import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
+import 'package:sanjaal/share_post.dart' show SharedPostCard;
 import 'package:sanjaal/feed_page.dart' show SavedPage;
 import 'package:sanjaal/profile_pages.dart' show MePage, EditProfilePage;
 import 'package:sanjaal/stories_page.dart' show StoryViewer;
@@ -227,7 +228,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['shell_offline', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['shell_offline', 'shared_card', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -261,6 +262,7 @@ void main() {
             'chats' || 'chats_ne' => ChatsPage(session: s),
             'notifications' => NotificationsPage(session: s),
             'settings' => SettingsPage(session: s),
+            'shared_card' => Scaffold(appBar: AppBar(title: const Text('Shared post')), body: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [SharedPostCard(post: const {'public_id': 'p1', 'author': {'name': 'Asha Gurung', 'username': 'asha'}, 'excerpt': 'Evening light on the ridge. Tea after the walk.', 'image_url': null}), SharedPostCard(post: null)]))),
             'me' => MePage(session: s),
             'edit_profile' => EditProfilePage(session: s),
             'auth' => AuthPage(session: s),
@@ -498,6 +500,47 @@ void main() {
         return http.Response.bytes([1, 2, 3], 200);
       }
       return http.Response('', 404);
+    }));
+  });
+
+  testWidgets('share to chat: tapping a chat sends the post once; nothing is sent before', (tester) async {
+    final calls = <String>[];
+    final post = {'public_id': 'p1', 'kind': 'post', 'body': 'Shareable', 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': false, 'created_at': '2026-11-16T00:00:00Z'};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: SavedPage(session: s)));
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+      await settle();
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share to chat'));
+      await settle();
+      await tester.pumpAndSettle();
+      expect(find.text('Bina Rai'), findsOneWidget);
+      expect(calls.where((c) => c.startsWith('POST')).length, 0);
+      await tester.tap(find.text('Bina Rai'));
+      await settle();
+      await tester.pump(const Duration(seconds: 5));
+      expect(calls.where((c) => c.startsWith('POST /conversations/c1/messages') && c.contains('"shared_post":"p1"')).length, 1);
+      expect(find.text('Bina Rai'), findsNothing, reason: 'sheet closes after sending');
+      await tester.pumpWidget(const SizedBox());
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}${r.body.isEmpty ? '' : ' ${r.body}'}');
+      final h = {'content-type': 'application/json'};
+      if (r.url.path.endsWith('/saved')) return http.Response(jsonEncode({'data': [post], 'next_cursor': null}), 200, headers: h);
+      if (r.url.path.endsWith('/conversations')) return http.Response(jsonEncode({'data': [{'public_id': 'c1', 'type': 'direct', 'title': 'Bina Rai'}]}), 200, headers: h);
+      return http.Response(jsonEncode({'message': {}}), 201, headers: h);
     }));
   });
 

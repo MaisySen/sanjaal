@@ -185,6 +185,7 @@ class ChatController extends Controller
     {
         $convo = $this->authorized($request, $id);
         $from = (int) ($convo->members()->where('users.id', $request->user()->id)->first()?->pivot->history_from_id ?? 0);
+        $hiddenAuthors = Present::hiddenAuthors([$request->user()->id]);
         $q = $convo->messages()->with('user', 'conversation')->where('id', '>', $from);
         if ($request->filled('after_seq')) {
             $after = (int) $request->after_seq;
@@ -210,7 +211,7 @@ class ChatController extends Controller
         $convo->load('members');
 
         return response()->json([
-            'data' => $msgs->map(fn ($m) => Present::message($m, $from))->values(),
+            'data' => $msgs->map(fn ($m) => Present::message($m, $from, $hiddenAuthors))->values(),
             'typing' => ExtrasController::typingUsers($convo, $request->user()),
         ]);
     }
@@ -219,7 +220,8 @@ class ChatController extends Controller
     {
         $convo = $this->authorized($request, $id);
         $data = $request->validate([
-            'body' => ['required_without:media', 'nullable', 'string', 'max:4000'],
+            'body' => ['required_without_all:media,shared_post', 'nullable', 'string', 'max:4000'],
+            'shared_post' => ['nullable', 'uuid'],
             'client_id' => ['nullable', 'string', 'max:64'],
             'media' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,m4a,aac,mp3,ogg,wav,mp4', 'max:10240'],
             'duration_ms' => ['nullable', 'integer', 'min:0', 'max:600000'],
@@ -235,6 +237,15 @@ class ChatController extends Controller
             $mediaId = (string) \Illuminate\Support\Str::uuid();
             \App\Support\MediaStore::putFile($mediaId, $file);
         }
+        $sharedId = null;
+        if (! empty($data['shared_post'])) {
+            $sp = \App\Models\Post::where('public_id', $data['shared_post'])->first();
+            if (! $sp || in_array($sp->user_id, Present::hiddenAuthors([$me->id]), true)) {
+                return response()->json(['message' => 'That post is not available to share.', 'errors' => ['shared_post' => ['That post is not available to share.']]], 422);
+            }
+            $sharedId = $sp->id;
+            $kind = 'post';
+        }
         $myFrom = (int) ($convo->members()->where('users.id', $me->id)->first()?->pivot->history_from_id ?? 0);
         $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->where('id', '>', $myFrom)->value('id') : null;
 
@@ -245,11 +256,11 @@ class ChatController extends Controller
             }
         }
 
-        $msg = DB::transaction(function () use ($convo, $me, $data, $kind, $mediaId, $mediaMime, $replyTo) {
+        $msg = DB::transaction(function () use ($convo, $me, $data, $kind, $mediaId, $mediaMime, $replyTo, $sharedId) {
             $m = $convo->messages()->create([
                 'user_id' => $me->id, 'body' => $data['body'] ?? '', 'client_id' => $data['client_id'] ?? null,
                 'kind' => $kind, 'media_id' => $mediaId, 'media_mime' => $mediaMime,
-                'duration_ms' => $data['duration_ms'] ?? null, 'reply_to_id' => $replyTo,
+                'duration_ms' => $data['duration_ms'] ?? null, 'reply_to_id' => $replyTo, 'shared_post_id' => $sharedId,
             ]);
             $convo->update(['last_message_at' => $m->created_at]);
             $convo->members()->updateExistingPivot($me->id, ['last_read_message_id' => $m->id]);
@@ -326,7 +337,7 @@ class ChatController extends Controller
             'type' => $c->type,
             'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
-            'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0)) : null,
+            'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), Present::hiddenAuthors([$me->id])) : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
             'unread' => $c->messages()->where('id', '>', max($pivot?->last_read_message_id ?? 0, $pivot?->history_from_id ?? 0))->where('user_id', '!=', $me->id)->count(),
         ];

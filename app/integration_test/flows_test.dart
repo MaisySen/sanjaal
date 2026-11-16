@@ -93,7 +93,7 @@ void main() {
       await _settle(tester, 6);
       await _type(tester, find.byType(TextField), 'Hello from the emulator run');
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.send));
+      await tester.tap(find.byTooltip('Send message'));
       await _settle(tester, 6);
       expect(find.text('Hello from the emulator run'), findsWidgets);
       await binding.takeScreenshot('flow6_chat_sent');

@@ -53,7 +53,7 @@ http.Client _client(List<String> posts, List<String> bodies) => MockClient((r) a
         posts.add(r.url.path);
         bodies.add(latin1.decode(r.bodyBytes));
       }
-      return http.Response(jsonEncode({'story': {}, 'post': {'public_id': 'p9', 'kind': 'post', 'body': '', 'media': [], 'hashtags': [], 'author': {'public_id': 'me', 'name': 'B', 'username': 'b'}}}), 201, headers: h);
+      return http.Response(jsonEncode({'story': {'public_id':'s1','url':'https://fixture.invalid/story.jpg','type':'image'}, 'post': {'public_id': 'p9', 'kind': 'post', 'body': '', 'media': [], 'hashtags': [], 'author': {'public_id': 'me', 'name': 'B', 'username': 'b'}}}), 201, headers: h);
     });
 
 void main() {
@@ -86,12 +86,13 @@ void main() {
             expect(posts, isEmpty, reason: 'picking a story alone never uploads');
             await tester.enterText(find.byType(TextField), 'Caption from review');
             await tester.tap(find.text('Share story'));
+            for (var i=0;i<5;i++) { await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds:20))); await tester.pump(const Duration(milliseconds:150)); }
           }
           late bool ok;
           await tester.runAsync(() async => ok = await done!);
           await tester.pump();
           expect(fake.calls, [e.value]);
-          expect(ok, mode == _Do.give);
+          expect(ok, isFalse, reason:'background handoff does not claim the upload was already posted');
           expect(posts.where((p) => p.endsWith('/stories')).length, mode == _Do.give ? 1 : 0);
           if (mode == _Do.give) {
             final isVideo = e.key.contains('video');

@@ -79,6 +79,24 @@ void main() {
   late VideoPlayerPlatform old;
   setUp(() { old = VideoPlayerPlatform.instance; video = _Video(); VideoPlayerPlatform.instance = video; });
   tearDown(() { VideoPlayerPlatform.instance = old; });
+  testWidgets('Reels pool retains previous/current/next without restarting a back swipe', (t) async {
+    final pool=ReelPlayerPool();
+    final items=[for(var i=0;i<6;i++) <String,dynamic>{'public_id':'r$i','media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];
+    pool.warm(items,1); await flush(t); expect(pool.length,3); expect(video.nextId,3);
+    final previous=pool.forReel(items[1]);
+    pool.warm(items,2); await flush(t); expect(pool.length,3); expect(video.nextId,4);
+    expect(identical(pool.forReel(items[1]),previous),isTrue);
+    pool.warm(items,1); await flush(t); expect(identical(pool.forReel(items[1]),previous),isTrue);
+    expect(video.playing.values.every((p)=>!p),isTrue,reason:'preparation must never autoplay an adjacent reel');
+    pool.dispose();await flush(t);expect(video.calls.where((c)=>c.startsWith('dispose:')).length,video.nextId);
+  });
+  testWidgets('Reels pool stops and discards players outside its three-item window', (t) async {
+    final pool=ReelPlayerPool(); final items=[for(var i=0;i<6;i++) <String,dynamic>{'media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];
+    pool.warm(items,0);await flush(t);final old=pool.forReel(items[0])!;
+    pool.warm(items,4);await flush(t);expect(old.disposed,isTrue);expect(pool.length,3);
+    pool.warm(items,4);await flush(t);expect(video.nextId,5,reason:'repeated builds do not initialize players again');
+    pool.dispose();await flush(t);
+  });
   testWidgets('local story preview waits for play, pauses in background and stays paused on resume', (t) async {
     await t.pumpWidget(app(StoryComposePage(session: Session(), file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true)));
     await flush(t); expect(video.playing[0], isFalse);

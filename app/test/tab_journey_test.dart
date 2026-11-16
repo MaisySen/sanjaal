@@ -248,12 +248,12 @@ void main() {
       await flush(t);
       await t.pump(const Duration(milliseconds: 400));
       expect(writes, 1);
-      expect(storyReads, 2);
+      expect(storyReads, 1, reason: 'the confirmed story is inserted without a second list request');
       expect(find.byType(GlassNavBar), findsOneWidget);
       expect(t.takeException(), isNull);
     }, onRequest: (r) async {
       if (r.url.path.endsWith('/stories')) {
-        if (r.method == 'POST') { writes++; return json({'story': {}}); }
+        if (r.method == 'POST') { writes++; return json({'story': {'public_id': 'new-story', 'url':'https://fixture.invalid/story.jpg', 'type':'image', 'caption':'', 'created_at':'2026-11-16T23:00:00Z'}}); }
         storyReads++;
         return json({'data': writes == 0 ? [] : [{'author': {'username': 'fixture'}, 'items': [], 'all_viewed': false}]});
       }

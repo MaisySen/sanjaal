@@ -1,3 +1,5 @@
+import 'settings_page.dart';
+import 'upload_center.dart';
 import 'ph.dart';
 import 'photo_gallery.dart';
 import 'draft_exit_guard.dart';
@@ -36,9 +38,11 @@ class FeedPage extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Logo(size: 56),
+          leading: IconButton(tooltip: t_('Settings'), icon: const PhIcon('list'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: session)))),
+          centerTitle: true,
+          title: const Logo(size: 48),
           actions: [
-            IconButton(tooltip: t_('Post'), icon: const PhIcon('plus-square'), onPressed: onCompose),
+            IconButton(tooltip: t_('Post'), icon: const PhIcon('plus'), onPressed: onCompose),
             IconButton(tooltip: t_('Search'), icon: const PhIcon('magnifying-glass'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
             IconButton(tooltip: t_('Notifications'), icon: const PhIcon('bell'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
           ],
@@ -49,7 +53,6 @@ class FeedPage extends StatelessWidget {
             key: forYouKey ?? const PageStorageKey('forYou'),
             session: session,
             query: const {'kind': 'post'},
-            immersive: true,
             header: StoriesBar(session: session, contentRevision: storyRevision),
             emptyIcon: Ph.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
@@ -60,7 +63,6 @@ class FeedPage extends StatelessWidget {
             key: const PageStorageKey('following'),
             session: session,
             query: const {'scope': 'following', 'kind': 'post'},
-            immersive: true,
             emptyIcon: Ph.group_add_outlined,
             emptyTitle: 'Follow people to fill this tab',
             emptyHint: t_('Posts from the people you follow will appear here.'),
@@ -84,9 +86,11 @@ class FeedList extends StatefulWidget {
     this.emptyHint,
     this.emptyAction,
     this.immersive = false,
+    this.grid = false,
     this.path = '/posts',
   });
   final bool immersive;
+  final bool grid;
   final String path;
   final Session session;
   final Map<String, String> query;
@@ -99,7 +103,9 @@ class FeedList extends StatefulWidget {
   State<FeedList> createState() => FeedListState();
 }
 
-class FeedListState extends State<FeedList> {
+class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   final posts = <Map<String, dynamic>>[];
   final scroll = ScrollController();
   String? cursor;
@@ -107,10 +113,13 @@ class FeedListState extends State<FeedList> {
   bool done = false;
   bool _refreshQueued = false;
   String? error;
+  late final uploads = UploadCenter.of(widget.session);
+  int _uploadRevision = -1;
 
   @override
   void initState() {
     super.initState();
+    uploads.addListener(_published);
     scroll.addListener(() {
       if (scroll.position.pixels > scroll.position.maxScrollExtent - 500) load();
     });
@@ -119,12 +128,32 @@ class FeedListState extends State<FeedList> {
 
   @override
   void dispose() {
+    uploads.removeListener(_published);
     scroll.dispose();
     pager.dispose();
     super.dispose();
   }
 
-  void insertFirst(Map<String, dynamic> p) => setState(() => posts.insert(0, p));
+  void insertFirst(Map<String, dynamic> p) {
+    if (!mounted) return;
+    setState(() { posts.removeWhere((x) => x['public_id'] == p['public_id']); posts.insert(0, p); });
+  }
+
+
+  Iterable<Map<String, dynamic>> get _localPosts => uploads.confirmedPosts.where((p) =>
+      widget.path == '/posts' && widget.query['scope'] != 'following' &&
+      (widget.query['kind'] == null || widget.query['kind'] == p['kind']) &&
+      (widget.query['username'] == null || widget.query['username'] == (p['author'] as Map?)?['username']));
+  void _published() {
+    if (!mounted || _uploadRevision == uploads.revision) return;
+    _uploadRevision = uploads.revision;
+    setState(() {
+      for (final p in _localPosts.toList().reversed) {
+        posts.removeWhere((x) => x['public_id'] == p['public_id']);
+        posts.insert(0, p);
+      }
+    });
+  }
 
   Future<void> load({bool refresh = false}) async {
     if (loading) {
@@ -142,8 +171,9 @@ class FeedListState extends State<FeedList> {
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       setState(() {
-        if (refresh) posts.clear();
-        posts.addAll(items);
+        if (refresh) { posts.clear(); posts.addAll(_localPosts); }
+        final ids = posts.map((p) => p['public_id']).toSet();
+        posts.addAll(items.where((p) => ids.add(p['public_id'])));
         cursor = j['next_cursor'] as String?;
         done = cursor == null;
       });
@@ -211,7 +241,30 @@ class FeedListState extends State<FeedList> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final hasHeader = widget.header != null;
+    if (widget.grid && posts.isNotEmpty) return RefreshIndicator(
+      onRefresh: () => load(refresh: true),
+      child: CustomScrollView(controller: scroll, physics: const AlwaysScrollableScrollPhysics(), slivers: [
+        if (hasHeader) SliverToBoxAdapter(child: widget.header),
+        SliverGrid(delegate: SliverChildBuilderDelegate((context, i) {
+          final p = posts[i];
+          final media = (p['media'] as List?) ?? [];
+          final photo = media.where((m) => m['type'] == 'image').firstOrNull;
+          final url = photo?['url'] ?? (media.isNotEmpty ? media.first['thumbnail_url'] : null);
+          return Semantics(button: true, label: (p['body'] ?? t_('Post')).toString(), child: InkWell(
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: p['public_id'].toString()))),
+            child: Stack(fit: StackFit.expand, children: [
+              ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: url == null
+                ? Center(child: Padding(padding: const EdgeInsets.all(10), child: Text((p['body'] ?? '').toString(), maxLines: 5, overflow: TextOverflow.ellipsis)))
+                : Image(image: feedImageProvider?.call(url.toString()) ?? NetworkImage(url.toString()), fit: BoxFit.cover, errorBuilder: (_,e,st) => const Center(child: PhIcon('image')))),
+              if (p['kind'] == 'reel') const Positioned(top: 8, right: 8, child: PhIcon('play-circle', color: Colors.white, size: 22)),
+            ]),
+          ));
+        }, childCount: posts.length), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 2, crossAxisSpacing: 2, childAspectRatio: 0.75)),
+        SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.only(bottom: 104, top: 12), child: loading ? const LinearProgressIndicator() : error != null ? TextButton(onPressed: load, child: Text(error!)) : const SizedBox.shrink())),
+      ]),
+    );
     if (widget.immersive && posts.isNotEmpty) return _pager();
     return RefreshIndicator(
       onRefresh: () => load(refresh: true),
@@ -430,8 +483,8 @@ class _PostCardState extends State<PostCard> {
           if (p['poll'] is Map) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: PollCard(key: ValueKey(p['public_id']), session: widget.session, post: p)),
           if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
           if (images.isNotEmpty) Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            child: ClipRRect(borderRadius: BorderRadius.circular(18), child: SizedBox(
+            padding: const EdgeInsets.only(top: 10),
+            child: ClipRRect(borderRadius: BorderRadius.zero, child: SizedBox(
               height: 360,
               child: PhotoGallery(key: ValueKey('photos-$id'), urls: images.map((m) => m['url'] as String).toList(), provider: feedImageProvider),
             )),
@@ -741,9 +794,10 @@ class HashtagPage extends StatelessWidget {
 }
 
 class ComposePage extends StatefulWidget {
-  const ComposePage({super.key, required this.session, this.startWithVideo = false});
+  const ComposePage({super.key, required this.session, this.startWithVideo = false, this.backgroundUpload = false});
   final Session session;
   final bool startWithVideo;
+  final bool backgroundUpload;
   @override
   State<ComposePage> createState() => _ComposePageState();
 }
@@ -753,6 +807,7 @@ class _ComposePageState extends State<ComposePage> {
   List<XFile> images = [];
   XFile? video;
   bool busy = false;
+  bool handedOff = false;
   String intent = newUploadIntent();
   UploadError? uploadError;
   List<TextEditingController>? pollOptions;
@@ -781,6 +836,7 @@ class _ComposePageState extends State<ComposePage> {
   @override
   void initState() {
     super.initState();
+    if (widget.backgroundUpload) UploadCenter.of(widget.session);
     if (widget.startWithVideo) WidgetsBinding.instance.addPostFrameCallback((_) => _pickVideo());
   }
 
@@ -828,6 +884,39 @@ class _ComposePageState extends State<ComposePage> {
       showError(context, 'Write something or add a photo or video.');
       return;
     }
+    if (widget.backgroundUpload) {
+      final center = UploadCenter.of(widget.session);
+      final picked = List<XFile>.unmodifiable(video == null ? images : [video!]);
+      final isReel = video != null;
+      final originalIntent = intent;
+      final generation = center.generation;
+      final owner = widget.session.user?['public_id'];
+      final originalOptions = options == null ? null : List<String>.unmodifiable(options);
+      // Files are read once; replay uses the same bytes, text, kind and intent.
+      Future<List<UploadFile>>? snapshot;
+      Future<List<UploadFile>> prepare() async {
+        final result = <UploadFile>[];
+        for (final file in picked) {
+          final data = await file.readAsBytes();
+          if (data.length > 25 * 1024 * 1024) throw ApiError('That file is over 25 MB. Choose a smaller one.');
+          result.add(UploadFile(data, mimeFor(file.name, video: isReel), file.name));
+        }
+        return List.unmodifiable(result);
+      }
+      final session = widget.session;
+      final started = center.start(isReel ? 'reel' : 'post', () async {
+        snapshot ??= prepare();
+        final files = await snapshot!;
+        if (center.generation != generation || session.user?['public_id'] != owner) throw ApiError('Please sign in again.', 401);
+        center.sending();
+        return session.createPost(body, files: files, reel: isReel, pollOptions: originalOptions, intent: originalIntent);
+      });
+      if (!started) { showInfo(context, 'Check the current upload before starting another.'); return; }
+      setState(() => handedOff = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
     setState(() { busy = true; uploadError = null; });
     try {
       final files = <UploadFile>[];
@@ -848,13 +937,13 @@ class _ComposePageState extends State<ComposePage> {
   @override
   Widget build(BuildContext context) {
     return DraftExitGuard(
-      hasChanges: text.text.trim().isNotEmpty || images.isNotEmpty || video != null || pollOptions != null,
+      hasChanges: !handedOff && (text.text.trim().isNotEmpty || images.isNotEmpty || video != null || pollOptions != null),
       busy: busy,
       child: Scaffold(
       appBar: AppBar(title: Text(t_('New post')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton(onPressed: busy || uploadError?.terminal == true ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
+          child: FilledButton(onPressed: busy || handedOff || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
         ),
       ]),
       body: Column(children: [

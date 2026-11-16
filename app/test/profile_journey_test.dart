@@ -129,13 +129,13 @@ void main(){
     });
   }
   for(final scale in [1.0,1.8]){for(final lang in ['en','ne']){
-    testWidgets('profile identity actions precede readable real metrics $scale $lang',(t)async{
+    testWidgets('reference profile groups identity with readable real metrics $scale $lang',(t)async{
       t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
       await fixture(t,(s)=>MePage(session:s,onCompose:()async{}),()async{
         await flush(t);await t.pumpAndSettle();
         final edit=find.text(lang=='en'?'Edit profile':'प्रोफाइल सम्पादन');
         final posts=find.text(lang=='en'?'Posts':'पोस्ट');
-        expect(t.getTopLeft(edit).dy,lessThan(t.getTopLeft(posts).dy));
+        expect(t.getTopLeft(posts).dy,lessThan(t.getTopLeft(edit).dy));
         expect(find.text('1.2K'),findsOneWidget);expect(find.text('12'),findsOneWidget);
         final label=t.widget<Text>(find.text(lang=='en'?'Followers':'फलोअर'));
         final painter=TextPainter(text:TextSpan(text:label.data,style:Theme.of(t.element(find.byType(ProfileHeader))).textTheme.bodySmall),textDirection:TextDirection.ltr,textScaler:TextScaler.linear(scale))..layout(maxWidth:scale>1?220:80);

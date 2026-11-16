@@ -76,7 +76,7 @@ void main() {
   testWidgets('post cannot disappear during upload and returns only after success', (t) async {
     final pending=Completer<http.Response>(); var writes=0;
     await fixture(t,(s)=>ComposePage(session:s),() async {
-      await t.enterText(find.byType(TextField),'Uploading draft'); await t.tap(find.widgetWithText(FilledButton,'Post')); await t.pump();
+      await t.enterText(find.byType(TextField),'Uploading draft'); await t.pump(); await t.tap(find.widgetWithText(FilledButton,'Post')); await t.pump();
       await t.binding.handlePopRoute(); await t.pump(); expect(find.byType(ComposePage),findsOneWidget); expect(t.widget<TextField>(find.byType(TextField)).enabled,isFalse);
       pending.complete(json({'post':{'public_id':'p'}})); await flush(t); expect(writes,1); expect(find.byType(ComposePage),findsNothing); expect(find.text('Discard this draft?'),findsNothing);
     },respond:(_) {writes++;return pending.future;});
@@ -100,7 +100,7 @@ void main() {
     final keys=<String>[]; var created=0;
     await fixture(t,(s)=>ComposePage(session:s),() async {
       await t.enterText(find.byType(TextField),'A retry-safe post');
-      await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      await t.pump(); await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
       expect(find.text('Upload interrupted. Your draft is kept. Retry to check the original result.'),findsOneWidget);
       await t.tap(find.text('Try again')); await flush(t);
       expect(keys.length,2); expect(keys[0],isNotEmpty); expect(keys[1],keys[0]); expect(created,1);
@@ -129,12 +129,12 @@ void main() {
   testWidgets('changed draft conflict preserves edits and requires explicit new preparation before a new send', (t) async {
     final keys=<String>[];
     await fixture(t,(s)=>ComposePage(session:s),() async {
-      await t.enterText(find.byType(TextField),'Original'); await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      await t.enterText(find.byType(TextField),'Original'); await t.pump(); await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
       await t.enterText(find.byType(TextField),'Edited draft'); await t.tap(find.text('Try again')); await flush(t);
       expect(find.text('Open original'),findsOneWidget); expect(find.text('Edited draft'),findsOneWidget);
       expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
       await t.tap(find.text('Prepare a new post')); await t.pumpAndSettle(); await t.tap(find.text('Prepare new upload')); await t.pumpAndSettle(); expect(keys.length,2,reason:'preparation alone cannot send');
-      await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      await t.pump(); await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
       expect(keys[0],keys[1]); expect(keys[2],isNot(keys[0]));
     },respond:(r)async {
       keys.add(RegExp(r'name="upload_intent"\r\n\r\n([^\r]+)').firstMatch(latin1.decode(r.bodyBytes))!.group(1)!);
@@ -166,7 +166,7 @@ void main() {
     var writes=0;
     await fixture(t,(s)=>ComposePage(session:s),() async {
       await t.enterText(find.byType(TextField),'An unconfirmed upload');
-      await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
+      await t.pump(); await t.tap(find.widgetWithText(FilledButton,'Post')); await flush(t);
       expect(find.byType(ComposePage),findsOneWidget); expect(find.text('The upload result is unknown. Check your posts or stories before sharing again.'),findsOneWidget);
       expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull); expect(writes,1);
     },intents:false,respond:(_)async {writes++;return http.Response('<html>proxy page</html>',200);});
@@ -200,7 +200,7 @@ void main() {
         t.view.physicalSize=const Size(960,1920); t.view.devicePixelRatio=3; addTearDown(t.view.reset);
         await fixture(t,isStory?story:(s)=>ComposePage(session:s),() async {
           if(!isStory) await t.enterText(find.byType(TextField),'An edited draft worth keeping');
-          await t.tap(find.text(t_(isStory?'Share story':'Post'))); await flush(t);
+          await t.pump(); await t.tap(find.text(t_(isStory?'Share story':'Post'))); await flush(t);
           expect(find.text(t_('Open original')),findsOneWidget);
           await shot(t,'upload_conflict_${isStory?'story':'post'}_${b.name}_$lang');
           t.view.viewInsets=const FakeViewPadding(bottom:720); await t.pumpAndSettle();

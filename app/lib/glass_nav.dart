@@ -14,10 +14,12 @@ class NavItem {
 /// Floating bar. Content scrolls under it (the Scaffold uses extendBody), the bar blurs
 /// what is behind it. With Reduce Transparency on, it falls back to a solid surface.
 class GlassNavBar extends StatelessWidget {
-  const GlassNavBar({super.key, required this.items, required this.index, required this.onSelected});
+  const GlassNavBar({super.key, required this.items, required this.index, required this.onSelected, this.compact = false, this.onTouch});
   final List<NavItem> items;
   final int index;
   final ValueChanged<int> onSelected;
+  final bool compact;
+  final VoidCallback? onTouch;
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +28,10 @@ class GlassNavBar extends StatelessWidget {
     final reduce = MediaQuery.of(context).highContrast;
     final fill = dark ? Colors.white.withValues(alpha: 0.14) : Colors.white.withValues(alpha: 0.72);
     final edge = dark ? Colors.white.withValues(alpha: 0.24) : Colors.black.withValues(alpha: 0.10);
-    final bar = Container(
-      height: 64,
+    final collapsed = compact && !MediaQuery.of(context).accessibleNavigation && MediaQuery.textScalerOf(context).scale(14) < 20;
+    final bar = AnimatedContainer(
+      duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 180),
+      height: collapsed ? 52 : 64,
       decoration: BoxDecoration(
         color: reduce ? scheme.surfaceContainerHigh : fill,
         borderRadius: BorderRadius.circular(32),
@@ -35,25 +39,28 @@ class GlassNavBar extends StatelessWidget {
       ),
       child: Row(children: [
         for (var i = 0; i < items.length; i++)
-          Expanded(child: _Item(item: items[i], selected: i == index, onTap: () => onSelected(i))),
+          Expanded(child: _Item(item: items[i], compact: collapsed, selected: i == index, onTap: () => onSelected(i))),
       ]),
     );
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      child: Listener(
+        onPointerDown: (_) => onTouch?.call(),
+        child: Padding(
+        padding: EdgeInsets.fromLTRB(collapsed ? 26 : 14, 0, collapsed ? 26 : 14, 8),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
           child: reduce ? bar : BackdropFilter(filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26), child: bar),
         ),
-      ),
+      )),
     );
   }
 }
 
 class _Item extends StatelessWidget {
-  const _Item({required this.item, required this.selected, required this.onTap});
+  const _Item({required this.item, required this.selected, required this.onTap, required this.compact});
+  final bool compact;
   final NavItem item;
   final bool selected;
   final VoidCallback onTap;
@@ -76,7 +83,7 @@ class _Item extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(5),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: MediaQuery.of(context).disableAnimations ? Duration.zero : const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             decoration: BoxDecoration(
               color: selected ? scheme.onSurface.withValues(alpha: 0.16) : Colors.transparent,
@@ -84,8 +91,8 @@ class _Item extends StatelessWidget {
             ),
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               icon,
-              const SizedBox(height: 2),
-              MediaQuery.withClampedTextScaling(maxScaleFactor: 1.2, child: Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, height: 1.1, fontWeight: FontWeight.w700, color: color))),
+              if (!compact) const SizedBox(height: 2),
+              if (!compact) MediaQuery.withClampedTextScaling(maxScaleFactor: 1.2, child: Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, height: 1.1, fontWeight: FontWeight.w700, color: color))),
             ]),
           ),
         ),

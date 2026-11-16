@@ -1,3 +1,6 @@
+import 'feed_page.dart' show SavedPage;
+import 'profile_pages.dart' show EditProfilePage;
+import 'notifications_page.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,95 +11,107 @@ import 'push.dart';
 import 'ui.dart';
 import 'wallet_page.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.session});
   final Session session;
-
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+class _SettingsPageState extends State<SettingsPage> {
+  String query = '';
+  void open(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: prefs,
-      builder: (context, _) => Scaffold(
-        appBar: AppBar(title: Text(t_('Settings'))),
-        body: ListView(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text(t_('Theme'), style: Theme.of(context).textTheme.titleSmall)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<ThemeMode>(
-              segments: [
-                ButtonSegment(value: ThemeMode.system, label: Text(t_('System'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
-                ButtonSegment(value: ThemeMode.light, label: Text(t_('Light'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
-                ButtonSegment(value: ThemeMode.dark, label: Text(t_('Dark'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
-              ],
-              selected: {prefs.mode},
-              onSelectionChanged: (s) => prefs.setMode(s.first),
-            ),
-          ),
-          Padding(padding: const EdgeInsets.fromLTRB(16, 20, 16, 8), child: Text(t_('Language'), style: Theme.of(context).textTheme.titleSmall)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<String>(
-              segments: const [ButtonSegment(value: 'en', label: Text('English')), ButtonSegment(value: 'ne', label: Text('नेपाली'))],
-              selected: {prefs.lang},
-              onSelectionChanged: (s) => prefs.setLang(s.first),
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Divider(),
-          ValueListenableBuilder<String>(
-            valueListenable: Push.status,
-            builder: (context, v, child) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(v)),
-          ),
-          ListTile(
-            leading: const PhIcon('wallet'),
-            title: Text(t_('Coin wallet')),
-            trailing: const PhIcon('caret-right'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalletPage(session: session))),
-          ),
-          ListTile(
-            leading: const PhIcon('prohibit'),
-            title: Text(t_('Blocked people')),
-            trailing: const PhIcon('caret-right'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => BlockedPage(session: session))),
-          ),
-          ListTile(
-            leading: const PhIcon('info'),
-            title: Text(t_('About, privacy and terms')),
-            trailing: const PhIcon('caret-right'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AboutPage())),
-          ),
-          ListTile(
-            leading: const PhIcon('envelope-simple'),
-            title: Text(t_('Contact us')),
-            subtitle: const Text('contact@fintex.au'),
-            onTap: () => launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal')),
-          ),
-          ListTile(
-            leading: const PhIcon('trash'),
-            title: const Text('Delete my account'),
-            subtitle: const Text('Sends a request by email'),
-            onTap: () async {
-              final u = (session.user?['username'] ?? '').toString();
-              await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=${Uri.encodeComponent('Delete my Sanjaal account')}&body=${Uri.encodeComponent('Please delete my Sanjaal account and data. Username: $u')}'));
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: PhIcon('sign-out', color: Theme.of(context).colorScheme.error),
-            title: Text(t_('Sign out')),
-            onTap: () {
-              Navigator.of(context).popUntil((r) => r.isFirst);
-              session.logout();
-            },
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('Sanjaal $appVersion\nFintex Australia Pty Ltd (ABN 60 688 406 108)', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
-          ),
-        ]),
-      ),
+    final session = widget.session;
+    Widget option(String title, String icon, VoidCallback action, {String? subtitle, bool destructive = false}) => ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      leading: PhIcon(icon, size: 26, color: destructive ? Theme.of(context).colorScheme.error : null),
+      title: Text(t_(title)), subtitle: subtitle == null ? null : Text(t_(subtitle)),
+      trailing: const PhIcon('caret-right', size: 18), onTap: action,
+    );
+    final groups = <String, List<(String, Widget)>>{
+      'Your account': [
+        ('Profile personal details', option('Edit profile', 'user-circle', () => open(EditProfilePage(session: session)))),
+      ],
+      'How you use Sanjaal': [
+        ('Saved bookmarks', option('Saved', 'bookmark-simple', () => open(SavedPage(session: session)))),
+        ('Notifications push', option('Notifications', 'bell', () => open(_NotificationSettings(session: session)))),
+      ],
+      'Who can interact with you': [
+        ('Blocked people privacy', option('Blocked people', 'prohibit', () => open(BlockedPage(session: session)))),
+      ],
+      'Your app and media': [
+        ('Appearance theme light dark', option('Appearance', 'moon', () => open(const _AppearanceSettings()))),
+        ('Language translations English Nepali', option('Language', 'translate', () => open(const _LanguageSettings()))),
+      ],
+      'Your balance and activity': [
+        ('Coin wallet payments activity', option('Coin wallet', 'wallet', () => open(WalletPage(session: session)))),
+      ],
+      'More info and support': [
+        ('About privacy terms licences', option('About, privacy and terms', 'info', () => open(const AboutPage()))),
+        ('Help contact support', option('Contact us', 'envelope-simple', () async {
+          final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal'));
+          if (!ok && context.mounted) showInfo(context, 'Email contact@fintex.au for help.');
+        }, subtitle: 'contact@fintex.au')),
+        ('Delete my account data', option('Delete my account', 'trash', () async {
+          final u = (session.user?['username'] ?? '').toString();
+          final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=${Uri.encodeComponent('Delete my Sanjaal account')}&body=${Uri.encodeComponent('Please delete my Sanjaal account and data. Username: $u')}'));
+          if (!ok && context.mounted) showInfo(context, 'Email contact@fintex.au to request account deletion.');
+        }, subtitle: 'Sends a request by email')),
+      ],
+      'Login': [
+        ('Sign out logout', option('Sign out', 'sign-out', () {
+          Navigator.of(context).popUntil((r) => r.isFirst); session.logout();
+        }, destructive: true)),
+      ],
+    };
+    final visible = <String, List<Widget>>{};
+    for (final entry in groups.entries) {
+      final rows = entry.value.where((row) => query.isEmpty || ('${t_(entry.key)} ${row.$1} ${(row.$2 as ListTile).title is Text ? ((row.$2 as ListTile).title as Text).data : ''}').toLowerCase().contains(query)).map((row) => row.$2).toList();
+      if (rows.isNotEmpty) visible[entry.key] = rows;
+    }
+    return Scaffold(
+      appBar: AppBar(centerTitle: true, title: Text(t_('Settings and activity'))),
+      body: ListView(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), child: TextField(onChanged: (value) => setState(() => query = value.trim().toLowerCase()), decoration: InputDecoration(hintText: t_('Search settings'), prefixIcon: const PhIcon('magnifying-glass'), border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none)))),
+        if (visible.isEmpty) EmptyState(icon: Ph.search_off, title: t_('No matching settings')),
+        for (final entry in visible.entries) ...[
+          Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 10), child: Text(t_(entry.key), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
+          ...entry.value,
+          const Divider(height: 20, thickness: 6),
+        ],
+        if (query.isEmpty) Padding(padding: const EdgeInsets.all(24), child: Text('Sanjaal\nFintex Australia Pty Ltd (ABN 60 688 406 108)', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall)),
+      ]),
     );
   }
+}
+class _AppearanceSettings extends StatelessWidget {
+  const _AppearanceSettings();
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => Scaffold(
+    appBar: AppBar(title: Text(t_('Appearance'))), body: ListView(children: [
+      for (final item in [(ThemeMode.system, 'System'), (ThemeMode.light, 'Light'), (ThemeMode.dark, 'Dark')])
+        ListTile(title: Text(t_(item.$2)), trailing: prefs.mode == item.$1 ? const PhIcon('check') : null, onTap: () => prefs.setMode(item.$1)),
+    ]),
+  ));
+}
+class _LanguageSettings extends StatelessWidget {
+  const _LanguageSettings();
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => Scaffold(
+    appBar: AppBar(title: Text(t_('Language'))), body: ListView(children: [
+      for (final item in [('en', 'English'), ('ne', 'नेपाली')]) ListTile(title: Text(item.$2), trailing: prefs.lang == item.$1 ? const PhIcon('check') : null, onTap: () => prefs.setLang(item.$1)),
+    ]),
+  ));
+}
+class _NotificationSettings extends StatelessWidget {
+  const _NotificationSettings({required this.session});
+  final Session session;
+  @override
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(t_('Notifications'))), body: ListView(children: [
+    ValueListenableBuilder<String>(valueListenable: Push.status, builder: (context, value, _) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(value))),
+    ListTile(title: Text(t_('Activity')), trailing: const PhIcon('caret-right'), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
+  ]));
 }
 
 class BlockedPage extends StatefulWidget {

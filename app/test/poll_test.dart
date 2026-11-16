@@ -40,13 +40,13 @@ void main() {
       await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: ComposePage(session: s)));
       await t.pumpAndSettle();
       await t.tap(find.text('Poll')); await t.pumpAndSettle();
-      await t.tap(find.widgetWithText(FilledButton, 'Post')); await t.pump();
+      await t.pump(); await t.tap(find.widgetWithText(FilledButton, 'Post')); await t.pump();
       expect(sent, isNull);
-      expect(find.text('Add a question and different, non-empty options.'), findsOneWidget);
+      expect(t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Post')).onPressed, isNull);
       await t.enterText(find.byType(TextField).at(0), 'Meetup day?');
       await t.enterText(find.byType(TextField).at(1), 'Saturday');
       await t.enterText(find.widgetWithText(TextField, 'Option 2'), 'Sunday');
-      await t.tap(find.widgetWithText(FilledButton, 'Post')); await flush(t);
+      await t.pump(); await t.tap(find.widgetWithText(FilledButton, 'Post')); await flush(t);
       expect(sent, contains('poll_options[0]'));
       expect(sent, contains('Saturday'));
       expect(sent, contains('Sunday'));

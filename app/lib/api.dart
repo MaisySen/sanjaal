@@ -87,7 +87,33 @@ String _errorText(http.Response r) {
 }
 
 /// Holds the Auth0 session and makes authenticated API calls.
+class _ProgressMultipart extends http.MultipartRequest {
+  _ProgressMultipart(super.method, super.url, this.progress);
+  final void Function(double?) progress;
+  @override
+  http.ByteStream finalize() {
+    final stream = super.finalize();
+    final total = contentLength;
+    var sent = 0;
+    progress(0);
+    return http.ByteStream(stream.transform(StreamTransformer.fromHandlers(handleData: (List<int> data, EventSink<List<int>> sink) {
+      sent += data.length;
+      progress(total == 0 ? null : (sent / total).clamp(0.0, 1.0));
+      sink.add(data);
+    })));
+  }
+}
+
 class Session extends ChangeNotifier {
+  final uploadProgress = ValueNotifier<double?>(null);
+  int _uploadRequest = 0;
+  http.MultipartRequest _trackedUpload(String path) {
+    final request = ++_uploadRequest;
+    final account = user?['public_id'];
+    return _ProgressMultipart('POST', Uri.parse('$apiBase$path'), (value) {
+      if (request == _uploadRequest && account == user?['public_id']) uploadProgress.value = value;
+    });
+  }
   String? _access;
   String? _refresh;
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
@@ -268,6 +294,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> _clear() async {
+    _uploadRequest++;
     _access = null;
     _refresh = null;
     user = null;
@@ -329,12 +356,15 @@ class Session extends ChangeNotifier {
 
   /// Posts text and up to 4 files. [files] are (bytes, mime, filename).
   Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false, List<String>? pollOptions, String? intent}) async {
+    final replaySafe = uploadIntentsEnabled && intent != null;
+    final account = user?['public_id'];
     final token = await _token();
-    final req = http.MultipartRequest('POST', Uri.parse('$apiBase/posts'))
+    if (account == null || account != user?['public_id']) throw ApiError('Please sign in again.', 401);
+    final req = _trackedUpload('/posts')
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
       ..fields['kind'] = reel ? 'reel' : 'post';
-    if (uploadIntentsEnabled && intent != null) req.fields['upload_intent'] = intent;
+    if (replaySafe) req.fields['upload_intent'] = intent;
     if (body.isNotEmpty) req.fields['body'] = body;
     if (pollOptions != null) {
       for (var i = 0; i < pollOptions.length; i++) req.fields['poll_options[$i]'] = pollOptions[i];
@@ -344,35 +374,38 @@ class Session extends ChangeNotifier {
     }
     final http.Response r;
     try {
-      r = await http.Response.fromStream(await req.send().timeout(_wait));
+      r = await req.send().then(http.Response.fromStream).timeout(_wait);
     } catch (_) {
-      throw _interruptedUpload(uploadIntentsEnabled && intent != null);
+      throw _interruptedUpload(replaySafe);
     }
-    if (r.statusCode != 201 && r.statusCode != 200) throw _uploadFailure(r, replaySafe: uploadIntentsEnabled && intent != null);
-    final j = _uploadResult(r, 'post', uploadIntentsEnabled && intent != null);
+    if (r.statusCode != 201 && r.statusCode != 200) throw _uploadFailure(r, replaySafe: replaySafe);
+    final j = _uploadResult(r, 'post', replaySafe);
     return (j['post'] as Map).cast<String, dynamic>();
   }
 
   /// Multipart POST with one optional file. Returns the decoded JSON object.
   Future<Map<String, dynamic>> upload(String path, {Map<String, String> fields = const {}, String field = 'media', UploadFile? file, String? intent}) async {
+    final replaySafe = uploadIntentsEnabled && intent != null;
+    final account = user?['public_id'];
     final token = await _token();
-    final req = http.MultipartRequest('POST', Uri.parse('$apiBase$path'))
+    if (account == null || account != user?['public_id']) throw ApiError('Please sign in again.', 401);
+    final req = (path == '/stories' ? _trackedUpload(path) : http.MultipartRequest('POST', Uri.parse('$apiBase$path')))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
       ..fields.addAll(fields);
-    if (path == '/stories' && uploadIntentsEnabled && intent != null) req.fields['upload_intent'] = intent;
+    if (path == '/stories' && replaySafe) req.fields['upload_intent'] = intent;
     if (file != null) {
       req.files.add(http.MultipartFile.fromBytes(field, file.bytes, filename: file.name, contentType: MediaType.parse(file.mime)));
     }
     final http.Response r;
     try {
-      r = await http.Response.fromStream(await req.send().timeout(_wait));
+      r = await req.send().then(http.Response.fromStream).timeout(_wait);
     } catch (_) {
       if (path != '/stories') throw ApiError('Upload failed. Check your connection and try again.');
-      throw _interruptedUpload(uploadIntentsEnabled && intent != null);
+      throw _interruptedUpload(replaySafe);
     }
-    if (r.statusCode != 200 && r.statusCode != 201) throw path == '/stories' ? _uploadFailure(r, replaySafe: uploadIntentsEnabled && intent != null) : ApiError(_errorText(r), r.statusCode);
-    return path == '/stories' ? _uploadResult(r, 'story', uploadIntentsEnabled && intent != null) : jsonDecode(r.body) as Map<String, dynamic>;
+    if (r.statusCode != 200 && r.statusCode != 201) throw path == '/stories' ? _uploadFailure(r, replaySafe: replaySafe) : ApiError(_errorText(r), r.statusCode);
+    return path == '/stories' ? _uploadResult(r, 'story', replaySafe) : jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<void> uploadAvatar(UploadFile f) async {
@@ -383,7 +416,7 @@ class Session extends ChangeNotifier {
       ..files.add(http.MultipartFile.fromBytes('avatar', f.bytes, filename: f.name, contentType: MediaType.parse(f.mime)));
     final http.Response r;
     try {
-      r = await http.Response.fromStream(await req.send().timeout(_wait));
+      r = await req.send().then(http.Response.fromStream).timeout(_wait);
     } catch (_) {
       throw ApiError('Upload failed. Check your connection and try again.');
     }

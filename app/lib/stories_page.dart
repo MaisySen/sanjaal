@@ -1,3 +1,4 @@
+import 'upload_center.dart';
 import 'ph.dart';
 import 'draft_exit_guard.dart';
 import 'upload_notice.dart';
@@ -22,14 +23,36 @@ class StoriesBar extends StatefulWidget {
   State<StoriesBar> createState() => _StoriesBarState();
 }
 
-class _StoriesBarState extends State<StoriesBar> {
+class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   List<Map<String, dynamic>> groups = [];
   bool loaded = false;
   int _loadVersion = 0;
+  late final uploads = UploadCenter.of(widget.session);
+  int _uploadRevision = -1;
+  void _mergeLocal() {
+    final local = uploads.confirmedStories.where((p) => DateTime.tryParse((p['expires_at'] ?? '').toString())?.isBefore(DateTime.now()) != true).toList();
+    if (local.isEmpty) return;
+    final username = widget.session.user?['username'];
+    final mine = groups.where((g) => (g['author'] as Map)['username'] == username).firstOrNull;
+    final items = <Map<String, dynamic>>[...local, ...((mine?['items'] as List?) ?? []).cast<Map<String, dynamic>>()];
+    final ids = <Object?>{};
+    groups.removeWhere((g) => (g['author'] as Map)['username'] == username);
+    groups.insert(0, {'author': widget.session.user, 'all_viewed': false, 'items': items.where((p) => ids.add(p['public_id'])).toList()});
+  }
+  void _published() {
+    if (!mounted || uploads.revision == _uploadRevision) return;
+    _uploadRevision = uploads.revision;
+    setState(_mergeLocal);
+  }
+  @override
+  void dispose() { uploads.removeListener(_published); super.dispose(); }
 
   @override
   void initState() {
     super.initState();
+    uploads.addListener(_published);
     _load();
   }
 
@@ -46,6 +69,7 @@ class _StoriesBarState extends State<StoriesBar> {
       if (mounted && version == _loadVersion) {
         setState(() {
           groups = (j['data'] as List).cast<Map<String, dynamic>>();
+          _mergeLocal();
           loaded = true;
         });
       }
@@ -60,6 +84,7 @@ class _StoriesBarState extends State<StoriesBar> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final scheme = Theme.of(context).colorScheme;
     final me = widget.session.user?['username'];
     final mine = groups.where((g) => (g['author'] as Map)['username'] == me).toList();
@@ -67,13 +92,13 @@ class _StoriesBarState extends State<StoriesBar> {
     Widget ring(Map<String, dynamic>? user, String label, VoidCallback onTap, {bool seen = false, bool plus = false}) => InkWell(
           onTap: onTap,
           child: SizedBox(
-            width: 72,
+            width: 84,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Stack(alignment: Alignment.bottomRight, children: [
                 Container(
                   padding: const EdgeInsets.all(2.5),
                   decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: seen ? scheme.outlineVariant : scheme.primary, width: 2.5)),
-                  child: Avatar(user: user, radius: 24),
+                  child: Avatar(user: user, radius: 32),
                 ),
                 if (plus)
                   CircleAvatar(radius: 10, backgroundColor: scheme.primary, child: PhIcon('plus', size: 14, color: scheme.onPrimary)),
@@ -90,9 +115,9 @@ class _StoriesBarState extends State<StoriesBar> {
         ring(widget.session.user, t_('Your story'), () => _open(mine.first), seen: mine.first['all_viewed'] == true),
       for (final g in others) ring((g['author'] as Map).cast<String, dynamic>(), '${(g['author'] as Map)['username']}', () => _open(g), seen: g['all_viewed'] == true),
     ];
-    if (!loaded && groups.isEmpty) return const SizedBox(height: 8);
+
     return SizedBox(
-      height: 74 + 24 * (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 2.0),
+      height: 90 + 24 * (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 2.0),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -341,6 +366,7 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
 
 /// Picks a photo or video, opens review, and returns true only after explicit sharing.
 Future<bool> addStory(BuildContext context, Session session) async {
+    UploadCenter.of(session);
     final picker = ImagePicker();
     final source = await showModalBottomSheet<String>(
       context: context,
@@ -360,17 +386,18 @@ Future<bool> addStory(BuildContext context, Session session) async {
         ? picker.pickImage(source: from, maxWidth: 1280, imageQuality: 78)
         : picker.pickVideo(source: from, maxDuration: const Duration(seconds: 20)));
     if (x == null || !context.mounted) return false;
-    final result = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => StoryComposePage(session: session, file: x, isVideo: isVideo)));
+    final result = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => StoryComposePage(session: session, file: x, isVideo: isVideo, backgroundUpload: true)));
     return result == true;
 }
 
 /// Picking is not publication. Keep the selected file and caption until the
 /// member explicitly shares or discards, including after an upload error.
 class StoryComposePage extends StatefulWidget {
-  const StoryComposePage({super.key, required this.session, required this.file, required this.isVideo});
+  const StoryComposePage({super.key, required this.session, required this.file, required this.isVideo, this.backgroundUpload = false});
   final Session session;
   final XFile file;
   final bool isVideo;
+  final bool backgroundUpload;
   @override
   State<StoryComposePage> createState() => _StoryComposePageState();
 }
@@ -379,6 +406,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
   final caption = TextEditingController();
   late final Future<Uint8List> bytes = widget.file.readAsBytes();
   bool busy = false;
+  bool handedOff = false;
   String? error;
   String intent = newUploadIntent();
   UploadError? uploadError;
@@ -387,6 +415,30 @@ class _StoryComposePageState extends State<StoryComposePage> {
 
   Future<void> share() async {
     if (busy || uploadError?.terminal == true) return;
+    if (widget.backgroundUpload) {
+      final session = widget.session;
+      final center = UploadCenter.of(session);
+      final originalCaption = caption.text.trim();
+      final originalIntent = intent;
+      final generation = center.generation;
+      final originalOwner = session.user?['public_id'];
+      final originalBytes = bytes;
+      final fileName = widget.file.name;
+      final isVideo = widget.isVideo;
+      final started = center.start('story', () async {
+        final data = await originalBytes;
+        if (data.length > 25 * 1024 * 1024) throw ApiError(t_('That file is over 25 MB. Choose a smaller one.'));
+        if (center.generation != generation || session.user?['public_id'] != originalOwner) throw ApiError('Please sign in again.', 401);
+        center.sending();
+        final value = await session.upload('/stories', fields: {'caption': originalCaption}, file: UploadFile(data, mimeFor(fileName, video: isVideo), fileName), intent: originalIntent);
+        return (value['story'] as Map).cast<String, dynamic>();
+      });
+      if (!started) { showInfo(context, 'Check the current upload before starting another.'); return; }
+      setState(() => handedOff = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.of(context).pop(false);
+      return;
+    }
     setState(() { busy = true; error = null; uploadError = null; });
     try {
       final data = await bytes;
@@ -416,7 +468,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
   }
 
   @override
-  Widget build(BuildContext context) => DraftExitGuard(hasChanges: true, busy: busy, child: Scaffold(
+  Widget build(BuildContext context) => DraftExitGuard(hasChanges: !handedOff, busy: busy, child: Scaffold(
     appBar: AppBar(title: Text(t_('Your story'))),
     body: SafeArea(top: false, child: Column(children: [
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
@@ -440,7 +492,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
         } : null,
         newLabel: 'Prepare a new story',
       ),
-      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy || uploadError?.terminal == true ? null : share,
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy || handedOff || uploadError?.terminal == true ? null : share,
         icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt', size: 20),
         label: Text(t_(busy ? 'Sharing...' : error != null && uploadError?.terminal != true ? 'Try again' : 'Share story'))))),
     ])),

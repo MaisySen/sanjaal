@@ -1,0 +1,79 @@
+// Synthetic HTTP/files only. No live post, notification or device upload.
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:sanjaal/api.dart';
+import 'package:sanjaal/upload_center.dart';
+import 'package:sanjaal/feed_page.dart';
+import 'package:sanjaal/main.dart';
+import 'package:sanjaal/glass_nav.dart';
+import 'package:sanjaal/wallet_page.dart';
+import 'package:sanjaal/stories_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+http.Response json(Object value, [int status = 200]) => http.Response(jsonEncode(value), status);
+Map<String,dynamic> post(String id) => {'public_id':id,'kind':'post','body':'Confirmed $id','media':[], 'author':{'public_id':'me','username':'fixture'},'likes_count':0,'comments_count':0};
+Future<void> flush(WidgetTester t) async { for(var i=0;i<3;i++) { await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:20)));await t.pump(const Duration(milliseconds:150)); } }
+Future<void> fixture(WidgetTester t, Future<void> Function(Session,UploadCenter) run, {Future<http.Response> Function(http.Request)? respond, bool safe=true}) async {
+ SharedPreferences.setMockInitialValues({});
+ await http.runWithClient(() async { final s=Session();await s.login('fixture','not-a-password');final center=UploadCenter.of(s);await flush(t);await run(s,center);await t.pumpWidget(const SizedBox());await t.pump(const Duration(seconds:4)); },()=>MockClient((r) async {
+  if(r.url.path.endsWith('/oauth/token'))return json({'access_token':'fixture','expires_in':3600});
+  if(r.url.path.endsWith('/auth/me'))return json({'user':{'public_id':'me','username':'fixture'},'features':{'upload_intents':safe}});
+  return respond==null?json({'data':[],'next_cursor':null,'balance':0,'entries':[],'unread_messages':0}):respond(r);
+ }));
+}
+void main(){
+ testWidgets('one app-level job survives composer exit and permits tab navigation until confirmed',(t) async {
+  final reply=Completer<http.Response>();var writes=0,reads=0;
+  await fixture(t,(s,center)async{
+   await t.pumpWidget(MaterialApp(theme:buildTheme(Brightness.dark),home:HomeShell(session:s)));await flush(t);
+   await t.tap(find.byTooltip('Post'));await t.pumpAndSettle();await t.tap(find.text('Post').last);await t.pump();await t.tap(find.widgetWithText(FilledButton,'Continue'));await t.pumpAndSettle();
+   expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
+   await t.enterText(find.byType(TextField),'An original pending upload');await t.pump();await t.tap(find.widgetWithText(FilledButton,'Post'));await flush(t);
+   await t.pump(const Duration(milliseconds:400));
+   expect(find.byType(ComposePage),findsNothing);expect(center.busy,isTrue);expect(writes,1);expect(center.progress,1);expect(find.text('Finishing upload...'),findsOneWidget);
+   await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text('Wallet')));await flush(t);expect(find.byType(WalletPage),findsOneWidget);
+   reply.complete(json({'post':post('new')}));await flush(t);expect(center.busy,isFalse);expect(center.error,isNull);
+   await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text('Home')));await flush(t);expect(find.text('Confirmed new'),findsOneWidget);expect(reads,1,reason:'no refresh race is needed to show the committed response');
+   expect(t.takeException(),isNull);
+  },respond:(r)async{if(r.method=='POST'&&r.url.path.endsWith('/posts')){writes++;expect(r.body,contains('An original pending upload'));return reply.future;}if(r.url.path.endsWith('/posts'))reads++;return json({'data':[],'next_cursor':null,'balance':0,'entries':[],'unread_messages':0});});
+ });
+ testWidgets('retry uses the immutable original key and data and duplicate start is rejected',(t)async{
+  var writes=0;final bodies=<String>[];
+  await fixture(t,(s,c)async{
+   final intent=newUploadIntent();expect(c.start('post',()=>s.createPost('original',intent:intent)),isTrue);expect(c.start('post',()=>throw StateError('must not start')),isFalse);await flush(t);
+   expect(c.canRetry,isTrue);expect(c.confirmedPosts,isEmpty);c.retry();await flush(t);expect(writes,2);expect(c.confirmedPosts.single['public_id'],'same');expect(bodies.every((b)=>b.contains(intent)&&b.contains('original')),isTrue);
+  },respond:(r)async{bodies.add(r.body);if(++writes==1)throw http.ClientException('fixture reply lost');return json({'post':post('same')});});
+ });
+ testWidgets('legacy unknown result offers no retry and never resends on tab changes',(t)async{
+  var writes=0;await fixture(t,(s,c)async{c.start('post',()=>s.createPost('legacy',intent:newUploadIntent()));await flush(t);expect(c.error,isA<UploadError>());expect(c.canRetry,isFalse);c.retry();await flush(t);expect(writes,1);},safe:false,respond:(r)async{writes++;throw http.ClientException('lost');});
+ });
+ testWidgets('incomplete success is not inserted as malformed feed content',(t)async{
+  await fixture(t,(s,c)async{c.start('post',()=>s.createPost('original'));await flush(t);expect(c.error,isA<UploadError>());expect(c.confirmedPosts,isEmpty);expect(c.canRetry,isFalse);},respond:(r)async=>json({'post':{'public_id':'bad'}}));
+ });
+ testWidgets('account change discards in-memory job disclosure and ignores its late reply',(t)async{
+  final reply=Completer<Map<String,dynamic>>();await fixture(t,(s,c)async{c.start('post',()=>reply.future);await flush(t);s.user={'public_id':'different','username':'other'};s.notifyListeners();expect(c.busy,isFalse);reply.complete(post('late'));await flush(t);expect(c.result,isNull);expect(c.confirmedPosts,isEmpty);expect(c.kind,isNull);});
+ });
+ testWidgets('confirmed result survives an older list request and deduplicates server acknowledgement',(t)async{
+  final pending=Completer<http.Response>();var reads=0;
+  await fixture(t,(s,c)async{
+   final key=GlobalKey<FeedListState>();await t.pumpWidget(MaterialApp(home:Scaffold(body:FeedList(key:key,session:s,query:const {'kind':'post'}))));await flush(t);
+   c.start('post',()async=>post('new'));await flush(t);expect(find.text('Confirmed new'),findsOneWidget);
+   pending.complete(json({'data':[post('old')],'next_cursor':null}));await flush(t);expect(key.currentState!.posts.map((p)=>p['public_id']),['new','old']);
+   await key.currentState!.load(refresh:true);await flush(t);expect(key.currentState!.posts.where((p)=>p['public_id']=='new').length,1);expect(t.takeException(),isNull);
+  },respond:(r)async{reads++;return reads==1?pending.future:json({'data':[post('new'),post('old')],'next_cursor':null});});
+ });
+ testWidgets('story result appears in the current ring without refreshing stories',(t)async{
+  var reads=0;await fixture(t,(s,c)async{
+   await t.pumpWidget(MaterialApp(home:Scaffold(body:StoriesBar(session:s))));await flush(t);
+   c.start('story',()async=>{'public_id':'story','url':'https://fixture.invalid/story.jpg','type':'image','caption':'first'});await flush(t);
+   expect(reads,1);expect(find.text('Your story'),findsOneWidget);expect(find.byType(StoriesBar),findsOneWidget);expect(c.confirmedStories.length,1);expect(t.takeException(),isNull);
+  },respond:(r)async{reads++;return json({'data':[]});});
+ });
+ testWidgets('failed job retains snapshot until explicit dismissal, then permits a separate job',(t)async{
+  await fixture(t,(s,c)async{c.start('post',()async=>throw ApiError('fixture preflight'));await flush(t);expect(c.occupied,isTrue);expect(c.start('post',()async=>post('two')),isFalse);await c.dismiss();expect(c.occupied,isFalse);c.start('post',()async=>post('two'));await flush(t);expect(c.result!['public_id'],'two');});
+ });
+}

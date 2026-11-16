@@ -763,6 +763,8 @@ void main() {
     });
   }
 
+  // Home now uses ordinary scrolling (reference_journey_test). These retain
+  // regression coverage of FeedList's optional legacy paging mode, explicitly.
   Future<void> pagerTest(WidgetTester tester, List<Map<String, dynamic>> data, Future<void> Function(double Function() page, Future<void> Function() settle, List<String> reqs) body, {String? cursor, double scale = 1.0, Brightness b = Brightness.dark}) async {
     final reqs = <String>[];
     await http.runWithClient(() async {
@@ -772,7 +774,7 @@ void main() {
       tester.view.physicalSize = const Size(1080, 2160);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp(theme: buildTheme(b, fontFamily: 'Roboto'), builder: (c, ch) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)), child: ch!), home: FeedPage(session: s, onCompose: () async {})));
+      await tester.pumpWidget(MaterialApp(theme: buildTheme(b, fontFamily: 'Roboto'), builder: (c, ch) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(scale)), child: ch!), home: Scaffold(body: FeedList(session: s, query: const {'kind':'post'}, immersive: true))));
       Future<void> settle() async {
         for (var i = 0; i < 5; i++) {
           await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
@@ -793,7 +795,7 @@ void main() {
   Map<String, dynamic> textPost(int i, String body) => {'public_id': 't$i', 'kind': 'post', 'body': body, 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': false, 'created_at': '2026-11-16T00:00:00Z'};
   final vertical = find.byWidgetPredicate((w) => w is PageView && w.scrollDirection == Axis.vertical);
 
-  testWidgets('pager: a tall text post scrolls first, then the same drag carries into the next post', (tester) async {
+  testWidgets('optional pager: a tall text post scrolls first, then the same drag carries into the next post', (tester) async {
     final tall = List.generate(60, (i) => 'Line $i of a long update about the festival plans.').join(' ');
     await pagerTest(tester, [textPost(1, tall), textPost(2, 'Second')], (page, settle, reqs) async {
       await tester.drag(vertical, const Offset(0, -120));
@@ -810,7 +812,7 @@ void main() {
     });
   });
 
-  testWidgets('pager: one post, nothing more to load: stays put and asks for nothing extra', (tester) async {
+  testWidgets('optional pager: one post, nothing more to load: stays put and asks for nothing extra', (tester) async {
     await pagerTest(tester, [textPost(1, 'Only post')], (page, settle, reqs) async {
       final before = reqs.length;
       await tester.fling(vertical, const Offset(0, -300), 2000);
@@ -822,7 +824,7 @@ void main() {
     });
   });
 
-  testWidgets('pager: pull down on the first post refreshes once', (tester) async {
+  testWidgets('optional pager: pull down on the first post refreshes once', (tester) async {
     await pagerTest(tester, [textPost(1, 'First'), textPost(2, 'Second')], (page, settle, reqs) async {
       final before = reqs.length;
       await tester.fling(vertical, const Offset(0, 400), 1000);
@@ -832,7 +834,7 @@ void main() {
     });
   });
 
-  testWidgets('pager: last post at the end of the feed does not load again or error', (tester) async {
+  testWidgets('optional pager: last post at the end of the feed does not load again or error', (tester) async {
     await pagerTest(tester, [textPost(1, 'Post A'), textPost(2, 'Post B end')], (page, settle, reqs) async {
       final before = reqs.length;
       await tester.fling(vertical, const Offset(0, -300), 2000);
@@ -854,7 +856,7 @@ void main() {
     });
   }
 
-  testWidgets('home pager: swipe moves one post at a time and loads the next page once near the end', (tester) async {
+  testWidgets('optional pager: swipe moves one post at a time and loads the next page once near the end', (tester) async {
     final reqs = <String>[];
     Map<String, dynamic> post(int i) => {'public_id': 'p$i', 'kind': 'post', 'body': 'Post number $i', 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [{'type': 'image', 'url': 'http://fixture.invalid/$i.jpg'}], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': false, 'created_at': '2026-11-16T00:00:00Z'};
     await http.runWithClient(() async {
@@ -864,7 +866,7 @@ void main() {
       tester.view.physicalSize = const Size(1080, 2160);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp(home: FeedPage(session: s, onCompose: () async {})));
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: FeedList(session: s, query: const {'kind':'post'}, immersive: true))));
       Future<void> settle() async {
         for (var i = 0; i < 5; i++) {
           await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));

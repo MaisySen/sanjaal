@@ -1,7 +1,11 @@
 import 'package:material_ui/material_ui.dart';
-import 'ui.dart' show t_;
+import 'ui.dart' show t_, Logo;
+import 'package:package_info_plus/package_info_plus.dart';
 
-const appVersion = '0.3.0';
+/// Actual platform package metadata, not a stale display-only version.
+Future<String> installedVersion() async {
+  try { final info = await PackageInfo.fromPlatform(); return '${info.version} (${info.buildNumber})'; } catch (_) { return 'Unavailable'; }
+}
 
 /// About, privacy and terms. Plain text, no network needed.
 class AboutPage extends StatelessWidget {
@@ -14,8 +18,8 @@ class AboutPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(t_('About Sanjaal'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Text('Sanjaal', style: t.headlineSmall),
-        const Text('Version $appVersion'),
+        const Align(alignment: Alignment.centerLeft, child: Logo(size: 64)),
+        FutureBuilder<String>(future: installedVersion(), builder: (_, value) => Text('Version ${value.data ?? '...'}')),
         const SizedBox(height: 8),
         const Text('A community app for Nepalis: a feed, short videos, chat, calls and a coin wallet.'),
         h('Publisher'),
@@ -34,7 +38,7 @@ class AboutPage extends StatelessWidget {
           'Coins are an in app balance. Adding coins is not switched on yet. Coins move between members and cannot be cashed out.',
         ),
         h('Open source licences'),
-        OutlinedButton(onPressed: () => showLicensePage(context: context, applicationName: 'Sanjaal', applicationVersion: appVersion), child: const Text('View licences')),
+        OutlinedButton(onPressed: () => showLicensePage(context: context, applicationName: 'Sanjaal', applicationVersion: null), child: const Text('View licences')),
       ]),
     );
   }

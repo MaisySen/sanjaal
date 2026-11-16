@@ -96,6 +96,25 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Sends a request by email': 'इमेलबाट अनुरोध पठाउँछ',
+  'Delete my account': 'मेरो खाता मेटाउनुहोस्',
+  'This removes the local retry copy. It does not remove anything already posted. Check your profile before starting a new upload.': 'यसले फेरि प्रयास गर्न राखिएको स्थानीय प्रति हटाउँछ। पहिले नै पोस्ट भएको कुरा हटाउँदैन। नयाँ अपलोड सुरु गर्नुअघि आफ्नो प्रोफाइल जाँच्नुहोस्।',
+  'Check the current upload before starting another.': 'अर्को अपलोड सुरु गर्नुअघि हालको अपलोड जाँच्नुहोस्।',
+  'Your story is up.': 'तपाईंको स्टोरी राखियो।',
+  'Uploading... Keep the app open.': 'अपलोड हुँदैछ। एप खुला राख्नुहोस्।',
+  'Finishing upload...': 'अपलोड पूरा हुँदैछ...',
+  'Preparing upload...': 'अपलोड तयार हुँदैछ...',
+  'Appearance': 'स्वरूप',
+  'Login': 'लगइन',
+  'More info and support': 'थप जानकारी र सहायता',
+  'Your balance and activity': 'तपाईंको मौज्दात र गतिविधि',
+  'Your app and media': 'तपाईंको एप र मिडिया',
+  'Who can interact with you': 'तपाईंसँग अन्तरक्रिया गर्न सक्नेहरू',
+  'How you use Sanjaal': 'तपाईंले Sanjaal प्रयोग गर्ने तरिका',
+  'Your account': 'तपाईंको खाता',
+  'No matching settings': 'मिल्ने सेटिङ भेटिएन',
+  'Search settings': 'सेटिङ खोज्नुहोस्',
+  'Settings and activity': 'सेटिङ र गतिविधि',
   'Review transfer': 'स्थानान्तरण जाँच्नुहोस्',
   'Confirm send': 'पठाउने पुष्टि गर्नुहोस्',
   'Resolve the saved original transfer first.': 'पहिले सुरक्षित गरिएको स्थानान्तरण पुष्टि गर्नुहोस्।',
@@ -444,9 +463,32 @@ class Logo extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
-    // Draft identity: the Devanagari wordmark alone. No logo mark is approved yet.
-    return Text('सञ्जाल', style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w700, letterSpacing: -0.3, color: Theme.of(context).colorScheme.onSurface));
+    return Semantics(label: 'Sanjaal', image: true, child: FittedBox(fit: BoxFit.scaleDown, child: ExcludeSemantics(child: Row(mainAxisSize: MainAxisSize.min, children: [
+      SizedBox(width: size * 0.62, height: size * 0.62, child: const CustomPaint(painter: _SanjaalMark())),
+      SizedBox(width: size * 0.14),
+      Text('Sanjaal', style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w800, letterSpacing: -0.8, color: Theme.of(context).colorScheme.onSurface)),
+    ]))));
+
   }
+}
+
+class _SanjaalMark extends CustomPainter {
+  const _SanjaalMark();
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save(); canvas.scale(size.width / 100, size.height / 100);
+    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 100, 100), const Radius.circular(25)), Paint()..color = brandRed);
+    canvas.drawPath(Path()..moveTo(42,69)..lineTo(66,38)..lineTo(91,69)..close(), Paint()..color = const Color(0xFFFFD6DA));
+    canvas.drawPath(Path()..moveTo(12,69)..lineTo(43,23)..lineTo(75,69)..close(), Paint()..color = Colors.white);
+    canvas.drawPath(Path()..moveTo(33,38)..lineTo(43,23)..lineTo(53,38)..lineTo(47,36)..lineTo(43,42)..lineTo(39,36)..close(), Paint()..color = const Color(0xFFFFD6DA));
+    canvas.drawPath(Path()..moveTo(28,81)..lineTo(50,78)..lineTo(72,81), Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.4);
+    for (final point in [const Offset(28,81), const Offset(72,81)]) { canvas.drawCircle(point, 4, Paint()..color = Colors.white); }
+    canvas.drawCircle(const Offset(50,78), 6, Paint()..color = Colors.white);
+    canvas.drawCircle(const Offset(50,78), 4.5, Paint()..color = brandBlue);
+    canvas.restore();
+  }
+  @override
+  bool shouldRepaint(covariant _SanjaalMark oldDelegate) => false;
 }
 
 /// Opens a picture full screen with pinch zoom.

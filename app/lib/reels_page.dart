@@ -1,3 +1,4 @@
+import 'upload_center.dart';
 import 'ph.dart';
 import 'media_visibility.dart';
 import 'package:material_ui/material_ui.dart';
@@ -8,6 +9,43 @@ import 'gifts.dart';
 import 'profile_pages.dart';
 import 'reactions.dart';
 import 'ui.dart';
+
+/// Three players only: current, previous and next. Prepared players never
+/// autoplay. Ownership is the Reels destination, not disposable PageView cells.
+class ReelPlayback {
+  ReelPlayback(String url) : controller = VideoPlayerController.networkUrl(Uri.parse(url)) {
+    initialized = controller.initialize().then((_) async {
+      if (disposed) return;
+      await controller.setLooping(true);
+    });
+    initialized.catchError((Object _) {});
+  }
+  final VideoPlayerController controller;
+  late final Future<void> initialized;
+  bool disposed = false;
+  void dispose() { if (!disposed) { disposed = true; controller.dispose(); } }
+}
+class ReelPlayerPool {
+  final _players = <String, ReelPlayback>{};
+  int get length => _players.length;
+  static String? url(Map<String, dynamic> reel) {
+    final media = (reel['media'] as List?) ?? [];
+    final videos = media.where((m) => m['type'] != 'image');
+    return videos.isEmpty ? null : videos.first['url'] as String?;
+  }
+  ReelPlayback? forReel(Map<String, dynamic> reel) => _players[url(reel)];
+  void warm(List<Map<String, dynamic>> reels, int index) {
+    final keep = <String>{};
+    for (var i = index - 1; i <= index + 1; i++) {
+      if (i < 0 || i >= reels.length) continue;
+      final value = url(reels[i]);
+      if (value != null) keep.add(value);
+    }
+    for (final value in _players.keys.toList()) { if (!keep.contains(value)) _players.remove(value)!.dispose(); }
+    for (final value in keep) { _players.putIfAbsent(value, () => ReelPlayback(value)); }
+  }
+  void dispose() { for (final value in _players.values) { value.dispose(); } _players.clear(); }
+}
 
 /// Full screen vertical reels. Swipe up for the next one.
 class ReelsPage extends StatefulWidget {
@@ -31,10 +69,30 @@ class _ReelsPageState extends State<ReelsPage> {
   bool done = false;
   String? error;
   bool muted = false;
+  final players = ReelPlayerPool();
+  late final uploads = UploadCenter.of(widget.session);
+  int _uploadRevision = -1;
+  void _published() {
+    if (!mounted || uploads.revision == _uploadRevision) return;
+    _uploadRevision = uploads.revision;
+    final items = uploads.confirmedPosts.where((p) => p['kind'] == 'reel').toList();
+    if (items.isEmpty) return;
+    // Keep the viewed reel stable; reveal the new result on deliberate refresh.
+    final current = reels.isEmpty ? null : reels[index]['public_id'];
+    setState(() {
+      for (final p in items.reversed) {
+        reels.removeWhere((x) => x['public_id'] == p['public_id']); reels.insert(0, p);
+      }
+      if (current != null) index = reels.indexWhere((p) => p['public_id'] == current);
+      players.warm(reels, index);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && pager.hasClients) pager.jumpToPage(index); });
+  }
 
   @override
   void initState() {
     super.initState();
+    uploads.addListener(_published);
     _load(refresh: true);
   }
 
@@ -46,6 +104,8 @@ class _ReelsPageState extends State<ReelsPage> {
 
   @override
   void dispose() {
+    uploads.removeListener(_published);
+    players.dispose();
     pager.dispose();
     super.dispose();
   }
@@ -62,8 +122,10 @@ class _ReelsPageState extends State<ReelsPage> {
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       setState(() {
-        if (refresh) { reels.clear(); index = 0; }
-        reels.addAll(items);
+        if (refresh) { reels.clear(); reels.addAll(uploads.confirmedPosts.where((p) => p['kind'] == 'reel')); index = 0; }
+        final ids = reels.map((p) => p['public_id']).toSet();
+        reels.addAll(items.where((p) => ids.add(p['public_id'])));
+        players.warm(reels, index);
         cursor = j['next_cursor'] as String?;
         done = cursor == null;
       });
@@ -106,13 +168,14 @@ class _ReelsPageState extends State<ReelsPage> {
           allowImplicitScrolling: true,
           itemCount: reels.length,
           onPageChanged: (i) {
-            setState(() => index = i);
+            setState(() { index = i; players.warm(reels, index); });
             if (i >= reels.length - 2) _load();
           },
           itemBuilder: (context, i) => ReelItem(
             key: ValueKey(reels[i]['public_id']),
             session: widget.session,
             reel: reels[i],
+            playback: players.forReel(reels[i]),
             bottomInset: widget.bottomInset,
             playing: widget.active && i == index,
             muted: muted,
@@ -123,6 +186,8 @@ class _ReelsPageState extends State<ReelsPage> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(children: [
+              if (widget.onCreate != null) IconButton(color: Colors.white, tooltip: t_('Create a reel'), onPressed: widget.onCreate, icon: const PhIcon('plus')),
+              const Spacer(),
               Text(t_('Reels'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
               const Spacer(),
               IconButton(color: Colors.white, tooltip: 'Refresh', icon: const PhIcon('arrow-clockwise'), onPressed: () => _load(refresh: true)),
@@ -135,7 +200,8 @@ class _ReelsPageState extends State<ReelsPage> {
 }
 
 class ReelItem extends StatefulWidget {
-  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0});
+  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0, this.playback});
+  final ReelPlayback? playback;
   final Session session;
   final Map<String, dynamic> reel;
   final bool playing;
@@ -166,11 +232,11 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
       failed = true;
       return;
     }
-    final ctl = VideoPlayerController.networkUrl(Uri.parse(v.first['url'] as String));
+    final ctl = widget.playback?.controller ?? VideoPlayerController.networkUrl(Uri.parse(v.first['url'] as String));
     c = ctl;
-    ctl.setLooping(true);
-    ctl.initialize().then((_) {
-      if (!mounted) return;
+    if (widget.playback == null) ctl.setLooping(true);
+    (widget.playback?.initialized ?? ctl.initialize()).then((_) {
+      if (!mounted || widget.playback?.disposed == true) return;
       ctl.setVolume(widget.muted ? 0 : 1);
       setState(() => ready = true);
       if (widget.playing && mediaVisible) ctl.play();
@@ -199,7 +265,7 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
 
   @override
   void dispose() {
-    c?.dispose();
+    if (widget.playback == null) { c?.dispose(); } else { c?.pause(); }
     super.dispose();
   }
 
@@ -302,7 +368,7 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
         child: Column(children: [
           ReactionButton(session: widget.session, post: widget.reel, dark: true),
           _side(Ph.mode_comment_outlined, '$comments', _comments),
-          _side(Ph.card_giftcard, 'Gift', () => showGiftSheet(context, widget.session, id, author['username'].toString())),
+          if (!_mine) _side(Ph.card_giftcard, 'Gift', () => showGiftSheet(context, widget.session, id, author['username'].toString())),
           _side(widget.muted ? Ph.volume_off : Ph.volume_up, widget.muted ? 'Muted' : 'Sound', widget.onToggleMute),
         ]),
       ),

@@ -1,4 +1,6 @@
+import 'upload_center.dart';
 import 'glass_nav.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'media_visibility.dart';
 import 'ph.dart';
 import 'dart:async';
@@ -205,6 +207,13 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int tab = 0;
   int unread = 0;
+  bool _navCompact = false;
+  Timer? _navIdle;
+  void _touchNav() {
+    _navIdle?.cancel();
+    if (_navCompact) setState(() => _navCompact = false);
+    _navIdle = Timer(const Duration(seconds: 3), () { if (mounted && tab == 1) setState(() => _navCompact = true); });
+  }
   int _contentRevision = 0;
   int _reelRevision = 0;
   int _storyRevision = 0;
@@ -239,6 +248,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   void _showTab(int index) {
     setState(() { tab = index; _visited.add(index); });
+    _touchNav();
     _refreshUnread();
   }
 
@@ -262,6 +272,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _navIdle?.cancel();
     _poll?.cancel();
     _ring?.cancel();
     super.dispose();
@@ -290,11 +301,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       }
       return;
     }
-    final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session, startWithVideo: what == 'reel')));
+    final p = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => ComposePage(session: widget.session, startWithVideo: what == 'reel', backgroundUpload: true)));
     if (p != null && mounted) {
       showInfo(context, p['kind'] == 'reel' ? 'Your reel is live in the Reels tab.' : 'Your post is up.');
       if (p['kind'] != 'reel') {
-        unawaited(feedKey.currentState?.load(refresh: true));
+        feedKey.currentState?.insertFirst(p);
       }
       setState(() {
         _contentRevision++;
@@ -317,18 +328,27 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ];
     return Scaffold(
       body: Column(children: [
+        UploadStrip(center: UploadCenter.of(s)),
         ListenableBuilder(
           listenable: s,
           builder: (context, _) => s.offline ? _OfflineBanner(onRetry: _refreshUnread) : const SizedBox.shrink(),
         ),
-        Expanded(child: IndexedStack(index: tab, children: [
+        Expanded(child: NotificationListener<UserScrollNotification>(
+          onNotification: (event) {
+            if (event.direction != ScrollDirection.idle && !_navCompact) {
+              _navIdle?.cancel(); setState(() => _navCompact = true);
+            }
+            return false;
+          }, child: IndexedStack(index: tab, children: [
           for (var i = 0; i < pages.length; i++)
             _visited.contains(i) ? TickerMode(enabled: i == tab && _foreground, child: pages[i]) : const SizedBox.shrink(),
-        ])),
+        ]))),
       ]),
       extendBody: true,
       bottomNavigationBar: GlassNavBar(
         index: tab,
+        compact: _navCompact,
+        onTouch: _touchNav,
         onSelected: _showTab,
         items: [
           NavItem(t_('Home'), 'house', 'house-fill'),

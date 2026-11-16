@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'upload_center.dart';
 import 'draft_exit_guard.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +27,18 @@ Widget _stat(BuildContext context, String n, String label) => Column(mainAxisSiz
       Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
     ]);
 
+class ProfileActions extends StatelessWidget {
+  const ProfileActions({super.key, required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.textScalerOf(context).scale(14) > 19) return Wrap(spacing: 8, runSpacing: 8, children: children);
+    return Row(children: [for (var i = 0; i < children.length; i++) ...[
+      if (i > 0) const SizedBox(width: 8), Expanded(child: children[i]),
+    ]]);
+  }
+}
+
 class ProfileHeader extends StatelessWidget {
   const ProfileHeader({super.key, required this.user, required this.actions});
   final Map<String, dynamic> user;
@@ -36,40 +49,26 @@ class ProfileHeader extends StatelessWidget {
     final name = (user['name'] ?? '').toString();
     final bio = (user['bio'] ?? '').toString();
     String n(String k) => shortCount((user[k] as num?)?.toInt() ?? 0);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          GestureDetector(
-            onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()),
-            child: Avatar(user: user, radius: 36),
-          ),
-          const SizedBox(width: 18),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 3),
-            Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ])),
-        ]),
-        if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 16), child: Align(alignment: Alignment.centerLeft, child: Text(bio))),
-        const SizedBox(height: 16),
-        Align(alignment: Alignment.centerLeft, child: actions),
-        const SizedBox(height: 16),
-        if (MediaQuery.textScalerOf(context).scale(14) > 19)
-          Column(children: [
-            for (final stat in [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')])
-              Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(children: [Expanded(child: Text(t_(stat.$2), style: Theme.of(context).textTheme.bodySmall)), const SizedBox(width: 12), Text(n(stat.$1), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700))])),
-          ])
-        else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: _stat(context, n('posts_count'), t_('Posts'))),
-          const SizedBox(width: 8),
-          Expanded(child: _stat(context, n('followers_count'), t_('Followers'))),
-          const SizedBox(width: 8),
-          Expanded(child: _stat(context, n('following_count'), t_('Following'))),
-        ]),
-        const Divider(height: 28),
+    final large = MediaQuery.textScalerOf(context).scale(14) > 19;
+    final stats = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final stat in [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')])
+        Expanded(child: _stat(context, n(stat.$1), t_(stat.$2))),
+    ]);
+    return Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        GestureDetector(onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()), child: Avatar(user: user, radius: 40)),
+        const SizedBox(width: 20),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          if (!large) stats,
+        ])),
       ]),
-    );
+      if (large) Padding(padding: const EdgeInsets.only(top: 12), child: stats),
+      if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(bio)),
+      const SizedBox(height: 14),
+      actions,
+    ]));
   }
 }
 
@@ -181,7 +180,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             ),
         ],
       ),
-      body: FeedList(
+      body: ProfilePosts(
         session: widget.session,
         query: {'username': widget.username},
         emptyIcon: Ph.image_outlined,
@@ -193,7 +192,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
           user: user,
           actions: isMe
               ? const SizedBox.shrink()
-              : Wrap(spacing: 12, runSpacing: 8, children: [
+              : ProfileActions(children: [
                   following
                         ? OutlinedButton(onPressed: busy || loading ? null : _follow, child: Text(t_('Unfollow')))
                         : FilledButton(onPressed: busy || loading || blocked ? null : _follow, child: Text(t_('Follow'))),
@@ -218,6 +217,15 @@ class MePage extends StatefulWidget {
 class _MePageState extends State<MePage> {
   Map<String, dynamic>? counts;
   int _refresh = 0;
+  late final uploads = UploadCenter.of(widget.session);
+  int _publishedRevision = -1;
+  void _published() {
+    if (!mounted || _publishedRevision == uploads.revision) return;
+    _publishedRevision = uploads.revision;
+    if (uploads.confirmedPosts.isNotEmpty) _load();
+  }
+  @override
+  void dispose() { uploads.removeListener(_published); super.dispose(); }
   int read = 0;
   String? error;
   bool loading = false;
@@ -225,6 +233,7 @@ class _MePageState extends State<MePage> {
   @override
   void initState() {
     super.initState();
+    uploads.addListener(_published);
     _load();
   }
 
@@ -254,20 +263,17 @@ class _MePageState extends State<MePage> {
   @override
   Widget build(BuildContext context) {
     final s = widget.session;
-    final me = {...?counts, ...?s.user};
+    final me = {...?counts, ...?s.user, for (final key in ['posts_count', 'followers_count', 'following_count']) if (counts?[key] != null) key: counts![key]};
     return Scaffold(
       appBar: AppBar(
-        title: Text(t_('Me')),
+        title: Text('@${s.user?['username'] ?? t_('Me')}'),
+        leading: IconButton(tooltip: t_('Settings'), icon: const PhIcon('list'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: s)))),
         actions: [
           IconButton(tooltip: t_('Refresh profile'), onPressed: loading ? null : _load, icon: const PhIcon('arrow-clockwise')),
-          IconButton(
-            tooltip: t_('Settings'),
-            icon: const PhIcon('gear'),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: s))),
-          ),
+          if (widget.onCompose != null) IconButton(tooltip: t_('Post'), onPressed: widget.onCompose, icon: const PhIcon('plus')),
         ],
       ),
-      body: FeedList(
+      body: ProfilePosts(
         key: ValueKey(_refresh),
         session: s,
         query: {'username': (s.user?['username'] ?? '').toString()},
@@ -280,7 +286,7 @@ class _MePageState extends State<MePage> {
           if (loading) const LinearProgressIndicator(),
           ProfileHeader(
           user: me,
-          actions: Wrap(spacing: 10, runSpacing: 8, children: [
+          actions: ProfileActions(children: [
             OutlinedButton.icon(
               icon: const PhIcon('pencil-simple', size: 18),
               label: Text(t_('Edit profile')),
@@ -302,6 +308,41 @@ class _MePageState extends State<MePage> {
       ),
     );
   }
+}
+
+/// Only content types backed by Sanjaal are shown. Reposts/tags are not fake tabs.
+class ProfilePosts extends StatefulWidget {
+  const ProfilePosts({super.key, required this.session, required this.query, required this.header, required this.emptyIcon, required this.emptyTitle, this.emptyHint, this.emptyAction});
+  final Session session;
+  final Map<String, String> query;
+  final Widget header;
+  final PhData emptyIcon;
+  final String emptyTitle;
+  final String? emptyHint;
+  final Widget? emptyAction;
+  @override
+  State<ProfilePosts> createState() => _ProfilePostsState();
+}
+class _ProfilePostsState extends State<ProfilePosts> {
+  int tab = 0;
+  final visited = <int>{0};
+  @override
+  Widget build(BuildContext context) => IndexedStack(index: tab, children: [for (var i = 0; i < 2; i++)
+    if (!visited.contains(i)) const SizedBox.shrink() else FeedList(
+      key: ValueKey(i), session: widget.session, query: {...widget.query, 'kind': i == 0 ? 'post' : 'reel'}, grid: true,
+      emptyIcon: i == 0 ? widget.emptyIcon : Ph.movie_outlined,
+      emptyTitle: i == 0 ? widget.emptyTitle : t_('No reels yet'),
+      emptyHint: i == 0 ? widget.emptyHint : t_('Share a short video with your community.'),
+      emptyAction: widget.emptyAction,
+      header: Column(children: [widget.header, Row(children: [for (var j = 0; j < 2; j++) Expanded(child: InkWell(
+        onTap: () => setState(() { tab = j; visited.add(j); }),
+        child: Semantics(selected: tab == j, button: true, label: t_(j == 0 ? 'Posts' : 'Reels'), child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 2, color: tab == j ? Theme.of(context).colorScheme.onSurface : Colors.transparent))),
+          child: PhIcon(j == 0 ? 'grid-nine' : 'play-circle', size: 25, color: tab == j ? Theme.of(context).colorScheme.onSurface : Theme.of(context).colorScheme.onSurfaceVariant),
+        )),
+      ))])]),
+    ),
+  ]);
 }
 
 class EditProfilePage extends StatefulWidget {

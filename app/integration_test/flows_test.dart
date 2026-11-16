@@ -114,6 +114,13 @@ void main() {
       await tester.scrollUntilVisible(find.text('Option 2'), 120, scrollable: find.byType(Scrollable).first);
       await _type(tester, find.widgetWithText(TextField, 'Option 2'), 'Sunday');
       await _settle(tester, 2);
+      // Text injected through the integration channel can leave the real IME
+      // closed. Explicitly request it and wait on platform-reported geometry.
+      await SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+      for (var i = 0; i < 30 && tester.view.viewInsets.bottom == 0; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
+        await tester.pump();
+      }
       final inset = tester.view.viewInsets.bottom / tester.view.devicePixelRatio;
       expect(inset, greaterThan(0), reason: 'This check requires the native emulator keyboard, not only synthetic text input.');
       final remove = find.widgetWithText(TextButton, 'Remove poll');

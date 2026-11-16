@@ -2,6 +2,10 @@
 # Runs both emulator tests, keeps the real exit code, and turns failure lines into annotations.
 cd app
 adb shell settings put secure show_ime_with_hard_keyboard 1
+printf 'Native IME setup: '
+adb shell settings get secure default_input_method
+adb shell ime list -s
+adb shell settings get secure show_ime_with_hard_keyboard
 rc=0
 for t in smoke signed_in flows; do
   extra=""

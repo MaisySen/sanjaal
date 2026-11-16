@@ -23,6 +23,9 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/posts', [PostController::class, 'store'])->middleware('throttle:30,1');
     Route::get('/posts/{post}', [PostController::class, 'show']);
     Route::delete('/posts/{post}', [PostController::class, 'destroy']);
+    Route::get('/saved', [\App\Http\Controllers\BookmarkController::class, 'index']);
+    Route::post('/posts/{post}/save', [\App\Http\Controllers\BookmarkController::class, 'save']);
+    Route::delete('/posts/{post}/save', [\App\Http\Controllers\BookmarkController::class, 'unsave']);
     Route::post('/posts/{post}/like', [EngagementController::class, 'like']);
     Route::delete('/posts/{post}/like', [EngagementController::class, 'unlike']);
     Route::get('/posts/{post}/comments', [EngagementController::class, 'comments']);

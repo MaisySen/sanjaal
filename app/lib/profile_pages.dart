@@ -4,7 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'actions.dart';
 import 'api.dart';
 import 'chat_pages.dart';
-import 'feed_page.dart' show FeedList;
+import 'feed_page.dart' show FeedList, SavedPage;
 import 'settings_page.dart';
 import 'ui.dart';
 
@@ -229,7 +229,8 @@ class _MePageState extends State<MePage> {
         emptyHint: 'Your posts show up here. Tap + on Home to share one.',
         header: ProfileHeader(
           user: me,
-          actions: SizedBox(
+          actions: Column(children: [
+            SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               icon: const PhIcon('pencil-simple', size: 18),
@@ -243,6 +244,9 @@ class _MePageState extends State<MePage> {
               },
             ),
           ),
+            const SizedBox(height: 8),
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(icon: const PhIcon('bookmark-simple', size: 18), label: Text(t_('Saved')), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SavedPage(session: s))))),
+          ]),
         ),
       ),
     );

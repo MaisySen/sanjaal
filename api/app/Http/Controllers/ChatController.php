@@ -210,7 +210,7 @@ class ChatController extends Controller
         $convo->load('members');
 
         return response()->json([
-            'data' => $msgs->map(fn ($m) => Present::message($m))->values(),
+            'data' => $msgs->map(fn ($m) => Present::message($m, $from))->values(),
             'typing' => ExtrasController::typingUsers($convo, $request->user()),
         ]);
     }
@@ -235,7 +235,8 @@ class ChatController extends Controller
             $mediaId = (string) \Illuminate\Support\Str::uuid();
             \App\Support\MediaStore::putFile($mediaId, $file);
         }
-        $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->value('id') : null;
+        $myFrom = (int) ($convo->members()->where('users.id', $me->id)->first()?->pivot->history_from_id ?? 0);
+        $replyTo = ! empty($data['reply_to']) ? $convo->messages()->where('public_id', $data['reply_to'])->where('id', '>', $myFrom)->value('id') : null;
 
         if (! empty($data['client_id'])) {
             $dupe = $convo->messages()->where('user_id', $me->id)->where('client_id', $data['client_id'])->first();
@@ -325,7 +326,7 @@ class ChatController extends Controller
             'type' => $c->type,
             'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
-            'last_message' => $last ? Present::message($last) : null,
+            'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0)) : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
             'unread' => $c->messages()->where('id', '>', max($pivot?->last_read_message_id ?? 0, $pivot?->history_from_id ?? 0))->where('user_id', '!=', $me->id)->count(),
         ];

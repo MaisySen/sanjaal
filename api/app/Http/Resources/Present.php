@@ -41,7 +41,9 @@ class Present
                 }
             }
         }
+        $savedIds = \Illuminate\Support\Facades\DB::table('bookmarks')->where('user_id', $uid)->whereIn('post_id', $ids)->pluck('post_id')->all();
         foreach ($posts as $p) {
+            $p->setAttribute('_saved', in_array($p->id, $savedIds, true));
             $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
             $p->setAttribute('_mine', $mine->has($p->id) ? ($mine[$p->id] ?? '') : false);
         }
@@ -67,6 +69,7 @@ class Present
             'liked' => $pre ? $p->getAttribute('_mine') !== false : ($viewer ? $p->likes()->where('user_id', $viewer->id)->exists() : false),
             'my_reaction' => $pre ? ($p->getAttribute('_mine') === false ? null : $p->getAttribute('_mine')) : ($viewer ? $p->likes()->where('user_id', $viewer->id)->value('reaction') : null),
             'reactions' => $pre ? $p->getAttribute('_reactions') : $p->likes()->selectRaw('reaction, count(*) as n')->groupBy('reaction')->pluck('n', 'reaction'),
+            'saved' => array_key_exists('_saved', $p->getAttributes()) ? (bool) $p->getAttribute('_saved') : ($viewer ? \Illuminate\Support\Facades\DB::table('bookmarks')->where('user_id', $viewer->id)->where('post_id', $p->id)->exists() : false),
             'created_at' => $p->created_at->toIso8601String(),
         ];
     }
@@ -92,7 +95,8 @@ class Present
         ];
     }
 
-    public static function message(Message $m): array
+    /** $replyHiddenUpTo: reply previews of messages with an id at or below it are left out (history a viewer must not see). */
+    public static function message(Message $m, int $replyHiddenUpTo = 0): array
     {
         return [
             'public_id' => $m->public_id,
@@ -102,7 +106,7 @@ class Present
             'media_url' => $m->media_id ? url('/api/v1/media/'.$m->media_id) : null,
             'media_mime' => $m->media_mime,
             'duration_ms' => $m->duration_ms,
-            'reply_to' => $m->reply_to_id ? self::replyPreview($m->reply_to_id) : null,
+            'reply_to' => $m->reply_to_id && $m->reply_to_id > $replyHiddenUpTo ? self::replyPreview($m->reply_to_id) : null,
             'sender' => self::user($m->user),
             'client_id' => $m->client_id,
             'created_at' => $m->created_at->toIso8601String(),

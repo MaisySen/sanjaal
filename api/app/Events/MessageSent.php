@@ -23,6 +23,9 @@ class MessageSent implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return ['message' => \App\Http\Resources\Present::message($this->message->loadMissing('user', 'conversation'))];
+        // One payload goes to every member, so a reply preview is only included when it points at a message every member may see.
+        $hidden = (int) \Illuminate\Support\Facades\DB::table('conversation_members')->where('conversation_id', $this->message->conversation_id)->max('history_from_id');
+
+        return ['message' => \App\Http\Resources\Present::message($this->message->loadMissing('user', 'conversation'), $hidden)];
     }
 }

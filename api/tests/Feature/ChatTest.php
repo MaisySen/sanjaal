@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class ChatTest extends TestCase
@@ -93,6 +94,45 @@ class ChatTest extends TestCase
         $this->getJson('/api/v1/conversations', $hc)->assertJsonPath('data.0.unread', 1);
         // Existing members keep the whole history.
         $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonCount(2, 'data');
+    }
+
+    public function test_earlier_media_and_quoted_replies_do_not_reach_a_new_member(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $cid = $this->group($ha, ['bina']);
+        $img = $this->post("/api/v1/conversations/$cid/messages", ['media' => UploadedFile::fake()->image('p.jpg', 30, 30)], $ha)->assertCreated();
+        $imgId = $img->json('message.public_id');
+        $mediaUrl = $img->json('message.media_url');
+        $old = $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'private plan from before', 'client_id' => 'o1'], $ha)->assertCreated()->json('message.public_id');
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $ha)->assertOk();
+
+        // The earlier photo and text are not in the new member's list, last message or live feed.
+        $list = $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertOk()->assertJsonCount(0, 'data');
+        $this->assertStringNotContainsString($mediaUrl, $list->getContent());
+        $this->assertStringNotContainsString('private plan', $this->getJson('/api/v1/conversations', $hc)->getContent());
+
+        // An old member replies to the old message: bina sees the quote, chandra does not.
+        $r = $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'agreed', 'reply_to' => $old, 'client_id' => 'r1'], $hb)->assertCreated();
+        $this->assertSame('private plan from before', $r->json('message.reply_to.body'));
+        $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertJsonPath('data.2.reply_to.body', 'private plan from before');
+        $forC = $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertJsonCount(1, 'data')->assertJsonPath('data.0.reply_to', null);
+        $this->assertStringNotContainsString('private plan', $forC->getContent());
+        $this->assertStringNotContainsString('private plan', $this->getJson('/api/v1/conversations', $hc)->getContent());
+        // The one live payload all members receive leaves the quote out too.
+        $msg = \App\Models\Message::where('client_id', 'r1')->first();
+        $payload = json_encode((new \App\Events\MessageSent($msg))->broadcastWith());
+        $this->assertStringNotContainsString('private plan', $payload);
+
+        // The new member cannot quote or probe an earlier message.
+        $q = $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'what plan?', 'reply_to' => $old, 'client_id' => 'q1'], $hc)->assertCreated();
+        $this->assertNull($q->json('message.reply_to'));
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'x', 'reply_to' => $imgId, 'client_id' => 'q2'], $hc)->assertCreated()->assertJsonPath('message.reply_to', null);
+        // A removed member cannot read, fetch the live channel, or post.
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $hc)->assertOk();
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertNotFound();
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'still here?', 'client_id' => 'q3'], $hc)->assertNotFound();
     }
 
     public function test_group_capacity_is_fifty(): void

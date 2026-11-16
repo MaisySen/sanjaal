@@ -20,6 +20,7 @@ import 'package:sanjaal/auth_page.dart' show AuthPage;
 import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/about_page.dart' show AboutPage;
+import 'package:sanjaal/feed_page.dart' show SavedPage;
 import 'package:sanjaal/profile_pages.dart' show MePage, EditProfilePage;
 import 'package:sanjaal/stories_page.dart' show StoryViewer;
 import 'package:sanjaal/reels_page.dart' show ReelItem;
@@ -424,6 +425,56 @@ void main() {
         return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'members': [user('asha'), user('bina'), user('chandra')]}}), 200, headers: {'content-type': 'application/json'});
       }
       return http.Response(jsonEncode({'left': true}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
+  testWidgets('saved posts: menu toggles save with one request, failure reverts', (tester) async {
+    final calls = <String>[];
+    var fail = false;
+    final post = {'public_id': 'p1', 'kind': 'post', 'body': 'Saved text', 'author': {'public_id': 'u_a', 'name': 'Asha', 'username': 'asha'}, 'media': [], 'hashtags': [], 'likes_count': 0, 'comments_count': 0, 'liked': false, 'saved': true, 'created_at': '2026-11-16T00:00:00Z'};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: SavedPage(session: s)));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('Saved text'), findsOneWidget);
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove from saved'), findsOneWidget);
+      await tester.tap(find.text('Remove from saved'));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(calls.where((c) => c == 'DELETE /posts/p1/save').length, 1);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Save'), findsOneWidget);
+      fail = true;
+      await tester.tap(find.text('Save'));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pump(const Duration(seconds: 5));
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Save'), findsOneWidget, reason: 'a failed save goes back to unsaved');
+      await tester.pumpWidget(const SizedBox());
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}');
+      if (r.url.path.endsWith('/saved')) return http.Response(jsonEncode({'data': [post], 'next_cursor': null}), 200, headers: {'content-type': 'application/json'});
+      if (fail) return http.Response(jsonEncode({'message': 'Could not save.'}), 500, headers: {'content-type': 'application/json'});
+      return http.Response(jsonEncode({'saved': true}), 200, headers: {'content-type': 'application/json'});
     }));
   });
 

@@ -37,6 +37,7 @@ class Ph {
   static const favorite = PhData('heart-fill');
   static const favorite_border = PhData('heart');
   static const dynamic_feed_outlined = PhData('newspaper');
+  static const bookmark_outline = PhData('bookmark-simple');
   static const call_outlined = PhData('phone');
   static const call_end = PhData('phone-x-fill');
   static const call = PhData('phone-fill');

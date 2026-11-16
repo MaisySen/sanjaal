@@ -72,8 +72,10 @@ class FeedList extends StatefulWidget {
     this.emptyTitle = 'No posts yet',
     this.emptyHint,
     this.immersive = false,
+    this.path = '/posts',
   });
   final bool immersive;
+  final String path;
   final Session session;
   final Map<String, String> query;
   final Widget? header;
@@ -117,7 +119,7 @@ class FeedListState extends State<FeedList> {
     });
     try {
       final q = {...widget.query, if (!refresh && cursor != null) 'cursor': cursor!};
-      final j = await widget.session.call('GET', '/posts', query: q) as Map<String, dynamic>;
+      final j = await widget.session.call('GET', widget.path, query: q) as Map<String, dynamic>;
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       setState(() {
@@ -213,7 +215,23 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
+  PopupMenuItem<String> saveItem() => PopupMenuItem(value: 'save', child: Text(widget.post['saved'] == true ? t_('Remove from saved') : t_('Save')));
+
+  Future<void> _toggleSave() async {
+    final was = widget.post['saved'] == true;
+    setState(() => widget.post['saved'] = !was);
+    try {
+      await widget.session.call(was ? 'DELETE' : 'POST', '/posts/$id/save');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(was ? t_('Removed from saved') : t_('Saved'))));
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      setState(() => widget.post['saved'] = was);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
   Future<void> _menu(String v) async {
+    if (v == 'save') return _toggleSave();
     if (v == 'delete') return _delete();
     if (v == 'report') return reportFlow(context, widget.session, 'post', id);
     if (v == 'block') {
@@ -281,8 +299,8 @@ class _PostCardState extends State<PostCard> {
                 icon: PhIcon('dots-three', color: scheme.onSurfaceVariant),
                 onSelected: _menu,
                 itemBuilder: (_) => mine
-                    ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                    : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+                    ? [saveItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                    : [saveItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
               )),
             ]),
           ),
@@ -382,8 +400,8 @@ class _PostCardState extends State<PostCard> {
                     icon: const PhIcon('dots-three', color: Colors.white),
                     onSelected: _menu,
                     itemBuilder: (_) => mine
-                        ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                        : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+                        ? [saveItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                        : [saveItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
                   )),
                 ]),
                 if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.3, shadows: shadow))),
@@ -791,4 +809,15 @@ class _CreateSheetState extends State<CreateSheet> {
       ),
     );
   }
+}
+
+/// The caller's saved posts, newest save first. Private to the caller.
+class SavedPage extends StatelessWidget {
+  const SavedPage({super.key, required this.session});
+  final Session session;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(t_('Saved'))),
+        body: FeedList(session: session, query: const {}, path: '/saved', emptyIcon: Ph.bookmark_outline, emptyTitle: 'Nothing saved yet', emptyHint: 'Open the menu on a post and choose Save. Only you can see this list.'),
+      );
 }

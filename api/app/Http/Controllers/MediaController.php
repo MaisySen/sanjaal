@@ -19,6 +19,14 @@ class MediaController extends Controller
     public function show(Request $request, string $publicId): Response
     {
         abort_if(DB::table('messages')->where('media_id', $publicId)->exists(), 404);
+        // An absent message reference does not make a blob public. Attachments
+        // can outlive their conversation or still be awaiting a message row.
+        $public = DB::table('post_media')->join('posts', 'posts.id', '=', 'post_media.post_id')
+            ->where('post_media.path', $publicId)->whereNull('posts.deleted_at')->exists()
+            || DB::table('users')->where('avatar', $publicId)->exists()
+            || DB::table('stories')->where('media_id', $publicId)->where('expires_at', '>', now())->exists();
+        abort_unless($public, 404);
+
 
         return $this->serve($request, $publicId, false);
     }
@@ -42,7 +50,7 @@ class MediaController extends Controller
         abort_unless($meta, 404);
 
         if ($meta->storage === 'b2' && $private) {
-            // The B2 link carries a bucket-wide token, so it must never reach a client for chat media. Fetch it here instead.
+            // Never expose any object-storage bearer link for private chat media. Fetch it here instead.
             $r = \Illuminate\Support\Facades\Http::timeout(30)->get(\App\Support\MediaStore::url($publicId));
             abort_unless($r->successful(), 404);
 

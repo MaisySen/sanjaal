@@ -19,6 +19,10 @@ class MediaTest extends TestCase
             'data' => base64_encode($bytes), 'created_at' => now(), 'updated_at' => now(),
         ]);
 
+        $user = \App\Models\User::factory()->create();
+        $post = \App\Models\Post::create(['user_id' => $user->id, 'kind' => 'post', 'body' => 'Public range fixture']);
+        $post->media()->create(['path' => $id, 'type' => 'video', 'mime' => 'video/mp4', 'size' => strlen($bytes)]);
+
         return $id;
     }
 
@@ -81,4 +85,49 @@ class MediaTest extends TestCase
         $this->assertStringNotContainsString('LEGACY-BUCKET-TOKEN', (string) $get->headers->get('Location'));
         $this->assertSame('https://dl.b2.test/file/bkt/'.$row->public_id.'?Authorization=dl-token', $get->headers->get('Location'));
     }
+    public function test_private_attachment_cannot_become_public_after_the_last_group_member_leaves(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'group', 'title' => 'Fixture group', 'usernames' => ['bina']], $ha)->assertCreated()->json('conversation.public_id');
+        $message = $this->post("/api/v1/conversations/$cid/messages", ['media' => \Illuminate\Http\UploadedFile::fake()->image('fixture.jpg', 20, 20)], $ha + ['Accept' => 'application/json'])->assertCreated()->json('message.public_id');
+        $blob = DB::table('messages')->where('public_id', $message)->value('media_id');
+        $this->getJson("/api/v1/conversations/$cid/messages/$message/media", $hb)->assertOk();
+        $this->get("/api/v1/media/$blob")->assertNotFound();
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $ha)->assertOk();
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $hb)->assertOk();
+        $this->assertDatabaseMissing('messages', ['public_id' => $message]);
+        $this->get("/api/v1/media/$blob")->assertNotFound();
+    }
+
+    public function test_anonymous_media_requires_a_current_public_owner_even_for_conditional_requests(): void
+    {
+        $orphan = (string) Str::uuid();
+        \App\Support\MediaStore::put($orphan, 'image/jpeg', 'PRIVATE-FIXTURE', true);
+        $this->get("/api/v1/media/$orphan")->assertNotFound();
+        $this->call('GET', "/api/v1/media/$orphan", [], [], [], ['HTTP_IF_NONE_MATCH' => '"'.$orphan.'"'])->assertNotFound();
+        $public = $this->blob('PUBLIC-FIXTURE');
+        $post = \App\Models\Post::findOrFail(DB::table('post_media')->where('path', $public)->value('post_id'));
+        $post->delete();
+        $this->get("/api/v1/media/$public")->assertNotFound();
+        $this->assertDatabaseHas('media_blobs', ['public_id' => $orphan]);
+    }
+
+    public function test_current_avatar_and_active_story_still_serve_but_expired_or_removed_story_does_not(): void
+    {
+        [$user] = $this->member('asha');
+        $avatar = (string) Str::uuid();
+        \App\Support\MediaStore::put($avatar, 'image/jpeg', 'AVATAR-FIXTURE');
+        $user->forceFill(['avatar' => $avatar])->save();
+        $this->get("/api/v1/media/$avatar")->assertOk();
+        $story = (string) Str::uuid();
+        \App\Support\MediaStore::put($story, 'image/jpeg', 'STORY-FIXTURE');
+        $id = DB::table('stories')->insertGetId(['public_id' => (string) Str::uuid(), 'user_id' => $user->id, 'media_id' => $story, 'media_mime' => 'image/jpeg', 'expires_at' => now()->addHour(), 'created_at' => now(), 'updated_at' => now()]);
+        $this->get("/api/v1/media/$story")->assertOk();
+        DB::table('stories')->where('id', $id)->update(['expires_at' => now()->subSecond()]);
+        $this->get("/api/v1/media/$story")->assertNotFound();
+        DB::table('stories')->where('id', $id)->delete();
+        $this->get("/api/v1/media/$story")->assertNotFound();
+    }
+
 }

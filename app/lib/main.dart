@@ -306,7 +306,7 @@ class _OfflineBanner extends StatelessWidget {
           child: Row(children: [
             const PhIcon('wifi-slash', size: 18),
             const SizedBox(width: 10),
-            Expanded(child: Text(t_('No connection. Showing what loaded earlier.'), style: Theme.of(context).textTheme.bodyMedium)),
+            Expanded(child: Text(t_('No connection. Some things may be out of date.'), style: Theme.of(context).textTheme.bodyMedium)),
             TextButton(onPressed: onRetry, child: Text(t_('Retry'))),
           ]),
         ),

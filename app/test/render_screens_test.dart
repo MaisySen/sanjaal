@@ -354,9 +354,76 @@ void main() {
       });
       expect(s.offline, isFalse);
     }, () => MockClient((r) async {
-      if (r.url.path.contains('token') || r.url.path.contains('/me')) return _reply(r);
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
       if (down) throw const SocketException('no route');
       return http.Response(jsonEncode({'unread': 0}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
+  testWidgets('offline flag: server and auth errors are not offline', (tester) async {
+    var status = 500;
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      for (final code in [500, 403, 422]) {
+        status = code;
+        await tester.runAsync(() async {
+          try { await s.call('GET', '/notifications/summary'); } catch (_) {}
+        });
+        expect(s.offline, isFalse, reason: 'HTTP $code is a response, not a lost connection');
+      }
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      return http.Response(jsonEncode({'message': 'x'}), status, headers: {'content-type': 'application/json'});
+    }));
+  });
+
+  testWidgets('group info: Add people posts the usernames and shows the new member; Leave posts once', (tester) async {
+    final calls = <String>[];
+    Map<String, dynamic> user(String n) => {'public_id': 'u_$n', 'name': n, 'username': n};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final convo = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha'), user('bina')]};
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (c) => FilledButton(onPressed: () => Navigator.of(c).push(MaterialPageRoute<void>(builder: (_) => GroupInfoPage(session: s, convo: convo))), child: const Text('open'))))));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('@bina'), findsOneWidget);
+      expect(find.text('@chandra'), findsNothing);
+      await tester.tap(find.text('Add people'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '@chandra');
+      await tester.tap(find.text('Add'));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpAndSettle();
+      expect(calls.where((c) => c == 'POST /conversations/g1/members {"usernames":["chandra"]}').length, 1);
+      expect(find.text('@chandra'), findsOneWidget);
+      await tester.tap(find.text('Leave group'));
+      await tester.pumpAndSettle();
+      expect(calls.any((c) => c.contains('/leave')), isFalse, reason: 'asks first');
+      await tester.tap(find.text('Leave'));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpAndSettle();
+      expect(calls.where((c) => c.startsWith('POST /conversations/g1/leave')).length, 1);
+      expect(find.text('open'), findsOneWidget, reason: 'back at the first screen');
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}${r.body.isEmpty ? '' : ' ${r.body}'}');
+      if (r.url.path.endsWith('/members')) {
+        return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'members': [user('asha'), user('bina'), user('chandra')]}}), 200, headers: {'content-type': 'application/json'});
+      }
+      return http.Response(jsonEncode({'left': true}), 200, headers: {'content-type': 'application/json'});
     }));
   });
 

@@ -654,15 +654,79 @@ class _ChatPageState extends State<ChatPage> {
 }
 
 /// Group info: the group name and who is in it. Adding people and leaving are not available yet, so they are not offered.
-class GroupInfoPage extends StatelessWidget {
+class GroupInfoPage extends StatefulWidget {
   const GroupInfoPage({super.key, required this.session, required this.convo});
   final Session session;
   final Map<String, dynamic> convo;
+  @override
+  State<GroupInfoPage> createState() => _GroupInfoPageState();
+}
+
+class _GroupInfoPageState extends State<GroupInfoPage> {
+  late List<Map<String, dynamic>> members = ((widget.convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
+  bool busy = false;
+
+  void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _add() async {
+    final ctrl = TextEditingController();
+    final names = await showDialog<List<String>>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t_('Add people')),
+        content: TextField(controller: ctrl, autofocus: true, decoration: InputDecoration(hintText: t_('Usernames, separated by commas'))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: Text(t_('Cancel'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, [for (final n in ctrl.text.split(RegExp(r'[,\s]+'))) if (n.trim().isNotEmpty) n.trim().replaceFirst('@', '')]),
+            child: Text(t_('Add')),
+          ),
+        ],
+      ),
+    );
+    if (names == null || names.isEmpty) return;
+    setState(() => busy = true);
+    try {
+      final j = await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/members', body: {'usernames': names}) as Map<String, dynamic>;
+      final c = j['conversation'] as Map<String, dynamic>;
+      if (mounted) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
+    } on ApiError catch (e) {
+      if (mounted) _say(e.message);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _leave() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t_('Leave this group?')),
+        content: Text(t_('You will stop getting its messages. Someone has to add you again to rejoin.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Leave'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => busy = true);
+    try {
+      await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/leave');
+      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+    } on ApiError catch (e) {
+      if (mounted) {
+        setState(() => busy = false);
+        _say(e.message);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final members = ((convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final session = widget.session;
+    final convo = widget.convo;
     return Scaffold(
       appBar: AppBar(title: Text(t_('Group info'))),
       body: ListView(children: [
@@ -671,6 +735,11 @@ class GroupInfoPage extends StatelessWidget {
         Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text((convo['title'] ?? 'Group').toString(), textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
         Text('${members.length} members', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 16),
+        ListTile(
+          leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('plus', size: 20)),
+          title: Text(t_('Add people'), style: const TextStyle(fontWeight: FontWeight.w600)),
+          onTap: busy ? null : _add,
+        ),
         for (final m in members)
           ListTile(
             leading: Avatar(user: m, radius: 22),
@@ -678,6 +747,13 @@ class GroupInfoPage extends StatelessWidget {
             subtitle: Text('@${m['username']}'),
             onTap: m['public_id'] == session.user?['public_id'] ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: session, username: m['username'].toString()))),
           ),
+        const SizedBox(height: 8),
+        ListTile(
+          leading: PhIcon('sign-out', color: scheme.error),
+          title: Text(t_('Leave group'), style: TextStyle(color: scheme.error, fontWeight: FontWeight.w600)),
+          onTap: busy ? null : _leave,
+        ),
+        const SizedBox(height: 96),
       ]),
     );
   }

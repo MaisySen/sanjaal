@@ -109,6 +109,59 @@ class ChatController extends Controller
         return response()->json(['conversation' => $this->present($convo->load('members'), $me)], 201);
     }
 
+    /** Any member of a group can add people by username, up to 50 members in total. */
+    public function addMembers(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if ($convo->type !== 'group') {
+            return response()->json(['message' => 'Only groups have a member list.'], 422);
+        }
+        $data = $request->validate([
+            'usernames' => ['required', 'array', 'min:1', 'max:49'],
+            'usernames.*' => ['string'],
+        ]);
+        $me = $request->user();
+        $wanted = collect($data['usernames'])->unique()->reject(fn ($u) => $u === $me->username)->values();
+        $users = User::whereIn('username', $wanted)->get();
+        if ($users->count() !== $wanted->count()) {
+            return response()->json(['message' => 'One or more users were not found.', 'errors' => ['usernames' => ['One or more users were not found.']]], 422);
+        }
+        $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
+            ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();
+        $existing = $convo->members()->pluck('users.id')->all();
+        $fresh = $users->reject(fn ($u) => in_array($u->id, $existing, true) || in_array($u->id, $blocked, true));
+        if (count($existing) + $fresh->count() > 50) {
+            return response()->json(['message' => 'A group can have at most 50 members.', 'errors' => ['usernames' => ['A group can have at most 50 members.']]], 422);
+        }
+        if ($fresh->isNotEmpty()) {
+            $convo->members()->attach($fresh->pluck('id')->all(), ['role' => 'member']);
+        }
+
+        return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
+    }
+
+    /** Leave a group. If the owner leaves, the longest standing member becomes owner. */
+    public function leave(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if ($convo->type !== 'group') {
+            return response()->json(['message' => 'You can only leave a group.'], 422);
+        }
+        $me = $request->user();
+        DB::transaction(function () use ($convo, $me) {
+            $wasOwner = $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists();
+            $convo->members()->detach($me->id);
+            if ($wasOwner) {
+                $next = $convo->members()->orderBy('conversation_members.created_at')->orderBy('users.id')->first();
+                if ($next) {
+                    $convo->members()->updateExistingPivot($next->id, ['role' => 'owner']);
+                }
+            }
+        });
+
+        return response()->json(['left' => true]);
+    }
+
     /** ?after_seq=N returns newer messages (polling fallback); ?before_seq=N pages older. */
     public function messages(Request $request, string $id): JsonResponse
     {

@@ -59,6 +59,8 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/conversations/{conversation}/messages', [ChatController::class, 'messages']);
     Route::post('/conversations/{conversation}/messages', [ChatController::class, 'send'])->middleware('throttle:120,1');
     Route::post('/conversations/{conversation}/read', [ChatController::class, 'read']);
+    Route::post('/conversations/{conversation}/members', [ChatController::class, 'addMembers'])->middleware('throttle:30,1');
+    Route::post('/conversations/{conversation}/leave', [ChatController::class, 'leave']);
 
     Route::post('/conversations/{conversation}/call-token', [ChatController::class, 'callToken'])->middleware('throttle:30,1');
     Route::get('/notifications/summary', [ChatController::class, 'summary']);

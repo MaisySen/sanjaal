@@ -29,6 +29,37 @@ class ChatTest extends TestCase
         $this->getJson('/api/v1/notifications/summary', $ha)->assertJsonPath('unread_messages', 0);
     }
 
+    public function test_group_add_members_and_leave(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        [$d, $hd] = $this->member('dipesh');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'group', 'title' => 'Trek', 'usernames' => ['bina']], $ha)->assertCreated()->json('conversation.public_id');
+
+        // A non-member cannot add anyone.
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['dipesh']], $hc)->assertNotFound();
+        // A member adds two people; adding someone already in is a no-op.
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra', 'bina']], $hb)->assertOk()->assertJsonCount(3, 'conversation.members');
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertOk();
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['nobody_here']], $hb)->assertStatus(422);
+
+        // The owner leaves: the group stays and bina, the longest standing member, becomes owner.
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $ha)->assertOk()->assertJsonPath('left', true);
+        $this->getJson("/api/v1/conversations/$cid/messages", $ha)->assertNotFound();
+        $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $b->id)->value('role'));
+    }
+
+    public function test_cannot_add_to_or_leave_a_direct_chat(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        $this->member('bina');
+        $this->member('chandra');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->json('conversation.public_id');
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $ha)->assertStatus(422);
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $ha)->assertStatus(422);
+    }
+
     public function test_send_is_idempotent_by_client_id(): void
     {
         [$a, $ha] = $this->member('asha');

@@ -164,22 +164,26 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
               onRefresh: _load,
               child: ListView(padding: const EdgeInsets.all(16), children: [
                 if (error != null) Text(error!),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(children: [
-                      Text(t_('Balance')),
-                      Text('$balance coins', style: Theme.of(context).textTheme.headlineMedium),
-                      const SizedBox(height: 12),
-                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add), label: Text(t_('Add coins'))),
-                        const SizedBox(width: 12),
-                        FilledButton.tonalIcon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.send), label: Text(t_('Send'))),
-                      ]),
-                      if (!esewa) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Adding coins is not switched on yet.')),
-                      const Padding(padding: EdgeInsets.only(top: 8), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 20),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(t_('Balance'), style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, letterSpacing: 0.6)),
+                    const SizedBox(height: 4),
+                    Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
+                      Text('$balance', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w800, letterSpacing: -1.5, height: 1.1)),
+                      const SizedBox(width: 8),
+                      Text('coins', style: Theme.of(context).textTheme.titleMedium),
                     ]),
-                  ),
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add, size: 18), label: Text(t_('Add coins'))),
+                      const SizedBox(width: 10),
+                      OutlinedButton.icon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.north_east, size: 18), label: Text(t_('Send'))),
+                    ]),
+                    if (!esewa) const Padding(padding: EdgeInsets.only(top: 10), child: Text('Adding coins is not switched on yet.')),
+                    const Padding(padding: EdgeInsets.only(top: 6), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),
+                  ]),
                 ),
                 const SizedBox(height: 16),
                 Text('History', style: Theme.of(context).textTheme.titleMedium),

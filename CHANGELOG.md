@@ -1,5 +1,9 @@
 # Changelog
 
+## Visual redesign, first pass
+
+- New palette (warm paper, ink text, crimson only for actions and the active tab), flat navigation bar, underline tabs, 10 px corners. Feed posts are flat rows with hairline dividers, inline author line, plain hashtag links and inset media instead of tinted cards. Wallet balance is a ledger header. Avatars use ink tones. Layout and styling only, no behaviour change. Not yet inspected on a device.
+
 ## Push hardening
 
 - Pushes carry no message text (title is the sender or group, body is "New message", "Voice message" or "Photo"). Muted members and anyone blocked either way get none. Failed or slow provider calls never fail a send, and only an explicit UNREGISTERED answer removes a device token.

@@ -23,7 +23,7 @@ class FeedPage extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(children: [const Logo(size: 30), const SizedBox(width: 10), const Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w700))]),
+          title: Row(children: [const Logo(size: 26), const SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface))]),
           actions: [
             IconButton(tooltip: t_('Search'), icon: const Icon(Icons.search), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
             IconButton(tooltip: t_('Notifications'), icon: const Icon(Icons.notifications_none), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
@@ -223,10 +223,9 @@ class _PostCardState extends State<PostCard> {
 
   void _openAuthor() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString())));
 
-  Widget _tag(String tag) => ActionChip(
-        label: Text('#$tag'),
-        visualDensity: VisualDensity.compact,
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tag))),
+  Widget _tag(String tag) => InkWell(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tag))),
+        child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text('#$tag', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600))),
       );
 
   @override
@@ -239,46 +238,60 @@ class _PostCardState extends State<PostCard> {
     final body = (p['body'] ?? '').toString();
     final tags = (p['hashtags'] as List?)?.map((e) => e.toString()).toList() ?? [];
     final scheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
+    final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
+    final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    return Container(
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListTile(
-            onTap: _openAuthor,
-            leading: Avatar(user: author),
-            title: Text((author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text('@${author['username']}  ·  ${ago((p['created_at'] ?? '').toString())}'),
-            trailing: PopupMenuButton<String>(
-              onSelected: _menu,
-              itemBuilder: (_) => mine
-                  ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                  : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
-            ),
-          ),
-          if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
-          if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 4), child: Wrap(spacing: 6, children: [for (final tg in tags.take(4)) _tag(tg)])),
-          if (images.length == 1) _image(images.first['url'] as String, 360),
-          if (images.length > 1)
-            SizedBox(
-              height: 300,
-              child: PageView(children: [for (final m in images) _image(m['url'] as String, 300)]),
-            ),
-          if (images.length > 1)
-            Padding(padding: const EdgeInsets.only(top: 4), child: Center(child: Text('${images.length} photos, swipe', style: TextStyle(fontSize: 12, color: scheme.outline)))),
-          for (final v in videos) VideoTile(url: v['url'] as String),
-          Row(
-            children: [
-              ReactionButton(session: widget.session, post: widget.post),
-              TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined), label: Text('$comments')),
-              if (!mine)
-                TextButton.icon(
-                  onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
-                  icon: const Icon(Icons.card_giftcard),
-                  label: Text(t_('Gift')),
+          GestureDetector(onTap: _openAuthor, child: Avatar(user: author, radius: 19)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Flexible(child: GestureDetector(onTap: _openAuthor, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)))),
+                  const SizedBox(width: 6),
+                  Text(ago((p['created_at'] ?? '').toString()), style: muted),
+                  const Spacer(),
+                  PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    iconSize: 20,
+                    icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
+                    onSelected: _menu,
+                    itemBuilder: (_) => mine
+                        ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                        : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+                  ),
+                ]),
+                if (name != '@${author['username']}') Text('@${author['username']}', style: muted),
+                if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6, right: 8), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
+                if (tags.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
+                if (images.length == 1) Padding(padding: const EdgeInsets.only(top: 10, right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: _image(images.first['url'] as String, 280))),
+                if (images.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10, right: 8),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(height: 240, child: PageView(children: [for (final m in images) _image(m['url'] as String, 240)]))),
+                  ),
+                if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 4), child: Text('1 of ${images.length}, swipe', style: muted)),
+                for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10, right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoTile(url: v['url'] as String))),
+                Row(
+                  children: [
+                    ReactionButton(session: widget.session, post: widget.post),
+                    TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined, size: 20), label: Text('$comments')),
+                    if (!mine)
+                      TextButton.icon(
+                        onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
+                        icon: const Icon(Icons.card_giftcard, size: 20),
+                        label: Text(t_('Gift')),
+                      ),
+                  ],
                 ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

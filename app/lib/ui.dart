@@ -141,6 +141,8 @@ const _ne = <String, String>{
 /// Translates a UI string into the chosen language. Falls back to English.
 String t_(String en) => prefs.lang == 'ne' ? (_ne[en] ?? en) : en;
 
+const _tones = [Color(0xFF24405F), Color(0xFF6B3A2E), Color(0xFF3F5B45), Color(0xFF5A3E6B), Color(0xFF7A5A1E), Color(0xFF2F5961)];
+
 class Avatar extends StatelessWidget {
   const Avatar({super.key, required this.user, this.radius = 20});
   final Map<String, dynamic>? user;
@@ -154,9 +156,9 @@ class Avatar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return CircleAvatar(
       radius: radius,
-      backgroundColor: scheme.primaryContainer,
+      backgroundColor: _tones[name.hashCode.abs() % _tones.length],
       foregroundImage: url == null ? null : NetworkImage(url),
-      child: Text(letter, style: TextStyle(fontSize: radius * 0.9, color: scheme.onPrimaryContainer, fontWeight: FontWeight.w600)),
+      child: Text(letter, style: TextStyle(fontSize: radius * 0.9, color: Colors.white, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -175,9 +177,9 @@ class EmptyState extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 56, color: s.colorScheme.outline),
-          const SizedBox(height: 12),
-          Text(title, textAlign: TextAlign.center, style: s.textTheme.titleMedium),
+          Icon(icon, size: 30, color: s.colorScheme.onSurfaceVariant),
+          const SizedBox(height: 10),
+          Text(title, textAlign: TextAlign.center, style: s.textTheme.titleMedium?.copyWith(fontSize: 16)),
           if (hint != null) ...[
             const SizedBox(height: 6),
             Text(hint!, textAlign: TextAlign.center, style: s.textTheme.bodyMedium?.copyWith(color: s.colorScheme.outline)),
@@ -199,9 +201,8 @@ class Logo extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.28),
-        gradient: const LinearGradient(colors: [brandRed, Color(0xFF8A0B20)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 12, offset: Offset(0, 4))],
+        borderRadius: BorderRadius.circular(size * 0.22),
+        color: brandRed,
       ),
       child: Text('स', style: TextStyle(color: Colors.white, fontSize: size * 0.58, fontWeight: FontWeight.w700, height: 1.1)),
     );

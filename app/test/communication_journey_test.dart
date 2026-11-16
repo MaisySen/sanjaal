@@ -10,7 +10,7 @@ import 'package:sanjaal/chat_pages.dart';
 import 'package:sanjaal/calls_page.dart';
 import 'package:sanjaal/call_page.dart';
 import 'package:sanjaal/rooms_page.dart';
-import 'package:sanjaal/main.dart' show buildTheme;
+import 'package:sanjaal/main.dart' show buildTheme, HomeShell;
 import 'package:sanjaal/ui.dart' show prefs, Avatar;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -95,6 +95,48 @@ void main() {
     }, (_) async => reply({'data': [
       {'public_id': 'call', 'conversation_id': 'chat', 'title': 'Asha Gurung', 'caller': {'username': 'me', 'name': 'Current member'}, 'direction': 'outgoing', 'kind': 'voice', 'status': 'ended', 'duration_s': 185, 'created_at': '2026-11-16T14:00:00Z'},
     ]}));
+  });
+
+  testWidgets('incoming-call polling does not overlap a slow request', (t) async {
+    final pending = Completer<http.Response>();
+    var incomingReads = 0;
+    await withSession(t, (s) async {
+      await t.pumpWidget(app(HomeShell(session: s)));
+      await flush(t);
+      await t.pump(const Duration(seconds: 5));
+      await flush(t);
+      expect(incomingReads, 1);
+      await t.pump(const Duration(seconds: 10));
+      await flush(t);
+      expect(incomingReads, 1, reason: 'do not stack polls or competing ring screens on a slow connection');
+      pending.complete(reply({'data': []}));
+      await flush(t);
+      await t.pump(const Duration(seconds: 5));
+      await flush(t);
+      expect(incomingReads, 2);
+      expect(t.takeException(), isNull);
+    }, (r) async {
+      if (r.url.path.endsWith('/calls/incoming')) { incomingReads++; return pending.future; }
+      if (r.url.path.endsWith('/wallet')) return reply({'balance': 0, 'entries': [], 'topup': {}});
+      return reply({'data': [], 'next_cursor': null, 'unread_messages': 0});
+    });
+  });
+
+  testWidgets('call media controls are disabled while changing native state, end stays available', (t) async {
+    var ended = false;
+    await t.pumpWidget(app(CallView(
+      title: 'Fixture', status: 'Connecting...', failed: false, video: true,
+      muted: false, camOn: false, tiles: const [], controlsBusy: true,
+      onMute: () => fail('microphone must be disabled'),
+      onCamera: () => fail('camera must be disabled'), onEnd: () => ended = true,
+    )));
+    final buttons = t.widgetList<IconButton>(find.byType(IconButton)).toList();
+    expect(buttons[0].onPressed, isNull);
+    expect(buttons[1].onPressed, isNull);
+    expect(buttons[2].onPressed, isNotNull);
+    await t.tap(find.byTooltip('End call'));
+    expect(ended, isTrue);
+    await t.pumpWidget(const SizedBox());
   });
 
   testWidgets('archive selection ignores a late inbox response', (t) async {

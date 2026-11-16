@@ -220,13 +220,13 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _checkIncoming() async {
     if (_ringing || !mounted) return;
+    _ringing = true;
     try {
       final j = await widget.session.call('GET', '/calls/incoming') as Map<String, dynamic>;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
       if (list.isEmpty || !mounted) return;
       if (list.first['public_id'] == _lastCall) return;
       _lastCall = list.first['public_id'] as String;
-      _ringing = true;
       HapticFeedback.heavyImpact();
       await Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => IncomingCallPage(session: widget.session, call: list.first)));
     } catch (_) {

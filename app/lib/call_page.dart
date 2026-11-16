@@ -2,6 +2,8 @@ import 'ph.dart';
 import 'package:livekit_client/livekit_client.dart' hide Session;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'call_lifecycle.dart';
+import 'ui.dart' show showError;
 
 /// Voice or video call for one conversation, over LiveKit.
 class CallPage extends StatefulWidget {
@@ -24,12 +26,17 @@ class _CallPageState extends State<CallPage> {
   bool failed = false;
   String? _callId;
   bool _ended = false;
+  bool _closed = false;
+  bool _mediaBusy = false;
+  late final Future<void> _joining;
+  Future<void>? _mediaChange;
 
   @override
   void initState() {
     super.initState();
+    _callId = widget.callId;
     room.addListener(_changed);
-    _join();
+    _joining = _join();
   }
 
   void _changed() {
@@ -38,17 +45,28 @@ class _CallPageState extends State<CallPage> {
 
   Future<void> _join() async {
     try {
-      final qs = widget.callId != null ? '?call=${widget.callId}' : '?kind=${widget.video ? 'video' : 'voice'}';
-      final j = await widget.session.call('POST', '/conversations/${widget.conversationId}/call-token$qs') as Map<String, dynamic>;
-      _callId = j['call_id'] as String?;
-      await room.connect(j['url'] as String, j['token'] as String);
-      await room.localParticipant?.setMicrophoneEnabled(true);
-      if (widget.video) {
-        await room.localParticipant?.setCameraEnabled(true);
-        camOn = true;
+      late Map<String, dynamic> token;
+      final connected = await connectCallWhileActive(
+        isActive: () => !_closed,
+        requestToken: () async {
+          final qs = widget.callId != null ? '?call=${widget.callId}' : '?kind=${widget.video ? 'video' : 'voice'}';
+          token = await widget.session.call('POST', '/conversations/${widget.conversationId}/call-token$qs') as Map<String, dynamic>;
+          _callId = token['call_id'] as String? ?? _callId;
+        },
+        connect: () => room.connect(token['url'] as String, token['token'] as String),
+        microphone: () async { await room.localParticipant?.setMicrophoneEnabled(true); },
+        camera: () async { await room.localParticipant?.setCameraEnabled(true); },
+        video: widget.video,
+      );
+      if (!connected) {
+        _endCall();
+        await _disconnectSafely();
+        return;
       }
-      if (mounted) setState(() => status = 'Connected');
+      if (mounted) setState(() { status = 'Connected'; camOn = widget.video; });
     } on ApiError catch (e) {
+      _endCall();
+      await _disconnectSafely();
       if (mounted) {
         setState(() {
           failed = true;
@@ -56,6 +74,8 @@ class _CallPageState extends State<CallPage> {
         });
       }
     } catch (_) {
+      _endCall();
+      await _disconnectSafely();
       if (mounted) {
         setState(() {
           failed = true;
@@ -73,11 +93,48 @@ class _CallPageState extends State<CallPage> {
 
   @override
   void dispose() {
+    _closed = true;
     _endCall();
     room.removeListener(_changed);
-    room.disconnect();
-    room.dispose();
+    _releaseRoom();
     super.dispose();
+  }
+
+  Future<void> _disconnectSafely() async {
+    try { await room.disconnect(); } catch (_) {}
+  }
+
+  Future<void> _releaseRoom() async {
+    // Stop capture immediately, then wait for any token/connect operation to
+    // observe _closed before disposing the native room it may still be using.
+    await _disconnectSafely();
+    try { await _joining; } catch (_) {}
+    try { await _mediaChange; } catch (_) {}
+    await _disconnectSafely();
+    try { await room.dispose(); } catch (_) {}
+  }
+
+  void _changeMedia({required bool camera}) {
+    if (_closed || _mediaBusy || failed || room.localParticipant == null) return;
+    _mediaChange = _media(camera: camera);
+  }
+
+  Future<void> _media({required bool camera}) async {
+    if (_closed || _mediaBusy || failed || room.localParticipant == null) return;
+    setState(() => _mediaBusy = true);
+    try {
+      final next = camera ? !camOn : !muted;
+      if (camera) {
+        await room.localParticipant?.setCameraEnabled(next);
+      } else {
+        await room.localParticipant?.setMicrophoneEnabled(!next);
+      }
+      if (mounted) setState(() { if (camera) { camOn = next; } else { muted = next; } });
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _mediaBusy = false);
+    }
   }
 
   VideoTrack? _videoOf(Participant p) {
@@ -106,16 +163,9 @@ class _CallPageState extends State<CallPage> {
       camOn: camOn,
       tiles: tiles,
       selfPreview: me != null && camOn && _videoOf(me) != null ? VideoTrackRenderer(_videoOf(me)!) : null,
-      onMute: () async {
-        muted = !muted;
-        await room.localParticipant?.setMicrophoneEnabled(!muted);
-        _changed();
-      },
-      onCamera: () async {
-        camOn = !camOn;
-        await room.localParticipant?.setCameraEnabled(camOn);
-        _changed();
-      },
+      controlsBusy: _mediaBusy || status != 'Connected',
+      onMute: () => _changeMedia(camera: false),
+      onCamera: () => _changeMedia(camera: true),
       onEnd: () => Navigator.of(context).pop(),
     );
   }
@@ -147,7 +197,7 @@ class CallTile extends StatelessWidget {
 
 /// The call screen without any LiveKit dependency, so it can be rendered offline.
 class CallView extends StatelessWidget {
-  const CallView({super.key, required this.title, required this.status, required this.failed, required this.video, required this.muted, required this.camOn, required this.tiles, required this.onMute, required this.onCamera, required this.onEnd, this.selfPreview});
+  const CallView({super.key, required this.title, required this.status, required this.failed, required this.video, required this.muted, required this.camOn, required this.tiles, required this.onMute, required this.onCamera, required this.onEnd, this.selfPreview, this.controlsBusy = false});
   final String title;
   final String status;
   final bool failed;
@@ -156,6 +206,7 @@ class CallView extends StatelessWidget {
   final bool camOn;
   final List<Widget> tiles;
   final Widget? selfPreview;
+  final bool controlsBusy;
   final VoidCallback onMute;
   final VoidCallback onCamera;
   final VoidCallback onEnd;
@@ -192,17 +243,20 @@ class CallView extends StatelessWidget {
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                 IconButton.filledTonal(
                   style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
-                  onPressed: failed ? null : onMute,
+                  tooltip: muted ? 'Unmute microphone' : 'Mute microphone',
+                  onPressed: failed || controlsBusy ? null : onMute,
                   icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
                 ),
                 if (video)
                   IconButton.filledTonal(
                     style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
-                    onPressed: failed ? null : onCamera,
+                    tooltip: camOn ? 'Turn camera off' : 'Turn camera on',
+                    onPressed: failed || controlsBusy ? null : onCamera,
                     icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),
                   ),
                 IconButton.filled(
                   style: IconButton.styleFrom(backgroundColor: Colors.red),
+                  tooltip: 'End call',
                   onPressed: onEnd,
                   icon: const PhIcon('phone-x-fill', color: Colors.white),
                 ),

@@ -24,14 +24,14 @@ class AboutPage extends StatelessWidget {
         const Text(
           'We store your email, username, display name, what you post and your messages so the app can work. '
           'We do not run ads, we do not sell your data and we do not track you across other apps. '
-          'Wallet top ups are paid on eSewa. We see the payment reference and amount, never your eSewa login. '
+          'Adding coins is not switched on yet. If it is switched on, it will be paid on eSewa and we would see the payment reference and amount, never your eSewa login. '
           'To delete your account and data, write to contact@fintex.au.',
         ),
         h('Terms'),
         const Text(
           'Be kind. Do not post illegal content, spam or other people\'s private details. '
           'We may remove content or accounts that break these rules. '
-          'Coins are an in app balance. They are bought with a verified top up, move between members and cannot be cashed out.',
+          'Coins are an in app balance. Adding coins is not switched on yet. Coins move between members and cannot be cashed out.',
         ),
         h('Open source licences'),
         OutlinedButton(onPressed: () => showLicensePage(context: context, applicationName: 'Sanjaal', applicationVersion: appVersion), child: const Text('View licences')),

@@ -4,7 +4,7 @@ Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
 ## Unreleased (API image v9)
 
-Pass 11: render coverage for About and Search. About text unchanged and flagged for grounded privacy and payment-claim review. No app release.
+Pass 11: render coverage for About and Search. About text says adding coins is not switched on yet (deletion route kept); privacy claims flagged for grounded review. No app release.
 
 Pass 10: flows test finder import fix (material_ui), large-text layout fixes in room and settings, photo-based feed render check. Widget renders only; not on a device. No app release.
 

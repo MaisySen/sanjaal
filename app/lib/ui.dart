@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'photo_gallery.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:material_ui/material_ui.dart';
@@ -95,6 +96,10 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Photo': 'तस्बिर',
+  'Photos': 'तस्बिरहरू',
+  'Open full screen': 'पूरा स्क्रिनमा खोल्नुहोस्',
+  'Photo could not load': 'तस्बिर लोड हुन सकेन',
   'Poll': 'मत सर्वेक्षण',
   'Option': 'विकल्प',
   'Add option': 'विकल्प थप्नुहोस्',
@@ -271,10 +276,6 @@ class Logo extends StatelessWidget {
 void openImage(BuildContext context, String url, {Map<String, String>? headers}) {
   Navigator.of(context).push(MaterialPageRoute(
     fullscreenDialog: true,
-    builder: (_) => Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
-      body: Center(child: InteractiveViewer(child: Image.network(url, headers: headers, fit: BoxFit.contain))),
-    ),
+    builder: (_) => PhotoViewer(urls: [url], headers: headers),
   ));
 }

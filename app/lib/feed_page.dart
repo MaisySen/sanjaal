@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'photo_gallery.dart';
 import 'poll_card.dart';
 import 'media_visibility.dart';
 import 'package:image_picker/image_picker.dart';
@@ -381,7 +382,6 @@ class _PostCardState extends State<PostCard> {
     final scheme = Theme.of(context).colorScheme;
     final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
-    final single = images.length == 1;
     if (widget.immersive && images.isNotEmpty && videos.isEmpty) {
       return _immersive(images, name, body, mine, scheme);
     }
@@ -419,9 +419,13 @@ class _PostCardState extends State<PostCard> {
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
           if (p['poll'] is Map) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: PollCard(key: ValueKey(p['public_id']), session: widget.session, post: p)),
           if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
-          if (single) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 0), child: ClipRRect(borderRadius: BorderRadius.circular(18), child: _image(images.first['url'] as String, 320))),
-          if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 10), child: SizedBox(height: 320, child: PageView(children: [for (final m in images) SizedBox(height: 320, width: double.infinity, child: Image.network(m['url'] as String, fit: BoxFit.cover, errorBuilder: (c, e, st) => const SizedBox()))]))),
-          if (images.length > 1) Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 0), child: Text('1 of ${images.length}, swipe', style: muted)),
+          if (images.isNotEmpty) Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: ClipRRect(borderRadius: BorderRadius.circular(18), child: SizedBox(
+              height: 360,
+              child: PhotoGallery(key: ValueKey('photos-$id'), urls: images.map((m) => m['url'] as String).toList(), provider: feedImageProvider),
+            )),
+          ),
           for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10), child: VideoTile(url: v['url'] as String)),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
@@ -461,14 +465,13 @@ class _PostCardState extends State<PostCard> {
             ),
           ),
         );
-    final url = images.first['url'] as String;
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: _shape(
           Stack(fit: StackFit.expand, children: [
-            GestureDetector(onTap: () => openImage(context, url), child: _photo(url)),
+            PhotoGallery(key: ValueKey('photos-$id'), urls: images.map((m) => m['url'] as String).toList(), provider: feedImageProvider),
             const IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, stops: [0.0, 0.4, 0.7, 1.0], colors: [Color(0x00000000), Color(0x00000000), Color(0x99000000), Color(0xE6000000)])),
@@ -480,7 +483,7 @@ class _PostCardState extends State<PostCard> {
                 gradient: LinearGradient(colors: [Colors.transparent, Color(0x77000000)]),
               ))),
             ),
-            if (images.length > 1) Positioned(top: 12, right: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)), child: Text('+${images.length - 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)))),
+
             Positioned(
               right: 8,
               bottom: 16,
@@ -536,33 +539,7 @@ class _PostCardState extends State<PostCard> {
     return AspectRatio(aspectRatio: 0.8 / (k > 1.15 ? k * 0.9 : 1.0), child: child);
   }
 
-  Widget _photo(String url) {
-    final override = feedImageProvider;
-    if (override != null) return Image(image: override(url), fit: BoxFit.cover, width: double.infinity, height: double.infinity);
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      loadingBuilder: (c, child, prog) => prog == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      errorBuilder: (c, e, s) => const ColoredBox(color: Color(0xFF16181D), child: Center(child: Text('Image could not load', style: TextStyle(color: Colors.white70)))),
-    );
-  }
 
-  // Height follows the photo's own shape, capped so a tall photo does not take the whole screen.
-  Widget _image(String url, double h) => GestureDetector(
-        onTap: () => openImage(context, url),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 440, minHeight: 160),
-          child: Image(
-            image: (feedImageProvider ?? NetworkImage.new)(url),
-            width: double.infinity,
-            fit: BoxFit.cover,
-            loadingBuilder: (c, child, prog) => prog == null ? child : SizedBox(height: 240, child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.outline))),
-            errorBuilder: (c, e, s) => SizedBox(height: 80, child: Center(child: Text('Image could not load', style: TextStyle(color: Theme.of(context).colorScheme.outline)))),
-          ),
-        ),
-      );
 }
 
 class CommentsSheet extends StatefulWidget {

@@ -1,5 +1,10 @@
 # Changelog
 
+## Pass 11: About and Search render coverage
+
+- Render tests added for About (normal and 1.8x text) and Search empty state. Widget renders only.
+- About text is unchanged. Review item, not changed here: it says top ups are paid on eSewa (not switched on), coins come from a verified top up, and account and data deletion is by email to contact@fintex.au. Privacy claims (no ads, no sale, no tracking, what is stored) need grounded review against real behaviour before publication. Deletion behaviour is still an open design decision.
+
 ## Pass 10: large-text fixes and test finder fix
 
 - Emulator flows test imported flutter/material, whose TextField type does not match the app's material_ui widgets, so the finders found nothing (cause of s1 and s2 failing). The test now imports material_ui. Not yet run on an emulator or CI.

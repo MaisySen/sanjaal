@@ -18,6 +18,8 @@ import 'package:sanjaal/settings_page.dart' show SettingsPage;
 import 'package:sanjaal/auth_page.dart' show AuthPage;
 import 'package:sanjaal/onboarding_page.dart' show OnboardingPage;
 import 'package:sanjaal/ui.dart' show prefs;
+import 'package:sanjaal/about_page.dart' show AboutPage;
+import 'package:sanjaal/search_page.dart' show SearchPage;
 import 'package:sanjaal/profile_pages.dart' show UserProfilePage;
 import 'package:sanjaal/gifts.dart' show showGiftSheet;
 import 'package:sanjaal/rooms_page.dart' show RoomView, RoomsPage;
@@ -165,7 +167,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['about', 'about_big', 'search', 'chats_big', 'room_host_big', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -185,6 +187,8 @@ void main() {
             'rooms' => RoomsPage(session: s),
             'shell' => HomeShell(session: s),
             'compose' => ComposePage(session: s),
+            'about' || 'about_big' => const AboutPage(),
+            'search' => SearchPage(session: s),
             'chats' || 'chats_ne' => ChatsPage(session: s),
             'notifications' => NotificationsPage(session: s),
             'settings' => SettingsPage(session: s),

@@ -4,6 +4,8 @@ Publisher: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au.
 
 ## Unreleased (API image v9)
 
+Pass 11: render coverage for About and Search. About text unchanged and flagged for grounded privacy and payment-claim review. No app release.
+
 Pass 10: flows test finder import fix (material_ui), large-text layout fixes in room and settings, photo-based feed render check. Widget renders only; not on a device. No app release.
 
 Visual redesign first pass (theme, feed rows, wallet header); styling only. Pass 3 reworks onboarding layout (unverified until CI). Pass 9 fixes duplicated hashtags, photo sizing, chats top bar, settings text and onboarding copy. Pass 4 moves chat and room primary actions into the top bar.

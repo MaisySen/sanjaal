@@ -239,7 +239,7 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   Future<void> _compose() async {
-    final what = await showModalBottomSheet<String>(context: context, showDragHandle: true, builder: (_) => const CreateSheet());
+    final what = await showModalBottomSheet<String>(context: context, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet());
     if (what == null || !mounted) return;
     if (what == 'story') {
       if (await addStory(context, widget.session) && mounted) showInfo(context, 'Your story is up. It shows in the row at the top of Home.');

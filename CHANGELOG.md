@@ -1,5 +1,10 @@
 # Changelog
 
+## Small-phone Create sheet fix (candidate, not shipped)
+
+- CI 43884625758 found a real 12px Create-sheet overflow on a 320x640 emulator: Continue was clipped. The modal now uses the available screen height, with scroll fallback. Regression opens the real modal at 320x640, selects Reel, taps Continue and checks the returned type and no rendering exception. Local focused widget test passes. New Android artifact and emulator journey are still pending.
+
+
 ## Recovery verification, 2026-11-17 (not a shipped app release)
 
 - Live API image v31-7e2e68c from source 7e2e68c deployed on the existing Render Free service. The five additive migrations are applied on Aiven. Private backup restore and code-only rollback were tested before deployment; existing row counts are unchanged. Health is 200; protected new routes return 401 without credentials. This is not signed-in live journey evidence.

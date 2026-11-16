@@ -998,22 +998,31 @@ void main() {
 
   testWidgets('create sheet: Continue stays off until a type is picked, then returns that type', (tester) async {
     String? result;
-    tester.view.physicalSize = const Size(1080, 2160);
+    tester.view.physicalSize = const Size(960, 1920);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(RepaintBoundary(key: const ValueKey('small-create'), child: MaterialApp(
       theme: buildTheme(Brightness.dark, fontFamily: 'Roboto', fontFamilyFallback: []),
-      home: Builder(builder: (c) => Scaffold(body: Center(child: FilledButton(onPressed: () async => result = await showModalBottomSheet<String>(context: c, builder: (_) => const CreateSheet()), child: const Text('open'))))),
-    ));
+      home: Builder(builder: (c) => Scaffold(body: Center(child: FilledButton(onPressed: () async => result = await showModalBottomSheet<String>(context: c, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet()), child: const Text('open'))))),
+    )));
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue')).onPressed, isNull);
     await tester.tap(find.text('Reel'));
     await tester.pump();
     expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue')).onPressed, isNotNull);
+    final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('small-create')));
+    await tester.runAsync(() async {
+      final image = await boundary.toImage(pixelRatio: 1);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      Directory('test/renders').createSync(recursive: true);
+      File('test/renders/create_small_phone.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+      image.dispose();
+    });
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(result, 'reel');
+    expect(tester.takeException(), isNull, reason: '320x640 phone must fit Continue without overflow');
   });
 
   testWidgets('room: host buttons call the right callbacks', (tester) async {

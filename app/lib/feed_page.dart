@@ -896,7 +896,7 @@ class _CreateSheetState extends State<CreateSheet> {
     }
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(padding: const EdgeInsets.fromLTRB(4, 4, 0, 12), child: Text(t_('Create'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700))),
@@ -906,7 +906,7 @@ class _CreateSheetState extends State<CreateSheet> {
           const SizedBox(height: 8),
           SizedBox(width: double.infinity, height: 52, child: FilledButton(onPressed: picked == null ? null : () => Navigator.pop(context, picked), child: Text(t_('Continue')))),
         ]),
-      ),
+      )),
     );
   }
 }

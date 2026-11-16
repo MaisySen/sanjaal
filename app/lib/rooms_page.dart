@@ -404,7 +404,7 @@ class RoomView extends StatelessWidget {
                 ]),
               ),
             )
-          : Column(children: [
+          : _roomBody(context, <Widget>[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: Row(children: [
@@ -418,7 +418,7 @@ class RoomView extends StatelessWidget {
                   if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const PhIcon('hand-waving', size: 18), label: Text(handUp ? 'Hand raised' : 'Raise hand'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
                 ]),
               ),
-              Flexible(flex: 3, child: SingleChildScrollView(child: Column(children: [
+              _fx(context, 3, _scr(context, Column(children: [
               if (isHost && hands.isNotEmpty)
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -494,16 +494,16 @@ class RoomView extends StatelessWidget {
                 ),
               ]))),
               Divider(height: 1, color: scheme.outlineVariant),
-              Expanded(
-                flex: 1,
-                child: messages.isEmpty
+              _fx(context, 1, messages.isEmpty
                     ? const EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')
                     : ListView.builder(
-                        reverse: true,
+                        reverse: !_large(context),
+                        shrinkWrap: _large(context),
+                        physics: _large(context) ? const NeverScrollableScrollPhysics() : null,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: messages.length,
                         itemBuilder: (_, i) {
-                          final m = messages[messages.length - 1 - i];
+                          final m = _large(context) ? messages[i] : messages[messages.length - 1 - i];
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 3),
                             child: Text.rich(TextSpan(children: [
@@ -512,8 +512,8 @@ class RoomView extends StatelessWidget {
                             ])),
                           );
                         },
-                      ),
-              ),
+                      )),
+            ],
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
@@ -526,8 +526,18 @@ class RoomView extends StatelessWidget {
                   ]),
                 ),
               ),
-            ]),
+            ),
     );
   }
 }
 
+
+bool _large(BuildContext c) => MediaQuery.textScalerOf(c).scale(14) / 14 > 1.3;
+
+/// Normal sizes: the top block and the messages share the room. Large text: one scroll area.
+Widget _fx(BuildContext c, int flex, Widget w) => _large(c) ? w : Flexible(flex: flex, child: w);
+Widget _scr(BuildContext c, Widget w) => _large(c) ? w : SingleChildScrollView(child: w);
+
+Widget _roomBody(BuildContext c, List<Widget> pre, Widget composer) => _large(c)
+    ? Column(children: [Expanded(child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: pre))), composer])
+    : Column(children: [...pre, composer]);

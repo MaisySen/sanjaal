@@ -19,11 +19,25 @@ class WithdrawalTest extends TestCase
         $p = new class($status, $enabled, $throw) implements PayoutProvider {
             public array $calls = [];
 
+            public array $lookups = [];
+
+            public array|\Throwable $lookupAnswer = ['status' => 'unknown'];
+
             public function __construct(public string $status, public bool $on, public bool $throw) {}
 
             public function name(): string { return 'fake'; }
 
             public function enabled(): bool { return $this->on; }
+
+            public function lookup(string $id): array
+            {
+                $this->lookups[] = $id;
+                if ($this->lookupAnswer instanceof \Throwable) {
+                    throw $this->lookupAnswer;
+                }
+
+                return $this->lookupAnswer;
+            }
 
             public function pay(string $id, int $coins): array
             {
@@ -154,6 +168,96 @@ class WithdrawalTest extends TestCase
         $this->assertSame(400, (int) $u->fresh()->coin_balance, 'not released while the outcome is unknown');
         $p->throw = false;
         Withdrawals::run();
+        $this->assertSame('paid', DB::table('wallet_withdrawals')->value('status'));
+        $this->assertSame(400, (int) $u->fresh()->coin_balance);
+    }
+
+    public function test_attempt_is_recorded_and_retry_asks_the_provider_before_paying_again(): void
+    {
+        $p = $this->fake('paid', true, true);
+        [$u, $h] = $this->funded('asha', 1000);
+        $this->ask($h, 600)->assertCreated();
+        Withdrawals::run();
+        $row = DB::table('wallet_withdrawals')->first();
+        $this->assertSame(1, (int) $row->attempts);
+        $this->assertNotNull($row->last_attempt_at);
+        $this->assertSame([], $p->lookups, 'first try has nothing to look up');
+        // The provider actually took the first call: lookup says paid, so pay() must not run again.
+        $p->lookupAnswer = ['status' => 'paid', 'ref' => 'REAL-9'];
+        Withdrawals::run();
+        $this->assertCount(1, $p->calls, 'pay called once only');
+        $this->assertSame(1, count($p->lookups));
+        $row = DB::table('wallet_withdrawals')->first();
+        $this->assertSame('paid', $row->status);
+        $this->assertSame('REAL-9', $row->provider_ref);
+        $this->assertSame(400, (int) $u->fresh()->coin_balance);
+    }
+
+    public function test_lookup_unknown_resends_with_the_same_key_and_lookup_error_never_resends(): void
+    {
+        $p = $this->fake('pending', true, true);
+        [$u, $h] = $this->funded('asha', 1000);
+        $this->ask($h, 600)->assertCreated();
+        $id = DB::table('wallet_withdrawals')->value('public_id');
+        Withdrawals::run(); // threw
+        $p->lookupAnswer = new \RuntimeException('provider down');
+        Withdrawals::run();
+        $this->assertCount(1, $p->calls, 'cannot tell, so no second pay');
+        $p->lookupAnswer = ['status' => 'unknown'];
+        $p->throw = false;
+        Withdrawals::run();
+        $this->assertCount(2, $p->calls);
+        $this->assertSame($id, $p->calls[0][0]);
+        $this->assertSame($id, $p->calls[1][0], 'same idempotency key');
+    }
+
+    public function test_repeated_unknown_outcomes_park_in_review_and_nothing_releases_or_resends(): void
+    {
+        $p = $this->fake('paid', true, true);
+        [$u, $h] = $this->funded('asha', 1000);
+        $this->ask($h, 600)->assertCreated();
+        $p->lookupAnswer = new \RuntimeException('provider down');
+        for ($i = 0; $i < Withdrawals::MAX_ATTEMPTS + 2; $i++) {
+            Withdrawals::run();
+        }
+        $row = DB::table('wallet_withdrawals')->first();
+        $this->assertSame('review', $row->status);
+        $this->assertSame(400, (int) $u->fresh()->coin_balance, 'coins stay held');
+        $calls = count($p->calls);
+        Withdrawals::run();
+        Withdrawals::run();
+        $this->assertCount($calls, $p->calls, 'review rows are not retried');
+        $this->postJson('/api/v1/wallet/withdrawals/'.$row->public_id.'/cancel', [], $h)->assertStatus(409);
+        $this->assertSame('review', DB::table('wallet_withdrawals')->value('status'));
+        $this->assertSame('review', $this->getJson('/api/v1/wallet/withdrawals', $h)->json('data.0.status'));
+    }
+
+    public function test_operator_resolve_is_review_only_once_and_needs_confirm(): void
+    {
+        $this->fake('paid', true, true);
+        [$u, $h] = $this->funded('asha', 1000);
+        $this->ask($h, 600)->assertCreated();
+        $id = DB::table('wallet_withdrawals')->value('public_id');
+        $this->artisan('wallet:resolve', ['id' => $id, 'outcome' => 'failed', '--confirm' => true])->assertFailed();
+        $this->assertSame(400, (int) $u->fresh()->coin_balance, 'not in review: nothing changed');
+        DB::table('wallet_withdrawals')->update(['status' => 'review']);
+        $this->artisan('wallet:resolve', ['id' => $id, 'outcome' => 'failed'])->assertFailed();
+        $this->assertSame('review', DB::table('wallet_withdrawals')->value('status'), 'no --confirm, no change');
+        $this->artisan('wallet:resolve', ['id' => $id, 'outcome' => 'failed', '--confirm' => true])->assertSuccessful();
+        $this->artisan('wallet:resolve', ['id' => $id, 'outcome' => 'failed', '--confirm' => true])->assertFailed();
+        $this->assertSame(1000, (int) $u->fresh()->coin_balance, 'released exactly once');
+        $this->assertSame(1, DB::table('wallet_entries')->where('kind', 'withdraw_release')->count());
+        $this->assertSame('failed', DB::table('wallet_withdrawals')->value('status'));
+    }
+
+    public function test_paid_cannot_be_resolved_or_reversed(): void
+    {
+        $this->fake('paid');
+        [$u, $h] = $this->funded('asha', 1000);
+        $this->ask($h, 600)->assertCreated();
+        Withdrawals::run();
+        $id = DB::table('wallet_withdrawals')->value('public_id');
+        $this->artisan('wallet:resolve', ['id' => $id, 'outcome' => 'failed', '--confirm' => true])->assertFailed();
         $this->assertSame('paid', DB::table('wallet_withdrawals')->value('status'));
         $this->assertSame(400, (int) $u->fresh()->coin_balance);
     }

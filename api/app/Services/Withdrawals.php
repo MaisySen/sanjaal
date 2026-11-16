@@ -14,12 +14,17 @@ use InvalidArgumentException;
  *  - request: coins leave the balance at once (kind withdraw_hold), one row per (user, client_id) so a retry returns the same row.
  *  - cancel: only while "requested". The hold is released once (reference wd:<id>:release).
  *  - payout run: requested -> processing -> paid, or failed with the hold released once.
+ *  - the provider idempotency key is the withdrawal public_id. attempts is persisted before each call; after a call
+ *    that may have gone out, the next run asks lookup() first and only calls pay() again when the provider has no record.
+ *  - after MAX_ATTEMPTS unresolved tries the row moves to "review": coins stay held, nothing is retried or released
+ *    until an operator resolves it with wallet:resolve.
  *  - paid and failed are final. A paid request is never silently reversed here.
  */
 class Withdrawals
 {
     public const MIN = 500;
     public const MAX = 100000;
+    public const MAX_ATTEMPTS = 5;
 
     public static function enabled(): bool
     {
@@ -89,14 +94,21 @@ class Withdrawals
         }
         $ids = DB::table('wallet_withdrawals')->whereIn('status', ['requested', 'processing'])->orderBy('id')->limit($limit)->pluck('public_id');
         foreach ($ids as $id) {
+            // Claim, and persist the attempt BEFORE any provider call so a crash cannot hide that one may have gone out.
             $w = DB::transaction(function () use ($id, $provider) {
                 $w = DB::table('wallet_withdrawals')->where('public_id', $id)->lockForUpdate()->first();
                 if (! $w || ! in_array($w->status, ['requested', 'processing'], true)) {
                     return null;
                 }
-                if ($w->status === 'requested') {
-                    DB::table('wallet_withdrawals')->where('id', $w->id)->update(['status' => 'processing', 'provider' => $provider->name(), 'updated_at' => now()]);
+                if ($w->status === 'processing' && (int) $w->attempts >= self::MAX_ATTEMPTS) {
+                    DB::table('wallet_withdrawals')->where('id', $w->id)->update(['status' => 'review', 'review_note' => 'Outcome unknown after repeated tries.', 'updated_at' => now()]);
+
+                    return null;
                 }
+                DB::table('wallet_withdrawals')->where('id', $w->id)->update([
+                    'status' => 'processing', 'provider' => $w->provider ?: $provider->name(),
+                    'attempts' => (int) $w->attempts + 1, 'last_attempt_at' => now(), 'updated_at' => now(),
+                ]);
 
                 return $w;
             });
@@ -105,7 +117,15 @@ class Withdrawals
                 continue;
             }
             try {
-                $r = $provider->pay($id, (int) $w->coins);
+                $r = null;
+                if ((int) $w->attempts > 0) {
+                    // An earlier call may have reached the provider: look it up under the same key, do not re-send blindly.
+                    $r = $provider->lookup($id);
+                    if (($r['status'] ?? 'unknown') === 'unknown') {
+                        $r = null;
+                    }
+                }
+                $r ??= $provider->pay($id, (int) $w->coins);
             } catch (\Throwable) {
                 $out['pending']++;
                 continue;
@@ -130,6 +150,32 @@ class Withdrawals
         }
 
         return $out;
+    }
+
+    /**
+     * Operator-only (artisan, never an HTTP route): settle a row in "review" after checking the provider's own records.
+     * Only review -> paid or review -> failed. Paid and failed rows are final and refuse.
+     */
+    public static function resolveReview(string $publicId, string $outcome, ?string $ref = null): bool
+    {
+        abort_unless(in_array($outcome, ['paid', 'failed'], true), 422);
+
+        return DB::transaction(function () use ($publicId, $outcome, $ref) {
+            $w0 = DB::table('wallet_withdrawals')->where('public_id', $publicId)->first();
+            abort_unless($w0, 404);
+            User::whereKey($w0->user_id)->lockForUpdate()->first();
+            $w = DB::table('wallet_withdrawals')->where('public_id', $publicId)->lockForUpdate()->first();
+            if ($w->status !== 'review') {
+                return false;
+            }
+            if ($outcome === 'paid') {
+                DB::table('wallet_withdrawals')->where('id', $w->id)->update(['status' => 'paid', 'provider_ref' => $ref ?: $w->provider_ref, 'review_note' => null, 'updated_at' => now()]);
+            } else {
+                self::finish($w, 'failed', 'Payout did not go through.');
+            }
+
+            return true;
+        });
     }
 
     /** Final state for canceled/failed: release the hold once. The unique ledger reference makes a repeat a no-op. */

@@ -173,6 +173,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   String _wdStatus(String s) => switch (s) {
         'requested' => 'Requested',
         'processing' => 'Processing',
+        'review' => 'Under review',
         'paid' => 'Paid',
         'failed' => 'Failed, coins returned',
         'canceled' => 'Canceled, coins returned',

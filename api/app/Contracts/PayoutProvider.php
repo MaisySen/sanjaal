@@ -16,4 +16,11 @@ interface PayoutProvider
 
     /** @return array{status: 'paid'|'pending'|'failed', ref?: string, reason?: string} */
     public function pay(string $withdrawalId, int $coins): array;
+
+    /**
+     * Ask the rail what happened to a payment sent with this idempotency key, without sending anything.
+     * 'unknown' must mean the provider positively has no record of the key. If it cannot tell (timeout, error), throw.
+     * @return array{status: 'paid'|'pending'|'failed'|'unknown', ref?: string, reason?: string}
+     */
+    public function lookup(string $withdrawalId): array;
 }

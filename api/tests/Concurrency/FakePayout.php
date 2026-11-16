@@ -12,4 +12,6 @@ class FakePayout implements PayoutProvider
     public function enabled(): bool { return true; }
 
     public function pay(string $withdrawalId, int $coins): array { return ['status' => 'paid', 'ref' => 'FAKE']; }
+
+    public function lookup(string $withdrawalId): array { return ['status' => 'unknown']; }
 }

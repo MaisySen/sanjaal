@@ -21,4 +21,9 @@ class DisabledPayout implements PayoutProvider
     {
         return ['status' => 'failed', 'reason' => 'No payout provider is configured.'];
     }
+
+    public function lookup(string $withdrawalId): array
+    {
+        return ['status' => 'unknown'];
+    }
 }

@@ -96,6 +96,9 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Could not refresh.': 'रिफ्रेस हुन सकेन।',
+  'Nothing yet': 'अहिलेसम्म केही छैन',
+  'Likes, comments and new followers show up here.': 'लाइक, टिप्पणी र नयाँ फलोअरहरू यहाँ देखिन्छन्।',
   'Photo': 'तस्बिर',
   'Photos': 'तस्बिरहरू',
   'Open full screen': 'पूरा स्क्रिनमा खोल्नुहोस्',

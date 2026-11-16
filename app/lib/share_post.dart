@@ -27,6 +27,7 @@ class _ShareSheetState extends State<_ShareSheet> {
   List<Map<String, dynamic>>? chats;
   String? error;
   String? sending;
+  bool loading = false;
 
   @override
   void initState() {
@@ -35,11 +36,15 @@ class _ShareSheetState extends State<_ShareSheet> {
   }
 
   Future<void> _load() async {
+    if (loading) return;
+    setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/conversations') as Map<String, dynamic>;
       if (mounted) setState(() => chats = (j['data'] as List).cast<Map<String, dynamic>>());
     } on ApiError catch (e) {
       if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -69,7 +74,11 @@ class _ShareSheetState extends State<_ShareSheet> {
         constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.7),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 8), child: Align(alignment: Alignment.centerLeft, child: Text(t_('Share to chat'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)))),
-          if (error != null) Padding(padding: const EdgeInsets.all(20), child: Text(error!))
+          if (error != null) Flexible(child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(error!, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            OutlinedButton(onPressed: _load, child: Text(t_('Try again'))),
+          ]))))
           else if (list == null) const Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())
           else if (list.isEmpty) Padding(padding: const EdgeInsets.all(24), child: Text(t_('You have no chats yet. Start one from Chats.')))
           else

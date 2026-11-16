@@ -144,3 +144,9 @@ Full local Flutter0986e70 candidate regression completed in separate bounded run
 ### Connected photo gallery candidate
 
 One swipeable multi-photo treatment replaces the fixed-count immersive cover and disconnected detail tiles. Full-screen starts at the selected image, supports page/zoom and explicit close, and retains per-request authorization for single private-photo callers. Error/retry, position and current-post bindings are covered by 13 new offline tests; Home/detail and viewer fixture pixels were reviewed at 320x640 and 1.8x text, light/dark. Full non-render Flutter suite: 107 passed, one intentional live-test skip. Analyzer: 22 info notices, zero errors/warnings. Device gestures, codec behavior and live downloads remain unverified. No release/deployment claim.
+
+### Recovery continuity and native surface follow-up
+
+Notification refresh errors now retain current items with retry; empty lists can refresh; concurrent refresh reads are guarded. Failed share destinations can reload in place without sending. Four additional offline recovery tests pass, with 320x640/1.8x fixture pixels reviewed. Latest complete local Flutter batches: 111 non-render + 177 screen renders + 4 base renders = 292 passed, one intentional live-test skip. Analyzer: 22 info notices, no errors/warnings.
+
+CI43927332530: API/app/unsigned-iOS jobs passed. Emulator failed the preserved real-IME inset assertion: Option2 was actually focused, but keyboard visibility was false and inset zero. Next diagnostic runs the same native gate before screenshot conversion ever changes the Android surface. This is not keyboard proof or a release approval. Live API remains the isolated v35 security correction; no new APK was published.

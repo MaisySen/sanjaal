@@ -1,5 +1,4 @@
 // Offline photo navigation/layout. Not evidence about device codecs or production downloads.
-import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';

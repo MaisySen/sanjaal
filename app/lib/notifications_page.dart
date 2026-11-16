@@ -15,6 +15,7 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage> {
   List<Map<String, dynamic>>? items;
   String? error;
+  bool loading = false;
 
   @override
   void initState() {
@@ -23,11 +24,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> _load() async {
+    if (loading) return;
+    setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/notifications') as Map<String, dynamic>;
       if (mounted) setState(() { items = (j['data'] as List).cast<Map<String, dynamic>>(); error = null; });
     } on ApiError catch (e) {
       if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -37,13 +42,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
     if (items == null && error == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (items == null) {
-      body = EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: Text(t_('Try again'))));
-    } else if (items!.isEmpty) {
-      body = const EmptyState(icon: Ph.notifications_none, title: 'Nothing yet', hint: 'Likes, comments and new followers show up here.');
+      body = EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!, action: OutlinedButton(onPressed: _load, child: Text(t_('Try again'))));
     } else {
       body = RefreshIndicator(
         onRefresh: _load,
-        child: ListView.separated(
+        child: items!.isEmpty ? CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Ph.notifications_none, title: t_('Nothing yet'), hint: t_('Likes, comments and new followers show up here.')))],
+        ) : ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: items!.length,
           separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (context, i) {
@@ -66,6 +73,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
           },
         ),
       );
+    }
+    if (items != null && error != null) {
+      body = Column(children: [
+        Material(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
+            Expanded(child: Text(t_('Could not refresh.'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+            TextButton(onPressed: loading ? null : _load, child: Text(t_('Try again'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface))),
+          ]),
+        )),
+        Expanded(child: body),
+      ]);
     }
     return Scaffold(appBar: AppBar(title: Text(t_('Notifications'))), body: body);
   }

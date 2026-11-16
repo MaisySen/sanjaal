@@ -48,11 +48,18 @@ void main() {
     await p.setString('refresh_token', 'local-e2e');
     app.main();
     await _settle(tester, 24);
-    await binding.convertFlutterSurfaceToImage();
-    await tester.pump();
     expect(find.textContaining('Sunrise over Phewa'), findsWidgets);
-    await binding.takeScreenshot('flow1_feed');
 
+    // The native-input gate runs before screenshot conversion ever swaps the
+    // FlutterView surface. Restoring a previously swapped view can retain focus
+    // without making Android's input client perceptible.
+    var screenshotConverted = false;
+    Future<void> screenshotsReady() async {
+      if (screenshotConverted) return;
+      await binding.convertFlutterSurfaceToImage();
+      screenshotConverted = true;
+      await tester.pump();
+    }
     final failed = <String>[];
     Future<void> step(String name, Future<void> Function() f) async {
       // ignore: avoid_print
@@ -68,6 +75,7 @@ void main() {
         // ignore: avoid_print
         print('Error-diag step $name: ${e.toString().split('\n').take(3).join(' | ')}');
         try {
+          await screenshotsReady();
           await binding.takeScreenshot('fail_$name');
         } catch (_) {}
         // Return to the tabs so later steps are not hidden behind a pushed page.
@@ -80,30 +88,6 @@ void main() {
       }
     }
 
-    await step('s0', () async {
-      await _until(tester, find.byType(ReactionButton));
-      await tester.tap(find.byType(ReactionButton).first);
-      await _settle(tester, 4);
-      expect(find.text('❤️'), findsWidgets);
-      await binding.takeScreenshot('flow2_after_like');
-    });
-    await step('s1', () async {
-      await tester.tap(find.byTooltip('Post'));
-      await _until(tester, find.text('Continue'));
-      await tester.tap(find.text('Post').last);
-      await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
-      await _until(tester, find.byType(TextField));
-      await _type(tester, find.byType(TextField), 'Posted from the emulator run #sanjaal');
-      await tester.pump();
-      await binding.takeScreenshot('flow3_compose');
-      await tester.tap(find.widgetWithText(FilledButton, 'Post'));
-      await _settle(tester, 8);
-      // Returning from publish must reveal the post without a manual refresh.
-      await _until(tester, find.textContaining('Posted from the emulator run'));
-      expect(find.textContaining('Posted from the emulator run'), findsWidgets);
-      await binding.takeScreenshot('flow4_post_in_feed');
-    });
     await step('poll', () async {
       await tester.tap(find.byTooltip('Post'));
       await _until(tester, find.text('Continue'));
@@ -115,16 +99,10 @@ void main() {
       await tester.tap(find.text('Poll'));
       await _settle(tester, 2);
       await tester.scrollUntilVisible(find.text('Option 2'), 120, scrollable: find.byType(Scrollable).first);
-      // Screenshot conversion is expensive and changes the Android surface.
-      // Restore the normal surface before testing actual Android input/IME.
-      const screenshotChannel = MethodChannel('plugins.flutter.io/integration_test');
-      await screenshotChannel.invokeMethod<void>('revertFlutterImage');
-      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 800)));
-      await tester.pump();
       // Use a native Android pointer for this gate, not the synthetic text
       // channel. This bridge exists only in the throwaway CI fixture router.
       final field = find.widgetWithText(TextField, 'Option 2');
-      // Re-establish the input client only after restoring the real surface.
+      // Establish the real input client on the untouched Android surface.
       await tester.tap(field);
       await tester.pump();
       await tester.showKeyboard(field);
@@ -159,8 +137,7 @@ void main() {
         binding.shouldPropagateDevicePointerEvents = false;
         // Restore screenshots even when an assertion fails so later checks
         // retain their own evidence instead of cascading surface errors.
-        await screenshotChannel.invokeMethod<void>('convertFlutterSurfaceToImage');
-        await tester.pump();
+        await screenshotsReady();
       }
       await binding.takeScreenshot('flow_poll_native_keyboard');
       await tester.tap(remove);
@@ -185,6 +162,32 @@ void main() {
       await tester.tap(find.text('Remove vote'));
       await _settle(tester, 4);
       expect(find.text('0 votes'), findsOneWidget);
+    });
+    await screenshotsReady();
+    await binding.takeScreenshot('flow1_feed');
+    await step('s0', () async {
+      await _until(tester, find.byType(ReactionButton));
+      await tester.tap(find.byType(ReactionButton).first);
+      await _settle(tester, 4);
+      expect(find.text('❤️'), findsWidgets);
+      await binding.takeScreenshot('flow2_after_like');
+    });
+    await step('s1', () async {
+      await tester.tap(find.byTooltip('Post'));
+      await _until(tester, find.text('Continue'));
+      await tester.tap(find.text('Post').last);
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+      await _until(tester, find.byType(TextField));
+      await _type(tester, find.byType(TextField), 'Posted from the emulator run #sanjaal');
+      await tester.pump();
+      await binding.takeScreenshot('flow3_compose');
+      await tester.tap(find.widgetWithText(FilledButton, 'Post'));
+      await _settle(tester, 8);
+      // Returning from publish must reveal the post without a manual refresh.
+      await _until(tester, find.textContaining('Posted from the emulator run'));
+      expect(find.textContaining('Posted from the emulator run'), findsWidgets);
+      await binding.takeScreenshot('flow4_post_in_feed');
     });
     await step('s2', () async {
       await tester.tap(find.text('Chats'));

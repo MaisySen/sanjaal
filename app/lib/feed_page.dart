@@ -131,6 +131,9 @@ class FeedListState extends State<FeedList> {
       });
     } on ApiError catch (e) {
       if (mounted) setState(() => error = e.message);
+    } catch (_) {
+      // A reply the app could not read must not look like an empty list.
+      if (mounted) setState(() => error = 'Could not load posts. Try again.');
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -153,7 +156,7 @@ class FeedListState extends State<FeedList> {
             if (loading) return const Padding(padding: EdgeInsets.only(top: 80), child: Center(child: CircularProgressIndicator()));
             if (error != null) {
               return EmptyState(
-                icon: Ph.cloud_off,
+                icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline,
                 title: error!,
                 action: OutlinedButton(onPressed: () => load(refresh: true), child: Text(t_('Try again'))),
               );
@@ -614,7 +617,7 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _pick() async {
-    final fs = await ImagePicker().pickMultiImage(maxWidth: 1280, imageQuality: 78, limit: 4);
+    final fs = await guardPick(context, () => ImagePicker().pickMultiImage(maxWidth: 1280, imageQuality: 78, limit: 4)) ?? <XFile>[];
     if (fs.isEmpty) return;
     setState(() {
       images = fs.take(4).toList();
@@ -633,7 +636,7 @@ class _ComposePageState extends State<ComposePage> {
       ),
     );
     if (from == null) return;
-    final f = await ImagePicker().pickVideo(source: from, maxDuration: const Duration(seconds: 60));
+    final f = await guardPick(context, () => ImagePicker().pickVideo(source: from, maxDuration: const Duration(seconds: 60)));
     if (f == null) return;
     if (await f.length() > 25 * 1024 * 1024) {
       if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');
@@ -709,10 +712,9 @@ class _ComposePageState extends State<ComposePage> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(children: [
+            child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
               TextButton.icon(onPressed: busy ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
               TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
-              const Spacer(),
               if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: const Text('Remove media')),
             ]),
           ),

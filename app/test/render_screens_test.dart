@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
+import 'package:sanjaal/ph.dart' show PhIcon, PhData;
 import 'package:sanjaal/call_page.dart' show CallView, CallTile;
 import 'package:sanjaal/chat_pages.dart' show ChatPage, ChatsPage, GroupInfoPage;
 import 'package:sanjaal/notifications_page.dart' show NotificationsPage;
@@ -517,6 +518,33 @@ void main() {
       return http.Response('', 404);
     }));
   });
+
+  for (final mode in ['offline', 'server500', 'garbled']) {
+    testWidgets('feed load failure copy and icon: $mode', (tester) async {
+      await http.runWithClient(() async {
+        SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+        final s = Session();
+        await tester.runAsync(() => s.restore());
+        await tester.pumpWidget(MaterialApp(home: SavedPage(session: s)));
+        for (var i = 0; i < 6; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        bool icon(String n) => find.byWidgetPredicate((w) => w is PhIcon && (w.icon == n || (w.icon is PhData && (w.icon as PhData).name == n))).evaluate().isNotEmpty;
+        final msg = {'offline': 'No connection. Check your internet and try again.', 'server500': 'Server trouble', 'garbled': 'Could not load posts. Try again.'}[mode]!;
+        expect(find.text(msg), findsOneWidget);
+        expect(find.text('Nothing saved yet'), findsNothing, reason: 'a failure must not read as an empty list');
+        expect(icon('cloud-slash'), mode == 'offline');
+        expect(icon('warning-circle'), mode != 'offline');
+        await tester.pumpWidget(const SizedBox());
+      }, () => MockClient((r) async {
+        if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+        if (mode == 'offline') throw http.ClientException('down');
+        if (mode == 'server500') return http.Response(jsonEncode({'message': 'Server trouble'}), 500, headers: {'content-type': 'application/json'});
+        return http.Response('<html>oops</html>', 200, headers: {'content-type': 'application/json'});
+      }));
+    });
+  }
 
   testWidgets('share to chat: tapping a chat sends the post once; nothing is sent before', (tester) async {
     final calls = <String>[];

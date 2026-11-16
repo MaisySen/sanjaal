@@ -36,7 +36,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     if (items == null && error == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (items == null) {
-      body = EmptyState(icon: Ph.cloud_off, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: Text(t_('Try again'))));
+      body = EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!, action: OutlinedButton(onPressed: () { setState(() => error = null); _load(); }, child: Text(t_('Try again'))));
     } else if (items!.isEmpty) {
       body = const EmptyState(icon: Ph.notifications_none, title: 'Nothing yet', hint: 'Likes, comments and new followers show up here.');
     } else {

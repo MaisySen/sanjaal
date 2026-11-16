@@ -81,7 +81,7 @@ class _SearchPageState extends State<SearchPage> {
         ),
       ),
       body: error != null
-          ? EmptyState(icon: Ph.cloud_off, title: error!)
+          ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!)
           : !searched
               ? const EmptyState(icon: Ph.search, title: 'Find people to follow', hint: 'Type a name, a username or a hashtag.')
               : users.isEmpty && tags.isEmpty

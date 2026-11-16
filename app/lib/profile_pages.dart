@@ -268,7 +268,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool busy = false;
 
   Future<void> _avatar() async {
-    final f = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 78);
+    final f = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 78));
     if (f == null) return;
     setState(() => busy = true);
     try {

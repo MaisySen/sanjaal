@@ -462,7 +462,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _attach() async {
-    final x = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78);
+    final x = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78));
     if (x == null || !mounted) return;
     final bytes = await x.readAsBytes();
     await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));

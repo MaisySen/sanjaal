@@ -130,7 +130,7 @@ class _BlockedPageState extends State<BlockedPage> {
     return Scaffold(
       appBar: AppBar(title: Text(t_('Blocked people'))),
       body: list == null
-          ? (error != null ? EmptyState(icon: Ph.cloud_off, title: error!) : const Center(child: CircularProgressIndicator()))
+          ? (error != null ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!) : const Center(child: CircularProgressIndicator()))
           : list!.isEmpty
               ? const EmptyState(icon: Ph.block, title: 'You have not blocked anyone')
               : ListView(children: [

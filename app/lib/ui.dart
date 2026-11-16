@@ -1,5 +1,6 @@
 import 'ph.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,6 +22,25 @@ void showError(BuildContext context, Object e) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(e.toString())));
+}
+
+/// Runs a photo or video pick. Cancelling returns null. A refused camera or photo permission, or a picker that fails,
+/// shows a plain message and returns null instead of throwing.
+Future<T?> guardPick<T>(BuildContext context, Future<T?> Function() pick) async {
+  try {
+    return await pick();
+  } on PlatformException catch (e) {
+    final c = e.code.toLowerCase();
+    if (context.mounted) {
+      showInfo(
+        context,
+        c.contains('camera_access') ? t_('Camera access is off. Turn it on in Settings to take photos or videos.')
+            : c.contains('photo_access') ? t_('Photo access is off. Turn it on in Settings to choose photos or videos.')
+            : t_('Could not open the camera or photos. Try again.'),
+      );
+    }
+    return null;
+  }
 }
 
 void showInfo(BuildContext context, String m) {

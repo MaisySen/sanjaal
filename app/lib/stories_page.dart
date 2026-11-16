@@ -321,9 +321,9 @@ Future<bool> addStory(BuildContext context, Session session) async {
     if (source == null) return false;
     final from = source.endsWith('_cam') ? ImageSource.camera : ImageSource.gallery;
     final isVideo = source.startsWith('video');
-    final x = !isVideo
-        ? await picker.pickImage(source: from, maxWidth: 1280, imageQuality: 78)
-        : await picker.pickVideo(source: from, maxDuration: const Duration(seconds: 20));
+    final x = await guardPick(context, () => !isVideo
+        ? picker.pickImage(source: from, maxWidth: 1280, imageQuality: 78)
+        : picker.pickVideo(source: from, maxDuration: const Duration(seconds: 20)));
     if (x == null || !context.mounted) return false;
     final bytes = await x.readAsBytes();
     if (!context.mounted) return false;

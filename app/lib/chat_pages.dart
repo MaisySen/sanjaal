@@ -761,7 +761,6 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final session = widget.session;
-    final convo = widget.convo;
     return Scaffold(
       appBar: AppBar(title: Text(t_('Group info'))),
       body: ListView(children: [

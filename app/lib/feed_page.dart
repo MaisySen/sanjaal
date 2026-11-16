@@ -140,7 +140,6 @@ class FeedListState extends State<FeedList> {
     }
   }
 
-  @override
   final pager = PageController();
 
   Widget _pager() {

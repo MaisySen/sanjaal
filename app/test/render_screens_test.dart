@@ -795,7 +795,6 @@ void main() {
 
   for (final b in [Brightness.light, Brightness.dark]) {
     testWidgets('pager render with a text post at 1.8x text: ${b.name}', (tester) async {
-      final key = GlobalKey();
       await pagerTest(tester, [textPost(1, 'Rehearsal tonight, come early. Bring the madal.'), textPost(2, 'Second')], b: b, scale: 1.8, (page, settle, reqs) async {
         expect(find.textContaining('Rehearsal tonight'), findsOneWidget);
       });

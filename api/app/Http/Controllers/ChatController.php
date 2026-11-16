@@ -152,6 +152,35 @@ class ChatController extends Controller
     }
 
     /** Leave a group. If the owner leaves, the longest standing member becomes owner. */
+    /** Only the group owner renames. The role is read after the lock, like leave(), so a handoff cannot race. */
+    public function rename(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if ($convo->type !== 'group') {
+            return response()->json(['message' => 'Only groups have a name.'], 422);
+        }
+        $data = $request->validate(['title' => ['required', 'string', 'min:1', 'max:80']]);
+        $title = trim(preg_replace('/\s+/u', ' ', $data['title']));
+        if ($title === '') {
+            return response()->json(['message' => 'The group name cannot be empty.', 'errors' => ['title' => ['The group name cannot be empty.']]], 422);
+        }
+        $me = $request->user();
+        $ok = DB::transaction(function () use ($convo, $me, $title) {
+            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            if (! $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists()) {
+                return false;
+            }
+            $convo->forceFill(['title' => $title])->save();
+
+            return true;
+        });
+        if (! $ok) {
+            return response()->json(['message' => 'Only the group owner can rename it.'], 403);
+        }
+
+        return response()->json(['conversation' => $this->present($convo->fresh('members'), $me)]);
+    }
+
     public function leave(Request $request, string $id): JsonResponse
     {
         $convo = $this->authorized($request, $id);

@@ -65,6 +65,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/conversations/{conversation}/messages/{message}/media', [\App\Http\Controllers\MediaController::class, 'chat'])->whereUuid('message');
     Route::post('/conversations/{conversation}/members', [ChatController::class, 'addMembers'])->middleware('throttle:30,1');
     Route::post('/conversations/{conversation}/leave', [ChatController::class, 'leave']);
+    Route::patch('/conversations/{conversation}', [ChatController::class, 'rename'])->middleware('throttle:30,1');
 
     Route::post('/conversations/{conversation}/call-token', [ChatController::class, 'callToken'])->middleware('throttle:30,1');
     Route::get('/notifications/summary', [ChatController::class, 'summary']);

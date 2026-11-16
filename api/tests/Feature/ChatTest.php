@@ -238,6 +238,27 @@ class ChatTest extends TestCase
         $this->assertSame(50, \DB::table('conversation_members')->count());
     }
 
+    public function test_only_the_owner_renames_a_group(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $cid = $this->group($ha, ['bina']);
+
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => '  Dashain   plans '], $ha)->assertOk()->assertJsonPath('conversation.title', 'Dashain plans');
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Mine now'], $hb)->assertForbidden();
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Nope'], $hc)->assertNotFound();
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => '   '], $ha)->assertStatus(422);
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => str_repeat('x', 81)], $ha)->assertStatus(422);
+        $this->assertSame('Dashain plans', \DB::table('conversations')->value('title'));
+        // After the owner leaves, the promoted member can rename.
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $ha)->assertOk();
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Bina runs it'], $hb)->assertOk()->assertJsonPath('conversation.title', 'Bina runs it');
+        // A direct chat has no name to change.
+        $direct = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'chandra'], $hb)->json('conversation.public_id');
+        $this->patchJson("/api/v1/conversations/$direct", ['title' => 'x'], $hb)->assertStatus(422);
+    }
+
     public function test_group_leave_transfers_ownership_and_last_leaver_removes_the_group(): void
     {
         [$a, $ha] = $this->member('asha');

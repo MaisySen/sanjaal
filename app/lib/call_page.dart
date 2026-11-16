@@ -110,9 +110,13 @@ class _CallPageState extends State<CallPage> {
           SizedBox(height: 120, width: 90, child: VideoTrackRenderer(_videoOf(me)!)),
         SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            padding: const EdgeInsets.fromLTRB(32, 8, 32, 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(40)),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
               IconButton.filledTonal(
+                style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
                 onPressed: failed ? null : () async {
                   muted = !muted;
                   await room.localParticipant?.setMicrophoneEnabled(!muted);
@@ -122,6 +126,7 @@ class _CallPageState extends State<CallPage> {
               ),
               if (widget.video)
                 IconButton.filledTonal(
+                style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
                   onPressed: failed ? null : () async {
                     camOn = !camOn;
                     await room.localParticipant?.setCameraEnabled(camOn);
@@ -132,9 +137,10 @@ class _CallPageState extends State<CallPage> {
               IconButton.filled(
                 style: IconButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const PhIcon('phone-x-fill'),
+                icon: const PhIcon('phone-x-fill', color: Colors.white),
               ),
             ]),
+            ),
           ),
         ),
       ]),

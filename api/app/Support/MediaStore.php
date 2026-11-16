@@ -65,7 +65,7 @@ class MediaStore
     {
         $auth = self::account();
 
-        return $auth['downloadUrl'].'/file/'.config('services.b2.bucket').'/'.$publicId.'?Authorization='.urlencode(self::downloadToken());
+        return $auth['downloadUrl'].'/file/'.config('services.b2.bucket').'/'.$publicId.'?Authorization='.urlencode(self::downloadToken($publicId));
     }
 
     private static function account(): array
@@ -79,13 +79,19 @@ class MediaStore
         });
     }
 
-    private static function downloadToken(): string
+    private static function downloadToken(string $publicId): string
     {
-        return Cache::remember('b2.download', 60 * 60 * 24 * 6, function () {
+        // All object names are generated UUIDs. A full UUID prefix cannot authorize
+        // a different object. Never hand clients a token for the entire bucket.
+        if (! \Illuminate\Support\Str::isUuid($publicId)) {
+            throw new \InvalidArgumentException('Invalid media identifier.');
+        }
+
+        return Cache::remember('b2.object-download.'.$publicId, 50 * 60, function () use ($publicId) {
             $a = self::account();
             $r = Http::withHeaders(['Authorization' => $a['token']])->timeout(15)
                 ->post($a['apiUrl'].'/b2api/v3/b2_get_download_authorization', [
-                    'bucketId' => config('services.b2.bucket_id'), 'fileNamePrefix' => '', 'validDurationInSeconds' => 60 * 60 * 24 * 7,
+                    'bucketId' => config('services.b2.bucket_id'), 'fileNamePrefix' => $publicId, 'validDurationInSeconds' => 60 * 60,
                 ])->throw()->json();
 
             return $r['authorizationToken'];

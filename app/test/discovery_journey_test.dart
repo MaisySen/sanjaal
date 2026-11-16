@@ -36,6 +36,7 @@ Future<void> review(WidgetTester t, String name) async {
     // Root boundary wraps the complete route and any modal sheet.
     final image = await boundary!.toImage(pixelRatio: 2);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    Directory('test/renders').createSync(recursive: true);
     File('test/renders/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
   });
 }

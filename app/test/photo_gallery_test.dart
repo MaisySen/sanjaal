@@ -90,6 +90,7 @@ void main() {
         await t.runAsync(() async {
           final image = await (key.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage(pixelRatio: 2);
           final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          Directory('test/renders').createSync(recursive: true);
           File('test/renders/gallery_post_${immersive ? 'home' : 'detail'}_${brightness.name}.png').writeAsBytesSync(data!.buffer.asUint8List());
         });
       });
@@ -111,6 +112,7 @@ void main() {
         await t.runAsync(() async {
           final image = await boundary.toImage(pixelRatio: 2);
           final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          Directory('test/renders').createSync(recursive: true);
           Directory('test/renders').createSync(recursive: true);
           File('test/renders/gallery_${b.name}_${failure ? 'error' : 'photo'}.png').writeAsBytesSync(data!.buffer.asUint8List());
         });

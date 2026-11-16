@@ -1,4 +1,7 @@
 import 'ph.dart';
+import 'draft_exit_guard.dart';
+import 'dart:io';
+import 'dart:typed_data';
 import 'media_visibility.dart';
 import 'dart:async';
 
@@ -335,7 +338,7 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
   }
 }
 
-/// Picks a photo or video and posts it as a story. Returns true when it was posted.
+/// Picks a photo or video, opens review, and returns true only after explicit sharing.
 Future<bool> addStory(BuildContext context, Session session) async {
     final picker = ImagePicker();
     final source = await showModalBottomSheet<String>(
@@ -349,22 +352,100 @@ Future<bool> addStory(BuildContext context, Session session) async {
         ]),
       ),
     );
-    if (source == null) return false;
+    if (source == null || !context.mounted) return false;
     final from = source.endsWith('_cam') ? ImageSource.camera : ImageSource.gallery;
     final isVideo = source.startsWith('video');
     final x = await guardPick(context, () => !isVideo
         ? picker.pickImage(source: from, maxWidth: 1280, imageQuality: 78)
         : picker.pickVideo(source: from, maxDuration: const Duration(seconds: 20)));
     if (x == null || !context.mounted) return false;
-    final bytes = await x.readAsBytes();
-    if (!context.mounted) return false;
+    final result = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => StoryComposePage(session: session, file: x, isVideo: isVideo)));
+    return result == true;
+}
+
+/// Picking is not publication. Keep the selected file and caption until the
+/// member explicitly shares or discards, including after an upload error.
+class StoryComposePage extends StatefulWidget {
+  const StoryComposePage({super.key, required this.session, required this.file, required this.isVideo});
+  final Session session;
+  final XFile file;
+  final bool isVideo;
+  @override
+  State<StoryComposePage> createState() => _StoryComposePageState();
+}
+
+class _StoryComposePageState extends State<StoryComposePage> {
+  final caption = TextEditingController();
+  late final Future<Uint8List> bytes = widget.file.readAsBytes();
+  bool busy = false;
+  String? error;
+  @override
+  void dispose() { caption.dispose(); super.dispose(); }
+
+  Future<void> share() async {
+    if (busy) return;
+    setState(() { busy = true; error = null; });
     try {
-      showInfo(context, t_('Posting your story...'));
-      await session.upload('/stories', file: UploadFile(bytes, mimeFor(x.name, video: isVideo), x.name));
-      return true;
+      final data = await bytes;
+      if (data.length > 25 * 1024 * 1024) throw ApiError(t_('That file is over 25 MB. Choose a smaller one.'));
+      await widget.session.upload('/stories', fields: {'caption': caption.text.trim()}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name));
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (context.mounted) showError(context, e);
-      return false;
+      if (mounted) setState(() { busy = false; error = e.toString(); });
     }
   }
 
+  @override
+  Widget build(BuildContext context) => DraftExitGuard(hasChanges: true, busy: busy, child: Scaffold(
+    appBar: AppBar(title: Text(t_('Your story'))),
+    body: SafeArea(top: false, child: Column(children: [
+      Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
+        Text(t_('Preview'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(t_('Disappears after 24 hours'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 16),
+        ClipRRect(borderRadius: BorderRadius.circular(16), child: ColoredBox(color: Colors.black, child: SizedBox(height: 280, child: widget.isVideo
+          ? _StoryVideoPreview(file: widget.file)
+          : FutureBuilder<Uint8List>(future: bytes, builder: (_, value) => value.hasData
+            ? Image.memory(value.data!, fit: BoxFit.contain, errorBuilder: (_, error, stack) => Center(child: Text(t_('Photo preview unavailable'), style: const TextStyle(color: Colors.white))))
+            : value.hasError ? Center(child: Text(t_('File could not be read'), style: const TextStyle(color: Colors.white))) : const Center(child: CircularProgressIndicator()))))),
+        const SizedBox(height: 16),
+        TextField(controller: caption, enabled: !busy, maxLength: 200, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: t_('Caption (optional)'))),
+      ])),
+      if (error != null) Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : share,
+        icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt', size: 20),
+        label: Text(t_(busy ? 'Sharing...' : error != null ? 'Try again' : 'Share story'))))),
+    ])),
+  ));
+}
+
+class _StoryVideoPreview extends StatefulWidget {
+  const _StoryVideoPreview({required this.file});
+  final XFile file;
+  @override
+  State<_StoryVideoPreview> createState() => _StoryVideoPreviewState();
+}
+class _StoryVideoPreviewState extends State<_StoryVideoPreview> with MediaVisibility<_StoryVideoPreview> {
+  late final controller = VideoPlayerController.file(File(widget.file.path));
+  bool ready = false;
+  bool failed = false;
+  @override
+  void initState() {
+    super.initState();
+    controller.initialize().then((_) { if (mounted) setState(() => ready = true); }).catchError((Object e) { if (mounted) setState(() => failed = true); });
+    controller.addListener(changed);
+  }
+  void changed() { if (mounted) setState(() {}); }
+  @override
+  void mediaVisibilityChanged(bool visible) { if (!visible && ready) controller.pause(); }
+  @override
+  void dispose() { controller.removeListener(changed); controller.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => failed ? Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(t_('Video preview unavailable. Your video is still selected.'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white))))
+    : !ready ? const Center(child: CircularProgressIndicator())
+    : Center(child: AspectRatio(aspectRatio: controller.value.aspectRatio, child: Stack(alignment: Alignment.center, children: [
+      VideoPlayer(controller),
+      IconButton(tooltip: t_(controller.value.isPlaying ? 'Pause' : 'Play'), onPressed: () { if (mediaVisible) controller.value.isPlaying ? controller.pause() : controller.play(); }, icon: PhIcon(controller.value.isPlaying ? 'pause-circle' : 'play-circle', color: Colors.white, size: 44)),
+    ])));
+}

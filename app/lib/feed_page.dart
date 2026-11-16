@@ -1,5 +1,6 @@
 import 'ph.dart';
 import 'photo_gallery.dart';
+import 'draft_exit_guard.dart';
 import 'poll_card.dart';
 import 'media_visibility.dart';
 import 'package:image_picker/image_picker.dart';
@@ -733,7 +734,7 @@ class _ComposePageState extends State<ComposePage> {
 
   Future<void> _pick() async {
     final fs = await guardPick(context, () => ImagePicker().pickMultiImage(maxWidth: 1280, imageQuality: 78, limit: 4)) ?? <XFile>[];
-    if (fs.isEmpty) return;
+    if (fs.isEmpty || !mounted) return;
     setState(() {
       images = fs.take(4).toList();
       video = null;
@@ -750,13 +751,14 @@ class _ComposePageState extends State<ComposePage> {
         ]),
       ),
     );
-    if (from == null) return;
+    if (from == null || !mounted) return;
     final f = await guardPick(context, () => ImagePicker().pickVideo(source: from, maxDuration: const Duration(seconds: 60)));
-    if (f == null) return;
+    if (f == null || !mounted) return;
     if (await f.length() > 25 * 1024 * 1024) {
       if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');
       return;
     }
+    if (!mounted) return;
     setState(() {
       video = f;
       images = [];
@@ -793,7 +795,10 @@ class _ComposePageState extends State<ComposePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return DraftExitGuard(
+      hasChanges: text.text.trim().isNotEmpty || images.isNotEmpty || video != null || pollOptions != null,
+      busy: busy,
+      child: Scaffold(
       appBar: AppBar(title: Text(t_('New post')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
@@ -807,7 +812,7 @@ class _ComposePageState extends State<ComposePage> {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Avatar(user: widget.session.user),
             const SizedBox(width: 12),
-            Expanded(child: TextField(controller: text, autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
+            Expanded(child: TextField(controller: text, enabled: !busy, onChanged: (_) => setState(() {}), autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
           ]),
           if (pollOptions != null) ...[
             for (var i = 0; i < pollOptions!.length; i++) Padding(
@@ -853,7 +858,7 @@ class _ComposePageState extends State<ComposePage> {
           ),
         ),
       ]),
-    );
+    ));
   }
 }
 

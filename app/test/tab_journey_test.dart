@@ -242,6 +242,10 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('Choose a photo'));
       await flush(t);
+      expect(writes, 0, reason: 'selection must not publish before review');
+      expect(find.byType(StoryComposePage), findsOneWidget);
+      await t.tap(find.text('Share story'));
+      await flush(t);
       await t.pump(const Duration(milliseconds: 400));
       expect(writes, 1);
       expect(storyReads, 2);

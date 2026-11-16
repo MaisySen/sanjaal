@@ -2,6 +2,8 @@
 // microphone, camera or live delivery is exercised.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -77,6 +79,23 @@ void main() {
   late VideoPlayerPlatform old;
   setUp(() { old = VideoPlayerPlatform.instance; video = _Video(); VideoPlayerPlatform.instance = video; });
   tearDown(() { VideoPlayerPlatform.instance = old; });
+  testWidgets('local story preview waits for play, pauses in background and stays paused on resume', (t) async {
+    await t.pumpWidget(app(StoryComposePage(session: Session(), file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true)));
+    await flush(t); expect(video.playing[0], isFalse);
+    await t.tap(find.byTooltip('Play')); await flush(t); expect(video.playing[0], isTrue);
+    background(t); await flush(t); expect(video.playing[0], isFalse);
+    foreground(t); await flush(t); expect(video.playing[0], isFalse);
+    await t.pumpWidget(const SizedBox()); await flush(t); expect(video.calls, contains('dispose:0')); expect(t.takeException(), isNull);
+  });
+  testWidgets('local story preview pauses when another route covers it', (t) async {
+    final nav = GlobalKey<NavigatorState>();
+    await t.pumpWidget(app(StoryComposePage(session: Session(), file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true), nav: nav));
+    await flush(t); await t.tap(find.byTooltip('Play')); await flush(t); expect(video.playing[0], isTrue);
+    nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('Cover'))));
+    await flush(t); expect(video.playing[0], isFalse);
+    nav.currentState!.pop(); await flush(t); expect(video.playing[0], isFalse);
+    await t.pumpWidget(const SizedBox()); await flush(t); expect(t.takeException(), isNull);
+  });
   for (final type in ['reel', 'feed']) {
     testWidgets('$type pauses under a pushed route and does not play while covered', (t) async {
       final nav = GlobalKey<NavigatorState>();

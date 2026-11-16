@@ -96,6 +96,21 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Disappears after 24 hours': '२४ घण्टापछि हराउँछ',
+  'Preview': 'पूर्वावलोकन',
+  'Your story': 'तपाईंको स्टोरी',
+  'Caption (optional)': 'क्याप्सन (ऐच्छिक)',
+  'Share story': 'स्टोरी साझा गर्नुहोस्',
+  'Sharing...': 'साझा गर्दै...',
+  'Discard this draft?': 'यो मस्यौदा हटाउने?',
+  'Leaving will remove this draft from this screen.': 'यहाँबाट निस्कँदा यो मस्यौदा यस स्क्रिनबाट हट्नेछ।',
+  'Keep editing': 'सम्पादन जारी राख्नुहोस्',
+  'Discard': 'हटाउनुहोस्',
+  'Your upload is still in progress.': 'तपाईंको अपलोड जारी छ।',
+  'Photo preview unavailable': 'तस्बिरको पूर्वावलोकन उपलब्ध छैन',
+  'File could not be read': 'फाइल पढ्न सकिएन',
+  'Video preview unavailable. Your video is still selected.': 'भिडियोको पूर्वावलोकन उपलब्ध छैन। तपाईंको भिडियो चयन भएकै छ।',
+  'That file is over 25 MB. Choose a smaller one.': 'यो फाइल २५ एमबीभन्दा ठूलो छ। सानो फाइल छान्नुहोस्।',
   'Could not refresh.': 'रिफ्रेस हुन सकेन।',
   'Nothing yet': 'अहिलेसम्म केही छैन',
   'Likes, comments and new followers show up here.': 'लाइक, टिप्पणी र नयाँ फलोअरहरू यहाँ देखिन्छन्।',

@@ -83,6 +83,12 @@ void main() {
           try {
             await tester.pageBack();
             await tester.pump(const Duration(milliseconds: 500));
+            // A failed creator gate can leave a real unsaved draft. Discard it
+            // explicitly during cleanup, never bypass the production guard.
+            if (find.text('Discard this draft?').evaluate().isNotEmpty) {
+              await tester.tap(find.text('Discard'));
+              await tester.pump(const Duration(milliseconds: 500));
+            }
           } catch (_) {}
         }
       }

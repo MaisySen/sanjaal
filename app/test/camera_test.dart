@@ -1,5 +1,5 @@
 // Story and Reel capture: the picker is asked for the camera or the gallery as chosen, cancelling uploads nothing,
-// a refused permission explains itself and uploads nothing, and a returned file is uploaded exactly once.
+// a refused permission explains itself and uploads nothing. A picked story is reviewed and uploads only after Share story.
 // A fake picker platform stands in for the device; no real camera or permission prompt is involved.
 import 'dart:convert';
 import 'package:flutter/services.dart';
@@ -79,6 +79,14 @@ void main() {
           expect(fake.calls, isEmpty, reason: 'nothing is requested before a choice');
           await tester.tap(find.text(e.key));
           await tester.pump();
+          if (mode == _Do.give) {
+            await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+            await tester.pumpAndSettle();
+            expect(find.byType(StoryComposePage), findsOneWidget);
+            expect(posts, isEmpty, reason: 'picking a story alone never uploads');
+            await tester.enterText(find.byType(TextField), 'Caption from review');
+            await tester.tap(find.text('Share story'));
+          }
           late bool ok;
           await tester.runAsync(() async => ok = await done!);
           await tester.pump();
@@ -88,6 +96,7 @@ void main() {
           if (mode == _Do.give) {
             final isVideo = e.key.contains('video');
             expect(bodies.single, contains(isVideo ? 'video/mp4' : 'image/jpeg'));
+            expect(bodies.single, contains('Caption from review'));
           }
           if (mode == _Do.deny) expect(find.textContaining('Camera access is off'), findsOneWidget);
           if (mode != _Do.deny) expect(find.textContaining('access is off'), findsNothing);

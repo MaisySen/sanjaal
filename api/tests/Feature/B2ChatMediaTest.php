@@ -40,6 +40,7 @@ class B2ChatMediaTest extends TestCase
         $sent = $this->post("/api/v1/conversations/$cid/messages", ['media' => UploadedFile::fake()->image('a.jpg', 30, 30)], $ha)->assertCreated();
         $mid = $sent->json('message.public_id');
         $rawId = DB::table('messages')->where('public_id', $mid)->value('media_id');
+        DB::table('media_blobs')->where('public_id', $rawId)->update(['storage' => 'b2', 'data' => '']);
         $this->assertSame('b2', DB::table('media_blobs')->where('public_id', $rawId)->value('storage'));
         $this->assertSame('', DB::table('media_blobs')->where('public_id', $rawId)->value('data'), 'no bytes kept in the database');
 
@@ -77,8 +78,25 @@ class B2ChatMediaTest extends TestCase
         $this->member('bina');
         $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->assertCreated()->json('conversation.public_id');
         $mid = $this->post("/api/v1/conversations/$cid/messages", ['media' => UploadedFile::fake()->image('a.jpg', 30, 30)], $ha)->assertCreated()->json('message.public_id');
+        $rawId = DB::table('messages')->where('public_id', $mid)->value('media_id');
+        DB::table('media_blobs')->where('public_id', $rawId)->update(['storage' => 'b2', 'data' => '']);
         $r = $this->get("/api/v1/conversations/$cid/messages/$mid/media", $ha)->assertNotFound();
         $this->assertStringNotContainsString('BUCKET-WIDE-SECRET', $r->getContent());
         $this->assertFalse($r->headers->has('Location'));
     }
+    public function test_new_private_upload_never_enters_bucket_even_when_b2_enabled(): void
+    {
+        $this->fakeB2();
+        [$a, $ha] = $this->member('asha');
+        $this->member('bina');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->assertCreated()->json('conversation.public_id');
+        $mid = $this->post("/api/v1/conversations/$cid/messages", ['media' => UploadedFile::fake()->image('a.jpg', 30, 30)], $ha)->assertCreated()->json('message.public_id');
+        $rawId = DB::table('messages')->where('public_id', $mid)->value('media_id');
+        $this->assertSame('db', DB::table('media_blobs')->where('public_id', $rawId)->value('storage'));
+        $this->assertNotEmpty(DB::table('media_blobs')->where('public_id', $rawId)->value('data'));
+        Http::assertNothingSent();
+        $this->get("/api/v1/media/$rawId")->assertNotFound();
+        $this->get("/api/v1/conversations/$cid/messages/$mid/media", $ha)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+    }
+
 }

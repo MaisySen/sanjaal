@@ -19,11 +19,14 @@ class MediaStore
     }
 
     /** Save bytes under a public id. Returns the id. */
-    public static function put(string $publicId, string $mime, string $bytes): string
+    public static function put(string $publicId, string $mime, string $bytes, bool $private = false): string
     {
+        // Private attachments stay behind the authenticated DB-media endpoint.
+        // Previously issued bucket-wide B2 download tokens may still be valid,
+        // so object-scoped NEW tokens alone cannot protect NEW private B2 files.
         $storage = 'db';
         $data = '';
-        if (self::enabled()) {
+        if (! $private && self::enabled()) {
             self::upload($publicId, $mime, $bytes);
             $storage = 'b2';
         } else {
@@ -37,9 +40,9 @@ class MediaStore
         return $publicId;
     }
 
-    public static function putFile(string $publicId, \Illuminate\Http\UploadedFile $file): string
+    public static function putFile(string $publicId, \Illuminate\Http\UploadedFile $file, bool $private = false): string
     {
-        return self::put($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()));
+        return self::put($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()), $private);
     }
 
     /** Remove rows and, for B2 rows, the stored file. Failures to delete remote files never block the request. */

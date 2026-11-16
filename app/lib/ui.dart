@@ -96,6 +96,25 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Comment posted.': 'टिप्पणी पोस्ट भयो।',
+  'Original comment removed. Choose another reply or cancel.': 'पहिलेको टिप्पणी हटाइएको छ। अर्को टिप्पणी छान्नुहोस् वा जवाफ रद्द गर्नुहोस्।',
+  'Your comment is still updating.': 'तपाईंको टिप्पणी अद्यावधिक हुँदैछ।',
+  'Comments could not be loaded.': 'टिप्पणीहरू लोड हुन सकेनन्।',
+  'This comment may already be posted.': 'यो टिप्पणी पोस्ट भइसकेको हुन सक्छ।',
+  'Check comments': 'टिप्पणी जाँच्नुहोस्',
+  'Write another comment?': 'अर्को टिप्पणी लेख्ने?',
+  'New comment': 'नयाँ टिप्पणी',
+  'No comments yet': 'अहिलेसम्म टिप्पणी छैन',
+  'Say something kind.': 'केही राम्रो कुरा भन्नुहोस्।',
+  'Load more comments': 'थप टिप्पणीहरू हेर्नुहोस्',
+  'Refresh comments': 'टिप्पणीहरू पुनः लोड गर्नुहोस्',
+  'Close comments': 'टिप्पणी बन्द गर्नुहोस्',
+  'Replying to': 'जवाफ दिँदै',
+  'Cancel reply': 'जवाफ रद्द गर्नुहोस्',
+  'Add a comment': 'टिप्पणी लेख्नुहोस्',
+  'Send comment': 'टिप्पणी पठाउनुहोस्',
+  'The comment result is unknown.': 'टिप्पणीको नतिजा थाहा भएन।',
+
   'Open original': 'पहिलेको खोल्नुहोस्',
   'Prepare a new post': 'नयाँ पोस्ट तयार गर्नुहोस्',
   'Prepare a new story': 'नयाँ स्टोरी तयार गर्नुहोस्',

@@ -219,4 +219,36 @@ class PostgresRaceTest extends TestCase
         } finally { unlink($file); }
     }
 
+    public function test_parallel_comment_and_thread_delete_cannot_leave_orphan_or_stale_count(): void
+    {
+        $a = $this->user('asha');
+        $this->user('bina');
+        $p = \App\Models\Post::create(['user_id' => $a->id, 'kind' => 'post', 'body' => 'Discussion', 'comments_count' => 1]);
+        $c = $p->comments()->create(['user_id' => $a->id, 'body' => 'Root']);
+        $codes = $this->race([
+            ['asha', 'DELETE', "/api/v1/comments/{$c->public_id}", []],
+            ['bina', 'POST', "/api/v1/posts/{$p->public_id}/comments", ['body' => 'Reply', 'parent_id' => $c->public_id]],
+            ['bina', 'POST', "/api/v1/posts/{$p->public_id}/comments", ['body' => 'Independent root']],
+        ]);
+        $this->assertSame(200, $codes[0]);
+        $this->assertContains($codes[1], [201, 422]);
+        $this->assertSame(201, $codes[2]);
+        $this->assertSame(0, \App\Models\Comment::where('parent_id', $c->id)->count());
+        $this->assertSame(1, \App\Models\Comment::where('post_id', $p->id)->count());
+        $this->assertSame(1, $p->fresh()->comments_count);
+    }
+
+    public function test_parallel_comment_deletes_decrement_count_once(): void
+    {
+        $a = $this->user('asha');
+        $p = \App\Models\Post::create(['user_id' => $a->id, 'kind' => 'post', 'body' => 'Discussion', 'comments_count' => 2]);
+        $c = $p->comments()->create(['user_id' => $a->id, 'body' => 'Root']);
+        $p->comments()->create(['user_id' => $a->id, 'body' => 'Reply', 'parent_id' => $c->id]);
+        $codes = $this->race(array_fill(0, 4, ['asha', 'DELETE', "/api/v1/comments/{$c->public_id}", []]));
+        sort($codes);
+        $this->assertSame([200, 404, 404, 404], $codes);
+        $this->assertSame(0, \App\Models\Comment::where('post_id', $p->id)->count());
+        $this->assertSame(0, $p->fresh()->comments_count);
+    }
+
 }

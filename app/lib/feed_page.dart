@@ -359,10 +359,17 @@ class _PostCardState extends State<PostCard> {
     final added = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      isDismissible: false,
+      enableDrag: false,
       builder: (_) => CommentsSheet(session: widget.session, postId: id, postAuthorId: author['public_id'].toString()),
     );
-    if (added != null && added != 0 && mounted) setState(() => comments += added);
+    if (!mounted) return;
+    if (added != null && added != 0) setState(() => comments = (comments + added).clamp(0, 1 << 31));
+    try {
+      final result = await widget.session.call('GET', '/posts/$id') as Map;
+      final count = (result['post'] as Map)['comments_count'] as int;
+      if (mounted) setState(() => comments = count);
+    } catch (_) { /* Keep the last known count until the next feed refresh. */ }
   }
 
   void _openAuthor() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString())));
@@ -557,127 +564,168 @@ class CommentsSheet extends StatefulWidget {
 class _CommentsSheetState extends State<CommentsSheet> {
   final items = <Map<String, dynamic>>[];
   final input = TextEditingController();
-  bool loading = true;
+  final scroll = ScrollController();
+  final deleting = <String>{};
+  final local = <String>{};
+  final removed = <String>{};
+  bool loading = false;
   bool sending = false;
+  bool closing = false;
+  bool uncertain = false;
+  bool replyGone = false;
   String? error;
+  String? nextCursor;
+  bool retryRefresh = false;
   int delta = 0;
   Map<String, dynamic>? replyTo;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
+  @override
+  void dispose() { input.dispose(); scroll.dispose(); super.dispose(); }
 
-  Future<void> _load() async {
+  Future<void> _load({bool refresh = false}) async {
+    if (loading) return;
+    setState(() { loading = true; error = null; retryRefresh = refresh; });
     try {
-      String? cur;
-      do {
-        final j = await widget.session.call('GET', '/posts/${widget.postId}/comments', query: {if (cur != null) 'cursor': cur}) as Map<String, dynamic>;
-        items.addAll((j['data'] as List).cast<Map<String, dynamic>>());
-        cur = j['next_cursor'] as String?;
-      } while (cur != null && items.length < 300);
-    } on ApiError catch (e) {
-      error = e.message;
-    }
-    if (mounted) setState(() => loading = false);
+      final j = await widget.session.call('GET', '/posts/${widget.postId}/comments', query: {if (!refresh && nextCursor != null) 'cursor': nextCursor!}) as Map<String, dynamic>;
+      if (!mounted) return;
+      final incoming = (j['data'] as List).cast<Map<String, dynamic>>().where((c) => !removed.contains(c['public_id']) && !removed.contains(c['parent_id'])).toList();
+      final cursor = j['next_cursor'] as String?;
+      if (refresh) items.removeWhere((c) => !local.contains(c['public_id']));
+      final known = items.map((c) => c['public_id']).toSet();
+      final fresh = incoming.where((c) => known.add(c['public_id'])).toList();
+      final firstLocal = items.indexWhere((c) => local.contains(c['public_id']));
+      items.insertAll(firstLocal < 0 ? items.length : firstLocal, fresh);
+      nextCursor = cursor;
+    } catch (e) {
+      if (mounted) error = e is ApiError ? e.message : t_('Comments could not be loaded.');
+    } finally { if (mounted) setState(() => loading = false); }
   }
 
   Future<void> _send() async {
     final tx = input.text.trim();
-    if (tx.isEmpty || sending) return;
+    if (tx.isEmpty || sending || deleting.isNotEmpty || uncertain || replyGone) return;
+    final parent = replyTo;
     setState(() => sending = true);
     try {
-      final j = await widget.session.call('POST', '/posts/${widget.postId}/comments', body: {'body': tx, if (replyTo != null) 'parent_id': replyTo!['public_id']}) as Map<String, dynamic>;
-      items.add((j['comment'] as Map).cast<String, dynamic>());
-      input.clear();
-      delta++;
-      replyTo = null;
+      final j = await widget.session.call('POST', '/posts/${widget.postId}/comments', body: {'body': tx, if (parent != null) 'parent_id': parent['public_id']}) as Map<String, dynamic>;
+      if (!mounted) return;
+      final c = (j['comment'] as Map).cast<String, dynamic>();
+      if (c['public_id'] is! String || (c['public_id'] as String).isEmpty || c['body'] is! String || c['author'] is! Map) throw const FormatException('Incomplete comment response');
+      if (!items.any((item) => item['public_id'] == c['public_id'])) items.add(c);
+      local.add(c['public_id'].toString());
+      input.clear(); delta++; replyTo = null;
+      showInfo(context, t_('Comment posted.'));
     } catch (e) {
-      if (mounted) showError(context, e);
-    }
-    if (mounted) setState(() => sending = false);
+      if (!mounted) return;
+      uncertain = e is! ApiError || e.status == null || e.status! >= 500;
+      showError(context, e is ApiError ? e : ApiError(t_('The comment result is unknown.')));
+      if (uncertain) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && scroll.hasClients) scroll.jumpTo(0); });
+    } finally { if (mounted) setState(() => sending = false); }
   }
 
   Future<void> _delete(Map<String, dynamic> c) async {
+    final id = c['public_id'].toString();
+    if (sending || deleting.isNotEmpty) return;
+    setState(() => deleting.add(id));
     try {
-      await widget.session.call('DELETE', '/comments/${c['public_id']}');
-      final id = c['public_id'];
+      final result = await widget.session.call('DELETE', '/comments/$id');
+      if (!mounted) return;
+      removed.add(id);
       final before = items.length;
       items.removeWhere((x) => x['public_id'] == id || x['parent_id'] == id);
-      delta -= before - items.length;
-      if (mounted) setState(() {});
-    } catch (e) {
-      if (mounted) showError(context, e);
+      final count = result is Map && result['deleted_count'] is int ? result['deleted_count'] as int : before - items.length;
+      delta -= count;
+      if (replyTo?['public_id'] == id) replyGone = true;
+    } catch (e) { if (mounted) showError(context, e); }
+    finally { if (mounted) setState(() => deleting.remove(id)); }
+  }
+
+  Future<void> _close() async {
+    if (closing) return;
+    if (sending || deleting.isNotEmpty) { showInfo(context, t_('Your comment is still updating.')); return; }
+    if (input.text.trim().isNotEmpty) {
+      closing = true;
+      final discard = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+        scrollable: true,
+        title: Text(t_('Discard this draft?')),
+        content: Text(t_('Leaving will remove this draft from this screen.')),
+        actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Keep editing'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Discard')))],
+      ));
+      closing = false;
+      if (discard != true) return;
     }
+    if (mounted) Navigator.of(context).pop(delta);
   }
 
   @override
   Widget build(BuildContext context) {
     final me = widget.session.user?['public_id'];
-    final top = items.where((c) => c['parent_id'] == null).toList();
+    final children = <String, List<Map<String, dynamic>>>{};
+    final roots = <Map<String, dynamic>>[];
+    for (final c in items) {
+      if (c['parent_id'] == null) { roots.add(c); }
+      else { children.putIfAbsent(c['parent_id'].toString(), () => []).add(c); }
+    }
+    final rows = <(Map<String, dynamic>, bool)>[];
+    for (final c in roots) { rows.add((c, false)); for (final r in children[c['public_id']] ?? <Map<String, dynamic>>[]) { rows.add((r, true)); } }
     Widget tile(Map<String, dynamic> c, {bool reply = false}) {
       final a = (c['author'] as Map).cast<String, dynamic>();
       final canDelete = a['public_id'] == me || widget.postAuthorId == me;
-      return Padding(
-        padding: EdgeInsets.only(left: reply ? 40 : 0),
-        child: ListTile(
-          dense: true,
-          leading: Avatar(user: a, radius: reply ? 12 : 16),
-          title: Text('@${a['username']}  ·  ${ago(c['created_at'].toString())}', style: const TextStyle(fontSize: 12)),
-          subtitle: Text(c['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (!reply) IconButton(tooltip: t_('Reply'), icon: const PhIcon('arrow-bend-up-left', size: 18), onPressed: () => setState(() => replyTo = c)),
-            if (canDelete) IconButton(tooltip: t_('Delete'), icon: const PhIcon('trash', size: 18), onPressed: () => _delete(c)),
+      return Padding(padding: EdgeInsets.fromLTRB(reply ? 36 : 16, 12, 12, 0), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.only(top: 3, right: 10), child: Avatar(user: a, radius: reply ? 12 : 16)),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('@${a['username']}  ·  ${ago(c['created_at'].toString())}', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          Text(c['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
+          Wrap(children: [
+            if (!reply) TextButton(onPressed: sending || deleting.isNotEmpty || uncertain ? null : () => setState(() { replyTo = c; replyGone = false; }), child: Text(t_('Reply'))),
+            if (canDelete) IconButton(tooltip: t_('Delete'), icon: const PhIcon('trash', size: 18), onPressed: sending || deleting.isNotEmpty ? null : () => _delete(c)),
           ]),
-        ),
-      );
+        ])),
+      ]));
     }
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.of(context).pop(delta);
-      },
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.65,
-          child: Column(
-            children: [
-              Text(t_('Comments'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              Expanded(
-                child: loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : items.isEmpty
-                        ? EmptyState(icon: Ph.mode_comment_outlined, title: error ?? 'No comments yet', hint: error == null ? 'Say something kind.' : null)
-                        : ListView(children: [
-                            for (final c in top) ...[
-                              tile(c),
-                              for (final r in items.where((x) => x['parent_id'] == c['public_id'])) tile(r, reply: true),
-                            ],
-                          ]),
-              ),
-              if (replyTo != null)
-                ListTile(
-                  dense: true,
-                  title: Text('Replying to @${(replyTo!['author'] as Map)['username']}'),
-                  trailing: IconButton(icon: const PhIcon('x'), onPressed: () => setState(() => replyTo = null)),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Row(
-                  children: [
-                    Expanded(child: TextField(controller: input, maxLength: 1000, decoration: const InputDecoration(hintText: 'Add a comment', counterText: '', border: OutlineInputBorder()), onSubmitted: (_) => _send())),
-                    IconButton(onPressed: sending ? null : _send, icon: const PhIcon('paper-plane-tilt-fill')),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final list = <Widget>[
+      if (uncertain) Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t_('This comment may already be posted.')),
+        Wrap(spacing: 8, children: [
+          TextButton(onPressed: loading ? null : () => _load(refresh: true), child: Text(t_('Check comments'))),
+          TextButton(onPressed: () async {
+            final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(scrollable: true,
+              title: Text(t_('Write another comment?')),
+              content: Text(t_('The earlier attempt may already be posted. Check it first to avoid a duplicate. Your current draft will be kept.')),
+              actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('New comment')))],
+            ));
+            if (yes == true && mounted) setState(() => uncertain = false);
+          }, child: Text(t_('New comment'))),
+        ]),
+      ])),
+      if (items.isEmpty && !loading && error == null) EmptyState(icon: Ph.mode_comment_outlined, title: t_('No comments yet'), hint: t_('Say something kind.')),
+      for (final row in rows) tile(row.$1, reply: row.$2),
+      if (loading) const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
+      if (!loading && (error != null || nextCursor != null)) Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+        if (error != null) Text(error!),
+        TextButton(onPressed: () => _load(refresh: error != null && retryRefresh), child: Text(t_(error != null ? 'Try again' : 'Load more comments'))),
+      ])),
+    ];
+    return PopScope(canPop: false, onPopInvokedWithResult: (didPop, _) { if (!didPop) _close(); }, child: SafeArea(top: false, child: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SizedBox(height: MediaQuery.sizeOf(context).height * 0.72, child: LayoutBuilder(builder: (context, bounds) => Column(children: [
+        Row(children: [const SizedBox(width: 16), Expanded(child: Text(t_('Comments'), style: Theme.of(context).textTheme.titleMedium)), IconButton(tooltip: t_('Refresh comments'), onPressed: loading ? null : () => _load(refresh: true), icon: const PhIcon('arrow-clockwise')), IconButton(tooltip: t_('Close comments'), onPressed: _close, icon: const PhIcon('x'))]),
+        Expanded(child: ListView.builder(controller: scroll, itemCount: list.length, itemBuilder: (_, i) => list[i])),
+        ConstrainedBox(constraints: BoxConstraints(maxHeight: bounds.maxHeight * 0.6), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (replyGone) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(t_('Original comment removed. Choose another reply or cancel.'))),
+          if (replyTo != null) Padding(padding: const EdgeInsets.only(left: 16), child: Row(children: [Expanded(child: Text('${t_('Replying to')} @${(replyTo!['author'] as Map)['username']}', maxLines: 2, overflow: TextOverflow.ellipsis)), IconButton(tooltip: t_('Cancel reply'), icon: const PhIcon('x'), onPressed: sending || deleting.isNotEmpty || uncertain ? null : () => setState(() { replyTo = null; replyGone = false; }))])),
+          Padding(key: const ValueKey('comment-composer'), padding: const EdgeInsets.all(8), child: Row(children: [
+            Expanded(child: TextField(controller: input, enabled: !sending && deleting.isEmpty, maxLength: 1000, minLines: 1, maxLines: 3, decoration: InputDecoration(hintText: t_('Add a comment'), counterText: '', border: const OutlineInputBorder()), onSubmitted: (_) => _send())),
+            IconButton(tooltip: t_('Send comment'), onPressed: sending || deleting.isNotEmpty || uncertain || replyGone ? null : _send, icon: sending ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt-fill')),
+          ])),
+        ]))),
+      ]))),
+    )));
+
   }
 }
 

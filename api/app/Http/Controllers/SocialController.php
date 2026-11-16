@@ -135,14 +135,17 @@ class SocialController extends Controller
         $c = Comment::where('public_id', $commentId)->firstOrFail();
         $post = Post::findOrFail($c->post_id);
         abort_unless($c->user_id === $request->user()->id || $post->user_id === $request->user()->id, 403, 'You cannot delete this comment.');
-        DB::transaction(function () use ($c, $post) {
+        $deleted = DB::transaction(function () use ($c, $post) {
+            $post = Post::whereKey($post->id)->lockForUpdate()->firstOrFail();
+            $c = Comment::whereKey($c->id)->lockForUpdate()->firstOrFail();
             $n = Comment::where('parent_id', $c->id)->count() + 1;
             Comment::where('parent_id', $c->id)->delete();
             $c->delete();
             $post->update(['comments_count' => max(0, $post->comments_count - $n)]);
+            return $n;
         });
 
-        return response()->json(['message' => 'Deleted.']);
+        return response()->json(['message' => 'Deleted.', 'deleted_count' => $deleted]);
     }
 
     private function card(User $u, User $viewer): array

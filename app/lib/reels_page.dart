@@ -207,10 +207,17 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
     final added = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
+      isDismissible: false,
+      enableDrag: false,
       builder: (_) => CommentsSheet(session: widget.session, postId: id, postAuthorId: author['public_id'].toString()),
     );
-    if (added != null && added != 0 && mounted) setState(() => comments += added);
+    if (!mounted) return;
+    if (added != null && added != 0) setState(() => comments = (comments + added).clamp(0, 1 << 31));
+    try {
+      final result = await widget.session.call('GET', '/posts/$id') as Map;
+      final count = (result['post'] as Map)['comments_count'] as int;
+      if (mounted) setState(() => comments = count);
+    } catch (_) { /* Keep the last known count until the next feed refresh. */ }
   }
 
   Future<void> _follow() async {

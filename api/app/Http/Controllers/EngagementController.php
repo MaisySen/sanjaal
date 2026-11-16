@@ -56,6 +56,8 @@ class EngagementController extends Controller
         $data = $request->validate(['body' => ['required', 'string', 'max:1000'], 'parent_id' => ['nullable', 'uuid']]);
         $post = $this->visiblePost($request, $postId);
         $comment = DB::transaction(function () use ($request, $post, $data) {
+            // Serialize the parent check and count with comment deletion.
+            $post = Post::whereKey($post->id)->lockForUpdate()->firstOrFail();
             $parent = isset($data['parent_id']) ? $post->comments()->where('public_id', $data['parent_id'])->whereNull('parent_id')->first() : null;
             abort_if(isset($data['parent_id']) && (! $parent || in_array($parent->user_id, Present::hiddenAuthors([$request->user()->id]), true)), 422, 'That comment is not available to reply to.');
             $c = $post->comments()->create(['user_id' => $request->user()->id, 'body' => $data['body'], 'parent_id' => $parent?->id]);

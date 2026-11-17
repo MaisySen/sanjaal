@@ -5,7 +5,6 @@
 // still exactly one post exists and the strip says it is up. This is local fixture evidence on an
 // emulator. It does not change or exercise production, where replay-safe uploads stay off.
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';

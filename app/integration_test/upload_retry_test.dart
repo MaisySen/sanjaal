@@ -55,7 +55,7 @@ void main() {
     // ignore: avoid_print
     print('Upload-retry notification setup status ${ready?.statusCode}');
     await tester.pump();
-    await _until(tester, find.textContaining('Sunrise over Phewa'));
+    await _until(tester, find.text('For you'));
     await binding.convertFlutterSurfaceToImage();
     await tester.pump();
 

@@ -51,6 +51,7 @@ class ChatListParityTest extends TestCase
         [$a] = $this->member('chata');
         [$b] = $this->member('chatb');
         [$c] = $this->member('chatc');
+        [$d] = $this->member('chatd');
         $postId = DB::table('posts')->insertGetId(['public_id' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $c->id, 'kind' => 'post', 'body' => 'shared body', 'created_at' => now(), 'updated_at' => now()]);
 
         $empty = $this->chat('direct', [$me, $a]);
@@ -67,8 +68,8 @@ class ChatListParityTest extends TestCase
         $d2 = $this->say($deleted, $c, 'gone'); $d2->delete();
         $shared = $this->chat('group', [$me, $a, $c], 'Shared');
         $s1 = $this->say($shared, $a, 'look', ['shared_post_id' => $postId]);
-        $archived = $this->chat('direct', [$me, $a]);
-        $this->say($archived, $a, 'archived one');
+        $archived = $this->chat('direct', [$me, $d]);
+        $this->say($archived, $d, 'archived one');
         DB::table('conversation_members')->where('conversation_id', $archived->id)->where('user_id', $me->id)->update(['archived' => true]);
         $all = [$empty, $plain, $group, $cut, $deleted, $shared, $archived];
 

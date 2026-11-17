@@ -24,7 +24,7 @@ if args[:3]==['shell','dumpsys','window']:print('mCurrentFocus=Window{abc u0 '+(
  try:
   time.sleep(.3)
   assert request({'action':'prepare'})[0]==200
-  for action in ['camera','recording','gallery','poster','story']:assert request({'action':action})[0]==200
+  for action in ['camera','recording','gallery','poster','composer','story']:assert request({'action':action})[0]==200
   assert request({'action':'prepare'},False)[0]==403
   for bad in ['shell','../private','gallery;evil','wipe']:assert request({'action':bad})[0]==422
   (d/'mode').write_text('grantfail');assert request({'action':'prepare'})[0]==502

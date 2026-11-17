@@ -9,7 +9,7 @@ if (getenv('E2E_NATIVE_INPUT') !== '1' || $expected === '' || !hash_equals('Bear
     http_response_code(403); echo json_encode(['ok'=>false]); exit;
 }
 $action = $input['action'] ?? '';
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !in_array($action,['prepare','camera','gallery','recording','poster','story'],true)) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !in_array($action,['prepare','camera','gallery','recording','poster','composer','story'],true)) {
     http_response_code(422); echo json_encode(['ok'=>false]); exit;
 }
 $adb = rtrim(getenv('ANDROID_HOME') ?: getenv('ANDROID_SDK_ROOT'),'/').'/platform-tools/adb';

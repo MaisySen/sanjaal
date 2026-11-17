@@ -9,6 +9,9 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/capture_page.dart';
+import 'package:sanjaal/api.dart';
+import 'package:sanjaal/stories_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sanjaal/media_library_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:video_player/video_player.dart';
@@ -52,7 +55,7 @@ Future<void> bridge(WidgetTester t, String action) async {
 }
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
     'native camera photo video codec and authorized gallery return only local review files',
     (t) async {
@@ -231,9 +234,97 @@ void main() {
         frame.image.dispose();
         codec.dispose();
       });
+      // Same real selected file, production composer and authenticated HTTP to
+      // the throwaway local API. This is never a live member or publication.
+      SharedPreferences.setMockInitialValues({});
+      final session = Session();
+      await t.runAsync(() => session.login('fixture', 'local-fixture-only'));
+      expect(session.protectedStoriesEnabled, true);
+      await t.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(Brightness.dark),
+          home: Builder(
+            builder: (c) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(c).push(
+                  MaterialPageRoute(
+                    builder: (_) => StoryComposePage(
+                      session: session,
+                      file: selection!.single.file,
+                      isVideo: false,
+                    ),
+                  ),
+                ),
+                child: const Text('Review selected story'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await t.pump(const Duration(seconds: 1));
+      await t.tap(find.text('Review selected story'));
+      await wait(t, () => find.text('Followers').evaluate().isNotEmpty);
+      await t.tap(find.byTooltip('Who can see this story'));
+      await t.pump(const Duration(seconds: 1));
+      await t.tap(find.text('Only me'));
+      await t.pump(const Duration(seconds: 1));
+      expect(find.text('Only me').hitTestable(), findsOneWidget);
+      await binding.convertFlutterSurfaceToImage();
+      await t.pump();
+      await binding.takeScreenshot('protected_story_composer_native');
+      await t.tap(find.text('Share story'));
+      await wait(
+        t,
+        () => find.text('Review selected story').evaluate().isNotEmpty,
+      );
+      expect(find.byType(StoryComposePage), findsNothing);
+      final listed =
+          await t.runAsync(() => session.call('GET', '/stories')) as Map;
+      final own = (listed['data'] as List).cast<Map>().singleWhere(
+        (g) => (g['author'] as Map)['public_id'] == session.user!['public_id'],
+      );
+      final story = (own['items'] as List).cast<Map>().singleWhere(
+        (s) => s['audience'] == 'only_me',
+      );
+      expect(story['protected_media'], true);
+      final storyUrl = story['url'] as String;
+      final denied = await t.runAsync(() => http.get(Uri.parse(storyUrl)));
+      expect(denied!.statusCode, 401);
+      final bytes = await t.runAsync(
+        () => session.fetchProtectedBytes(storyUrl),
+      );
+      expect(bytes, isNotEmpty);
+      await t.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(Brightness.dark),
+          home: StoryViewer(
+            session: session,
+            group: {
+              'author': own['author'],
+              'items': [Map<String, dynamic>.from(story)],
+            },
+          ),
+        ),
+      );
+      await wait(
+        t,
+        () => t
+            .widgetList<RawImage>(find.byType(RawImage))
+            .any((image) => image.image != null),
+      );
+      await binding.takeScreenshot('protected_story_viewer_native');
+      await t.pumpWidget(const SizedBox());
+      await t.runAsync(
+        () => session.call('DELETE', '/stories/${story['public_id']}'),
+      );
+      final gone = await t.runAsync(
+        () => http.get(Uri.parse(storyUrl), headers: session.mediaHeaders),
+      );
+      expect(gone!.statusCode, 404);
+      session.dispose();
       // ignore: avoid_print
       print(
-        'Native photo decode, video playback initialization and MediaStore gallery selection passed; no content posted.',
+        'Native photo decode, video playback initialization, MediaStore selection and protected-story composer/read/delete passed against the throwaway local API. No live content posted.',
       );
     },
   );

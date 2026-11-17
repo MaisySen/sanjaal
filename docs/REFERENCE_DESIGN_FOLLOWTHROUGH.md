@@ -124,3 +124,7 @@ No scheduler or deployed command was activated. A dry-run and live free-tier cap
 ### Native visual follow-through
 
 Both `734f895` CI43993059001 and `e809636` CI43993600126 passed API, APK, iOS and emulator jobs. The actual 734f895 native screenshots now show a nonblank camera scene and the seeded Photos thumbnail, and the strengthened photo/video/gallery assertions passed. Inspection also caught white close/flash/zoom controls disappearing over a bright camera preview. A dark top gradient and dark shutter surround now keep those controls readable on bright and dark scenes; 23 capture/library fixture tests pass, including two new contrast cases. Actual pixels of both contrast fixtures were inspected. This source contrast fix still needs its own native CI screenshot; fixture images are not phone proof.
+
+### Native protected-story round trip gate
+
+The native media integration target now continues with the actual selected MediaStore photo into the production story composer, picks Only me, uploads to the throwaway local API, verifies the returned protected audience and signed-out denial, downloads authenticated bytes, renders the production viewer, and deletes the synthetic story with a confirmed 404 readback. Composer/viewer screenshots are collected after native camera checks finish. This is a new CI gate pending execution, not a claimed pass. It does not authenticate a real user, post to a live service or expand any delivery permission. Existing photo/video/gallery assertions remain unchanged.

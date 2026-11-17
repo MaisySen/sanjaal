@@ -32,13 +32,13 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     if (!active && mounted)
       setState(() {
         drafts = null;
-        error = 'Sign in again to view this account\'s local drafts.';
+        error = t_("Sign in again to view this account's local drafts.");
       });
   }
 
   Future<void> _load() async {
     if (!active) {
-      if (mounted) setState(() => error = 'Sign in to view saved drafts.');
+      if (mounted) setState(() => error = t_('Sign in to view saved drafts.'));
       return;
     }
     try {
@@ -51,7 +51,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     } catch (_) {
       if (mounted && active)
         setState(
-          () => error = 'Could not read saved drafts. Nothing was replaced.',
+          () => error = t_('Could not read saved drafts. Nothing was replaced.'),
         );
     }
   }
@@ -62,9 +62,9 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
       context: context,
       builder: (c) => AlertDialog(
         title: Text(t_('Delete this local draft?')),
-        content: const Text(
+        content: Text(t_(
           'This removes only the saved copy on this device, not any published post.',
-        ),
+        )),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
@@ -129,7 +129,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
-                draft.text.trim().isEmpty ? 'Untitled poll' : draft.text,
+                draft.text.trim().isEmpty ? t_('Untitled poll') : draft.text,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

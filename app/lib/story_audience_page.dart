@@ -14,6 +14,11 @@ class StoryAudiencePage extends StatefulWidget {
 }
 
 class _StoryAudiencePageState extends State<StoryAudiencePage> {
+  late final String? accountOwner;
+  bool get active=>accountOwner!=null && widget.session.user?['public_id']==accountOwner;
+  void accountChanged(){
+    if(!active && mounted) setState((){members=[];cursor=null; error=t_("Sign in again to view this account's settings.");});
+  }
   final username = TextEditingController();
   List<Map<String, dynamic>> members = [];
   String? cursor;
@@ -22,17 +27,20 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
   @override
   void initState() {
     super.initState();
+    accountOwner=widget.session.user?['public_id'] as String?;
+    widget.session.addListener(accountChanged);
     load();
   }
 
   @override
   void dispose() {
+    widget.session.removeListener(accountChanged);
     username.dispose();
     super.dispose();
   }
 
   Future<void> load({bool more = false}) async {
-    if (loading) return;
+    if (!active || loading) return;
     final owner = widget.session.user?['public_id'];
     setState(() {
       loading = true;
@@ -47,13 +55,15 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
       final values = (result['data'] as List)
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
-      if (!mounted || owner != widget.session.user?['public_id']) return;
+      final nextCursor=result['next_cursor'] as String?;
+      if(values.any((m)=>m['user'] is! Map || (m['user'] as Map)['username'] is! String || ((m['user'] as Map)['username'] as String).trim().isEmpty || m['close_friend'] is! bool || m['hide_story'] is! bool || m['revision'] is! int)) throw const FormatException('Invalid audience member');
+      if (!mounted || !active || owner != widget.session.user?['public_id']) return;
       setState(() {
         members = more ? [...members, ...values] : values;
-        cursor = result['next_cursor'] as String?;
+        cursor = nextCursor;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted && active)
         setState(
           () => error = e is ApiError
               ? e.message
@@ -66,7 +76,7 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
 
   Future<void> edit(String name) async {
     name = name.trim().replaceFirst(RegExp(r'^@'), '');
-    if (name.isEmpty || loading) return;
+    if (!active || name.isEmpty || loading) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
@@ -96,7 +106,7 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
         const SizedBox(height: 16),
         TextField(
           controller: username,
-          enabled: !loading,
+          enabled: active && !loading,
           decoration: InputDecoration(
             labelText: t_('Exact username'),
             prefixText: '@',
@@ -106,7 +116,7 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
-            onPressed: loading ? null : () => edit(username.text),
+            onPressed: !active || loading ? null : () => edit(username.text),
             child: Text(t_('Find person')),
           ),
         ),
@@ -114,7 +124,7 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
         if (error != null) ...[
           Text(error!),
           TextButton(
-            onPressed: loading ? null : load,
+            onPressed: !active || loading ? null : load,
             child: Text(t_('Try again')),
           ),
         ],
@@ -143,7 +153,7 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
           ),
         if (cursor != null)
           TextButton(
-            onPressed: loading ? null : () => load(more: true),
+            onPressed: !active || loading ? null : () => load(more: true),
             child: Text(t_('Load more')),
           ),
       ],
@@ -160,6 +170,11 @@ class _StoryPersonPage extends StatefulWidget {
 }
 
 class _StoryPersonPageState extends State<_StoryPersonPage> {
+  late final String? accountOwner;
+  bool get active=>accountOwner!=null && widget.session.user?['public_id']==accountOwner;
+  void accountChanged(){
+    if(!active && mounted) setState((){current=null;saved=false;needsReload=true; error=t_("Sign in again to view this account's settings.");});
+  }
   Map<String, dynamic>? current;
   bool close = false,
       hide = false,
@@ -187,11 +202,16 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
   @override
   void initState() {
     super.initState();
+    accountOwner=widget.session.user?['public_id'] as String?;
+    widget.session.addListener(accountChanged);
     load();
   }
 
+  @override
+  void dispose(){widget.session.removeListener(accountChanged);super.dispose();}
+
   Future<void> load() async {
-    if (loading || saving) return;
+    if (!active || loading || saving) return;
     final owner = widget.session.user?['public_id'];
     setState(() {
       loading = true;
@@ -199,7 +219,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
     });
     try {
       final m = parse(await widget.session.call('GET', path));
-      if (!mounted || owner != widget.session.user?['public_id']) return;
+      if (!mounted || !active || owner != widget.session.user?['public_id']) return;
       setState(() {
         current = m;
         close = m['close_friend'];
@@ -208,7 +228,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
         saved = false;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted && active)
         setState(
           () => error = e is ApiError
               ? e.message
@@ -220,7 +240,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
   }
 
   Future<void> save() async {
-    if (!changed || loading || saving || needsReload) return;
+    if (!active || !changed || loading || saving || needsReload) return;
     final owner = widget.session.user?['public_id'];
     final body = {
       'revision': current!['revision'],
@@ -234,7 +254,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
     });
     try {
       final m = parse(await widget.session.call('PUT', path, body: body));
-      if (!mounted || owner != widget.session.user?['public_id']) return;
+      if (!mounted || !active || owner != widget.session.user?['public_id']) return;
       setState(() {
         current = m;
         close = m['close_friend'];
@@ -242,7 +262,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
         saved = true;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted && active)
         setState(() {
           needsReload = true;
           error = e is ApiError
@@ -258,7 +278,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = current != null && !loading && !saving && !needsReload;
+    final enabled = active && current != null && !loading && !saving && !needsReload;
     return DraftExitGuard(
       hasChanges: changed,
       busy: saving,
@@ -284,7 +304,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
             if (error != null) ...[
               Text(error!),
               TextButton(
-                onPressed: loading || saving ? null : load,
+                onPressed: !active || loading || saving ? null : load,
                 child: Text(
                   t_(needsReload ? 'Reload current settings' : 'Try again'),
                 ),

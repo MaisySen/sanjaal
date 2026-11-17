@@ -31,6 +31,28 @@ Future<void> fixture(WidgetTester t,Future<http.Response>Function(http.Request) 
 }
 TextButton saveButton(WidgetTester t)=>t.widget<TextButton>(find.widgetWithText(TextButton,t_('Save')));
 void main(){
+ for(final language in ['en','ne']){for(final mode in [Brightness.light,Brightness.dark]){testWidgets('account warning stays readable and locked $language ${mode.name}',(t)async{
+  await fixture(t,(_)async=>json(value()),(s)async{
+   s.user={'public_id':'different','username':'different'};s.notifyListeners();await flush(t);expect(saveButton(t).onPressed,isNull);expect(t.takeException(),isNull);
+   await t.runAsync(()async{final image=await t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('controls-shot'))).toImage(pixelRatio:2);final data=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/controls_account_${language}_${mode.name}.png').writeAsBytesSync(data!.buffer.asUint8List());});
+  },language:language,mode:mode,scale:1.8);
+ });}}
+
+ testWidgets('account replacement locks the old controls and prevents another account write',(t)async{
+  var writes=0;await fixture(t,(r)async{if(r.method=='PATCH')writes++;return json(value());},(s)async{
+   await t.tap(find.text('Nobody else'));await flush(t);expect(saveButton(t).onPressed,isNotNull);
+   s.user={'public_id':'different','username':'different'};s.notifyListeners();await flush(t);
+   expect(find.byType(SwitchListTile),findsNothing);expect(saveButton(t).onPressed,isNull);expect(find.text("Sign in again to view this account's settings."),findsOneWidget);expect(writes,0);expect(t.takeException(),isNull);
+  });
+ });
+ testWidgets('late controls confirmation after account replacement cannot claim success',(t)async{
+  final pending=Completer<http.Response>();var writes=0;await fixture(t,(r)async{if(r.method=='PATCH'){writes++;return pending.future;}return json(value());},(s)async{
+   await t.tap(find.text('Nobody else'));await flush(t);await t.tap(find.text('Save'));await flush(t);expect(writes,1);
+   s.user={'public_id':'different','username':'different'};s.notifyListeners();pending.complete(json(value(revision:1,scope:'nobody')));await flush(t);
+   expect(find.text('Settings saved.'),findsNothing);expect(find.byType(SwitchListTile),findsNothing);expect(saveButton(t).onPressed,isNull);expect(writes,1);expect(t.takeException(),isNull);
+  });
+ });
+
  setUpAll(()async{Directory('test/renders').createSync(recursive:true);for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}});
  for(final supported in [false,true])testWidgets('Settings route respects live server capability $supported',(t)async{
  await fixture(t,(_)async=>json(value()),(s)async{

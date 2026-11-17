@@ -141,6 +141,39 @@ Future<void> shot(WidgetTester t, String name) async {
 }
 
 void main() {
+ for(final language in ['en','ne']){for(final mode in [Brightness.light,Brightness.dark]){testWidgets('story account warning stays readable and locked $language ${mode.name}',(t)async{
+  await fixture(t,(_)async=>json({'data':[person(close:true)],'next_cursor':null}),(s)async{
+   s.user={'public_id':'different','username':'different'};s.notifyListeners();await flush(t);expect(t.widget<TextField>(find.byType(TextField)).enabled,isFalse);expect(t.takeException(),isNull);
+   await t.drag(find.byType(ListView),const Offset(0,-500));await flush(t);await shot(t,'story_account_${language}_${mode.name}');
+  },lang:language,mode:mode,scale:1.8);
+ });}}
+
+  testWidgets('malformed roster identity is retryable and never opens an unknown person',(t)async{
+    var reads=0;await fixture(t,(_)async=>json({'data':++reads==1?[{'user':{},'revision':0,'close_friend':true,'hide_story':false}]:[person(close:true)],'next_cursor':null}),(s)async{
+      expect(find.text('Story audience could not be loaded.'),findsOneWidget);expect(find.text('@null'),findsNothing);expect(t.takeException(),isNull);
+      await t.ensureVisible(find.text('Try again'));await t.tap(find.text('Try again'));await flush(t);expect(find.text('@friend'),findsOneWidget);expect(reads,2);
+    });
+  });
+  testWidgets('account replacement hides the story roster and locks lookup',(t)async{
+    await fixture(t,(_)async=>json({'data':[person(close:true)],'next_cursor':null}),(s)async{
+      expect(find.text('@friend'),findsOneWidget);s.user={'public_id':'different','username':'different'};s.notifyListeners();await flush(t);
+      expect(find.text('@friend'),findsNothing);expect(t.widget<TextField>(find.byType(TextField)).enabled,isFalse);expect(find.text("Sign in again to view this account's settings."),findsOneWidget);expect(t.takeException(),isNull);
+    });
+  });
+  testWidgets('account replacement prevents changes through the previous story person editor',(t)async{
+    var writes=0;await fixture(t,(r)async{if(r.method=='PUT')writes++;return r.url.path.endsWith('/friend')?json({'member':person()}):json({'data':[],'next_cursor':null});},(s)async{
+      await open(t);await t.tap(find.byType(SwitchListTile).first);await flush(t);expect(save(t).onPressed,isNotNull);
+      s.user={'public_id':'different','username':'different'};s.notifyListeners();await flush(t);expect(find.byType(SwitchListTile),findsNothing);expect(save(t).onPressed,isNull);expect(writes,0);expect(t.takeException(),isNull);
+    });
+  });
+  testWidgets('late story person confirmation after account replacement cannot claim success',(t)async{
+    final pending=Completer<http.Response>();var writes=0;await fixture(t,(r)async{if(r.method=='PUT'){writes++;return pending.future;}return r.url.path.endsWith('/friend')?json({'member':person()}):json({'data':[],'next_cursor':null});},(s)async{
+      await open(t);await t.tap(find.byType(SwitchListTile).first);await flush(t);await t.tap(find.text('Save'));await flush(t);expect(writes,1);
+      s.user={'public_id':'different','username':'different'};s.notifyListeners();pending.complete(json({'member':person(revision:1,close:true)}));await flush(t);
+      expect(find.text('Story audience saved.'),findsNothing);expect(find.byType(SwitchListTile),findsNothing);expect(save(t).onPressed,isNull);expect(writes,1);expect(t.takeException(),isNull);
+    });
+  });
+
   setUpAll(() async {
     Directory('test/renders').createSync(recursive: true);
     final headerRecorder = ui.PictureRecorder();

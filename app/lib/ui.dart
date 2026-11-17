@@ -96,6 +96,11 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  "Sign in again to view this account's local drafts.": 'यो खाताका स्थानीय मस्यौदा हेर्न फेरि साइन इन गर्नुहोस्।',
+  'Sign in to view saved drafts.': 'सुरक्षित मस्यौदा हेर्न साइन इन गर्नुहोस्।',
+  'Could not read saved drafts. Nothing was replaced.': 'सुरक्षित मस्यौदा पढ्न सकिएन। केही पनि बदलिएको छैन।',
+  'Untitled poll': 'शीर्षक नभएको मतदान',
+  "Sign in again to view this account's settings.": 'यो खाताको सेटिङ हेर्न फेरि साइन इन गर्नुहोस्।',
   'Chats could not be loaded.': 'च्याटहरू लोड हुन सकेनन्।',
   'No messages yet': 'अहिलेसम्म सन्देश छैन',
   'Shared a post': 'पोस्ट साझा गर्नुभयो',

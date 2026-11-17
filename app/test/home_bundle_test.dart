@@ -8,10 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 http.Response ok(Object body) => http.Response(jsonEncode(body), 200);
 
-MockClient fixture(List<String> paths, {bool homeFails = false}) => MockClient((r) async {
+MockClient fixture(List<String> paths, {bool homeFails = false, Duration homeDelay = Duration.zero}) => MockClient((r) async {
   if (r.url.path.endsWith('/oauth/token')) return ok({'access_token': 'tok', 'expires_in': 3600});
   paths.add(r.url.path);
   if (r.url.path.endsWith('/home')) {
+    if (homeDelay > Duration.zero) await Future<void>.delayed(homeDelay);
     return homeFails ? http.Response('{}', 500) : ok({'feed': {'data': [{'public_id': 'p1'}], 'next_cursor': null}, 'stories': {'data': []}, 'unread_messages': 3});
   }
   return ok({'user': {'public_id': 'member-1'}});
@@ -71,5 +72,17 @@ void main() {
       expect(await s.takeHome('feed'), isNull);
       expect(await s.takeHome('unread_messages'), isNull);
     }, () => fixture(paths));
+  });
+
+  test('a slow reply (older than the window by the time it lands) is still handed over fresh', () async {
+    final paths = <String>[];
+    final s = Session()..homeBundleEnabled = true;
+    await http.runWithClient(() async {
+      await s.restore();
+      s.prefetchHome();
+      final feed = await s.takeHome('feed') as Map;
+      expect((feed['data'] as List).length, 1);
+    }, () => fixture(paths, homeDelay: const Duration(milliseconds: 5300)));
+    expect(paths.where((p) => p.endsWith('/home')).length, 1);
   });
 }

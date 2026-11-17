@@ -57,9 +57,20 @@ class ExtrasController extends Controller
     public function stories(Request $request): JsonResponse
     {
         $me = $request->user();
-        $ids = $me->following()->pluck('users.id')->merge(DB::table('story_relationships')->where('member_id',$me->id)->where('close_friend',true)->pluck('owner_id'))->push($me->id)->unique()->diff($this->hiddenIds($me))->values();
-        $query = DB::table('stories')->whereIn('user_id', $ids)->where('expires_at', '>', now())->orderBy('id');
-        \App\Support\StoryAudience::filter($query,$me->id);
+        // Correlated membership and block checks avoid four preliminary reads.
+        $query = DB::table('stories')->where('expires_at', '>', now())->orderBy('id')
+            ->where(function ($q) use ($me) {
+                $q->where('user_id', $me->id)
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('follows')->where('follower_id', $me->id)->whereColumn('followee_id', 'stories.user_id'))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('story_relationships')->where('member_id', $me->id)->where('close_friend', true)->whereColumn('owner_id', 'stories.user_id'));
+            })
+            ->whereNotExists(function ($q) use ($me) {
+                $q->selectRaw('1')->from('blocks')->where(function ($q) use ($me) {
+                    $q->where(fn ($q) => $q->where('blocker_id', $me->id)->whereColumn('blocked_id', 'stories.user_id'))
+                        ->orWhere(fn ($q) => $q->where('blocked_id', $me->id)->whereColumn('blocker_id', 'stories.user_id'));
+                });
+            });
+        \App\Support\StoryAudience::filter($query, $me->id);
         $rows = $query->get();
         $viewed = DB::table('story_views')->where('user_id', $me->id)->whereIn('story_id', $rows->pluck('id'))->pluck('story_id')->all();
         $users = User::whereIn('id', $rows->pluck('user_id')->unique())->get()->keyBy('id');

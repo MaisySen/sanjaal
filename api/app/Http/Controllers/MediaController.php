@@ -18,19 +18,24 @@ class MediaController extends Controller
     /** Public post media. Files that belong to a chat message are never served here. */
     public function show(Request $request, string $publicId): Response
     {
-        abort_if(DB::table('media_blobs')->where('public_id',$publicId)->where('is_private',true)->exists(),404);
-        abort_if(DB::table('stories')->where('media_id', $publicId)->where('protected_media',true)->exists(),404);
-        abort_if(DB::table('messages')->where('media_id', $publicId)->exists(), 404);
-        // An absent message reference does not make a blob public. Attachments
-        // can outlive their conversation or still be awaiting a message row.
-        $public = DB::table('post_media')->join('posts', 'posts.id', '=', 'post_media.post_id')
-            ->where(fn ($q) => $q->where('post_media.path', $publicId)->orWhere('post_media.thumbnail_path', $publicId))->whereNull('posts.deleted_at')->exists()
-            || DB::table('users')->where('avatar', $publicId)->exists()
-            || DB::table('stories')->where('media_id', $publicId)->where('expires_at', '>', now())->exists();
-        abort_unless($public, 404);
+        // Keep authorization checks live, but perform them in one database round trip.
+        // Metadata only: denied or conditional requests must not load the blob.
+        $meta = DB::table('media_blobs')->select('public_id', 'mime', 'size', 'storage')
+            ->where('public_id', $publicId)->where('is_private', false)
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('stories')
+                ->whereColumn('stories.media_id', 'media_blobs.public_id')->where('protected_media', true))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('messages')
+                ->whereColumn('messages.media_id', 'media_blobs.public_id'))
+            ->where(function ($q) {
+                $q->whereExists(fn ($q) => $q->selectRaw('1')->from('post_media')->join('posts', 'posts.id', '=', 'post_media.post_id')
+                    ->where(fn ($q) => $q->whereColumn('post_media.path', 'media_blobs.public_id')->orWhereColumn('post_media.thumbnail_path', 'media_blobs.public_id'))
+                    ->whereNull('posts.deleted_at'))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('users')->whereColumn('users.avatar', 'media_blobs.public_id'))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('stories')->whereColumn('stories.media_id', 'media_blobs.public_id')->where('expires_at', '>', now()));
+            })->first();
+        abort_unless($meta, 404);
 
-
-        return $this->serve($request, $publicId, false);
+        return $this->serve($request, $publicId, false, $meta);
     }
 
     /** Protected story media never redirects to a bucket or enters a public cache. */
@@ -54,9 +59,9 @@ class MediaController extends Controller
         return $this->serve($request, $msg->media_id, true);
     }
 
-    private function serve(Request $request, string $publicId, bool $private): Response
+    private function serve(Request $request, string $publicId, bool $private, ?object $meta = null): Response
     {
-        $meta = DB::table('media_blobs')->select('public_id', 'mime', 'size', 'storage')->where('public_id', $publicId)->first();
+        $meta ??= DB::table('media_blobs')->select('public_id', 'mime', 'size', 'storage')->where('public_id', $publicId)->first();
         abort_unless($meta, 404);
 
         if ($meta->storage === 'b2' && $private) {

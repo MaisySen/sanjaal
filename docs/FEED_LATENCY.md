@@ -47,3 +47,21 @@ About 25 percent lower, but the free instance's CPU share is shared and noisy an
 ## November 17 client request budget (fixture, not live latency)
 
 A HomeShell widget trace before lazy destinations made nine GETs on startup: summary, reels, conversations, wallet, profile, own posts, Home posts, stories, withdrawals. After the change it makes three: summary, Home posts, stories. Regression tests also verify first-visit loading, retained state and paused hidden/background polling. This avoids unrelated work competing with Home. It is not a device startup benchmark, a measured live latency gain or a 2,000-user capacity result. All earlier live timing figures above remain historical samples, not current measurements.
+
+## November 17, 21:19 AEDT: fresh live reads, then local reductions
+
+Single sequential samples against the existing production API using only the synthetic QA member. These are not medians, capacity measurements, or evidence about Samsung performance:
+
+| Read | Wall time | Server app | Server database | Queries |
+| --- | ---: | ---: | ---: | ---: |
+| Auth/profile | 2.800 s | 2646 ms | 0 ms | 0 |
+| Stories list | 4.048 s | 3912 ms | 1874 ms | 7 |
+| Own protected story image (13,563 bytes) | 2.963 s | 2669 ms | 892 ms | 3 |
+| Own posts | 4.609 s | 4365 ms | 2503 ms | 10 |
+| Own public video (61,503 bytes) | 3.090 s | 2649 ms | 2060 ms | 6 |
+
+A separate unauthenticated ping returned 200 with 1.016 s wall time and 731 ms server app time, zero queries. The authenticated and unauthenticated paths have different costs. Do not attribute all time outside the database to one cause without more instrumentation. Timing instrumentation may also exclude work outside its measurement boundary.
+
+Local source now folds the stories membership and both block directions into correlated subqueries. Controller reads fall from seven to three for a populated list. Public-media authorization and metadata now use one query, followed only by the requested byte read: two queries for a normal database-backed response, one for an accepted ETag. No visibility response is cached and protected-story/message/private classifications still override a positive public post reference. Existing expiry, block, hide, close-friend, range, deletion and access tests remain required. Two focused query-budget tests guard the new round-trip budgets.
+
+These reductions are not deployed and no live speedup is claimed. An after-deploy comparison must repeat the same read-only QA paths with wall/app/database/query-count evidence and report noisy samples honestly. No region move, paid capacity or extra service is proposed.

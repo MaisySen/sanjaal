@@ -46,8 +46,14 @@ if (getenv('E2E_FAULT_AFTER_COMMIT') === '1') {
         echo json_encode(['armed' => true]);
         exit;
     }
+    if ($uri === '/e2e/fault-count' && $authorised) {
+        header('Content-Type: application/json');
+        echo json_encode(['fired' => (int) @file_get_contents(dirname($file).'/fault-fired')]);
+        exit;
+    }
     if ($uri === '/api/v1/posts' && $_SERVER['REQUEST_METHOD'] === 'POST' && is_file($flag)) {
         @unlink($flag);
+        file_put_contents(dirname($file).'/fault-fired', (string) (1 + (int) @file_get_contents(dirname($file).'/fault-fired')));
         ob_start();
         $app->handleRequest(Request::capture());
         ob_end_clean();

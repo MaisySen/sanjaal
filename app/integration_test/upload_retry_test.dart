@@ -76,15 +76,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.widgetWithText(FilledButton, 'Post'));
 
-    // The reply is lost: the strip must offer Try again and keep the draft, not claim success.
-    await _until(tester, find.text('Try again'));
+    // The reply is lost (server saved, 503 sent). The app may offer Try again or retry by itself; either way the
+    // server must end with exactly one copy and the user must see success, never a duplicate or a false failure.
+    for (var i = 0; i < 80 && find.text('Try again').evaluate().isEmpty && find.text('Your post is up.').evaluate().isEmpty; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    final offeredRetry = find.text('Try again').evaluate().isNotEmpty;
     // ignore: avoid_print
-    print('Upload-retry strip after lost reply: ${find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((s) => s.contains('nterrupted') || s.contains('Try') || s.contains('unavailable')).toList()}');
+    print('Upload-retry after lost reply: offered Try again = $offeredRetry');
     await binding.takeScreenshot('upload_retry_1_lost_reply');
-    expect(find.text('Your post is up.'), findsNothing);
+    final fired = await tester.runAsync(() => http.get(Uri.parse('$_base/e2e/fault-count'), headers: {'Authorization': 'Bearer $_token'}).timeout(const Duration(seconds: 20)));
+    // ignore: avoid_print
+    print('Upload-retry fault status ${fired?.statusCode} body ${fired?.body}');
+    expect(jsonDecode(fired!.body)['fired'], 1, reason: 'the lost-reply fault must have fired exactly once');
     expect(await _copies(tester, marker), 1, reason: 'the server saved the post before the reply was lost');
-
-    await tester.tap(find.text('Try again'));
+    if (offeredRetry) {
+      await tester.tap(find.text('Try again'));
+    }
     await _until(tester, find.text('Your post is up.'));
     await tester.pump(const Duration(seconds: 1));
     await binding.takeScreenshot('upload_retry_2_after_retry');

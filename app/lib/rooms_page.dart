@@ -487,7 +487,7 @@ class RoomView extends StatelessWidget {
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 12),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 0), child: Text('Raised hands (${hands.length})', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.4))),
+                    Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 0), child: Text(tf_('Raised hands ({n})', {'n': hands.length}), style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.4))),
                     for (final h in hands.entries)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),

@@ -400,6 +400,11 @@ const _ne = <String, String>{
   'Refresh comments': 'टिप्पणीहरू पुनः लोड गर्नुहोस्',
   'Close comments': 'टिप्पणी बन्द गर्नुहोस्',
   'Replying to': 'जवाफ दिँदै',
+  'Block @{u}?': '@{u} लाई ब्लक गर्ने?',
+  'Not enough coins. You need {n} more. Add coins from your wallet.': 'पर्याप्त कोइन छैन। तपाईंलाई {n} थप चाहिन्छ। वालेटबाट कोइन थप्नुहोस्।',
+  'Sent {g} to @{u}': '@{u} लाई {g} पठाइयो',
+  'Send a gift to @{u}': '@{u} लाई उपहार पठाउनुहोस्',
+  'Raised hands ({n})': 'हात उठाएका ({n})',
   'Cancel reply': 'जवाफ रद्द गर्नुहोस्',
   'Add a comment': 'टिप्पणी लेख्नुहोस्',
   'Send comment': 'टिप्पणी पठाउनुहोस्',
@@ -631,6 +636,13 @@ const _ne = <String, String>{
   'You have no chats yet. Start one from Chats.': 'तपाईंसँग अहिलेसम्म कुनै च्याट छैन। च्याटबाट सुरु गर्नुहोस्।',
   'You will stop getting its messages. Someone has to add you again to rejoin.': 'तपाईंले यसका सन्देश पाउन छाड्नुहुनेछ। फेरि जोडिन कसैले तपाईंलाई थप्नुपर्छ।',
 };
+
+/// Translates a template with {name} placeholders, then fills them in.
+String tf_(String en, Map<String, Object?> args) {
+  var s = t_(en);
+  args.forEach((k, v) => s = s.replaceAll('{$k}', '$v'));
+  return s;
+}
 
 /// Translates a UI string into the chosen language. Falls back to English.
 String t_(String en) => prefs.lang == 'ne' ? (_ne[en] ?? en) : en;

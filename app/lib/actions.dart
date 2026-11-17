@@ -35,7 +35,7 @@ Future<bool> blockFlow(BuildContext context, Session s, String username) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (c) => AlertDialog(
-      title: Text('Block @$username?'),
+      title: Text(tf_('Block @{u}?', {'u': username})),
       content: Text(t_('You will not see each other\'s posts and they cannot follow you.')),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),

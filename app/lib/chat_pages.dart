@@ -803,7 +803,7 @@ class _ChatPageState extends State<ChatPage> {
                   padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
                   decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
                   child: Row(children: [
-                    Expanded(child: Text('Replying to @${(replyTo!['sender'] as Map)['username']}: ${kindLabel(replyTo!['kind'], replyTo!['body'])}', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(child: Text('${t_('Replying to')} @${(replyTo!['sender'] as Map)['username']}: ${kindLabel(replyTo!['kind'], replyTo!['body'])}', maxLines: 1, overflow: TextOverflow.ellipsis)),
                     IconButton(visualDensity: VisualDensity.compact, onPressed: () => setState(() => replyTo = null), icon: const PhIcon('x', size: 18)),
                   ]),
                 ),

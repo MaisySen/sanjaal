@@ -65,7 +65,7 @@ class _GiftSheetState extends State<_GiftSheet> {
 
   void _short(Map<String, dynamic> g) {
     final need = (g['coins'] as num).toInt() - (balance ?? 0);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Not enough coins. You need $need more. Add coins from your wallet.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tf_('Not enough coins. You need {n} more. Add coins from your wallet.', {'n': need}))));
   }
 
   Future<void> _send(Map<String, dynamic> g) async {
@@ -76,7 +76,7 @@ class _GiftSheetState extends State<_GiftSheet> {
       if (!mounted) return;
       setState(() => balance = (r['balance'] as num).toInt());
       widget.onSent?.call((r['gift'] as Map).cast<String, dynamic>());
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent ${g['name']} to @${widget.username}')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tf_('Sent {g} to @{u}', {'g': g['name'], 'u': widget.username}))));
     } catch (e) {
       if (mounted) showError(context, e);
     } finally {
@@ -90,7 +90,7 @@ class _GiftSheetState extends State<_GiftSheet> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Send a gift to @${widget.username}', style: Theme.of(context).textTheme.titleMedium),
+          Text(tf_('Send a gift to @{u}', {'u': widget.username}), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(balance == null ? '' : 'Your balance: $balance coins'),
           const SizedBox(height: 12),

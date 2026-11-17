@@ -138,3 +138,7 @@ The normalizer now sets the logical PNG path as well as name, keeping bytes in m
 ### Second-member native/API boundary gate
 
 The native integration fixture now also issues a separate token for its existing synthetic Asha member, used only by the test target. Local real HTTP confirmed owner and second-member identities against an isolated API. After the owner-only native composer round trip, the second member must receive 404 for Only me bytes. A new synthetic Close friends story must become readable only after the owner adds that member, then hide-story revocation must deny full bytes, Range, ETag, view writes and listing. Cleanup restores the synthetic relationship. The extra token is masked in CI and passed only to the native test, never the shipped application. Shell/PHP syntax and Flutter analysis pass; the expanded native gate itself is pending CI, not a reported pass.
+
+### Round-trip gate route-transition correction
+
+Both repaired98cc232 CI44000724383 and expanded05b751f CI44001889975 passed API/APK/iOS but failed the native target's next assertion immediately after sharing. The original media-required error no longer occurred. The wait used an underlying route button's presence, which became true during the composer's reverse transition before the route was removed. It now requires composer removal and a hit-testable return button, while retaining the explicit no-composer assertion and every upload/audience/read/delete check. This is a test synchronization correction, not a full-flow pass claim. Native/server confirmation remains pending.

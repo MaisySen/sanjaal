@@ -281,7 +281,13 @@ void main() {
       await t.tap(find.text('Share story'));
       await wait(
         t,
-        () => find.text('Review selected story').evaluate().isNotEmpty,
+        () =>
+            find.byType(StoryComposePage).evaluate().isEmpty &&
+            find
+                .text('Review selected story')
+                .hitTestable()
+                .evaluate()
+                .isNotEmpty,
       );
       expect(find.byType(StoryComposePage), findsNothing);
       final listed =

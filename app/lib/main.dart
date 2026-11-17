@@ -304,13 +304,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _refreshUnread() async {
-    if (!_foreground) return;
+  bool _unreadInFlight = false;
+  DateTime _unreadAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Future<void> _refreshUnread({bool force = false}) async {
+    if (!_foreground || _unreadInFlight) return;
+    if (!force && DateTime.now().difference(_unreadAt) < const Duration(seconds: 10)) return;
+    _unreadInFlight = true;
+    _unreadAt = DateTime.now();
     try {
       final j = await widget.session.call('GET', '/notifications/summary') as Map<String, dynamic>;
       final n = (j['unread_messages'] as num?)?.toInt() ?? 0;
       if (mounted && n != unread) setState(() => unread = n);
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      _unreadInFlight = false;
+    }
   }
 
   Future<void> _compose() async {

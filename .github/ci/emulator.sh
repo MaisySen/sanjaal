@@ -27,11 +27,7 @@ for t in smoke signed_in flows native_media upload_retry; do
   adb shell pkill -2 screenrecord > /dev/null 2>&1; sleep 3
   adb pull /sdcard/rec_$t.mp4 build/screenshots/rec_$t.mp4 > /dev/null 2>&1
   tail -4 /tmp/drive_$t.log | cut -c1-200
-  if [ $code -ne 0 ] && [ "$t" = upload_retry ]; then
-    # New coverage runs as non-gating until it has passed on repeated CI runs.
-    echo "::warning title=upload_retry (non-gating)::emulator upload failure/retry journey failed; see drive_upload_retry log"
-    grep -n -E "Error-diag|EXCEPTION|Expected|Actual|\[E\]|TestFailure" /tmp/drive_$t.log | head -15 | cut -c1-280 | sed 's/%/%25/g' | while read -r l; do echo "::warning title=upload_retry::$l"; done
-  elif [ $code -ne 0 ]; then
+  if [ $code -ne 0 ]; then
     rc=$code
     grep -n -E "EXCEPTION|Exception|Expected|Actual|Error|error:|FAILURE|\[E\]|Could not|failed" /tmp/drive_$t.log | head -25 | cut -c1-280 | sed 's/%/%25/g' | while read -r l; do echo "::error title=emulator $t::$l"; done
   fi

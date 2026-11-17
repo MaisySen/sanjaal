@@ -218,6 +218,8 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   LibraryAlbum? album;
   LibraryAccess? access;
   bool needsAuthorize = true;
+  bool launchingPicker = false;
+  bool get selectionBusy=>resolving || launchingPicker;
   bool loading = false,
       resolving = false,
       more = true,
@@ -248,7 +250,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
       authorize(ask: false);
     } else if (access != null &&
         !loading &&
-        !resolving &&
+        !selectionBusy &&
         ModalRoute.of(context)?.isCurrent == true) {
       authorize(ask: false);
     }
@@ -298,7 +300,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> load({bool reset = false}) async {
-    if (album == null || resolving || (!reset && (loading || !more))) return;
+    if (album == null || selectionBusy || (!reset && (loading || !more))) return;
     final request = reset ? ++epoch : epoch;
     final current = album!;
     if (reset) {
@@ -328,7 +330,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> choose(LibraryAsset asset) async {
-    if (resolving) return;
+    if (selectionBusy) return;
     if (asset.video && asset.seconds > maxSeconds) {
       showInfo(
         context,
@@ -351,7 +353,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> resolve(List<LibraryAsset> chosen) async {
-    if (resolving || chosen.isEmpty) return;
+    if (selectionBusy || chosen.isEmpty) return;
     setState(() {
       resolving = true;
       error = null;
@@ -390,7 +392,18 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
     }
   }
 
-  Future<void> capture() async {
+  Future<void> launch(Future<void> Function() action) async {
+    if(selectionBusy) return;
+    setState(()=>launchingPicker=true);
+    try { await action(); }
+    catch (_) { if(mounted) showInfo(context,t_('Camera or media picker could not be opened. Try again.')); }
+    finally { if(mounted) setState(()=>launchingPicker=false); }
+  }
+
+  Future<void> capture()=>launch(_capture);
+  Future<void> fallback()=>launch(_fallback);
+
+  Future<void> _capture() async {
     if (resolving) return;
     final builder = widget.captureBuilder;
     final value = await Navigator.of(context).push<CreatorMedia>(
@@ -408,7 +421,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
     if (value != null && mounted) Navigator.pop(context, [value]);
   }
 
-  Future<void> fallback() async {
+  Future<void> _fallback() async {
     if (resolving) return;
     bool video = widget.kind == CreatorKind.reel;
     if (widget.kind == CreatorKind.story) {
@@ -471,7 +484,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> manage() async {
-    if (resolving || loading) return;
+    if (selectionBusy || loading) return;
     try {
       await library.manage();
       if (mounted) authorize();
@@ -502,6 +515,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
         data: Theme.of(context).copyWith(
           brightness: Brightness.dark,
           scaffoldBackgroundColor: Colors.black,
+          textButtonTheme: TextButtonThemeData(style:TextButton.styleFrom(foregroundColor:Colors.white,disabledForegroundColor:Colors.white38)),
           colorScheme: const ColorScheme.dark(
             primary: Colors.white,
             onPrimary: Colors.black,
@@ -530,11 +544,15 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
             actions: [
               IconButton(
                 tooltip: t_('Photo permissions'),
-                onPressed: resolving
+                onPressed: selectionBusy
                     ? null
                     : () async {
                         waitingSettings = true;
-                        await library.settings();
+                        try { await library.settings(); }
+                        catch (_) {
+                          waitingSettings=false;
+                          if(context.mounted) showInfo(context,t_('Photo permissions could not be opened. Try again.'));
+                        }
                       },
                 icon: const PhIcon('gear'),
               ),
@@ -559,12 +577,12 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                           runSpacing: 8,
                           children: [
                             OutlinedButton.icon(
-                              onPressed: resolving ? null : capture,
+                              onPressed: selectionBusy ? null : capture,
                               icon: const PhIcon('camera'),
                               label: Text(t_('Camera')),
                             ),
                             OutlinedButton.icon(
-                              onPressed: resolving ? null : fallback,
+                              onPressed: selectionBusy ? null : fallback,
                               icon: const PhIcon('images'),
                               label: Text(t_('Device picker')),
                             ),
@@ -572,7 +590,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                               FilterChip(
                                 label: Text(t_('Photos')),
                                 selected: images && !videos,
-                                onSelected: resolving
+                                onSelected: selectionBusy
                                     ? null
                                     : (_) {
                                         images = true;
@@ -583,7 +601,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                               FilterChip(
                                 label: Text(t_('Videos')),
                                 selected: videos && !images,
-                                onSelected: resolving
+                                onSelected: selectionBusy
                                     ? null
                                     : (_) {
                                         images = false;
@@ -594,7 +612,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                               if (!(images && videos))
                                 ActionChip(
                                   label: Text(t_('All media')),
-                                  onPressed: resolving
+                                  onPressed: selectionBusy
                                       ? null
                                       : () {
                                           images = true;
@@ -619,7 +637,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                                 ),
                               ),
                               TextButton(
-                                onPressed: resolving || loading ? null : manage,
+                                onPressed: selectionBusy || loading ? null : manage,
                                 child: Text(t_('Choose more')),
                               ),
                             ],
@@ -635,7 +653,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                                 style: const TextStyle(color: Colors.white),
                               ),
                               TextButton(
-                                onPressed: loading || resolving
+                                onPressed: loading || selectionBusy
                                     ? null
                                     : () {
                                         if (retrySelection != null) {
@@ -664,7 +682,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                             children: [
                               SizedBox(
                                 width: multiple
-                                    ? 100
+                                    ? MediaQuery.textScalerOf(context).scale(1)>1.3 ? bounds.maxWidth : 100
                                     : (bounds.maxWidth -
                                               (maxFiles > 1 ? 80 : 0))
                                           .clamp(80, bounds.maxWidth),
@@ -695,7 +713,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                                           ),
                                         )
                                         .toList(),
-                                    onChanged: resolving || loading
+                                    onChanged: selectionBusy || loading
                                         ? null
                                         : (id) {
                                             album = albums.firstWhere(
@@ -708,7 +726,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                               ),
                               if (maxFiles > 1)
                                 TextButton(
-                                  onPressed: resolving
+                                  onPressed: selectionBusy
                                       ? null
                                       : () => setState(() {
                                           multiple = !multiple;
@@ -720,7 +738,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                                 ),
                               if (multiple)
                                 TextButton(
-                                  onPressed: resolving || selected.isEmpty
+                                  onPressed: selectionBusy || selected.isEmpty
                                       ? null
                                       : () => resolve(List.of(selected)),
                                   child: Text(
@@ -751,7 +769,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                           ),
                           const SizedBox(height: 16),
                           FilledButton(
-                            onPressed: fallback,
+                            onPressed: selectionBusy?null:fallback,
                             child: Text(t_('Device picker')),
                           ),
                         ],
@@ -773,7 +791,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                         return Material(
                           color: const Color(0xFF202124),
                           child: InkWell(
-                            onTap: resolving ? null : capture,
+                            onTap: selectionBusy ? null : capture,
                             child: Center(
                               child: Semantics(
                                 label: t_('Camera'),
@@ -796,7 +814,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                         library: library,
                         selected: index >= 0 ? index + 1 : null,
                         multiple: multiple,
-                        onTap: resolving ? null : () => choose(asset),
+                        onTap: selectionBusy ? null : () => choose(asset),
                       );
                     }, childCount: items.length + 1),
                   ),
@@ -819,7 +837,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                   if (more && !loading && items.isNotEmpty)
                     SliverToBoxAdapter(
                       child: TextButton(
-                        onPressed: resolving ? null : load,
+                        onPressed: selectionBusy ? null : load,
                         child: Text(t_('Load more')),
                       ),
                     ),
@@ -915,7 +933,7 @@ class _LibraryTileState extends State<_LibraryTile> {
                       ? null
                       : Text(
                           '${widget.selected}',
-                          style: const TextStyle(color: Colors.white),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onPrimary),
                         ),
                 ),
               ),

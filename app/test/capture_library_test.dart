@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart' as picker;
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/capture_page.dart';
 import 'package:sanjaal/media_library_page.dart';
@@ -35,7 +36,7 @@ class FakeCamera implements CaptureDevice {
 class FakeLibrary implements MediaLibrary {
   LibraryAccess access=LibraryAccess.full;
   int requests=0,thumbs=0,fileReads=0,manages=0,settingsCalls=0;
-  bool failAlbums=false,failPage=false,failFile=false;
+  bool failAlbums=false,failPage=false,failFile=false,failSettings=false;
   Completer<List<LibraryAsset>>? delayedPage;
   Completer<XFile?>? delayedFile;
   final reads=<(String,int)>[];
@@ -48,7 +49,12 @@ class FakeLibrary implements MediaLibrary {
   @override Future<Uint8List?> thumbnail(LibraryAsset asset)async{thumbs++;return imageBytes;}
   @override Future<XFile?> file(LibraryAsset asset)async{fileReads++;if(failFile)return null;return delayedFile?.future??XFile.fromData(imageBytes,name:'fixture.png');}
   @override Future<void> manage()async{manages++;}
-  @override Future<void> settings()async{settingsCalls++;}
+  @override Future<void> settings()async{settingsCalls++;if(failSettings)throw StateError('settings unavailable');}
+}
+class PendingPicker extends picker.ImagePickerPlatform {
+  int calls=0;
+  final pending=Completer<picker.XFile?>();
+  @override Future<picker.XFile?> getVideo({required picker.ImageSource source,picker.CameraDevice preferredCameraDevice=picker.CameraDevice.rear,Duration? maxDuration})async{calls++;return pending.future;}
 }
 Future<void> flush(WidgetTester t)async{for(var i=0;i<3;i++){await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:10)));await t.pump(const Duration(milliseconds:150));}}
 Future<void> start(WidgetTester t,Widget page,{void Function(dynamic)? result,double scale=1,String language='en'})async{
@@ -61,6 +67,28 @@ Future<void> shot(WidgetTester t,String name)async{await flush(t);await flush(t)
 void background(WidgetTester t){for(final state in [AppLifecycleState.inactive,AppLifecycleState.hidden,AppLifecycleState.paused]){t.binding.handleAppLifecycleStateChanged(state);}}
 void foreground(WidgetTester t){for(final state in [AppLifecycleState.hidden,AppLifecycleState.inactive,AppLifecycleState.resumed]){t.binding.handleAppLifecycleStateChanged(state);}}
 void main(){
+ for(final language in ['en','ne']){for(final scale in [1.0,1.8]){
+ testWidgets('selected media order stays readable and permission failure is recoverable $language $scale',(t)async{
+  final library=FakeLibrary()..failSettings=true;await start(t,MediaLibraryPage(kind:CreatorKind.post,library:library),language:language,scale:scale);
+  await t.tap(find.text(t_('Select')));await flush(t);await t.tap(find.byKey(const ValueKey('a1')));await flush(t);expect(find.text('1'),findsOneWidget);expect(t.widget<Text>(find.text('1')).style?.color,Colors.black);await shot(t,'gallery_selected_${language}_$scale');
+  await t.tap(find.byTooltip(t_('Photo permissions')));await flush(t);expect(find.text(t_('Photo permissions could not be opened. Try again.')),findsOneWidget);expect(t.takeException(),isNull);await shot(t,'gallery_permission_error_${language}_$scale');expect(library.fileReads,0);
+ });}}
+
+ testWidgets('camera launch double taps open one review route and cancel unlocks gallery',(t)async{
+  final library=FakeLibrary();var builds=0;
+  await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library,captureBuilder:(_,_)=>Builder(builder:(context){builds++;return Scaffold(body:TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel fixture camera')));})));final button=t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Camera')).onPressed!;button();button();await flush(t);expect(find.text('Cancel fixture camera'),findsOneWidget);expect(builds,1);expect(library.fileReads,0);
+  await t.tap(find.text('Cancel fixture camera'));await flush(t);expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Camera')).onPressed,isNotNull);expect(find.byType(MediaLibraryPage),findsOneWidget);expect(t.takeException(),isNull);
+ });
+ testWidgets('native picker double taps make one request and cancellation preserves gallery',(t)async{
+  final old=picker.ImagePickerPlatform.instance;final fake=PendingPicker();picker.ImagePickerPlatform.instance=fake;addTearDown(()=>picker.ImagePickerPlatform.instance=old);
+  final library=FakeLibrary();await start(t,MediaLibraryPage(kind:CreatorKind.reel,library:library));final button=t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Device picker')).onPressed!;button();button();await flush(t);expect(fake.calls,1);expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Camera')).onPressed,isNull);expect(library.fileReads,0);
+  fake.pending.complete(null);await flush(t);expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Device picker')).onPressed,isNotNull);expect(find.byType(MediaLibraryPage),findsOneWidget);expect(t.takeException(),isNull);
+ });
+ testWidgets('failed device permission settings opens a recoverable notice and gallery stays usable',(t)async{
+  final library=FakeLibrary()..failSettings=true;await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library));await t.tap(find.byTooltip('Photo permissions'));await flush(t);expect(library.settingsCalls,1);expect(find.text('Photo permissions could not be opened. Try again.'),findsOneWidget);expect(find.byType(MediaLibraryPage),findsOneWidget);expect(t.takeException(),isNull);
+  library.failSettings=false;await t.tap(find.byTooltip('Photo permissions'));await flush(t);expect(library.settingsCalls,2);expect(library.fileReads,0);expect(t.takeException(),isNull);
+ });
+
  setUpAll(()async{Directory('test/renders').createSync(recursive:true);
  for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}
  final recorder=ui.PictureRecorder();final canvas=Canvas(recorder);canvas.drawRect(const Rect.fromLTWH(0,0,300,500),Paint()..shader=ui.Gradient.linear(Offset.zero,const Offset(300,500),const [Color(0xFF1F8784),Color(0xFFDAB487)]));final image=await recorder.endRecording().toImage(300,500);imageBytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();

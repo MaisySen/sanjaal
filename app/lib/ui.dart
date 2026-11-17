@@ -96,6 +96,8 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Camera or media picker could not be opened. Try again.': 'क्यामेरा वा मिडिया छान्ने सुविधा खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Photo permissions could not be opened. Try again.': 'तस्बिरका अनुमति खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
   "Sign in again to view this account's local drafts.": 'यो खाताका स्थानीय मस्यौदा हेर्न फेरि साइन इन गर्नुहोस्।',
   'Sign in to view saved drafts.': 'सुरक्षित मस्यौदा हेर्न साइन इन गर्नुहोस्।',
   'Could not read saved drafts. Nothing was replaced.': 'सुरक्षित मस्यौदा पढ्न सकिएन। केही पनि बदलिएको छैन।',

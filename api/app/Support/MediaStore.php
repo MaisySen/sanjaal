@@ -2,9 +2,11 @@
 
 namespace App\Support;
 
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /**
  * Stores uploaded media. With Backblaze B2 configured the bytes go to a private bucket and the
@@ -19,30 +21,30 @@ class MediaStore
     }
 
     /** Save bytes under a public id. Returns the id. */
-    public static function put(string $publicId, string $mime, string $bytes, bool $private = false): string
+    public static function put(string $publicId, string $mime, string $bytes, bool $private = false, bool $forceDatabase = false): string
     {
         // Private attachments stay behind the authenticated DB-media endpoint.
         // Previously issued bucket-wide B2 download tokens may still be valid,
         // so object-scoped NEW tokens alone cannot protect NEW private B2 files.
         $storage = 'db';
         $data = '';
-        if (! $private && self::enabled()) {
+        if (! $private && ! $forceDatabase && self::enabled()) {
             self::upload($publicId, $mime, $bytes);
             $storage = 'b2';
         } else {
             $data = base64_encode($bytes);
         }
         DB::table('media_blobs')->insert([
-            'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => $storage,
+            'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => $storage, 'is_private' => $private,
             'data' => $data, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
         return $publicId;
     }
 
-    public static function putFile(string $publicId, \Illuminate\Http\UploadedFile $file, bool $private = false): string
+    public static function putFile(string $publicId, UploadedFile $file, bool $private = false, bool $forceDatabase = false): string
     {
-        return self::put($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()), $private);
+        return self::put($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()), $private, $forceDatabase);
     }
 
     /** Remove rows and, for B2 rows, the stored file. Failures to delete remote files never block the request. */
@@ -86,7 +88,7 @@ class MediaStore
     {
         // All object names are generated UUIDs. A full UUID prefix cannot authorize
         // a different object. Never hand clients a token for the entire bucket.
-        if (! \Illuminate\Support\Str::isUuid($publicId)) {
+        if (! Str::isUuid($publicId)) {
             throw new \InvalidArgumentException('Invalid media identifier.');
         }
 

@@ -20,14 +20,14 @@ class MoveMediaToB2 extends Command
 
             return self::FAILURE;
         }
-        $rows = DB::table('media_blobs')->where('storage', 'db')->orderBy('id')->limit((int) $this->option('limit'))->get(['public_id', 'mime', 'size', 'data']);
+        $rows = DB::table('media_blobs')->where('storage', 'db')->orderBy('id')->limit((int) $this->option('limit'))->get(['public_id', 'mime', 'size', 'data', 'is_private']);
         $moved = 0;
         $failed = 0;
         foreach ($rows as $row) {
             // Only positively identified public media may enter the shared bucket.
             // Excluding chat references alone is insufficient for in-flight or
             // orphaned private uploads that have no message row yet.
-            $private = DB::table('messages')->where('media_id', $row->public_id)->exists()
+            $private = $row->is_private || DB::table('messages')->where('media_id', $row->public_id)->exists()
                 || DB::table('stories')->where('media_id', $row->public_id)->where('protected_media', true)->exists();
             $public = DB::table('post_media')->where('path', $row->public_id)->exists()
                 || DB::table('users')->where('avatar', $row->public_id)->exists()

@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Support\MediaStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ProtectedStoryTest extends TestCase
@@ -151,6 +153,7 @@ class ProtectedStoryTest extends TestCase
         $b->following()->attach($a->id);
         $s = $this->story($ha);
         DB::table('stories')->where('public_id', $s['public_id'])->update(['protected_media' => false]);
+        DB::table('media_blobs')->whereIn('public_id', DB::table('stories')->where('public_id', $s['public_id'])->select('media_id'))->update(['is_private' => false]);
         $blob = DB::table('stories')->where('public_id', $s['public_id'])->value('media_id');
         $this->relation($ha, 'follower', false, true)->assertOk();
         $this->get('/api/v1/media/'.$blob)->assertOk()->assertHeader('Cache-Control', 'immutable, max-age=31536000, public');
@@ -171,5 +174,45 @@ class ProtectedStoryTest extends TestCase
         $this->assertDatabaseHas('media_blobs', ['public_id' => $blob, 'storage' => 'db']);
         $this->get('/api/v1/media/'.$blob)->assertNotFound();
         $this->get('/api/v1/stories/'.$story['public_id'].'/media', $h)->assertOk();
+    }
+
+    public function test_private_classification_survives_story_deletion_and_conflicting_public_reference(): void
+    {
+        [$owner,$h] = $this->member('owner');
+        $s = $this->story($h);
+        $blob = DB::table('stories')->where('public_id', $s['public_id'])->value('media_id');
+        $this->assertDatabaseHas('media_blobs', ['public_id' => $blob, 'is_private' => true]);
+        $this->deleteJson('/api/v1/stories/'.$s['public_id'], [], $h)->assertOk();
+        $owner->update(['avatar' => $blob]);
+        $this->get('/api/v1/media/'.$blob)->assertNotFound();
+        config(['services.b2.key_id' => 'fixture', 'services.b2.bucket' => 'fixture']);
+        Http::fake();
+        $this->artisan('media:move-to-b2')->assertSuccessful();
+        Http::assertNothingSent();
+        $this->assertDatabaseHas('media_blobs', ['public_id' => $blob, 'storage' => 'db', 'is_private' => true]);
+    }
+
+    public function test_replay_safe_public_post_storage_is_not_misclassified_private(): void
+    {
+        config(['services.uploads.replay_safe' => true]);
+        [$owner,$h] = $this->member('owner');
+        $post = $this->post('/api/v1/posts', ['media' => [UploadedFile::fake()->image('p.jpg', 20, 20)], 'body' => 'Public fixture', 'upload_intent' => 'public-story-classification-0001'], $h)->assertCreated();
+        $blob = DB::table('post_media')->value('path');
+        $this->assertDatabaseHas('media_blobs', ['public_id' => $blob, 'storage' => 'db', 'is_private' => false]);
+        $this->get('/api/v1/media/'.$blob)->assertOk();
+    }
+
+    public function test_classification_migration_backfills_existing_protected_stories_without_downgrading_public_files(): void
+    {
+        [$owner,$h] = $this->member('owner');
+        $s = $this->story($h);
+        $private = DB::table('stories')->where('public_id', $s['public_id'])->value('media_id');
+        $public = (string) Str::uuid();
+        MediaStore::put($public, 'image/png', 'public fixture');
+        $migration = require database_path('migrations/2026_11_17_120000_durable_private_media_classification.php');
+        $migration->down();
+        $migration->up();
+        $this->assertDatabaseHas('media_blobs', ['public_id' => $private, 'is_private' => true]);
+        $this->assertDatabaseHas('media_blobs', ['public_id' => $public, 'is_private' => false]);
     }
 }

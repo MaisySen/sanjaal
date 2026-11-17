@@ -18,6 +18,7 @@ class MediaController extends Controller
     /** Public post media. Files that belong to a chat message are never served here. */
     public function show(Request $request, string $publicId): Response
     {
+        abort_if(DB::table('media_blobs')->where('public_id',$publicId)->where('is_private',true)->exists(),404);
         abort_if(DB::table('stories')->where('media_id', $publicId)->where('protected_media',true)->exists(),404);
         abort_if(DB::table('messages')->where('media_id', $publicId)->exists(), 404);
         // An absent message reference does not make a blob public. Attachments

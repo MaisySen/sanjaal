@@ -111,7 +111,7 @@ class PostController extends Controller
                     $blob = (string) Str::uuid();
                     // Keyed bytes commit atomically with the receipt. Public migration can
                     // move positively referenced objects later; no remote orphan on rollback.
-                    \App\Support\MediaStore::putFile($blob, $file, $keyed);
+                    \App\Support\MediaStore::putFile($blob, $file, forceDatabase: $keyed);
                     $post->media()->create(['type' => str_starts_with($mime, 'video/') ? 'video' : 'image', 'path' => $blob, 'mime' => $mime, 'size' => $file->getSize()]);
                 }
                 $this->syncHashtags($post);

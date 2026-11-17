@@ -137,7 +137,7 @@ class Present
     }
 
     /** $replyHiddenUpTo: reply previews of messages with an id at or below it are left out (history a viewer must not see). */
-    public static function message(Message $m, int $replyHiddenUpTo = 0, array $hiddenAuthors = []): array
+    public static function message(Message $m, int $replyHiddenUpTo = 0, array $hiddenAuthors = [], ?array $preloaded = null): array
     {
         return [
             'public_id' => $m->public_id,
@@ -147,8 +147,8 @@ class Present
             'media_url' => $m->media_id ? url('/api/v1/conversations/'.$m->conversation->public_id.'/messages/'.$m->public_id.'/media') : null,
             'media_mime' => $m->media_mime,
             'duration_ms' => $m->duration_ms,
-            'shared_post' => $m->shared_post_id ? self::sharedPreview($m->shared_post_id, $hiddenAuthors) : null,
-            'reply_to' => $m->reply_to_id && $m->reply_to_id > $replyHiddenUpTo ? self::replyPreview($m->reply_to_id) : null,
+            'shared_post' => $m->shared_post_id ? self::sharedPreview($m->shared_post_id, $hiddenAuthors, $preloaded) : null,
+            'reply_to' => $m->reply_to_id && $m->reply_to_id > $replyHiddenUpTo ? self::replyPreview($m->reply_to_id, $preloaded) : null,
             'sender' => self::user($m->user),
             'client_id' => $m->client_id,
             'created_at' => $m->created_at->toIso8601String(),
@@ -157,9 +157,10 @@ class Present
     }
 
     /** A small card for a post shared in chat. Left out when the post is gone or its author is hidden from the viewer. */
-    private static function sharedPreview(int $postId, array $hiddenAuthors): ?array
+    private static function sharedPreview(int $postId, array $hiddenAuthors, ?array $preloaded = null): ?array
     {
-        $p = Post::with('user', 'media')->find($postId);
+        // A caller that already read the posts for a whole page passes them in; a missing id means gone, as find() would say.
+        $p = $preloaded !== null ? ($preloaded['posts'][$postId] ?? null) : Post::with('user', 'media')->find($postId);
         if (! $p || in_array($p->user_id, $hiddenAuthors, true)) {
             return null;
         }
@@ -182,9 +183,9 @@ class Present
         return $rows->flatMap(fn ($r) => [$r->blocker_id, $r->blocked_id])->unique()->reject(fn ($id) => in_array($id, $userIds, true))->values()->all();
     }
 
-    private static function replyPreview(int $id): ?array
+    private static function replyPreview(int $id, ?array $preloaded = null): ?array
     {
-        $r = Message::with('user')->find($id);
+        $r = $preloaded !== null ? ($preloaded['replies'][$id] ?? null) : Message::with('user')->find($id);
 
         return $r ? ['public_id' => $r->public_id, 'sender' => $r->user->publicName(), 'kind' => $r->kind ?? 'text', 'body' => mb_substr((string) $r->body, 0, 80)] : null;
     }

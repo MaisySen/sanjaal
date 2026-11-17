@@ -6,6 +6,7 @@ use App\Events\MessageSent;
 use App\Http\Resources\Present;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Post;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,14 @@ class ChatController extends Controller
             ->whereRaw('messages.id > coalesce(cm.last_read_message_id, 0)')->whereRaw('messages.id > coalesce(cm.history_from_id, 0)')
             ->selectRaw('messages.conversation_id as cid, count(*) as n')->pluck('n', 'cid') : collect();
         $hidden = $lasts->isEmpty() ? [] : Present::hiddenAuthors([$me->id]);
-        $rows = $convos->map(fn ($c) => $this->present($c, $me, $lasts->get($c->id), (int) ($unread[$c->id] ?? 0), $hidden))->values();
+        // Shared-post cards and reply previews on those last messages are read together too (same finders, same soft-delete rules).
+        $postIds = $lasts->pluck('shared_post_id')->filter()->unique()->all();
+        $replyIds = $lasts->pluck('reply_to_id')->filter()->unique()->all();
+        $pre = [
+            'posts' => $postIds ? Post::with('user', 'media')->whereIn('id', $postIds)->get()->keyBy('id')->all() : [],
+            'replies' => $replyIds ? Message::with('user')->whereIn('id', $replyIds)->get()->keyBy('id')->all() : [],
+        ];
+        $rows = $convos->map(fn ($c) => $this->present($c, $me, $lasts->get($c->id), (int) ($unread[$c->id] ?? 0), $hidden, $pre))->values();
         $rows = $request->boolean('archived') ? $rows->where('archived', true) : $rows->where('archived', false);
         // Pinned chats first, otherwise keep newest-first order.
         $rows = $rows->sortBy(fn ($r) => $r['pinned'] ? 0 : 1)->values();
@@ -393,7 +401,7 @@ class ChatController extends Controller
         return $convo;
     }
 
-    private function present(Conversation $c, User $me, ?Message $batchedLast = null, ?int $batchedUnread = null, ?array $hidden = null): array
+    private function present(Conversation $c, User $me, ?Message $batchedLast = null, ?int $batchedUnread = null, ?array $hidden = null, ?array $pre = null): array
     {
         $pivot = $c->members->firstWhere('id', $me->id)?->pivot;
         $last = $batchedUnread !== null ? $batchedLast : $c->messages()->with('user', 'conversation')->where('id', '>', $pivot?->history_from_id ?? 0)->latest('id')->first();
@@ -404,7 +412,7 @@ class ChatController extends Controller
             'type' => $c->type,
             'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
-            'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), $hidden ?? Present::hiddenAuthors([$me->id])) : null,
+            'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), $hidden ?? Present::hiddenAuthors([$me->id]), $pre) : null,
             'my_role' => $c->type === 'group' ? ($pivot?->role ?? 'member') : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
             'unread' => $batchedUnread ?? $c->messages()->where('id', '>', max($pivot?->last_read_message_id ?? 0, $pivot?->history_from_id ?? 0))->where('user_id', '!=', $me->id)->count(),

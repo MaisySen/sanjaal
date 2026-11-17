@@ -71,7 +71,26 @@ class ChatListParityTest extends TestCase
         $archived = $this->chat('direct', [$me, $d]);
         $this->say($archived, $d, 'archived one');
         DB::table('conversation_members')->where('conversation_id', $archived->id)->where('user_id', $me->id)->update(['archived' => true]);
-        $all = [$empty, $plain, $group, $cut, $deleted, $shared, $archived];
+        // Replies: a live parent, a deleted parent, a parent before the history cut-off, and a shared post that was deleted.
+        [$e] = $this->member('chate');
+        $reply = $this->chat('direct', [$me, $e]);
+        $r1 = $this->say($reply, $e, 'parent');
+        $this->say($reply, $e, 'answer', ['reply_to_id' => $r1->id]);
+        [$f] = $this->member('chatf');
+        $replyGone = $this->chat('direct', [$me, $f]);
+        $f1 = $this->say($replyGone, $f, 'parent gone');
+        $this->say($replyGone, $f, 'answer to gone', ['reply_to_id' => $f1->id]);
+        $f1->delete();
+        [$g] = $this->member('chatg');
+        $replyCut = $this->chat('group', [$me, $g], 'ReplyCut');
+        $x1 = $this->say($replyCut, $g, 'hidden parent');
+        $x2 = $this->say($replyCut, $g, 'visible answer', ['reply_to_id' => $x1->id]);
+        DB::table('conversation_members')->where('conversation_id', $replyCut->id)->where('user_id', $me->id)->update(['history_from_id' => $x2->id]);
+        [$h2] = $this->member('chath');
+        $postGone = DB::table('posts')->insertGetId(['public_id' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $h2->id, 'kind' => 'post', 'body' => 'will vanish', 'created_at' => now(), 'updated_at' => now(), 'deleted_at' => now()]);
+        $sharedGone = $this->chat('direct', [$me, $h2]);
+        $this->say($sharedGone, $h2, 'gone post', ['shared_post_id' => $postGone]);
+        $all = [$empty, $plain, $group, $cut, $deleted, $shared, $archived, $reply, $replyGone, $replyCut, $sharedGone];
 
         foreach ([false, true] as $blocked) {
             if ($blocked) {
@@ -113,7 +132,9 @@ class ChatListParityTest extends TestCase
             for ($i = 0; $i < $n; $i++) {
                 [$o] = $this->member('chatother'.$i.'x'.random_int(1000, 9999));
                 $chat = $this->chat('direct', [$me, $o]);
-                $this->say($chat, $o, 'hello '.$i);
+                $pid = DB::table('posts')->insertGetId(['public_id' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $o->id, 'kind' => 'post', 'body' => 'p'.$i, 'created_at' => now(), 'updated_at' => now()]);
+                $first = $this->say($chat, $o, 'hello '.$i);
+                $this->say($chat, $o, 'look '.$i, ['shared_post_id' => $pid, 'reply_to_id' => $first->id]);
             }
         };
         $make(2);
@@ -122,6 +143,6 @@ class ChatListParityTest extends TestCase
         $make(8);
         $many = $count();
         $this->assertSame($few, $many, 'reads must not grow with the number of chats');
-        $this->assertLessThanOrEqual(8, $many);
+        $this->assertLessThanOrEqual(10, $many);
     }
 }

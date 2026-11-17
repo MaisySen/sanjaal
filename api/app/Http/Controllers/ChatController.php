@@ -268,9 +268,16 @@ class ChatController extends Controller
         }
 
         $convo->load('members');
+        // Shared-post cards and reply previews of the page are read together (same finders and soft-delete rules as before).
+        $postIds = $msgs->pluck('shared_post_id')->filter()->unique()->all();
+        $replyIds = $msgs->pluck('reply_to_id')->filter()->unique()->all();
+        $pre = [
+            'posts' => $postIds ? Post::with('user', 'media')->whereIn('id', $postIds)->get()->keyBy('id')->all() : [],
+            'replies' => $replyIds ? Message::with('user')->whereIn('id', $replyIds)->get()->keyBy('id')->all() : [],
+        ];
 
         return response()->json([
-            'data' => $msgs->map(fn ($m) => Present::message($m, $from, $hiddenAuthors))->values(),
+            'data' => $msgs->map(fn ($m) => Present::message($m, $from, $hiddenAuthors, $pre))->values(),
             'typing' => ExtrasController::typingUsers($convo, $request->user()),
         ]);
     }

@@ -32,7 +32,32 @@ class MediaStore
             self::upload($publicId, $mime, $bytes);
             $storage = 'b2';
         } else {
-            $data = base64_encode($bytes);
+            return DB::transaction(function () use ($publicId, $mime, $bytes, $private) {
+                // All database-media writers share one transaction-scoped gate.
+                // Keep this lock after per-owner/conversation locks, never before.
+                if (DB::getDriverName() === 'pgsql') {
+                    DB::select('SELECT pg_advisory_xact_lock(736200831)');
+                } elseif (DB::getDriverName() !== 'sqlite') {
+                    abort(503, 'Database media storage is temporarily unavailable.');
+                }
+                $cap = filter_var(config('services.uploads.database_media_budget_bytes'), FILTER_VALIDATE_INT);
+                $databaseCap = filter_var(config('services.uploads.database_budget_bytes'), FILTER_VALIDATE_INT);
+                abort_if($cap === false || $cap < 1 || $databaseCap === false || $databaseCap < 1, 503, 'Database media storage is temporarily unavailable.');
+                // Base64 occupies four bytes for every three original bytes.
+                // Sum metadata, not blob payloads, so admission does not read media.
+                $used = (int) DB::table('media_blobs')->where('storage', 'db')->selectRaw('COALESCE(SUM(4 * ((size + 2) / 3)), 0) AS used')->value('used');
+                $incoming = 4 * intdiv(strlen($bytes) + 2, 3);
+                abort_if($used + $incoming > $cap, 503, 'Media storage is temporarily full. Try again later.');
+                if (DB::getDriverName() === 'pgsql') {
+                    $databaseBytes = (int) DB::selectOne('SELECT pg_database_size(current_database()) AS bytes')->bytes;
+                    abort_if($databaseBytes + $incoming > $databaseCap, 503, 'Media storage is temporarily full. Try again later.');
+                }
+                DB::table('media_blobs')->insert([
+                    'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'db', 'is_private' => $private,
+                    'data' => base64_encode($bytes), 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                return $publicId;
+            });
         }
         DB::table('media_blobs')->insert([
             'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => $storage, 'is_private' => $private,

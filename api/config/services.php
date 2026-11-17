@@ -49,7 +49,13 @@ return [
     ],
 
     // Roll out only after receipt migration and DB-media capacity review.
-    'uploads' => ['replay_safe' => env('UPLOAD_INTENTS_ENABLED', false)],
+    'uploads' => [
+        'replay_safe' => env('UPLOAD_INTENTS_ENABLED', false),
+        // Small-beta ceilings, not a statement of free-tier overall capacity.
+        // Include base64 overhead and leave disk for PostgreSQL/WAL/backups.
+        'database_media_budget_bytes' => env('DATABASE_MEDIA_BUDGET_BYTES', 64 * 1024 * 1024),
+        'database_budget_bytes' => env('DATABASE_BUDGET_BYTES', 256 * 1024 * 1024),
+    ],
 
     'b2' => [
         'key_id' => env('B2_KEY_ID'),

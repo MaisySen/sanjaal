@@ -72,6 +72,26 @@ class PostgresRaceTest extends TestCase
         return $c;
     }
 
+    public function test_parallel_distinct_owners_cannot_overrun_database_media_budget(): void
+    {
+        foreach (['one','two','three'] as $name) $this->user($name);
+        $file = tempnam(sys_get_temp_dir(), 'budget-image-');
+        file_put_contents($file, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1kAAAAASUVORK5CYII='));
+        $encoded = 4 * intdiv(filesize($file) + 2, 3);
+        putenv('DATABASE_MEDIA_BUDGET_BYTES='.$encoded);
+        try {
+            $codes = $this->race(array_map(fn ($name) => [$name,'POST','/api/v1/stories',['upload_intent'=>'budget-race-fixture-'.$name,'audience'=>'only_me','_fixture_file'=>$file]], ['one','two','three']));
+            sort($codes);
+            $this->assertSame([201,503,503], $codes);
+            $this->assertDatabaseCount('media_blobs',1);
+            $this->assertDatabaseCount('stories',1);
+            $this->assertDatabaseCount('upload_receipts',1);
+        } finally {
+            putenv('DATABASE_MEDIA_BUDGET_BYTES');
+            unlink($file);
+        }
+    }
+
     public function test_simultaneous_expired_story_cleanup_is_idempotent_and_preserves_active_media_and_receipts():void {
         $owner=$this->user('owner');
         $expired=(string)\Illuminate\Support\Str::uuid();$active=(string)\Illuminate\Support\Str::uuid();

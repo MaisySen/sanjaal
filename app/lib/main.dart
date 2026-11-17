@@ -275,7 +275,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void _showTab(int index) {
     setState(() { tab = index; _visited.add(index); });
     _touchNav();
-    _refreshUnread();
+    // Only a tab tap is throttled. Foreground return, the 30s poll and Retry still refresh at once.
+    if (DateTime.now().difference(_unreadAt) > const Duration(seconds: 20)) _refreshUnread();
   }
 
   Future<void> _checkIncoming() async {
@@ -305,9 +306,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   bool _unreadInFlight = false;
+  DateTime _unreadAt = DateTime.fromMillisecondsSinceEpoch(0);
   Future<void> _refreshUnread() async {
     if (!_foreground || _unreadInFlight) return;
     _unreadInFlight = true;
+    _unreadAt = DateTime.now();
     try {
       final j = await widget.session.call('GET', '/notifications/summary') as Map<String, dynamic>;
       final n = (j['unread_messages'] as num?)?.toInt() ?? 0;

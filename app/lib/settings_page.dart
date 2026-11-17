@@ -1,3 +1,4 @@
+import 'creator_drafts_page.dart';
 import 'member_controls_page.dart';
 import 'story_audience_page.dart';
 import 'feed_page.dart' show SavedPage;
@@ -36,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ('Profile personal details', option('Edit profile', 'user-circle', () => open(EditProfilePage(session: session)))),
       ],
       'How you use Sanjaal': [
+        ('Saved drafts local text poll', option('Saved drafts', 'bookmark-simple', () => open(CreatorDraftsPage(session: session)))),
         ('Saved bookmarks', option('Saved', 'bookmark-simple', () => open(SavedPage(session: session)))),
         ('Notifications push', option('Notifications', 'bell', () => open(_NotificationSettings(session: session)))),
       ],

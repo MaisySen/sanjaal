@@ -86,3 +86,28 @@ assertion prevents accidental fallback to an unrelated Post screen. These are
 not real camera frames, audio, Samsung or two-device proof. Native CI, interruption,
 audio routing, media recovery and real two-device calls remain required.
 No live call was started, no account used and no money/provider enabled.
+
+### Explicit local creator drafts,0.5.5+2010 candidate
+
+Creators can explicitly save text and incomplete poll options, restore/edit from
+Settings > Saved drafts and delete local copies with confirmation. The storage
+path uses the existing platform secure-storage plugin with account-hashed keys,
+eight drafts maximum, bounded schema, read-back verification, serialized writes
+and random per-save revisions. A stale editor cannot overwrite a newer saved
+copy. Corrupt/unreadable storage is not replaced. Switching accounts hides the
+list/editor and blocks wrong-account posting. Restored polls still need current
+server capability; nothing is sent merely by saving or opening a draft.
+
+This is text/poll draft persistence only. Save refuses attached photos/videos
+rather than silently dropping them. Media drafts, cloud sync, automatic outbox
+and durable background upload are not implemented. Drafts remain on this device
+after sign-out and are hidden until the same account returns; explicit deletion
+removes them. A posted draft's saved copy remains until deleted, clearly disclosed
+in the editor. Drafts are not silently posted or resubmitted. Native recovery
+across process death, secure-store failures and reinstall/backup behavior still
+need device testing. The CI startup path now includes a real-plugin synthetic
+save/read/account-isolation/delete round trip, not physical-Samsung proof.
+
+The previous2009 signed artifacts remain immutable and private. This batch bumps
+the next candidate to2010 to keep source/artifact identities separate, not to
+publish another drip release. Play2008 and the live3515 API remain unchanged.

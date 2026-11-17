@@ -1,3 +1,5 @@
+import 'dart:convert' show jsonEncode;
+import 'creator_draft_store.dart';
 import 'media_library_page.dart';
 import 'settings_page.dart';
 import 'upload_center.dart';
@@ -798,10 +800,11 @@ class HashtagPage extends StatelessWidget {
 }
 
 class ComposePage extends StatefulWidget {
-  const ComposePage({super.key, required this.session, this.startWithVideo = false, this.backgroundUpload = false});
+  const ComposePage({super.key, required this.session, this.startWithVideo = false, this.backgroundUpload = false, this.initialLocalDraft});
   final Session session;
   final bool startWithVideo;
   final bool backgroundUpload;
+  final CreatorDraft? initialLocalDraft;
   @override
   State<ComposePage> createState() => _ComposePageState();
 }
@@ -815,9 +818,31 @@ class _ComposePageState extends State<ComposePage> {
   String intent = newUploadIntent();
   UploadError? uploadError;
   List<TextEditingController>? pollOptions;
+  String? _draftOwner, _localDraftId, _localDraftRevision, _savedFingerprint;
+  bool _savingDraft = false;
+  bool get _draftAccountChanged => _draftOwner != null && widget.session.user?['public_id'] != _draftOwner;
+  void _draftSessionChanged() { if (mounted) setState(() {}); }
+  String get _fingerprint => jsonEncode([text.text, pollOptions?.map((c) => c.text).toList()]);
+  bool get _unsaved => images.isNotEmpty || video != null || (_savedFingerprint != _fingerprint && (text.text.trim().isNotEmpty || pollOptions != null));
+  Future<void> _saveDraft() async {
+    if (_savingDraft || busy || handedOff) return;
+    final owner = _draftOwner;
+    if (owner == null || widget.session.user?['public_id'] != owner) { showError(context, t_('Sign in to save drafts on this device.')); return; }
+    if (images.isNotEmpty || video != null) { showError(context, t_('Only text and poll options can be saved for now. Photos and videos are not saved.')); return; }
+    final snapshot = _fingerprint;
+    setState(() => _savingDraft = true);
+    try {
+      final saved = await const CreatorDraftStore().save(owner, id: _localDraftId, expectedRevision: _localDraftRevision, text: text.text, options: pollOptions?.map((c) => c.text).toList());
+      if (!mounted || widget.session.user?['public_id'] != owner) return;
+      setState(() { _localDraftId = saved.id; _localDraftRevision = saved.revision; _savedFingerprint = snapshot; });
+      showInfo(context, t_('Draft saved on this device. Find it in Settings > Saved drafts. Nothing was posted.'));
+    } catch (error) { if (mounted && widget.session.user?['public_id'] == owner) showError(context, error); }
+    finally { if (mounted) setState(() => _savingDraft = false); }
+  }
 
   @override
   void dispose() {
+    widget.session.removeListener(_draftSessionChanged);
     text.dispose();
     for (final option in pollOptions ?? <TextEditingController>[]) { option.dispose(); }
     super.dispose();
@@ -840,6 +865,14 @@ class _ComposePageState extends State<ComposePage> {
   @override
   void initState() {
     super.initState();
+    _draftOwner = widget.session.user?['public_id'] as String?;
+    widget.session.addListener(_draftSessionChanged);
+    final draft = widget.initialLocalDraft;
+    if (draft != null) {
+      text.text = draft.text; _localDraftId = draft.id; _localDraftRevision = draft.revision;
+      pollOptions = draft.options?.map((v) => TextEditingController(text: v)).toList();
+      _savedFingerprint = _fingerprint;
+    }
     if (widget.backgroundUpload) UploadCenter.of(widget.session);
     if (widget.startWithVideo) WidgetsBinding.instance.addPostFrameCallback((_) => _pickVideo());
   }
@@ -870,9 +903,11 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _post() async {
-    if (busy || uploadError?.terminal == true) return;
+    if (busy || _savingDraft || uploadError?.terminal == true) return;
+    if (_draftAccountChanged) { showError(context, 'This draft belongs to another signed-in session. Close it and sign in again.'); return; }
     final body = text.text.trim();
     final options = pollOptions?.map((c) => c.text.trim()).toList();
+    if (options != null && !widget.session.pollsEnabled) { showError(context, t_('Polls are not available for this session. Keep the draft or remove the poll to post text.')); return; }
     if (options != null && (body.isEmpty || options.any((v) => v.isEmpty) || options.map((v) => v.toLowerCase()).toSet().length != options.length)) {
       showError(context, t_('Add a question and different, non-empty options.')); return;
     }
@@ -932,17 +967,20 @@ class _ComposePageState extends State<ComposePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_draftAccountChanged) return Scaffold(appBar: AppBar(title: const Text('Local draft')), body: const Padding(padding: EdgeInsets.all(20), child: Text('This editor belongs to another signed-in session. Close it and sign in again to continue.')));
     return DraftExitGuard(
-      hasChanges: !handedOff && (text.text.trim().isNotEmpty || images.isNotEmpty || video != null || pollOptions != null),
-      busy: busy,
+      hasChanges: !handedOff && _unsaved,
+      busy: busy || _savingDraft,
       child: Scaffold(
       appBar: AppBar(title: Text(t_('New post')), actions: [
+        IconButton(tooltip: t_('Save text draft'), onPressed: busy || _savingDraft || handedOff ? null : _saveDraft, icon: const PhIcon('bookmark-simple')),
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton(onPressed: busy || handedOff || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
+          child: FilledButton(onPressed: busy || _savingDraft || handedOff || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
         ),
       ]),
       body: Column(children: [
+        if (widget.initialLocalDraft != null) Padding(padding: const EdgeInsets.all(12), child: Text('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.')),
         if (uploadError != null) UploadNotice(
           message: uploadError!.message,
           openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),
@@ -962,7 +1000,7 @@ class _ComposePageState extends State<ComposePage> {
           if (pollOptions != null) ...[
             for (var i = 0; i < pollOptions!.length; i++) Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(controller: pollOptions![i], enabled: !busy, maxLength: 80, decoration: InputDecoration(labelText: '${t_('Option')} ${i + 1}')),
+              child: TextField(controller: pollOptions![i], enabled: !busy, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: '${t_('Option')} ${i + 1}')),
             ),
             Wrap(spacing: 8, children: [
               if (pollOptions!.length < 4) TextButton(onPressed: busy ? null : () => setState(() => pollOptions!.add(TextEditingController())), child: Text(t_('Add option'))),

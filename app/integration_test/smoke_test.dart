@@ -3,6 +3,7 @@
 // and draws on a real Android runtime. It says nothing about audio, calls, push or media playback.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
+import 'package:sanjaal/creator_draft_store.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
 
@@ -31,6 +32,22 @@ void main() {
         expect(error.code, 'PLAY_UNAVAILABLE');
       }
       // MissingPluginException and timeouts deliberately fail this gate.
+      // Real device storage plugin round trip with synthetic text only. This
+      // is not process-death recovery, Samsung storage or media-draft proof.
+      const drafts = CreatorDraftStore();
+      final saved = await drafts
+          .save('ci-synthetic-draft-owner', text: 'Native draft fixture')
+          .timeout(const Duration(seconds: 20));
+      try {
+        expect(
+          (await drafts.read('ci-synthetic-draft-owner'))
+              .any((d) => d.id == saved.id && d.text == saved.text),
+          isTrue,
+        );
+        expect(await drafts.read('ci-other-synthetic-owner'), isEmpty);
+      } finally {
+        await drafts.remove('ci-synthetic-draft-owner', saved.id);
+      }
     });
     await binding.convertFlutterSurfaceToImage();
     await tester.pump();

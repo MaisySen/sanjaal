@@ -96,6 +96,21 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Saved drafts': 'सुरक्षित मस्यौदाहरू',
+  'Save text draft': 'लेखको मस्यौदा सुरक्षित गर्नुहोस्',
+  'Text and polls, saved only on this device for this account. Photos and videos are not saved.': 'यस खाताका लेख र मतदानका मस्यौदा यही फोनमा मात्र सुरक्षित हुन्छन्। तस्बिर र भिडियो सुरक्षित हुँदैनन्।',
+  'Drafts never post automatically. Signing out hides them until this account returns. Delete drafts here to remove them from this device.': 'मस्यौदा आफैँ पोस्ट हुँदैनन्। साइन आउट गरेपछि यही खातामा फेरि साइन इन नगरेसम्म देखिँदैनन्। फोनबाट हटाउन मस्यौदा यहाँ मेटाउनुहोस्।',
+  'Text draft': 'लेखको मस्यौदा',
+  'Poll draft': 'मतदानको मस्यौदा',
+  'Delete draft': 'मस्यौदा मेटाउनुहोस्',
+  'Delete this local draft?': 'फोनमा सुरक्षित यो मस्यौदा मेटाउने?',
+  'This removes only the saved copy on this device, not any published post.': 'यसले फोनमा सुरक्षित प्रति मात्र मेटाउँछ, पोस्ट भइसकेको सामग्री होइन।',
+  'No saved drafts yet. Use Save text draft while writing a post.': 'सुरक्षित मस्यौदा छैनन्। पोस्ट लेख्दा मस्यौदा सुरक्षित गर्ने बटन प्रयोग गर्नुहोस्।',
+  'Sign in to save drafts on this device.': 'यो फोनमा मस्यौदा सुरक्षित गर्न साइन इन गर्नुहोस्।',
+  'Only text and poll options can be saved for now. Photos and videos are not saved.': 'अहिले लेख र मतदानका विकल्प मात्र सुरक्षित गर्न सकिन्छ। तस्बिर र भिडियो सुरक्षित हुँदैनन्।',
+  'Draft saved on this device. Find it in Settings > Saved drafts. Nothing was posted.': 'मस्यौदा यही फोनमा सुरक्षित भयो। सेटिङको सुरक्षित मस्यौदामा हेर्नुहोस्। केही पोस्ट भएको छैन।',
+  'Polls are not available for this session. Keep the draft or remove the poll to post text.': 'यो सत्रमा मतदान उपलब्ध छैन। मस्यौदा राख्नुहोस् वा मतदान हटाएर लेख पोस्ट गर्नुहोस्।',
+
   'Take a photo': 'तस्बिर खिच्नुहोस्',
   'Stop recording': 'रेकर्डिङ रोक्नुहोस्',
   'Start recording': 'रेकर्डिङ सुरु गर्नुहोस्',

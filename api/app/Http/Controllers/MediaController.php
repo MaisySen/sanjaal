@@ -24,7 +24,7 @@ class MediaController extends Controller
         // An absent message reference does not make a blob public. Attachments
         // can outlive their conversation or still be awaiting a message row.
         $public = DB::table('post_media')->join('posts', 'posts.id', '=', 'post_media.post_id')
-            ->where('post_media.path', $publicId)->whereNull('posts.deleted_at')->exists()
+            ->where(fn ($q) => $q->where('post_media.path', $publicId)->orWhere('post_media.thumbnail_path', $publicId))->whereNull('posts.deleted_at')->exists()
             || DB::table('users')->where('avatar', $publicId)->exists()
             || DB::table('stories')->where('media_id', $publicId)->where('expires_at', '>', now())->exists();
         abort_unless($public, 404);

@@ -33,7 +33,7 @@ class PruneExpiredStories extends Command
                 $blob = DB::table('media_blobs')->where('public_id', $story->media_id)->lockForUpdate()->first();
                 $referenced = DB::table('stories')->where('media_id', $story->media_id)->where('id', '!=', $story->id)->exists()
                     || DB::table('messages')->where('media_id', $story->media_id)->exists()
-                    || DB::table('post_media')->where('path', $story->media_id)->exists()
+                    || DB::table('post_media')->where(fn ($q) => $q->where('path', $story->media_id)->orWhere('thumbnail_path', $story->media_id))->exists()
                     || DB::table('users')->where('avatar', $story->media_id)->exists();
                 $removeBlob = $blob && $blob->is_private && $blob->storage === 'db' && ! $referenced;
                 if ($this->option('apply')) {

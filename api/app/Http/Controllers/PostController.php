@@ -78,11 +78,18 @@ class PostController extends Controller
             'body' => ['nullable', 'string', 'max:2000'],
             'media' => ['nullable', 'array', 'max:4'],
             'media.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4,mov', 'max:25600'],
+            'posters' => ['nullable', 'array', 'max:4'],
+            'posters.*' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:256', 'dimensions:max_width=640,max_height=640'],
             'poll_options' => ['nullable', 'array', 'min:2', 'max:4'],
             'poll_options.*' => ['required', 'string', 'max:80'],
         ]);
         $kind = $data['kind'] ?? 'post';
         $files = $request->file('media', []);
+        $posters = $request->file('posters', []);
+        ksort($posters);
+        foreach ($posters as $index => $poster) {
+            abort_unless(is_int($index) && isset($files[$index]) && str_starts_with($files[$index]->getMimeType(), 'video/'), 422, 'A poster must belong to the video at the same media index.');
+        }
         $options = isset($data['poll_options']) ? array_values(array_map('trim', $data['poll_options'])) : null;
         if ($options !== null) {
             $normalized = array_map(fn ($v) => Str::lower($v), $options);
@@ -102,17 +109,37 @@ class PostController extends Controller
         }
 
         $body = trim($data['body'] ?? '');
-        $fingerprint = \App\Support\UploadIntent::fingerprint([$kind, $body, $options], $files);
+        // Keep legacy fingerprints unchanged. Posters are frozen draft content,
+        // including their media indices, and cannot change during safe replay.
+        $fields = [$kind, $body, $options];
+        if ($posters) $fields['poster_indices'] = array_keys($posters);
+        $fingerprint = \App\Support\UploadIntent::fingerprint($fields, array_merge($files, array_values($posters)));
         return \App\Support\UploadIntent::run($request, 'post', $fingerprint,
-            function (bool $keyed) use ($request, $body, $kind, $files, $options) {
+            function (bool $keyed) use ($request, $body, $kind, $files, $options, $posters) {
                 $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $body === '' ? null : $body, 'poll_options' => $options]);
-                foreach ($files as $file) {
+                foreach ($files as $index => $file) {
                     $mime = $file->getMimeType();
                     $blob = (string) Str::uuid();
                     // Keyed bytes commit atomically with the receipt. Public migration can
                     // move positively referenced objects later; no remote orphan on rollback.
                     \App\Support\MediaStore::putFile($blob, $file, forceDatabase: $keyed);
-                    $post->media()->create(['type' => str_starts_with($mime, 'video/') ? 'video' : 'image', 'path' => $blob, 'mime' => $mime, 'size' => $file->getSize()]);
+                    $posterPath = null;
+                    if (isset($posters[$index])) {
+                        // Decode only a validated <=640px/256KB image, strip all
+                        // metadata, and commit its bytes with the video reference.
+                        $image = imagecreatefromstring(file_get_contents($posters[$index]->getRealPath()));
+                        abort_unless($image, 422, 'The video poster could not be read.');
+                        try {
+                            ob_start();
+                            $encoded = imagejpeg($image, null, 80);
+                            $jpeg = ob_get_contents();
+                        } finally { ob_end_clean(); imagedestroy($image); }
+                        abort_unless($encoded, 422, 'The video poster could not be encoded.');
+                        abort_unless(is_string($jpeg) && strlen($jpeg) <= 256 * 1024, 422, 'The video poster is too large.');
+                        $posterPath = (string) Str::uuid();
+                        \App\Support\MediaStore::put($posterPath, 'image/jpeg', $jpeg, forceDatabase: true);
+                    }
+                    $post->media()->create(['thumbnail_path' => $posterPath, 'type' => str_starts_with($mime, 'video/') ? 'video' : 'image', 'path' => $blob, 'mime' => $mime, 'size' => $file->getSize()]);
                 }
                 $this->syncHashtags($post);
                 return $post->public_id;
@@ -136,7 +163,7 @@ class PostController extends Controller
         $paths = DB::transaction(function () use ($publicId, $request) {
             $post = Post::where('public_id', $publicId)->lockForUpdate()->firstOrFail();
             abort_unless($post->user_id === $request->user()->id, 403, 'You can only delete your own posts.');
-            $paths = $post->media()->pluck('path');
+            $paths = $post->media->flatMap(fn ($m) => [$m->path, $m->thumbnail_path])->filter();
             DB::table('poll_votes')->where('post_id', $post->id)->delete();
             $post->delete();
 

@@ -74,6 +74,7 @@ class Present
                 'type' => $m->type,
                 'url' => url('/api/v1/media/'.$m->path),
                 'mime' => $m->mime,
+                'thumbnail_url' => $m->thumbnail_path ? url('/api/v1/media/'.$m->thumbnail_path) : null,
             ])->values(),
             'hashtags' => $p->hashtags->pluck('tag')->values(),
             'likes_count' => $p->likes_count,

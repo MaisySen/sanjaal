@@ -29,7 +29,7 @@ class MoveMediaToB2 extends Command
             // orphaned private uploads that have no message row yet.
             $private = $row->is_private || DB::table('messages')->where('media_id', $row->public_id)->exists()
                 || DB::table('stories')->where('media_id', $row->public_id)->where('protected_media', true)->exists();
-            $public = DB::table('post_media')->where('path', $row->public_id)->exists()
+            $public = DB::table('post_media')->join('posts', 'posts.id', '=', 'post_media.post_id')->whereNull('posts.deleted_at')->where(fn ($q) => $q->where('post_media.path', $row->public_id)->orWhere('post_media.thumbnail_path', $row->public_id))->exists()
                 || DB::table('users')->where('avatar', $row->public_id)->exists()
                 || DB::table('stories')->where('media_id', $row->public_id)->where('protected_media', false)->exists();
             if ($private || ! $public) {

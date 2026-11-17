@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:sanjaal/api.dart';
@@ -29,6 +30,7 @@ void main() {
   test('existing QA login and read-only API routes use the real Session client', () async {
     final credentials = jsonDecode(await File(credentialFile!).readAsString()) as Map;
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
     await http.runWithClient(() async {
         final session = Session();
         await session.login(credentials['username'] as String, credentials['password'] as String);
@@ -37,6 +39,12 @@ void main() {
           final result = await session.call('GET', path) as Map;
           expect(result['data'], isA<List>(), reason: '$path schema');
         }
+        // Actual network refresh issue/exchange and account restore with a fake
+        // secure-store adapter. This is not native Keystore or device evidence.
+        final restored = Session();
+        await restored.restore();
+        expect(restored.restoreError, isNull);
+        expect(restored.user?['public_id'], session.user?['public_id']);
         final wallet = await session.call('GET', '/wallet') as Map;
         expect(wallet['cashout'], isA<Map>());
         expect((wallet['cashout'] as Map)['available'], isFalse);

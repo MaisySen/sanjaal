@@ -1,6 +1,6 @@
 # Consolidated next-candidate gate
 
-Prepared November 17, 2026. This is a plan, not deployment approval or a completion claim.
+Prepared November 17, 2026. Current state updated22:07 AEDT. This is not a full-product completion claim.
 
 ## Scope
 
@@ -8,20 +8,23 @@ The next immutable candidate combines startup restore-error preservation, bounde
 
 The existing phone build is 0.5.5 (2010), source 68aec83024c80f8d0951a03b79cd6112c4f40074. New source has not been installed on the Samsung. Its remote connection is unavailable; do not poll or use stale frames as evidence.
 
-## Auth prerequisite, prepared but unchanged
+## Auth correction completed22:00 checkpoint
 
-A fresh synthetic QA password login requested offline_access but returned no refresh token. Live dashboard inspection on November 17 confirmed that Sanjaal API Allow Offline Access is off. Sanjaal Mobile already enables the Refresh Token grant. Merely preserving an absent refresh token cannot make that login persistent.
+Recovered owner originals delegate autonomous full-app work; the17:15 restrictions concern exact-candidate acceptance, Samsung evidence and unavailable money paths. They do not require routine auth/server defects to remain unchanged. Earlier preparation-only holds in this document were agent-written cautions, not owner refusals.
 
-Keep the API setting unchanged until the owner-authorized rollout step. Before changing it, re-read the actual deployed and installed secure-store implementation and current client settings, including token expiry/rotation policy. Do not weaken expiry, turn on an unrelated grant, reset accounts or change credentials. After an approved correction, verify with a fresh QA login that a refresh token is issued, perform a refresh without exposing either token, and test secure cold-start restore on the exact candidate. Do not describe historic sign-outs as explained by this one observation.
+Live Auth0 correction completed21:56: mobile refresh expiry15days idle/30days maximum, rotation remains off; API Allow Offline Access on. Fresh own-QA login issued a refresh token, exchange succeeded, and the resulting access token read the expected QA profile from production. A read-only test using the actual Session client also passed login and new-Session restore with real auth/API and a fake secure-store adapter. This is not native Keystore/Samsung persistence evidence. Older existing access-only sessions do not gain a refresh grant without their next sign-in. No credential reset, paid option or unrelated grant was used.
 
-## Runtime preparation and rollback
+Current client follow-up serializes concurrent refresh attempts through one shared exchange and permits retry after a failed exchange. Its exact-source CI remains required. Rotation is not enabled merely because this local correction exists; installed older clients still need compatibility review.
 
-- Re-read current service image/configuration and additive migration state through their owning services. Do not use historical documentation as current state.
-- Require all exact-source CI jobs: API, Flutter app, unsigned Android bundle, unsigned iOS, actual emulator. Inspect actual native poster and story pixels, not only decoder assertions.
-- Use an immutable runtime image identifier. No silent deployment, extra paid service or stack switch.
-- Confirm a restorable private backup before additive schema changes. Preserve the money hold in both forward and rollback targets. Roll back code only to a reviewed compatible image; never destructively roll back user data to hide a compatibility problem.
-- New poster capability must be absent on an old runtime and true only on the compatible runtime. Legacy videos retain their visible fallback. Verify old and new clients against the selected API before rollout.
-- After an authorized deployment, verify health/version, unauthorized denials, protected/public media denials, current feature flags and a bounded synthetic QA post/story/reel upload/read/delete with replay checks. Compare read latency before claiming improvement.
+## Runtime verified22:02, rollback retained
+
+- Exact3cc runtime manifest `sha256:2a6c2f559b6f98134d0d898b924980374077169bf20d7bc8a8ce0051317867ad` is deployed on the existing Render Free service. Exact3cc CI all five jobs passed; release skipped. No stack/service/paid change.
+- A fresh21:59 read-only snapshot was encrypted using the existing recovery key and actually restored locally. All38tables/131rows matched. The single additive poster migration preserved all37existing data tables on original columns, both in rehearsal and live before QA writes.
+- Durable owner-only recovery file is recorded separately in the private retention tracker; no private backup URL or contents belong in this repository. Review retention Nov24 with the older points. Do not overwrite newer data with the snapshot without a separate recovery plan.
+- Previous runtime manifest `sha256:6f1d81c4023eab8ed789a224713b87bdae710bde469b274dd1cabe67c21aee71` remains a code-only rollback target. Its actual packed app served signed-in QA profile/wallet/posts/stories against the locally restored database after the poster migration, money held and poster capability absent. No destructive schema rollback.
+- Live exact3cc checks passed real QA refresh exchange, poster/upload flags, temporary synthetic reel+poster upload/read/range/replay/delete and protected Only me story upload/read/no-store/unauthorized denial/replay/delete. Existing user content unchanged, temporary new test content removed.
+- Live measured reads now show3story-list queries and2public database-media queries. Single after samples are faster than earlier single samples but noisy; do not present them as a stable benchmark or Samsung proof.
+- Deposits, transfers and cash-out remain unavailable. Client candidate signing, Play upload/release and physical installation have not occurred for3cc or its follow-up.
 
 ## Candidate finalization and physical acceptance
 

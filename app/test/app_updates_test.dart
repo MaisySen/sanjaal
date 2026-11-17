@@ -26,8 +26,13 @@ class FakeUpdates implements AppUpdateGateway {
   bool failCheck = false, failInstall = false;
   int checks = 0, starts = 0, installs = 0;
   String consent = 'ACCEPTED';
+  int subscriptions = 0;
   @override
-  Stream<Map<String, dynamic>> get events => stream.stream;
+  Stream<Map<String, dynamic>> get events {
+    subscriptions++;
+    return stream.stream;
+  }
+
   @override
   Future<Map<String, dynamic>> check() async {
     checks++;
@@ -62,6 +67,7 @@ void main() {
   });
   test('idle has no silent check, download or install', () {
     expect(controller.phase, UpdatePhase.idle);
+    expect(gateway.subscriptions, 0);
     expect(gateway.checks + gateway.starts + gateway.installs, 0);
   });
   test(
@@ -172,7 +178,8 @@ void main() {
     await controller.install();
     expect(controller.phase, UpdatePhase.failed);
   });
-  test('failed and canceled stream states are distinct', () {
+  test('failed and canceled stream states are distinct', () async {
+    await controller.check();
     gateway.stream.add({'installStatus': 5});
     expect(controller.phase, UpdatePhase.failed);
     gateway.stream.add({'installStatus': 6});

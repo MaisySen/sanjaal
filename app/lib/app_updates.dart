@@ -53,12 +53,6 @@ class AppUpdateController extends ChangeNotifier {
       phase = UpdatePhase.unsupported;
       return;
     }
-    _subscription = gateway.events.listen(
-      _event,
-      onError: (_) {
-        _set(UpdatePhase.unavailable);
-      },
-    );
   }
   final AppUpdateGateway gateway;
   StreamSubscription<Map<String, dynamic>>? _subscription;
@@ -112,6 +106,13 @@ class AppUpdateController extends ChangeNotifier {
       return;
     }
     if (!resume && phase == UpdatePhase.downloading) return;
+    _subscription ??= gateway.events.listen(
+      _event,
+      onError: (_) {
+        _request++;
+        _set(UpdatePhase.unavailable);
+      },
+    );
     final token = ++_request;
     _set(UpdatePhase.checking);
     try {

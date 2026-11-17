@@ -32,4 +32,6 @@ Post::create(['user_id' => $asha->id, 'kind' => 'post', 'body' => 'Sunrise over 
 
 $tok = JWT::encode(['iss' => 'https://tenant.example.auth0.com/', 'aud' => 'https://api.test', 'sub' => 'auth0|e2e-synthetic', 'iat' => time() - 10, 'exp' => time() + 3000], $pem, 'RS256', $kid);
 file_put_contents("$out/token.txt", $tok);
+$viewer = JWT::encode(['iss' => 'https://tenant.example.auth0.com/', 'aud' => 'https://api.test', 'sub' => 'auth0|e2e-asha', 'iat' => time() - 10, 'exp' => time() + 3000], $pem, 'RS256', $kid);
+file_put_contents("$out/viewer-token.txt", $viewer);
 echo "prepared\n";

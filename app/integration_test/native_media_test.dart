@@ -296,6 +296,28 @@ void main() {
       final storyUrl = story['url'] as String;
       final denied = await t.runAsync(() => http.get(Uri.parse(storyUrl)));
       expect(denied!.statusCode, 401);
+      const viewerToken = String.fromEnvironment('E2E_VIEWER_TOKEN');
+      expect(viewerToken, isNotEmpty);
+      final viewerHeaders = {
+        'Authorization': 'Bearer $viewerToken',
+        'Accept': 'application/json',
+      };
+      final viewerMe = await t.runAsync(
+        () => http.get(Uri.parse('$apiBase/auth/me'), headers: viewerHeaders),
+      );
+      expect(viewerMe!.statusCode, 200);
+      expect(
+        (jsonDecode(viewerMe.body)['user'] as Map)['username'],
+        'asha_e2e',
+      );
+      final privateDenied = await t.runAsync(
+        () => http.get(Uri.parse(storyUrl), headers: viewerHeaders),
+      );
+      expect(
+        privateDenied!.statusCode,
+        404,
+        reason: 'A valid second member must not read Only me bytes.',
+      );
       final bytes = await t.runAsync(
         () => session.fetchProtectedBytes(storyUrl),
       );
@@ -327,6 +349,85 @@ void main() {
         () => http.get(Uri.parse(storyUrl), headers: session.mediaHeaders),
       );
       expect(gone!.statusCode, 404);
+      // A second synthetic member goes from no access to allowed, then loses
+      // access again, including Range/ETag and viewed-state writes. All HTTP is
+      // to the throwaway runner API, never a live member or live publication.
+      await t.runAsync(
+        () => session.call(
+          'PUT',
+          '/auth/me/story-audience/asha_e2e',
+          body: {'revision': 0, 'close_friend': true, 'hide_story': false},
+        ),
+      );
+      final close = await t.runAsync(
+        () => session.upload(
+          '/stories',
+          fields: {'protected_media': '1', 'audience': 'close_friends'},
+          file: UploadFile(bytes!, 'image/png', 'selected-photo.png'),
+        ),
+      );
+      final shared = close!['story'] as Map;
+      final sharedUrl = shared['url'] as String;
+      final allowed = await t.runAsync(
+        () => http.get(Uri.parse(sharedUrl), headers: viewerHeaders),
+      );
+      expect(allowed!.statusCode, 200);
+      expect(allowed.headers['cache-control'], contains('no-store'));
+      final etag = allowed.headers['etag'];
+      expect(etag, isNotNull);
+      await t.runAsync(
+        () => session.call(
+          'PUT',
+          '/auth/me/story-audience/asha_e2e',
+          body: {'revision': 1, 'close_friend': true, 'hide_story': true},
+        ),
+      );
+      for (final extra in <Map<String, String>>[
+        {},
+        {'Range': 'bytes=0-15'},
+        {'If-None-Match': etag!},
+      ]) {
+        final revoked = await t.runAsync(
+          () => http.get(
+            Uri.parse(sharedUrl),
+            headers: {...viewerHeaders, ...extra},
+          ),
+        );
+        expect(
+          revoked!.statusCode,
+          404,
+          reason:
+              'Hide-story revocation precedes any private byte/cache response.',
+        );
+      }
+      final viewDenied = await t.runAsync(
+        () => http.post(
+          Uri.parse('$apiBase/stories/${shared['public_id']}/view'),
+          headers: viewerHeaders,
+        ),
+      );
+      expect(viewDenied!.statusCode, 404);
+      final hiddenList = await t.runAsync(
+        () => http.get(Uri.parse('$apiBase/stories'), headers: viewerHeaders),
+      );
+      expect(hiddenList!.statusCode, 200);
+      expect(
+        (jsonDecode(hiddenList.body)['data'] as List).where(
+          (g) =>
+              (g['author'] as Map)['public_id'] == session.user!['public_id'],
+        ),
+        isEmpty,
+      );
+      await t.runAsync(
+        () => session.call('DELETE', '/stories/${shared['public_id']}'),
+      );
+      await t.runAsync(
+        () => session.call(
+          'PUT',
+          '/auth/me/story-audience/asha_e2e',
+          body: {'revision': 2, 'close_friend': false, 'hide_story': false},
+        ),
+      );
       session.dispose();
       // ignore: avoid_print
       print(

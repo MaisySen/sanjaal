@@ -8,6 +8,10 @@ if ($uri !== '/' && file_exists(__DIR__.'/../../public'.$uri)) {
 }
 require __DIR__.'/../../vendor/autoload.php';
 $app = require_once __DIR__.'/../../bootstrap/app.php';
+if ($uri === '/e2e/native-media') {
+    require __DIR__.'/native_media.php';
+    exit;
+}
 if ($uri === '/e2e/native-tap') {
     require __DIR__.'/native_input.php';
     exit;

@@ -197,6 +197,7 @@ jobs:
           set -e
           composer install --no-interaction --prefer-dist --no-progress
           python3 tests/E2E/native_input_contract.py
+          python3 tests/E2E/native_media_contract.py
           mkdir -p /tmp/e2e && touch /tmp/e2e/db.sqlite .env
           php artisan migrate --force
           php tests/E2E/prepare.php /tmp/e2e

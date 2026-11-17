@@ -7,9 +7,9 @@ adb shell settings get secure default_input_method
 adb shell ime list -s
 adb shell settings get secure show_ime_with_hard_keyboard
 rc=0
-for t in smoke signed_in flows; do
+for t in smoke signed_in flows native_media; do
   extra=""
-  if [ "$t" = signed_in ] || [ "$t" = flows ]; then
+  if [ "$t" = signed_in ] || [ "$t" = flows ] || [ "$t" = native_media ]; then
     extra="--dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8000 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
   fi
   mkdir -p build/screenshots

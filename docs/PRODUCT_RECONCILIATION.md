@@ -111,3 +111,11 @@ save/read/account-isolation/delete round trip, not physical-Samsung proof.
 The previous2009 signed artifacts remain immutable and private. This batch bumps
 the next candidate to2010 to keep source/artifact identities separate, not to
 publish another drip release. Play2008 and the live3515 API remain unchanged.
+
+### Notification account-lifecycle candidate
+
+Notification registration now has explicit device/account adapters, owner/epoch checks and serialized network binding changes. Sign-out cancels the refresh listener immediately, drains an already-started register before removal, tries authenticated server removal, and independently invalidates the local FCM token. A permission dialog does not hold logout. Account switches invalidate the previous owner's local token before registering another owner; a failed invalidation blocks that cross-owner reuse. Repeated registration replaces rather than stacks listeners. Unsupported platforms fail honestly rather than registering an Android identity for iOS.
+
+18 fake-device race tests cover permission/token/in-flight registration, queued/in-flight refresh, duplicate listeners, stale Session sign-out, account changes, no owner and cleanup failures. These establish callback ordering, not native FCM behavior. 13 auth widget regressions and19 creator-draft regressions pass independently. Two actual320px/180%text notification-status fixtures (English dark/Nepali light) were inspected after fixing a missing fixture back-arrow font. Nepali text still needs native-language review.
+
+Status copy distinguishes device registration from actual delivery, and failed local cleanup from confirmed token removal. The server sender must remain disabled until an installed fixed build has genuine signed-in two-account/foreground/background delivery and logout-switch verification. No FCM credential/provider activation, real token generation, push send, production API/config change or device action was performed for this batch. Offline server removal and native token deletion can still fail, HTTP acceptance does not prove display, a different installation's old tokens are not cleaned here, and process-death/native lifecycle behavior remains unverified. Whole-product work remains open.

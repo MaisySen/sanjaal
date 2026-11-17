@@ -115,7 +115,7 @@ class _NotificationSettings extends StatelessWidget {
   final Session session;
   @override
   Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(t_('Notifications'))), body: ListView(children: [
-    ValueListenableBuilder<String>(valueListenable: Push.status, builder: (context, value, _) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(value))),
+    ValueListenableBuilder<String>(valueListenable: Push.status, builder: (context, value, _) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(t_(value)))),
     ListTile(title: Text(t_('Activity')), trailing: const PhIcon('caret-right'), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
   ]));
 }

@@ -96,6 +96,17 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Push notifications': 'पुश सूचनाहरू',
+  'Not set up yet': 'अझै सेट अप गरिएको छैन',
+  'Checking notification permission...': 'सूचनाको अनुमति जाँच हुँदैछ...',
+  'Off: allow notifications in system settings': 'बन्द छ: फोनको सेटिङमा सूचना अनुमति दिनुहोस्',
+  'Off: no device token. Try again after reopening Sanjaal': 'फोन दर्ता हुन सकेन। सञ्जाल फेरि खोलेर प्रयास गर्नुहोस्',
+  'Device registered. Push delivery has not been verified': 'फोन दर्ता भयो। सूचना आइपुग्ने कुरा अझै जाँचिएको छैन',
+  'Notification registration needs another try': 'सूचनाका लागि फेरि दर्ता गर्नुपर्छ',
+  'Not available on this device yet. Try again after reopening Sanjaal': 'यो फोनमा अहिले उपलब्ध छैन। सञ्जाल फेरि खोलेर प्रयास गर्नुहोस्',
+  'Signing out of notifications...': 'सूचनाबाट साइन आउट हुँदैछ...',
+  'Local notification token removed': 'फोनबाट सूचनाको टोकन हटाइयो',
+  'Signed out. Notification token cleanup could not be confirmed': 'साइन आउट भयो। सूचनाको टोकन हटेको पुष्टि हुन सकेन',
   'Saved drafts': 'सुरक्षित मस्यौदाहरू',
   'Save text draft': 'लेखको मस्यौदा सुरक्षित गर्नुहोस्',
   'Text and polls, saved only on this device for this account. Photos and videos are not saved.': 'यस खाताका लेख र मतदानका मस्यौदा यही फोनमा मात्र सुरक्षित हुन्छन्। तस्बिर र भिडियो सुरक्षित हुँदैनन्।',

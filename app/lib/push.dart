@@ -1,11 +1,12 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'api.dart';
 
-/// Firebase client identifiers. These are public by design (they ship in every app). Access is
-/// controlled by the project, not by hiding them.
+import 'api.dart';
+import 'push_registration.dart';
+
+/// Public client identifiers. Project authorization, not hidden identifiers,
+/// controls delivery. No provider key or sending credential ships in the app.
 const _options = FirebaseOptions(
   apiKey: 'AIzaSyCZ4J0krSDecfTrA9cOjPuoHFTcIK9RlwY',
   appId: '1:746380796806:android:ae6a7c0d755a71e90c8207',
@@ -13,49 +14,72 @@ const _options = FirebaseOptions(
   projectId: 'sanjaal-app-3ede9',
 );
 
-/// Registers this device for push. Every failure is swallowed: push is an extra, the app works without it.
-class Push {
-  /// Shown in Settings so people know whether push is really on. Never holds tokens.
-  static final status = ValueNotifier<String>('Not set up yet');
-  static bool _ready = false;
-  static String? _token;
-  static StreamSubscription<String>? _refreshSub;
-
-  static Future<void> register(Session s) async {
+class _FirebaseDevice implements PushDevice {
+  Future<FirebaseApp>? _initializing;
+  Future<void> _ready() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      throw UnsupportedError('Native Android push only');
+    }
+    _initializing ??= Firebase.initializeApp(options: _options);
     try {
-      if (!_ready) {
-        await Firebase.initializeApp(options: _options);
-        _ready = true;
-      }
-      final m = FirebaseMessaging.instance;
-      final perm = await m.requestPermission();
-      if (perm.authorizationStatus == AuthorizationStatus.denied) {
-        status.value = 'Off: allow notifications in system settings';
-        return;
-      }
-      final t = await m.getToken();
-      if (t == null) {
-        status.value = 'Off: no device token. Will retry next time you open the app';
-        return;
-      }
-      _token = t;
-      await s.call('POST', '/devices', body: {'token': t, 'platform': 'android'});
-      status.value = 'Device registered. Notifications are not being sent yet';
-      _refreshSub ??= m.onTokenRefresh.listen((n) {
-        _token = n;
-        unawaited(s.call('POST', '/devices', body: {'token': n, 'platform': 'android'}).then((_) {}, onError: (_) {}));
-      });
-    } catch (e) {
-      status.value = 'Not available on this device yet. We will try again next time you open the app';
+      await _initializing;
+    } catch (_) {
+      _initializing = null;
+      rethrow;
     }
   }
 
-  static Future<void> unregister(Session s) async {
-    final t = _token;
-    if (t == null) return;
-    try {
-      await s.call('POST', '/devices/remove', body: {'token': t});
-    } catch (_) {}
-    _token = null;
+  @override
+  Future<bool> permission() async {
+    await _ready();
+    final value = await FirebaseMessaging.instance.requestPermission();
+    return value.authorizationStatus == AuthorizationStatus.authorized ||
+        value.authorizationStatus == AuthorizationStatus.provisional;
   }
+
+  @override
+  Future<String?> token() async {
+    await _ready();
+    return FirebaseMessaging.instance.getToken();
+  }
+
+  @override
+  Stream<String> get refreshes => FirebaseMessaging.instance.onTokenRefresh;
+  @override
+  Future<void> invalidate() async {
+    await _ready();
+    await FirebaseMessaging.instance.deleteToken();
+  }
+}
+
+class _SessionPushAccount implements PushAccount {
+  _SessionPushAccount(this.session);
+  final Session session;
+  @override
+  String? get owner => session.user?['public_id']?.toString();
+  @override
+  Future<void> registerToken(String token) async {
+    await session.call(
+      'POST',
+      '/devices',
+      body: {'token': token, 'platform': 'android'},
+    );
+  }
+
+  @override
+  Future<void> removeToken(String token) async {
+    await session.call('POST', '/devices/remove', body: {'token': token});
+  }
+}
+
+class Push {
+  static final _registration = PushRegistration(_FirebaseDevice());
+  static final _accounts = Expando<_SessionPushAccount>();
+  static _SessionPushAccount _account(Session session) =>
+      _accounts[session] ??= _SessionPushAccount(session);
+  static ValueNotifier<String> get status => _registration.status;
+  static Future<void> register(Session session) =>
+      _registration.register(_account(session));
+  static Future<void> unregister(Session session) =>
+      _registration.unregister(_account(session));
 }

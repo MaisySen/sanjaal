@@ -59,7 +59,7 @@ Future<void> shot(WidgetTester t,String name)async{await flush(t);await flush(t)
 void background(WidgetTester t){for(final state in [AppLifecycleState.inactive,AppLifecycleState.hidden,AppLifecycleState.paused]){t.binding.handleAppLifecycleStateChanged(state);}}
 void foreground(WidgetTester t){for(final state in [AppLifecycleState.hidden,AppLifecycleState.inactive,AppLifecycleState.resumed]){t.binding.handleAppLifecycleStateChanged(state);}}
 void main(){
- setUpAll(()async{
+ setUpAll(()async{Directory('test/renders').createSync(recursive:true);
  for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}
  final recorder=ui.PictureRecorder();final canvas=Canvas(recorder);canvas.drawRect(const Rect.fromLTWH(0,0,300,500),Paint()..shader=ui.Gradient.linear(Offset.zero,const Offset(300,500),const [Color(0xFF1F8784),Color(0xFFDAB487)]));final image=await recorder.endRecording().toImage(300,500);imageBytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();
  });

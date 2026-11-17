@@ -1,4 +1,6 @@
-// Story and Reel capture: the picker is asked for the camera or the gallery as chosen, cancelling uploads nothing,
+// Native-picker fallback regression: gallery selection, cancellation and denial never upload by themselves.
+// Native camera lifecycle, cancellation and recording now live in capture_library_test.dart.
+// Story and Reel fallback: the picker is asked for the gallery as chosen, cancelling uploads nothing,
 // a refused permission explains itself and uploads nothing. A picked story is reviewed and uploads only after Share story.
 // A fake picker platform stands in for the device; no real camera or permission prompt is involved.
 import 'dart:convert';
@@ -56,18 +58,24 @@ http.Client _client(List<String> posts, List<String> bodies) => MockClient((r) a
       return http.Response(jsonEncode({'story': {'public_id':'s1','url':'https://fixture.invalid/story.jpg','type':'image'}, 'post': {'public_id': 'p9', 'kind': 'post', 'body': '', 'media': [], 'hashtags': [], 'author': {'public_id': 'me', 'name': 'B', 'username': 'b'}}}), 201, headers: h);
     });
 
+Future<void> flush(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) { await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20))); await tester.pump(const Duration(milliseconds: 150)); }
+}
+
 void main() {
   final choices = {
-    'Take a photo': 'image camera',
     'Choose a photo': 'image gallery',
-    'Record a video': 'video camera 20',
     'Choose a video': 'video gallery 20',
   };
   for (final mode in _Do.values) {
     for (final e in choices.entries) {
       testWidgets('story ${mode.name}: ${e.key}', (tester) async {
         final fake = _Fake(mode);
+        final original = ImagePickerPlatform.instance;
         ImagePickerPlatform.instance = fake;
+        addTearDown(() => ImagePickerPlatform.instance = original);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), (_) async => 2);
+        addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), null));
         final posts = <String>[];
         final bodies = <String>[];
         await http.runWithClient(() async {
@@ -75,21 +83,25 @@ void main() {
           Future<bool>? done;
           await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (c) => TextButton(onPressed: () => done = addStory(c, s), child: const Text('Start'))))));
           await tester.tap(find.text('Start'));
-          await tester.pumpAndSettle();
+          await flush(tester);
           expect(fake.calls, isEmpty, reason: 'nothing is requested before a choice');
+          await tester.tap(find.text('Device picker').first);
+          await flush(tester);
           await tester.tap(find.text(e.key));
           await tester.pump();
           if (mode == _Do.give) {
             await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-            await tester.pumpAndSettle();
+            await flush(tester);
             expect(find.byType(StoryComposePage), findsOneWidget);
             expect(posts, isEmpty, reason: 'picking a story alone never uploads');
             await tester.enterText(find.byType(TextField), 'Caption from review');
             await tester.tap(find.text('Share story'));
             for (var i=0;i<5;i++) { await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds:20))); await tester.pump(const Duration(milliseconds:150)); }
           }
+          if (mode != _Do.give) { await tester.tap(find.byTooltip('Close')); await flush(tester); }
+          await flush(tester);
           late bool ok;
-          await tester.runAsync(() async => ok = await done!);
+          await tester.runAsync(() async => ok = await done!.timeout(const Duration(seconds: 3)));
           await tester.pump();
           expect(fake.calls, [e.value]);
           expect(ok, isFalse, reason:'background handoff does not claim the upload was already posted');
@@ -108,10 +120,14 @@ void main() {
   }
 
   for (final mode in _Do.values) {
-    for (final pick in ['Record a video', 'Choose a video']) {
+    for (final pick in ['Choose a video']) {
       testWidgets('reel ${mode.name}: $pick', (tester) async {
         final fake = _Fake(mode);
+        final original = ImagePickerPlatform.instance;
         ImagePickerPlatform.instance = fake;
+        addTearDown(() => ImagePickerPlatform.instance = original);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), (_) async => 2);
+        addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), null));
         final posts = <String>[];
         final bodies = <String>[];
         await http.runWithClient(() async {
@@ -122,11 +138,11 @@ void main() {
           await tester.pumpWidget(MaterialApp(home: ComposePage(session: s)));
           await tester.pump();
           await tester.tap(find.text('Reel'));
-          await tester.pumpAndSettle();
+          await flush(tester);
           expect(fake.calls, isEmpty);
-          await tester.tap(find.text(pick));
+          await tester.tap(find.text('Device picker').first);
           await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
-          await tester.pumpAndSettle();
+          await flush(tester);
           expect(fake.calls, [pick.startsWith('Record') ? 'video camera 60' : 'video gallery 60']);
           expect(find.text('Posts as a reel'), mode == _Do.give ? findsOneWidget : findsNothing);
           expect(posts, isEmpty, reason: 'picking alone uploads nothing');

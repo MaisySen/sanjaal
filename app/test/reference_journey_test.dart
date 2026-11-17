@@ -36,7 +36,7 @@ Future<void> fixture(WidgetTester t,Future<void>Function(Session,List<Uri>)run,{
 }
 Future<void> select(WidgetTester t,String text)async{await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text(t_(text))));await flush(t);}
 void main(){
- setUpAll(()async{
+ setUpAll(()async{Directory('test/renders').createSync(recursive:true);
   for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}
   final pic=ui.PictureRecorder();final c=Canvas(pic);c.drawRect(const Rect.fromLTWH(0,0,400,600),Paint()..shader=ui.Gradient.linear(Offset.zero,const Offset(400,600),const [Color(0xFF123442),Color(0xFFDBAE72)]));c.drawPath(Path()..moveTo(0,600)..lineTo(180,240)..lineTo(400,600)..close(),Paint()..color=const Color(0xFF16454C));final image=await pic.endRecording().toImage(400,600);final data=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();feedImageProvider=(_)=>MemoryImage(data);
  });

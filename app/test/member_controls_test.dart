@@ -31,7 +31,7 @@ Future<void> fixture(WidgetTester t,Future<http.Response>Function(http.Request) 
 }
 TextButton saveButton(WidgetTester t)=>t.widget<TextButton>(find.widgetWithText(TextButton,t_('Save')));
 void main(){
- setUpAll(()async{for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}});
+ setUpAll(()async{Directory('test/renders').createSync(recursive:true);for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}});
  for(final supported in [false,true])testWidgets('Settings route respects live server capability $supported',(t)async{
  await fixture(t,(_)async=>json(value()),(s)async{
  expect(s.interactionControlsEnabled,supported);await t.enterText(find.byType(TextField),'Comments');await t.pump();expect(find.text('Comments and sharing'),supported?findsOneWidget:findsNothing);

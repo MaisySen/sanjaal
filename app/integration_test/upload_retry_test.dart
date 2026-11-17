@@ -83,6 +83,11 @@ void main() {
     }
     final offeredRetry = find.text('Try again').evaluate().isNotEmpty;
     expect(offeredRetry, isTrue, reason: 'a lost reply on a replay-safe upload must offer Try again, not claim success');
+    // Client-side proof the app received the 503 body our hook sent (not the real 201): that text is only on screen if so.
+    final seen = find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((x) => x.contains('temporarily unavailable')).toList();
+    // ignore: avoid_print
+    print('Upload-retry client-visible 503 text: $seen');
+    expect(seen, isNotEmpty, reason: 'the client must show the 503 reply message, proving it received the fault response');
     expect(find.text('Your post is up.'), findsNothing);
     // ignore: avoid_print
     print('Upload-retry after lost reply: offered Try again = $offeredRetry');

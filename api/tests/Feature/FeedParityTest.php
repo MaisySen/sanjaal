@@ -26,7 +26,7 @@ class FeedParityTest extends TestCase
         for ($i = 0; $i < $users; $i++) {
             [$u, $h] = $this->member('parity'.$i);
             if ($i % 2 === 0) {
-                $u->forceFill(['bio' => 'Bio '.$i, 'avatar' => $i % 4 === 0 ? 'avatar-'.$i : null])->save();
+                $u->forceFill(['bio' => 'Bio '.$i, 'avatar' => $i % 4 === 0 ? (string) Str::uuid() : null])->save();
             }
             $members[] = [$u, $h];
         }

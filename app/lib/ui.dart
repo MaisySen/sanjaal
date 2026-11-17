@@ -96,6 +96,9 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Unmute': 'अनम्युट',
+  'Mute': 'म्युट',
+  'You can speak. Tap Unmute when ready.': 'तपाईं बोल्न सक्नुहुन्छ। तयार भएपछि अनम्युट थिच्नुहोस्।',
   'Push notifications': 'पुश सूचनाहरू',
   'Not set up yet': 'अझै सेट अप गरिएको छैन',
   'Checking notification permission...': 'सूचनाको अनुमति जाँच हुँदैछ...',

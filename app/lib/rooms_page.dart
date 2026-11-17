@@ -1,7 +1,9 @@
+import 'dart:async';
+import 'room_microphone.dart';
 import 'ph.dart';
 import 'dart:convert';
 import 'package:livekit_client/livekit_client.dart' hide Session;
-import 'package:material_ui/material_ui.dart';
+import 'package:material_ui/material_ui.dart' hide ConnectionState;
 import 'api.dart';
 import 'gifts.dart';
 import 'ui.dart';
@@ -175,8 +177,14 @@ class _RoomPageState extends State<RoomPage> {
   String hostName = 'the host';
   String? hostIdentity;
   bool isHost = false;
-  bool speaker = false;
-  bool muted = false;
+  late final RoomMicrophone microphone = RoomMicrophone((on) async {
+    final participant = room.localParticipant;
+    if (participant == null && on) throw StateError('Not connected');
+    await participant?.setMicrophoneEnabled(on);
+  });
+  bool get speaker => microphone.speaker;
+  bool get muted => microphone.muted;
+  bool leaving = false;
   bool handUp = false;
   bool failed = false;
   bool ended = false;
@@ -185,15 +193,29 @@ class _RoomPageState extends State<RoomPage> {
   void initState() {
     super.initState();
     room.addListener(_changed);
+    microphone.addListener(_changed);
     _events.on<DataReceivedEvent>(_onData);
     _events.on<RoomDisconnectedEvent>((_) {
-      if (mounted && !ended) setState(() => status = 'Disconnected');
+      if (mounted && !ended && !failed) {
+        unawaited(microphone.revoke().catchError(_micStopFailed));
+        setState(() => status = 'Disconnected');
+      }
     });
     _join();
   }
 
   void _changed() {
     if (mounted) setState(() {});
+  }
+
+  void _micStopFailed(Object error) {
+    if (mounted && !leaving) {
+      setState(() {
+        failed = true;
+        status = 'Microphone state could not be confirmed. Leave this room.';
+      });
+    }
+    unawaited(room.disconnect().catchError((_) {}));
   }
 
   void _onData(DataReceivedEvent e) {
@@ -214,22 +236,25 @@ class _RoomPageState extends State<RoomPage> {
         case 'hand':
           if (isHost) setState(() => hands[fromId] = from);
         case 'mic':
-          if (m['to'] == myId) _setSpeaker(m['allow'] == true);
+          unawaited(_hostMicPacket(fromId, m));
       }
     } catch (_) {}
   }
 
-  Future<void> _setSpeaker(bool on) async {
+  Future<void> _hostMicPacket(String sender, Map<String, dynamic> packet) async {
     try {
-      await room.localParticipant?.setMicrophoneEnabled(on);
-      if (!mounted) return;
-      setState(() {
-        speaker = on;
-        handUp = false;
-        muted = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(on ? 'The host let you speak' : 'The host took the mic back')));
-    } catch (_) {}
+      final wasSpeaker = speaker;
+      final accepted = await microphone.hostPacket(sender: sender, host: hostIdentity,
+        me: myId, target: packet['to'], allow: packet['allow']);
+      if (!mounted || leaving || !accepted) return;
+      setState(() => handUp = false);
+      if (packet['allow'] == true && !wasSpeaker) {
+        showInfo(context, 'You can speak. Tap Unmute when ready.');
+      }
+    } catch (e) {
+      if (microphone.stopUnconfirmed) _micStopFailed(e);
+      if (mounted && !leaving) showError(context, e);
+    }
   }
 
   Future<void> _send(Map<String, dynamic> m) async {
@@ -245,10 +270,8 @@ class _RoomPageState extends State<RoomPage> {
       hostName = (j['host_name'] ?? hostName).toString();
       hostIdentity = j['host_identity']?.toString();
       await room.connect(j['url'] as String, j['token'] as String);
-      if (isHost) {
-        await room.localParticipant?.setMicrophoneEnabled(true);
-        speaker = true;
-      }
+      if (!mounted || leaving) return;
+      if (isHost) await microphone.startHost();
       if (mounted) setState(() => status = 'Live');
     } on ApiError catch (e) {
       if (mounted) {
@@ -268,13 +291,17 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Future<void> _toggleMic() async {
-    final next = !muted;
-    await room.localParticipant?.setMicrophoneEnabled(!next);
-    if (mounted) setState(() => muted = next);
+    if (leaving || room.connectionState != ConnectionState.connected) return;
+    try { await microphone.toggle(); } catch (e) {
+      if (mounted && !leaving) showError(context, e);
+    }
   }
 
   Future<void> _end() async {
+    if (ended) return;
     ended = true;
+    leaving = true;
+    try { await microphone.revoke(); } catch (_) {}
     try {
       await widget.session.call('POST', '/rooms/${widget.roomId}/end');
     } catch (_) {}
@@ -323,9 +350,16 @@ class _RoomPageState extends State<RoomPage> {
   void dispose() {
     _events.dispose();
     _chat.dispose();
+    leaving = true;
+    microphone.removeListener(_changed);
     room.removeListener(_changed);
-    room.disconnect();
-    room.dispose();
+    unawaited(() async {
+      try { await microphone.close(); } catch (_) {}
+      try { await room.disconnect(); } finally {
+        microphone.dispose();
+        await room.dispose();
+      }
+    }());
     super.dispose();
   }
 
@@ -333,8 +367,8 @@ class _RoomPageState extends State<RoomPage> {
   Widget build(BuildContext context) {
     return RoomView(
       title: title,
-      status: status,
-      failed: failed,
+      status: microphone.stopUnconfirmed ? 'Microphone state could not be confirmed. Leave this room.' : status,
+      failed: failed || microphone.stopUnconfirmed,
       isHost: isHost,
       speaker: speaker,
       muted: muted,
@@ -355,6 +389,7 @@ class _RoomPageState extends State<RoomPage> {
       chat: _chat,
       onEnd: _end,
       onToggleMic: _toggleMic,
+      micBusy: microphone.busy || leaving || room.connectionState != ConnectionState.connected,
       onRaise: _raise,
       onGift: _gift,
       onAllow: _allow,
@@ -382,6 +417,7 @@ class RoomView extends StatelessWidget {
     required this.chat,
     required this.onEnd,
     required this.onToggleMic,
+    this.micBusy = false,
     required this.onRaise,
     required this.onGift,
     required this.onAllow,
@@ -395,6 +431,7 @@ class RoomView extends StatelessWidget {
   final bool speaker;
   final bool muted;
   final bool handUp;
+  final bool micBusy;
   final int inRoom;
   final Map<String, String> hands;
   final List<StageMember> stage;
@@ -518,6 +555,10 @@ class RoomView extends StatelessWidget {
                   ),
                 ),
               ]))),
+              if (speaker && muted && !isHost) Padding(
+                padding: const EdgeInsets.symmetric(horizontal:16, vertical:8),
+                child: Text(t_('You can speak. Tap Unmute when ready.')),
+              ),
               Divider(height: 1, color: scheme.outlineVariant),
               _fx(context, 1, messages.isEmpty
                     ? (_large(context) ? const EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.') : const SingleChildScrollView(child: EmptyState(icon: Ph.chat_bubble_outline, title: 'No messages yet', hint: 'Say hello to the room.')))
@@ -543,7 +584,7 @@ class RoomView extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                   child: Row(children: [
-                    if (speaker) IconButton.filledTonal(tooltip: muted ? 'Unmute' : 'Mute', onPressed: onToggleMic, icon: PhIcon(muted ? Ph.mic_off : Ph.mic)),
+                    if (speaker) IconButton.filledTonal(tooltip: t_(muted ? 'Unmute' : 'Mute'), onPressed: micBusy ? null : onToggleMic, icon: PhIcon(muted ? Ph.mic_off : Ph.mic)),
                     if (speaker) const SizedBox(width: 8),
                     Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => onSend())),
                     const SizedBox(width: 8),

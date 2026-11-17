@@ -58,13 +58,16 @@ class _SearchPageState extends State<SearchPage> {
     try {
       final j = await widget.session.call('GET', '/users/search', query: {'q': q}) as Map<String, dynamic>;
       if (!mounted || seq != _seq) return;
+      final nextUsers=(j['users'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
+      final nextTags=(j['hashtags'] as List).cast<String>();
+      if(nextUsers.any((u)=>u['username'] is! String || (u['username'] as String).trim().isEmpty) || nextTags.any((v)=>v.trim().isEmpty)) throw const FormatException('Invalid search results');
       setState(() {
-        users = (j['users'] as List).cast<Map<String, dynamic>>();
-        tags = (j['hashtags'] as List).map((e) => e.toString()).toList();
+        users = nextUsers;
+        tags = nextTags;
         searched = true;
       });
-    } on ApiError catch (e) {
-      if (mounted && seq == _seq) setState(() => error = e.message);
+    } catch (e) {
+      if (mounted && seq == _seq) setState(() => error = e is ApiError ? t_(e.message) : t_('Search could not be loaded.'));
     } finally {
       if (mounted && seq == _seq) setState(() => loading = false);
     }
@@ -78,7 +81,7 @@ class _SearchPageState extends State<SearchPage> {
           controller: input,
           autofocus: true,
           textInputAction: TextInputAction.search,
-          decoration: InputDecoration(hintText: 'Search people and #tags', border: InputBorder.none, suffixIcon: loading ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null),
+          decoration: InputDecoration(hintText: t_('Search people and #tags'), border: InputBorder.none, suffixIcon: loading ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : input.text.isNotEmpty ? IconButton(tooltip:t_('Clear search'),onPressed:(){input.clear();_changed('');},icon:const PhIcon('x')) : null),
           onChanged: _changed,
           onSubmitted: (_) => _run(),
         ),
@@ -86,9 +89,9 @@ class _SearchPageState extends State<SearchPage> {
       body: error != null
           ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!, action: OutlinedButton(onPressed: _run, child: Text(t_('Try again'))))
           : !searched
-              ? const EmptyState(icon: Ph.search, title: 'Find people to follow', hint: 'Type a name, a username or a hashtag.')
+              ? EmptyState(icon: Ph.search, title: t_('Find people to follow'), hint: t_('Type a name, a username or a hashtag.'))
               : users.isEmpty && tags.isEmpty
-                  ? const EmptyState(icon: Ph.search_off, title: 'No matches')
+                  ? EmptyState(icon: Ph.search_off, title: t_('No matches'))
                   : ListView(children: [
                       for (final tg in tags)
                         ListTile(
@@ -100,7 +103,7 @@ class _SearchPageState extends State<SearchPage> {
                         ListTile(
                           leading: Avatar(user: u),
                           title: Text((u['name'] ?? '').toString().isEmpty ? '@${u['username']}' : u['name'].toString()),
-                          subtitle: Text('@${u['username']}${u['following'] == true ? '  ·  Following' : ''}'),
+                          subtitle: Text('@${u['username']}${u['following'] == true ? '  ·  ${t_('Following')}' : ''}'),
                           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u['username'].toString()))),
                         ),
                     ]),

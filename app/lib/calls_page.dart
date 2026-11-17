@@ -16,6 +16,7 @@ class CallsPage extends StatefulWidget {
 class _CallsPageState extends State<CallsPage> {
   List<Map<String, dynamic>> calls = [];
   bool loading = true;
+  bool reading = false;
   String? error;
 
   @override
@@ -25,22 +26,17 @@ class _CallsPageState extends State<CallsPage> {
   }
 
   Future<void> _load() async {
+    if(reading || !mounted) return;
+    setState(()=>reading=true);
     try {
       final j = await widget.session.call('GET', '/calls') as Map<String, dynamic>;
-      if (mounted) {
-        setState(() {
-          calls = (j['data'] as List).cast<Map<String, dynamic>>();
-          error = null;
-          loading = false;
-        });
-      }
-    } on ApiError catch (e) {
-      if (mounted) {
-        setState(() {
-          error = e.message;
-          loading = false;
-        });
-      }
+      final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
+      if(rows.any((v)=>v['conversation_id'] is! String || (v['conversation_id'] as String).trim().isEmpty || v['created_at'] is! String || v['duration_s'] is! num || (v['direction']=='incoming' && v['caller'] is! Map))) throw const FormatException('Invalid calls');
+      if (mounted) setState(() { calls=rows; error=null; });
+    } catch (e) {
+      if (mounted) setState(() => error=e is ApiError?t_(e.message):t_('Calls could not be loaded.'));
+    } finally {
+      if(mounted) setState((){loading=false;reading=false;});
     }
   }
 
@@ -50,14 +46,17 @@ class _CallsPageState extends State<CallsPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Calls'))),
-      body: RefreshIndicator(
+      appBar: AppBar(title: Text(t_('Calls')), actions:[IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise'))]),
+      body: Column(children:[
+        if(error!=null && calls.isNotEmpty) RefreshReadNotice(onRetry:reading?null:_load),
+        Expanded(child:RefreshIndicator(
         onRefresh: _load,
         child: loading
-            ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
+            ? ListView(physics:const AlwaysScrollableScrollPhysics(),children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : calls.isEmpty
-                ? ListView(children: [EmptyState(icon: Ph.call_outlined, title: error ?? t_('No calls yet'), hint: error == null ? t_('Start a call from any chat.') : null, action: error == null ? null : OutlinedButton(onPressed: _load, child: Text(t_('Try again'))))])
+                ? ListView(physics:const AlwaysScrollableScrollPhysics(),children: [EmptyState(icon: Ph.call_outlined, title: error ?? t_('No calls yet'), hint: error == null ? t_('Start a call from any chat.') : null, action: error == null ? null : OutlinedButton(onPressed: reading?null:_load, child: Text(t_('Try again'))))])
                 : ListView.separated(
+                    physics:const AlwaysScrollableScrollPhysics(),
                     itemCount: calls.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (_, i) {
@@ -72,7 +71,7 @@ class _CallsPageState extends State<CallsPage> {
                         subtitle: Row(children: [
                           PhIcon(incoming ? Ph.call_received : Ph.call_made, size: 14, color: missed ? scheme.error : scheme.outline),
                           const SizedBox(width: 4),
-                          Expanded(child: Text([missed ? 'Missed' : (c['status'] == 'answered' || c['status'] == 'ended' ? (incoming ? 'Incoming' : 'Outgoing') : (incoming ? 'Incoming' : 'No answer')), ago(c['created_at'] as String), _length((c['duration_s'] as num).toInt())].where((e) => e.isNotEmpty).join('  '))),
+                          Expanded(child: Text([t_(missed ? 'Missed' : (c['status'] == 'answered' || c['status'] == 'ended' ? (incoming ? 'Incoming' : 'Outgoing') : (incoming ? 'Incoming' : 'No answer'))), ago(c['created_at'] as String), _length((c['duration_s'] as num).toInt())].where((e) => e.isNotEmpty).join('  '))),
                         ]),
                         trailing: IconButton(
                           icon: PhIcon(video ? Ph.videocam_outlined : Ph.call_outlined),
@@ -87,7 +86,8 @@ class _CallsPageState extends State<CallsPage> {
                       );
                     },
                   ),
-      ),
+      )),
+      ]),
     );
   }
 }

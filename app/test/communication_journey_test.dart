@@ -38,6 +38,28 @@ Future<void> withSession(WidgetTester t, Future<void> Function(Session) run, Fut
 Widget app(Widget home) => MaterialApp(theme: buildTheme(Brightness.light), home: home);
 
 void main() {
+  for(final page in ['calls','rooms']){
+    final row=page=='calls'?{'public_id':'call','conversation_id':'chat','title':'Asha Gurung','caller':{'username':'asha'},'direction':'incoming','kind':'voice','status':'ended','duration_s':125,'created_at':'2026-11-17T00:00:00Z'}:{'public_id':'room','title':'Community music','host_name':'Asha Gurung'};
+    testWidgets('$page malformed initial read is retryable without routing unknown identities',(t)async{
+      var reads=0;
+      await withSession(t,(session)async{
+        await t.pumpWidget(app(page=='calls'?CallsPage(session:session):RoomsPage(session:session)));await flush(t);
+        expect(find.text(page=='calls'?'Calls could not be loaded.':'Rooms could not be loaded.'),findsOneWidget);expect(t.takeException(),isNull);
+        await t.tap(find.text('Try again'));await flush(t);expect(find.text(page=='calls'?'Asha Gurung':'Community music'),findsOneWidget);
+      },(_)async=>reply({'data':++reads==1?[{'title':'Malformed'}]:[row]}));
+    });
+    testWidgets('$page refresh keeps rows, offers retry and suppresses duplicate reads',(t)async{
+      var reads=0;final pending=Completer<http.Response>();
+      await withSession(t,(session)async{
+        await t.pumpWidget(app(page=='calls'?CallsPage(session:session):RoomsPage(session:session)));await flush(t);
+        final refresh=t.widget<RefreshIndicator>(find.byType(RefreshIndicator));final first=refresh.onRefresh();await refresh.onRefresh();await flush(t);expect(reads,2);
+        pending.complete(reply({'message':'Temporary failure'},503));await first;await flush(t);
+        expect(find.text(page=='calls'?'Asha Gurung':'Community music'),findsOneWidget);expect(find.text('Could not refresh.'),findsOneWidget);
+        await t.tap(find.text('Try again'));await flush(t);expect(reads,3);expect(find.text('Could not refresh.'),findsNothing);expect(t.takeException(),isNull);
+      },(_)async=>++reads==2?pending.future:reply({'data':[row]}));
+    });
+  }
+
   testWidgets('empty inbox has a direct create action and visible calls and rooms', (t) async {
     await withSession(t, (s) async {
       await t.pumpWidget(app(ChatsPage(session: s)));

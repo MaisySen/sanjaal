@@ -59,6 +59,24 @@ Future<void> fixture(WidgetTester t, Future<void> Function() run, Future<http.Re
 }
 
 void main() {
+  testWidgets('malformed search retries without showing a missing identity',(t)async{
+    var reads=0;
+    await fixture(t,()async{
+      await t.enterText(find.byType(TextField),'asha');await t.pump(const Duration(milliseconds:400));await flush(t);
+      expect(find.text('Search could not be loaded.'),findsOneWidget);expect(find.textContaining('@null'),findsNothing);expect(t.takeException(),isNull);
+      await t.tap(find.text('Try again'));await flush(t);expect(find.text('asha-result'),findsOneWidget);expect(reads,2);
+      await t.tap(find.byTooltip('Clear search'));await flush(t);expect(find.text('Find people to follow'),findsOneWidget);expect(find.text('asha-result'),findsNothing);
+    },(_)async=>++reads==1?reply({'users':[{'name':'Missing identity'}],'hashtags':[]}):results('asha-result'));
+  });
+  testWidgets('Nepali search localizes guidance and empty results',(t)async{
+    prefs.lang='ne';addTearDown(()=>prefs.lang='en');
+    await fixture(t,()async{
+      expect(find.text(t_('Find people to follow')),findsOneWidget);
+      await t.enterText(find.byType(TextField),'zzz');await t.pump(const Duration(milliseconds:400));await flush(t);
+      expect(find.text(t_('No matches')),findsOneWidget);expect(t.takeException(),isNull);
+    },(_)async=>reply({'users':[],'hashtags':[]}));
+  });
+
   testWidgets('Nepali notifications preserve actor/content while translating action',(t)async{
     prefs.lang='ne';addTearDown(()=>prefs.lang='en');
     await fixture(t,()async{

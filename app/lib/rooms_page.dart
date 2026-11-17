@@ -20,6 +20,7 @@ class RoomsPage extends StatefulWidget {
 class _RoomsPageState extends State<RoomsPage> {
   List<Map<String, dynamic>> rooms = [];
   bool loading = true;
+  bool reading = false;
   String? error;
   bool starting = false;
 
@@ -30,26 +31,23 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 
   Future<void> _load() async {
+    if(reading || !mounted) return;
+    setState(()=>reading=true);
     try {
       final j = await widget.session.call('GET', '/rooms') as Map<String, dynamic>;
-      if (!mounted) return;
-      setState(() {
-        rooms = (j['data'] as List).cast<Map<String, dynamic>>();
-        error = null;
-        loading = false;
-      });
-    } on ApiError catch (e) {
-      if (!mounted) return;
-      setState(() {
-        error = e.message;
-        loading = false;
-      });
+      final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
+      if(rows.any((v)=>v['public_id'] is! String || (v['public_id'] as String).trim().isEmpty || v['title'] is! String)) throw const FormatException('Invalid rooms');
+      if (mounted) setState(() { rooms=rows; error=null; });
+    } catch (e) {
+      if (mounted) setState(() => error=e is ApiError?t_(e.message):t_('Rooms could not be loaded.'));
+    } finally {
+      if(mounted) setState((){loading=false;reading=false;});
     }
   }
 
   Future<void> _open(String id, {Map<String, dynamic>? created}) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomPage(session: widget.session, roomId: id, joined: created)));
-    _load();
+    if(mounted) _load();
   }
 
   Future<void> _start() async {
@@ -72,18 +70,21 @@ class _RoomsPageState extends State<RoomsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(t_('Live rooms')), actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: FilledButton.icon(onPressed: starting ? null : _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live')), style: FilledButton.styleFrom(minimumSize: const Size(64, 48))),
-        ),
+        IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise')),
       ]),
-      body: RefreshIndicator(
+      body: Column(children:[
+        Align(alignment:Alignment.centerRight,child:Padding(padding:const EdgeInsets.fromLTRB(16,0,16,8),child:FilledButton.icon(
+          onPressed:starting?null:_start,icon:const PhIcon('microphone',size:18),label:Text(t_('Go live')),
+        ))),
+        if(error!=null && rooms.isNotEmpty) RefreshReadNotice(onRetry:reading?null:_load),
+        Expanded(child:RefreshIndicator(
         onRefresh: _load,
         child: loading
-            ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
+            ? ListView(physics:const AlwaysScrollableScrollPhysics(),children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : rooms.isEmpty
-                ? ListView(children: [EmptyState(icon: Ph.podcasts, title: error ?? t_('No rooms live right now'), hint: error == null ? t_('Start one and others can listen in.') : null, action: error != null ? OutlinedButton(onPressed: _load, child: Text(t_('Try again'))) : FilledButton.icon(onPressed: starting ? null : _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live'))))])
+                ? ListView(physics:const AlwaysScrollableScrollPhysics(),children: [EmptyState(icon: Ph.podcasts, title: error ?? t_('No rooms live right now'), hint: error == null ? t_('Start one and others can listen in.') : null, action: error != null ? OutlinedButton(onPressed: reading?null:_load, child: Text(t_('Try again'))) : FilledButton.icon(onPressed: starting ? null : _start, icon: const PhIcon('microphone', size: 18), label: Text(t_('Go live'))))])
                 : ListView.separated(
+                    physics:const AlwaysScrollableScrollPhysics(),
                     itemCount: rooms.length,
                     separatorBuilder: (_, i) => const Divider(height: 1),
                     itemBuilder: (_, i) {
@@ -91,13 +92,14 @@ class _RoomsPageState extends State<RoomsPage> {
                       return ListTile(
                         leading: const CircleAvatar(child: PhIcon('waveform')),
                         title: Text('${r['title']}'),
-                        subtitle: Text('Hosted by ${r['host_name'] ?? r['host_username']}'),
+                        subtitle: Text('${t_('Hosted by')} ${r['host_name'] ?? r['host_username'] ?? t_('Member')}'),
                         trailing: const PhIcon('caret-right'),
                         onTap: () => _open(r['public_id'] as String),
                       );
                     },
                   ),
-      ),
+      )),
+      ]),
     );
   }
 }

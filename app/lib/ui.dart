@@ -96,6 +96,18 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Calls could not be loaded.': 'कलहरू लोड हुन सकेनन्।',
+  'Rooms could not be loaded.': 'रुमहरू लोड हुन सकेनन्।',
+  'Hosted by': 'सञ्चालक:',
+  'Missed': 'छुटेको',
+  'Incoming': 'आएको',
+  'Outgoing': 'गरेको',
+  'No answer': 'उठाइएन',
+  'Search people and #tags': 'मान्छे र #ट्याग खोज्नुहोस्',
+  'Find people to follow': 'फलो गर्न मान्छे खोज्नुहोस्',
+  'Type a name, a username or a hashtag.': 'नाम, प्रयोगकर्ता नाम वा ह्यासट्याग लेख्नुहोस्।',
+  'Search could not be loaded.': 'खोजका नतिजा लोड हुन सकेनन्।',
+  'Clear search': 'खोज हटाउनुहोस्',
   'Notifications could not be loaded.': 'सूचनाहरू लोड हुन सकेनन्।',
   'liked your post': 'ले तपाईंको पोस्ट मन पराउनुभयो',
   'commented:': 'ले टिप्पणी गर्नुभयो:',
@@ -638,5 +650,18 @@ void openImage(BuildContext context, String url, {Map<String, String>? headers})
   Navigator.of(context).push(MaterialPageRoute(
     fullscreenDialog: true,
     builder: (_) => PhotoViewer(urls: [url], headers: headers),
+  ));
+}
+
+/// Retained read results stay usable while an explicit recovery action is shown.
+class RefreshReadNotice extends StatelessWidget {
+  const RefreshReadNotice({super.key,required this.onRetry});
+  final VoidCallback? onRetry;
+  @override
+  Widget build(BuildContext context)=>Material(color:Theme.of(context).colorScheme.surfaceContainerHigh,child:Padding(
+    padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:Row(children:[
+      Expanded(child:Text(t_('Could not refresh.'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface))),
+      TextButton(onPressed:onRetry,child:Text(t_('Try again'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface))),
+    ]),
   ));
 }

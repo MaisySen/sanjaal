@@ -18,6 +18,12 @@ $deadline = microtime(true) + 30;
 while (! file_exists($go) && microtime(true) < $deadline) {
     usleep(500);
 }
+// Fixed CI-only command branch. No user routes or arbitrary command execution.
+if ($method === 'PRUNE_EXPIRED_STORIES') {
+    $code = \Illuminate\Support\Facades\Artisan::call('stories:prune-expired', ['--apply'=>true,'--limit'=>10]);
+    echo $code === 0 ? 200 : 500;
+    exit;
+}
 $body = json_decode($json, true);
 if (isset($body['_fixture_file'])) {
     $path = $body['_fixture_file'];

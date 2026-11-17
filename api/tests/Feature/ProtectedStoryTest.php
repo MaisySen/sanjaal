@@ -166,7 +166,8 @@ class ProtectedStoryTest extends TestCase
         $story = $this->story($h);
         $blob = DB::table('stories')->where('public_id', $story['public_id'])->value('media_id');
         // A conflicting public reference must never downgrade the protected blob.
-        $owner->update(['avatar' => $blob]);
+        DB::table('users')->where('id', $owner->id)->update(['avatar' => $blob]);
+        $this->assertDatabaseHas('users', ['id' => $owner->id, 'avatar' => $blob]);
         config(['services.b2.key_id' => 'fixture', 'services.b2.bucket' => 'fixture']);
         Http::fake();
         $this->artisan('media:move-to-b2')->assertSuccessful();
@@ -183,7 +184,8 @@ class ProtectedStoryTest extends TestCase
         $blob = DB::table('stories')->where('public_id', $s['public_id'])->value('media_id');
         $this->assertDatabaseHas('media_blobs', ['public_id' => $blob, 'is_private' => true]);
         $this->deleteJson('/api/v1/stories/'.$s['public_id'], [], $h)->assertOk();
-        $owner->update(['avatar' => $blob]);
+        DB::table('users')->where('id', $owner->id)->update(['avatar' => $blob]);
+        $this->assertDatabaseHas('users', ['id' => $owner->id, 'avatar' => $blob]);
         $this->get('/api/v1/media/'.$blob)->assertNotFound();
         config(['services.b2.key_id' => 'fixture', 'services.b2.bucket' => 'fixture']);
         Http::fake();

@@ -72,6 +72,21 @@ class PostgresRaceTest extends TestCase
         return $c;
     }
 
+    public function test_simultaneous_expired_story_cleanup_is_idempotent_and_preserves_active_media_and_receipts():void {
+        $owner=$this->user('owner');
+        $expired=(string)\Illuminate\Support\Str::uuid();$active=(string)\Illuminate\Support\Str::uuid();
+        foreach([[$expired,now()->subDay()],[$active,now()->addDay()]] as [$id,$expiry]) {
+            \App\Support\MediaStore::put($id,'image/png','fixture',true);
+            DB::table('stories')->insert(['public_id'=>$id,'user_id'=>$owner->id,'media_id'=>$id,'media_mime'=>'image/png','protected_media'=>true,'audience'=>'followers','expires_at'=>$expiry,'created_at'=>now(),'updated_at'=>now()]);
+        }
+        DB::table('upload_receipts')->insert(['user_id'=>$owner->id,'operation'=>'story','intent_id'=>'cleanup-race-fixture-001','fingerprint'=>str_repeat('a',64),'resource_id'=>$expired,'created_at'=>now(),'updated_at'=>now()]);
+        $codes=$this->race(array_fill(0,3,['owner','PRUNE_EXPIRED_STORIES','',[]]));
+        $this->assertSame([200,200,200],$codes);
+        $this->assertDatabaseMissing('stories',['public_id'=>$expired]);$this->assertDatabaseMissing('media_blobs',['public_id'=>$expired]);
+        $this->assertDatabaseHas('stories',['public_id'=>$active]);$this->assertDatabaseHas('media_blobs',['public_id'=>$active]);
+        $this->assertDatabaseCount('upload_receipts',1);
+    }
+
     public function test_simultaneous_story_relationship_saves_have_one_revision_winner_and_no_stale_resurrection():void {
         $owner=$this->user('owner');$this->user('friend');
         $uri='/api/v1/auth/me/story-audience/friend';

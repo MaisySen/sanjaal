@@ -61,3 +61,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Official Google Play full-build updates. No third-party code-push engine.
+dependencies {
+    implementation("com.google.android.play:app-update:2.1.0")
+}

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'ui.dart' show t_, Logo;
+import 'app_update_tile.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 /// Actual platform package metadata, not a stale display-only version.
@@ -22,6 +23,8 @@ class AboutPage extends StatelessWidget {
         FutureBuilder<String>(future: installedVersion(), builder: (_, value) => Text('Version ${value.data ?? '...'}')),
         const SizedBox(height: 8),
         const Text('A community app for Nepalis: a feed, short videos, chat, calls and a coin wallet.'),
+        h('App updates'),
+        const AppUpdateTile(),
         h('Publisher'),
         const Text('Fintex Australia Pty Ltd\nABN 60 688 406 108\ncontact@fintex.au'),
         h('Privacy'),

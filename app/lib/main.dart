@@ -256,7 +256,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    _refreshUnread();
+    widget.session.prefetchHome();
+    _initialUnread();
     _poll = Timer.periodic(const Duration(seconds: 30), (_) => _refreshUnread());
     _ring = Timer.periodic(const Duration(seconds: 5), (_) => _checkIncoming());
   }
@@ -303,6 +304,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     _poll?.cancel();
     _ring?.cancel();
     super.dispose();
+  }
+
+  Future<void> _initialUnread() async {
+    final n = (await widget.session.takeHome('unread_messages') as num?)?.toInt();
+    if (n == null) return _refreshUnread();
+    _unreadAt = DateTime.now();
+    if (mounted && n != unread) setState(() => unread = n);
   }
 
   bool _unreadInFlight = false;

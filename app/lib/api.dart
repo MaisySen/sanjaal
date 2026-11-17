@@ -442,6 +442,43 @@ class Session extends ChangeNotifier {
     return _access!;
   }
 
+  /// Home opens with one request for feed, stories and unread. Each part is handed over once, only
+  /// within seconds of being fetched and only to the session epoch that asked. Any failure falls back to
+  /// the screens' own requests. Tests turn this off unless they exercise it.
+  @visibleForTesting
+  bool homeBundleEnabled = !_underTest;
+  Future<Map<String, dynamic>?>? _home;
+  Map<String, dynamic>? _homeData;
+  int _homeEpoch = -1;
+  DateTime _homeAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void prefetchHome() {
+    if (!homeBundleEnabled) return;
+    final epoch = _sessionEpoch;
+    _homeEpoch = epoch;
+    _homeData = null;
+    _homeAt = DateTime.now();
+    _home = call('GET', '/home').then<Map<String, dynamic>?>((v) {
+      if (epoch != _sessionEpoch || v is! Map) return null;
+      return v.cast<String, dynamic>();
+    }).catchError((Object _) => null);
+  }
+
+  /// Returns the named part of the Home bundle once, or null so the caller makes its own request.
+  Future<dynamic> takeHome(String key) async {
+    final pending = _home;
+    if (pending == null) return null;
+    final epoch = _homeEpoch;
+    _homeData ??= await pending;
+    final data = _homeData;
+    if (epoch != _sessionEpoch || data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 20)) {
+      _home = null;
+      _homeData = null;
+      return null;
+    }
+    return data.remove(key);
+  }
+
   Future<dynamic> call(String method, String path,
       {Map<String, dynamic>? body, Map<String, String>? query}) async {
     final epoch = _sessionEpoch;

@@ -66,7 +66,8 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
   Future<void> _load() async {
     final version = ++_loadVersion;
     try {
-      final j = await widget.session.call('GET', '/stories') as Map<String, dynamic>;
+      final bundled = version == 1 ? await widget.session.takeHome('stories') : null;
+      final j = (bundled is Map ? bundled.cast<String, dynamic>() : null) ?? await widget.session.call('GET', '/stories') as Map<String, dynamic>;
       if (mounted && version == _loadVersion) {
         setState(() {
           groups = (j['data'] as List).cast<Map<String, dynamic>>();

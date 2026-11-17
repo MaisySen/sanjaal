@@ -24,6 +24,7 @@ Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
 Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/broadcasting/auth', fn (\Illuminate\Http\Request $r) => Broadcast::auth($r));
 
+    Route::get('/home', [\App\Http\Controllers\HomeController::class, 'show']);
     Route::get('/posts', [PostController::class, 'index']);
     Route::post('/posts', [PostController::class, 'store'])->middleware('throttle:30,1');
     Route::get('/posts/{post}', [PostController::class, 'show']);

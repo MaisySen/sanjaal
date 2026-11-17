@@ -307,6 +307,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Future<void> _initialUnread() async {
+    if (!widget.session.homePending) return _refreshUnread();
     final n = (await widget.session.takeHome('unread_messages') as num?)?.toInt();
     if (n == null) return _refreshUnread();
     _unreadAt = DateTime.now();

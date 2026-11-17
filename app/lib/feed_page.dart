@@ -1,3 +1,4 @@
+import 'media_library_page.dart';
 import 'settings_page.dart';
 import 'upload_center.dart';
 import 'ph.dart';
@@ -844,7 +845,8 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _pick() async {
-    final fs = await guardPick(context, () => ImagePicker().pickMultiImage(maxWidth: 1280, imageQuality: 78, limit: 4)) ?? <XFile>[];
+    final chosen = await chooseCreatorMedia(context, CreatorKind.post);
+    final fs = chosen?.map((m) => m.file).toList() ?? <XFile>[];
     if (fs.isEmpty || !mounted) return;
     setState(() {
       images = fs.take(4).toList();
@@ -853,17 +855,8 @@ class _ComposePageState extends State<ComposePage> {
   }
 
   Future<void> _pickVideo() async {
-    final from = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Record a video')), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
-          ListTile(leading: const PhIcon('film-strip'), title: Text(t_('Choose a video')), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
-        ]),
-      ),
-    );
-    if (from == null || !mounted) return;
-    final f = await guardPick(context, () => ImagePicker().pickVideo(source: from, maxDuration: const Duration(seconds: 60)));
+    final chosen = await chooseCreatorMedia(context, CreatorKind.reel);
+    final f = chosen == null || chosen.isEmpty ? null : chosen.first.file;
     if (f == null || !mounted) return;
     if (await f.length() > 25 * 1024 * 1024) {
       if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');

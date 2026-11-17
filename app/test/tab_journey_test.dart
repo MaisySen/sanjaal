@@ -194,6 +194,10 @@ void main() {
   testWidgets('actual shell reveals a new reel after publish without refreshing manually', (t) async {
     final picker = ImagePickerPlatform.instance;
     ImagePickerPlatform.instance = _PickedFixture();
+    // Explicitly deny the fake custom-library channel to exercise the native
+    // picker fallback, without asking a real device for any permission.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), (call) async => 0);
+    addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), null));
     addTearDown(() => ImagePickerPlatform.instance = picker);
     var published = false;
     var writes = 0;
@@ -203,9 +207,9 @@ void main() {
       await flush(t);
       await select(t, 'Reels');
       await t.tap(find.text('Create a reel'));
-      await t.pumpAndSettle();
+      await flush(t);
       expect(find.byType(ComposePage), findsOneWidget);
-      await t.tap(find.text('Choose a video'));
+      await t.tap(find.text('Device picker').first);
       await flush(t);
       expect(find.text('Posts as a reel'), findsOneWidget);
       await t.enterText(find.byType(TextField), 'Community reel fixture');
@@ -227,6 +231,10 @@ void main() {
   testWidgets('actual shell refreshes story rings after publishing through Create', (t) async {
     final picker = ImagePickerPlatform.instance;
     ImagePickerPlatform.instance = _PickedFixture();
+    // Explicitly deny the fake custom-library channel to exercise the native
+    // picker fallback, without asking a real device for any permission.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), (call) async => 0);
+    addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('com.fluttercandies/photo_manager'), null));
     addTearDown(() => ImagePickerPlatform.instance = picker);
     var writes = 0;
     var storyReads = 0;
@@ -239,7 +247,9 @@ void main() {
       await t.tap(find.text('Story'));
       await t.pump();
       await t.tap(find.widgetWithText(FilledButton, 'Continue'));
-      await t.pumpAndSettle();
+      await flush(t);
+      await t.tap(find.text('Device picker').first);
+      await flush(t);
       await t.tap(find.text('Choose a photo'));
       await flush(t);
       expect(writes, 0, reason: 'selection must not publish before review');

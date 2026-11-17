@@ -1,3 +1,4 @@
+import 'media_library_page.dart';
 import 'upload_center.dart';
 import 'ph.dart';
 import 'draft_exit_guard.dart';
@@ -367,25 +368,10 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
 /// Picks a photo or video, opens review, and returns true only after explicit sharing.
 Future<bool> addStory(BuildContext context, Session session) async {
     UploadCenter.of(session);
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const PhIcon('camera'), title: Text(t_('Take a photo')), onTap: () => Navigator.pop(ctx, 'photo_cam')),
-          ListTile(leading: const PhIcon('image'), title: Text(t_('Choose a photo')), onTap: () => Navigator.pop(ctx, 'photo')),
-          ListTile(leading: const PhIcon('video-camera'), title: Text(t_('Record a video')), onTap: () => Navigator.pop(ctx, 'video_cam')),
-          ListTile(leading: const PhIcon('film-strip'), title: Text(t_('Choose a video')), onTap: () => Navigator.pop(ctx, 'video')),
-        ]),
-      ),
-    );
-    if (source == null || !context.mounted) return false;
-    final from = source.endsWith('_cam') ? ImageSource.camera : ImageSource.gallery;
-    final isVideo = source.startsWith('video');
-    final x = await guardPick(context, () => !isVideo
-        ? picker.pickImage(source: from, maxWidth: 1280, imageQuality: 78)
-        : picker.pickVideo(source: from, maxDuration: const Duration(seconds: 20)));
-    if (x == null || !context.mounted) return false;
+    final chosen = await chooseCreatorMedia(context, CreatorKind.story);
+    if (chosen == null || chosen.isEmpty || !context.mounted) return false;
+    final x = chosen.first.file;
+    final isVideo = chosen.first.isVideo;
     final result = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => StoryComposePage(session: session, file: x, isVideo: isVideo, backgroundUpload: true)));
     return result == true;
 }

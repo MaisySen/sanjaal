@@ -67,7 +67,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Sanjaal needs your photos so you can share them in posts.</string>
+	<string>Sanjaal lets you choose photos and videos for posts, reels and stories. Only items you select are prepared to share.</string>
+	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Sanjaal uses the camera to take photos and videos for posts.</string>
 	<key>NSMicrophoneUsageDescription</key>

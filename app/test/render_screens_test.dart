@@ -329,6 +329,7 @@ void main() {
           }
           if (base.startsWith('call_')) {
             await tester.pump();
+            await tester.pump(const Duration(milliseconds: 400));
             expect(find.byType(CallView), findsOneWidget, reason: 'Call fixture must not fall through to generic Post');
           }
           if (base == 'compose_poll') {

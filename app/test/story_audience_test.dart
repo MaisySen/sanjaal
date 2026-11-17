@@ -21,6 +21,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 late Uint8List fixturePhoto;
+late Uint8List headerPhoto;
 http.Response json(Object value, [int code = 200]) =>
     http.Response(jsonEncode(value), code);
 Map<String, dynamic> person({
@@ -142,6 +143,16 @@ Future<void> shot(WidgetTester t, String name) async {
 void main() {
   setUpAll(() async {
     Directory('test/renders').createSync(recursive: true);
+    final headerRecorder = ui.PictureRecorder();
+    Canvas(headerRecorder).drawRect(
+      const Rect.fromLTWH(0, 0, 160, 400),
+      Paint()..color = Colors.white,
+    );
+    final headerImage = await headerRecorder.endRecording().toImage(160, 400);
+    headerPhoto = (await headerImage.toByteData(
+      format: ui.ImageByteFormat.png,
+    ))!.buffer.asUint8List();
+    headerImage.dispose();
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.drawRect(
@@ -549,58 +560,110 @@ void main() {
         );
       },
     );
-  for (final language in ['en', 'ne']) {
-    testWidgets(
-      'long story header keeps identity time and controls separate $language',
-      (t) async {
-        await fixture(t, (r) async => json({}), (session) async {
-          await t.pumpWidget(
-            RepaintBoundary(
-              key: const ValueKey('story-shot'),
-              child: MaterialApp(
-                theme: buildTheme(
-                  Brightness.dark,
-                  fontFamily: 'Roboto',
-                  fontFamilyFallback: ['NotoDev'],
-                ),
-                builder: (c, w) => MediaQuery(
-                  data: MediaQuery.of(c)
-                      .copyWith(textScaler: TextScaler.linear(1.8)),
-                  child: w!,
-                ),
-                home: StoryViewer(
-                  session: session,
-                  group: {
-                    'author': {
-                      'public_id': 'me',
-                      'username': 'a_very_long_synthetic_username',
-                    },
-                    'items': [
-                      {
-                        'public_id': 'header-fixture',
-                        'url': '$apiBase/stories/header/media',
-                        'protected_media': true,
-                        'type': 'image',
-                        'created_at': '2026-11-17T00:00:00Z',
+  for (final owner in [false, true]) {
+    for (final language in ['en', 'ne']) {
+      testWidgets(
+        'long story header keeps identity time and controls separate $language owner $owner',
+        (t) async {
+          await fixture(
+            t,
+            (r) async => r.url.path.endsWith('/media')
+                ? http.Response.bytes(
+                    headerPhoto,
+                    200,
+                    headers: {'content-type': 'image/png'},
+                  )
+                : json({}),
+            (session) async {
+              if (owner)
+                session.user!['username'] = 'a_very_long_synthetic_username';
+              await t.pumpWidget(
+                RepaintBoundary(
+                  key: const ValueKey('story-shot'),
+                  child: MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: buildTheme(
+                      Brightness.dark,
+                      fontFamily: 'Roboto',
+                      fontFamilyFallback: ['NotoDev'],
+                    ),
+                    builder: (c, w) => MediaQuery(
+                      data: MediaQuery.of(c)
+                          .copyWith(textScaler: TextScaler.linear(1.8)),
+                      child: w!,
+                    ),
+                    home: StoryViewer(
+                      session: session,
+                      group: {
+                        'author': {
+                          'public_id': 'me',
+                          'username': 'a_very_long_synthetic_username',
+                        },
+                        'items': [
+                          {
+                            'public_id': 'header-fixture',
+                            'url': '$apiBase/stories/header/media',
+                            'protected_media': true,
+                            'type': 'image',
+                            'created_at': '2026-11-17T00:00:00Z',
+                          },
+                        ],
                       },
-                    ],
-                  },
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+              await flush(t);
+              expect(t.takeException(), isNull);
+              await flush(t);
+              expect(
+                t
+                    .widgetList<RawImage>(find.byType(RawImage))
+                    .any(
+                      (image) =>
+                          image.image?.width == 160 &&
+                          image.image?.height == 400,
+                    ),
+                isTrue,
+              );
+              final text = t.widget<Text>(
+                find.text('a_very_long_synthetic_username'),
+              );
+              expect(
+                t.getSize(
+                  find.byWidgetPredicate(
+                    (w) =>
+                        w is RawImage &&
+                        w.image?.width == 160 &&
+                        w.image?.height == 400,
+                  ),
+                ),
+                const Size(320, 640),
+              );
+              expect(text.maxLines, 1);
+              expect(text.overflow, TextOverflow.ellipsis);
+              expect(
+                find.byType(IconButton).hitTestable(),
+                findsNWidgets(owner ? 3 : 1),
+              );
+              expect(find.byTooltip(t_('Close')).hitTestable(), findsOneWidget);
+              if (owner) {
+                expect(
+                  find.byTooltip(t_('Story viewers')).hitTestable(),
+                  findsOneWidget,
+                );
+                expect(
+                  find.byTooltip(t_('Delete story')).hitTestable(),
+                  findsOneWidget,
+                );
+              }
+              await shot(t, 'story_header_long_${language}_$owner');
+            },
+            lang: language,
           );
-          await flush(t);
-          expect(t.takeException(), isNull);
-          final text = t.widget<Text>(
-            find.text('a_very_long_synthetic_username'),
-          );
-          expect(text.maxLines, 1);
-          expect(text.overflow, TextOverflow.ellipsis);
-          expect(find.byType(IconButton).hitTestable(), findsOneWidget);
-          await shot(t, 'story_header_long_$language');
-        }, lang: language);
-      },
-    );
+        },
+      );
+    }
   }
   for (final mode in [Brightness.light, Brightness.dark])
     for (final lang in ['en', 'ne'])

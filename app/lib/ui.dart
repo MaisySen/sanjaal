@@ -123,6 +123,8 @@ const _ne = <String, String>{
   'Device picker': 'फोनबाट छान्नुहोस्',
   'Close camera': 'क्यामेरा बन्द गर्नुहोस्',
   'Close': 'बन्द गर्नुहोस्',
+  'Story viewers': 'स्टोरी हेर्नेहरू',
+  'Delete story': 'स्टोरी मेटाउनुहोस्',
   'Choose photos with the device picker, or allow library access to see your Recents here.': 'फोनको फोटो छनोटबाट छान्नुहोस् वा यहाँ हालका तस्बिर हेर्न ग्यालरीको अनुमति दिनुहोस्।',
   'Choose more photos in your device settings.': 'फोनको सेटिङमा थप तस्बिरलाई अनुमति दिनुहोस्।',
   'Choose more': 'थप छान्नुहोस्',

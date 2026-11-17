@@ -142,3 +142,14 @@ The native integration fixture now also issues a separate token for its existing
 ### Round-trip gate route-transition correction
 
 Both repaired98cc232 CI44000724383 and expanded05b751f CI44001889975 passed API/APK/iOS but failed the native target's next assertion immediately after sharing. The original media-required error no longer occurred. The wait used an underlying route button's presence, which became true during the composer's reverse transition before the route was removed. It now requires composer removal and a hit-testable return button, while retaining the explicit no-composer assertion and every upload/audience/read/delete check. This is a test synchronization correction, not a full-flow pass claim. Native/server confirmation remains pending.
+
+
+### Actual protected-story round trip and subsequent header polish
+
+`dbaff18` CI44004325305 passed all four original gates. Actual emulator artifact14294252117 and its native log were inspected: nonblank camera photo, video initialized with nonzero duration, real MediaStore thumbnail selection, production Only me composer upload to the isolated local API, signed-out denial, valid second-member denial, authenticated same-image viewer, delete/404, and Close friends access followed by hide revocation across full/Range/ETag/view/list all passed. This is real Android-emulator/local-API evidence, not Samsung or live-service acceptance.
+
+The actual viewer screenshot exposed a wrapping long owner name and a small image drawn at intrinsic resolution. Subsequent source polish separates username/time, ellipsizes the username, adds labelled owner/close buttons and a dark header scrim, and sizes photo painting to the available canvas without cropping. English/Nepali 1.8x text fixtures cover owner and non-owner controls over a bright decoded synthetic photo. These are widget-layout checks until matching native screenshots are inspected.
+
+### AAB preparation boundary
+
+`2bb0e90` adds a separate unsigned ARM64 engineering-bundle CI job. It does not publish, upload to Play or carry a key in CI. The offline finalizer requires all five CI gates and downloaded-artifact/source matching, pins bundletool1.18.3 by SHA-256, validates the bundle before/after signing, checks package/version/backup/non-debuggable flags, rejects test endpoint markers, checks production API and 16KB ARM64 ELF segments, and verifies full JAR signature coverage and the retained certificate. Fake-tool unit tests are contract checks, not signature evidence. A real signed-AAB verification result is still pending. Play certificate acceptance, version-code availability, delivered APK packaging, policy review, other ABIs and live-service readiness remain separate gates. No key replacement, store enrollment or distribution is part of this source work.

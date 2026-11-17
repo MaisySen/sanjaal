@@ -332,11 +332,13 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
           ? Center(child: AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c)))
           : const Center(child: CircularProgressIndicator());
     } else if (storyBytes != null) {
-      media = Center(child:Image.memory(storyBytes!,fit:BoxFit.contain,errorBuilder:(_,e,s)=>Text(t_('Photo preview unavailable'),style:const TextStyle(color:Colors.white))));
+      media = Center(child:Image.memory(storyBytes!,width:double.infinity,height:double.infinity,fit:BoxFit.contain,errorBuilder:(_,e,s)=>Text(t_('Photo preview unavailable'),style:const TextStyle(color:Colors.white))));
     } else {
       media = Center(
         child: Image.network(
           item['url'] as String,
+          width: double.infinity,
+          height: double.infinity,
           fit: BoxFit.contain,
           loadingBuilder: (_, child, p) => p == null ? child : const Center(child: CircularProgressIndicator()),
           errorBuilder: (_, __, ___) => const PhIcon('image-broken', color: Colors.white54, size: 48),
@@ -359,6 +361,7 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
           },
           child: Stack(children: [
             Positioned.fill(child: media),
+            const Positioned(top:0,left:0,right:0,height:160,child:IgnorePointer(child:DecoratedBox(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,stops:[0,.6,1],colors:[Colors.black87,Colors.black87,Colors.transparent]))))),
             Positioned(
               top: 8,
               left: 8,
@@ -386,9 +389,9 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
                 Avatar(user: author, radius: 16),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text('${author['username']}',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w600)),Text(ago(item['created_at'] as String),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white70,fontSize:12))])),
-                if (isMine) IconButton(onPressed: _viewers, icon: const PhIcon('eye', color: Colors.white)),
-                if (isMine) IconButton(onPressed: _delete, icon: const PhIcon('trash', color: Colors.white)),
-                IconButton(onPressed: () => Navigator.of(context).pop(), icon: const PhIcon('x', color: Colors.white)),
+                if (isMine) IconButton(tooltip:t_('Story viewers'),onPressed: _viewers, icon: const PhIcon('eye', color: Colors.white)),
+                if (isMine) IconButton(tooltip:t_('Delete story'),onPressed: _delete, icon: const PhIcon('trash', color: Colors.white)),
+                IconButton(tooltip:t_('Close'),onPressed: () => Navigator.of(context).pop(), icon: const PhIcon('x', color: Colors.white)),
               ]),
             ),
             if (caption.isNotEmpty)

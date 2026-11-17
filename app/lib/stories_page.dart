@@ -385,7 +385,7 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
               child: Row(children: [
                 Avatar(user: author, radius: 16),
                 const SizedBox(width: 8),
-                Expanded(child: Text('${author['username']}  ${ago(item['created_at'] as String)}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+                Expanded(child: Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[Text('${author['username']}',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w600)),Text(ago(item['created_at'] as String),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white70,fontSize:12))])),
                 if (isMine) IconButton(onPressed: _viewers, icon: const PhIcon('eye', color: Colors.white)),
                 if (isMine) IconButton(onPressed: _delete, icon: const PhIcon('trash', color: Colors.white)),
                 IconButton(onPressed: () => Navigator.of(context).pop(), icon: const PhIcon('x', color: Colors.white)),

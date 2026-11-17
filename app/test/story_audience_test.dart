@@ -549,6 +549,59 @@ void main() {
         );
       },
     );
+  for (final language in ['en', 'ne']) {
+    testWidgets(
+      'long story header keeps identity time and controls separate $language',
+      (t) async {
+        await fixture(t, (r) async => json({}), (session) async {
+          await t.pumpWidget(
+            RepaintBoundary(
+              key: const ValueKey('story-shot'),
+              child: MaterialApp(
+                theme: buildTheme(
+                  Brightness.dark,
+                  fontFamily: 'Roboto',
+                  fontFamilyFallback: ['NotoDev'],
+                ),
+                builder: (c, w) => MediaQuery(
+                  data: MediaQuery.of(c)
+                      .copyWith(textScaler: TextScaler.linear(1.8)),
+                  child: w!,
+                ),
+                home: StoryViewer(
+                  session: session,
+                  group: {
+                    'author': {
+                      'public_id': 'me',
+                      'username': 'a_very_long_synthetic_username',
+                    },
+                    'items': [
+                      {
+                        'public_id': 'header-fixture',
+                        'url': '$apiBase/stories/header/media',
+                        'protected_media': true,
+                        'type': 'image',
+                        'created_at': '2026-11-17T00:00:00Z',
+                      },
+                    ],
+                  },
+                ),
+              ),
+            ),
+          );
+          await flush(t);
+          expect(t.takeException(), isNull);
+          final text = t.widget<Text>(
+            find.text('a_very_long_synthetic_username'),
+          );
+          expect(text.maxLines, 1);
+          expect(text.overflow, TextOverflow.ellipsis);
+          expect(find.byType(IconButton).hitTestable(), findsOneWidget);
+          await shot(t, 'story_header_long_$language');
+        }, lang: language);
+      },
+    );
+  }
   for (final mode in [Brightness.light, Brightness.dark])
     for (final lang in ['en', 'ne'])
       testWidgets(

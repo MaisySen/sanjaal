@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// This opt-in is only for private engineering AAB preparation. No CI key exists.
+val unsignedBundle = System.getenv("SANJAAL_UNSIGNED_BUNDLE") == "1"
+if (unsignedBundle && gradle.startParameter.taskNames.none { it.contains("bundle", ignoreCase = true) }) {
+    throw GradleException("Unsigned release mode is restricted to bundle tasks")
+}
+
 android {
     namespace = "au.fintex.sanjaal"
     compileSdk = flutter.compileSdkVersion
@@ -31,9 +37,9 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Ordinary APKs are CI-only debug-signed previews. The explicit bundle
+            // path is unsigned and must pass the offline pinned-key finalizer.
+            signingConfig = if (unsignedBundle) null else signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
         }

@@ -33,4 +33,30 @@ $app->booted(function () use ($app, $file) {
     $app['config']->set('services.auth0.audience', 'https://api.test');
     $app['config']->set('services.auth0.jwks', json_decode(file_get_contents($file), true));
 });
+// CI-only fault injection, only on the second disposable server (E2E_FAULT_AFTER_COMMIT=1, port 8001).
+// Arm it with an authenticated POST; the next post creation commits normally and then loses its response
+// (503), which is the "reply lost after the server saved it" case the replay-safe upload protocol covers.
+if (getenv('E2E_FAULT_AFTER_COMMIT') === '1') {
+    $expected = trim((string) @file_get_contents(dirname($file).'/token.txt'));
+    $authorised = $expected !== '' && hash_equals('Bearer '.$expected, $_SERVER['HTTP_AUTHORIZATION'] ?? '');
+    $flag = dirname($file).'/fault-armed';
+    if ($uri === '/e2e/fault-arm' && $_SERVER['REQUEST_METHOD'] === 'POST' && $authorised) {
+        file_put_contents($flag, '1');
+        header('Content-Type: application/json');
+        echo json_encode(['armed' => true]);
+        exit;
+    }
+    if ($uri === '/api/v1/posts' && $_SERVER['REQUEST_METHOD'] === 'POST' && is_file($flag)) {
+        @unlink($flag);
+        ob_start();
+        $app->handleRequest(Request::capture());
+        ob_end_clean();
+        header_remove('Content-Length');
+        header_remove('Content-Type');
+        http_response_code(503);
+        header('Content-Type: application/json');
+        echo json_encode(['message' => 'Service temporarily unavailable. Try again.']);
+        exit;
+    }
+}
 $app->handleRequest(Request::capture());

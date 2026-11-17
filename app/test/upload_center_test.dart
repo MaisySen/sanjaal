@@ -35,6 +35,20 @@ void main(){
     for(final p in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final f=File(p.$2);if(f.existsSync()){final l=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await l.load();}}
  });
 
+ testWidgets('normal phone progress strip stays small and leaves content usable',(t)async{
+  t.view.physicalSize=const Size(360,800);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+  final reply=Completer<Map<String,dynamic>>();
+  await fixture(t,(s,c)async{
+   var taps=0;
+   await t.pumpWidget(RepaintBoundary(key:const ValueKey('busy-review'),child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(Brightness.dark,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),home:Scaffold(body:Column(children:[UploadStrip(center:c),Expanded(child:Center(child:FilledButton(onPressed:()=>taps++,child:Text('Continue using app'))))])))));await flush(t);
+   c.start('post',()=>reply.future);await flush(t);c.sending();s.uploadProgress.value=0.45;await flush(t);
+   expect(t.getSize(find.byType(UploadStrip)).height,lessThanOrEqualTo(64));
+   expect(t.widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator)).value,0.45);
+   await t.tap(find.text('Continue using app'));expect(taps,1);
+   await t.runAsync(()async{final boundary=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('busy-review')));final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/upload_strip_busy_normal.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
+   reply.complete(post('normal'));await flush(t);expect(c.result?['public_id'],'normal');expect(t.takeException(),isNull);
+  });
+ });
  for(final language in ['en','ne']){
  testWidgets('persistent upload strip fits narrow phone and large text $language',(t)async{
   prefs.lang=language;addTearDown(()=>prefs.lang='en');

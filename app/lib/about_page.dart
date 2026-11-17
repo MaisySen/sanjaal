@@ -31,15 +31,16 @@ class AboutPage extends StatelessWidget {
         const Text(
           'We store your email, username, display name, what you post and your messages so the app can work. '
           'We do not run ads, we do not sell your data and we do not track you across other apps. '
-          'Adding coins is not switched on yet. '
           'To delete your account and data, write to contact@fintex.au.',
         ),
         h('Terms'),
         const Text(
           'Be kind. Do not post illegal content, spam or other people\'s private details. '
           'We may remove content or accounts that break these rules. '
-          'Coins are an in app balance. Adding coins is not switched on yet. Coins move between members and cannot be cashed out.',
+          'Coins are an in-app balance.',
         ),
+        Text(t_('Adding coins is not switched on yet. Cash out is not available.')),
+        Text(t_('Transfers are unavailable until live verification is complete.')),
         h('Open source licences'),
         OutlinedButton(onPressed: () => showLicensePage(context: context, applicationName: 'Sanjaal', applicationVersion: null), child: const Text('View licences')),
       ]),

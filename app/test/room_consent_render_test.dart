@@ -112,6 +112,14 @@ void main() {
         findsOneWidget,
       );
       expect(toggles, 0);
+      expect(
+        t
+            .getBottomLeft(
+              find.text(t_('No messages yet. Say hello to the room.')),
+            )
+            .dy,
+        lessThan(t.getTopLeft(find.byType(TextField)).dy),
+      );
       expect(find.byTooltip(t_('Unmute')), findsOneWidget);
       expect(t.takeException(), isNull);
       await t.runAsync(() async {
@@ -125,7 +133,7 @@ void main() {
             .writeAsBytesSync(bytes!.buffer.asUint8List());
       });
       await t.tap(find.byTooltip(t_('Unmute')));
-      expect(toggles,1);
+      expect(toggles, 1);
       await t.pumpWidget(const SizedBox());
     });
   }

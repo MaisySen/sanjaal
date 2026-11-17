@@ -96,6 +96,7 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'No messages yet. Say hello to the room.': 'अहिलेसम्म सन्देश छैन। कोठामा नमस्ते भन्नुहोस्।',
   'Unmute': 'अनम्युट',
   'Mute': 'म्युट',
   'You can speak. Tap Unmute when ready.': 'तपाईं बोल्न सक्नुहुन्छ। तयार भएपछि अनम्युट थिच्नुहोस्।',

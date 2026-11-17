@@ -21,8 +21,9 @@ class FakeCamera implements CaptureDevice {
   Completer<void>? initPending,startPending;
   Completer<XFile>? photoPending,stopPending;
   bool failed=false;
+  Color previewColor=const Color(0xFF2C656C);
   @override Future<void> initialize()async{calls.add('init');if(initPending!=null)await initPending!.future;if(failed)throw StateError('fixture camera failed');}
-  @override Widget preview()=>const ColoredBox(key:ValueKey('live-fixture-preview'),color:Color(0xFF2C656C));
+  @override Widget preview()=>ColoredBox(key:const ValueKey('live-fixture-preview'),color:previewColor);
   @override Future<XFile> photo()async{calls.add('photo');return photoPending?.future??XFile.fromData(imageBytes,name:'fixture.png');}
   @override Future<void> start()async{calls.add('start');if(startPending!=null)await startPending!.future;}
   @override Future<XFile> stop()async{calls.add('stop');return stopPending?.future??XFile.fromData(Uint8List.fromList([1,2,3]),name:'fixture.mp4',path:'/fixture.mp4');}
@@ -118,6 +119,11 @@ void main(){
  });
  testWidgets('long story videos cannot resolve and cancelling a pending file pick ignores its late result',(t)async{
  final library=FakeLibrary();library.rows[0]=const LibraryAsset('a0',video:true,seconds:45);await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library));await t.tap(find.byKey(const ValueKey('a0')));await flush(t);expect(library.fileReads,0);library.delayedFile=Completer<XFile?>();await t.tap(find.byKey(const ValueKey('a1')));await flush(t);await t.tap(find.byTooltip('Close'));await flush(t);await flush(t);expect(find.byType(MediaLibraryPage),findsNothing);library.delayedFile!.complete(XFile.fromData(imageBytes,name:'fixture.png'));await flush(t);await flush(t);expect(find.byType(MediaLibraryPage),findsNothing);
+ });
+ for(final color in [Colors.white,Colors.black])testWidgets('camera controls retain contrast on ${color==Colors.white?'bright':'dark'} scene',(t)async{
+ final device=FakeCamera()..previewColor=color;await start(t,CapturePage(deviceFactory:(_,_)=>device));
+ expect(find.byKey(const ValueKey('camera-header-contrast')),findsOneWidget);expect(find.byTooltip('Close camera').hitTestable(),findsOneWidget);expect(find.byTooltip('Flash off').hitTestable(),findsOneWidget);expect(find.text('1x').hitTestable(),findsOneWidget);expect(find.bySemanticsLabel('Take a photo').hitTestable(),findsOneWidget);
+ await shot(t,'camera_contrast_${color==Colors.white?'bright':'dark'}');await t.tap(find.byTooltip('Flash off'));await flush(t);expect(device.calls,contains('flash:true'));await t.pumpWidget(const SizedBox());await flush(t);
  });
  for(final lang in ['en','ne'])for(final scale in [1.0,1.8])testWidgets('screenshot-led gallery and real-preview fixture geometry $lang $scale',(t)async{
  final library=FakeLibrary()..access=scale==1?LibraryAccess.full:LibraryAccess.limited;await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library),language:lang,scale:scale);expect(t.takeException(),isNull);await shot(t,'gallery_${lang}_$scale');await t.pumpWidget(const SizedBox());await flush(t);final device=FakeCamera();await start(t,CapturePage(startVideo:true,deviceFactory:(_,_)=>device),language:lang,scale:scale);await shot(t,'camera_${lang}_$scale');expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());await flush(t);

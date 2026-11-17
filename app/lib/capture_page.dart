@@ -475,6 +475,28 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 116,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          key: ValueKey('camera-header-contrast'),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0xD9000000),
+                                Color(0x99000000),
+                                Color(0x00000000),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                     Positioned(
                       top: 8,
                       left: 8,
@@ -557,6 +579,14 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                                 padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
+                                  color: const Color(0x88000000),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x99000000),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
                                   border: Border.all(
                                     color: Colors.white,
                                     width: 4,

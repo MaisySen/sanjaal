@@ -154,29 +154,35 @@ class NativeMediaLibrary implements MediaLibrary {
     // A bounded render removes metadata and normalizes HEIC/other supported
     // system image formats to the PNG format accepted by our upload API.
     final bytes = await source.readAsBytes();
-    final codec = await ui.instantiateImageCodec(
-      bytes,
-      targetWidth: 1280,
-      allowUpscaling: false,
-    );
-    final frame = await codec.getNextFrame();
-    final encoded = await frame.image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    frame.image.dispose();
-    codec.dispose();
-    if (encoded == null) return null;
-    return XFile.fromData(
-      encoded.buffer.asUint8List(),
-      name: 'selected-photo.png',
-      mimeType: 'image/png',
-    );
+    return normalizeLibraryPhoto(bytes);
   }
 
   @override
   Future<void> manage() => photos.PhotoManager.presentLimited(type: type);
   @override
   Future<void> settings() => photos.PhotoManager.openSetting();
+}
+
+/// Normalize a selected photo with the same codec and multipart identity on IO/web.
+Future<XFile?> normalizeLibraryPhoto(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(
+    bytes,
+    targetWidth: 1280,
+    allowUpscaling: false,
+  );
+  final frame = await codec.getNextFrame();
+  final encoded = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+  frame.image.dispose();
+  codec.dispose();
+  if (encoded == null) return null;
+  return XFile.fromData(
+    encoded.buffer.asUint8List(),
+    // On Android/iOS cross_file derives name from path and ignores name.
+    // Bytes stay in memory; this is a logical filename, not a disk write.
+    path: 'selected-photo.png',
+    name: 'selected-photo.png',
+    mimeType: 'image/png',
+  );
 }
 
 Future<List<CreatorMedia>?> chooseCreatorMedia(

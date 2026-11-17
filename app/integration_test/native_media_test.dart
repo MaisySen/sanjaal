@@ -217,6 +217,12 @@ void main() {
       expect(selection!.length, 1);
       expect(selection!.single.isVideo, false);
       expect(
+        selection!.single.file.name,
+        'selected-photo.png',
+        reason:
+            'An empty IO filename causes PHP to discard the multipart file.',
+      );
+      expect(
         await t.runAsync(() => selection!.single.file.length()),
         greaterThan(0),
       );

@@ -13,6 +13,7 @@ import 'package:sanjaal/capture_page.dart';
 import 'package:sanjaal/media_library_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:sanjaal/ui.dart';
+import 'package:sanjaal/api.dart' show mimeFor;
 
 late Uint8List imageBytes;
 class FakeCamera implements CaptureDevice {
@@ -63,6 +64,12 @@ void main(){
  setUpAll(()async{Directory('test/renders').createSync(recursive:true);
  for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}
  final recorder=ui.PictureRecorder();final canvas=Canvas(recorder);canvas.drawRect(const Rect.fromLTWH(0,0,300,500),Paint()..shader=ui.Gradient.linear(Offset.zero,const Offset(300,500),const [Color(0xFF1F8784),Color(0xFFDAB487)]));final image=await recorder.endRecording().toImage(300,500);imageBytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();
+ });
+ testWidgets('actual photo normalizer keeps PNG bytes and a nonempty IO multipart filename',(t)async{
+ final selected=await t.runAsync(()=>normalizeLibraryPhoto(imageBytes));
+ expect(selected,isNotNull);expect(selected!.name,'selected-photo.png');expect(selected.mimeType,'image/png');expect(mimeFor(selected.name),'image/png');
+ final bytes=await t.runAsync(()=>selected.readAsBytes());expect(bytes!.take(8).toList(),[137,80,78,71,13,10,26,10]);
+ await t.runAsync(()async{final codec=await ui.instantiateImageCodec(bytes);final frame=await codec.getNextFrame();expect((frame.image.width,frame.image.height),(300,500));frame.image.dispose();codec.dispose();});
  });
  testWidgets('photo waits for initialization and explicit shutter then returns for review without publishing',(t)async{
  final device=FakeCamera()..initPending=Completer<void>();CreatorMedia? result;

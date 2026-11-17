@@ -128,3 +128,9 @@ Both `734f895` CI43993059001 and `e809636` CI43993600126 passed API, APK, iOS an
 ### Native protected-story round trip gate
 
 The native media integration target now continues with the actual selected MediaStore photo into the production story composer, picks Only me, uploads to the throwaway local API, verifies the returned protected audience and signed-out denial, downloads authenticated bytes, renders the production viewer, and deletes the synthetic story with a confirmed 404 readback. Composer/viewer screenshots are collected after native camera checks finish. This is a new CI gate pending execution, not a claimed pass. It does not authenticate a real user, post to a live service or expand any delivery permission. Existing photo/video/gallery assertions remain unchanged.
+
+### Native story gate caught and fixed an empty multipart filename
+
+`bd3eacd` CI43996958156 passed APK/API/iOS but failed the new emulator story upload with "The media field is required." Camera/photo/video/gallery assertions passed first. The actual selected image had an empty IO filename: `cross_file` on Android/iOS ignores the `name` argument and derives it from `path`, while our normalized in-memory photo had no logical path. PHP therefore discarded the multipart file. This is a product bug, not a reason to remove the round-trip gate.
+
+The normalizer now sets the logical PNG path as well as name, keeping bytes in memory. A direct actual-codec regression checks PNG signature, dimensions, MIME and nonempty IO filename; the native gate asserts the filename before sharing. All 51 focused capture/library/camera/story checks pass locally, analyzer has informational lint only. Actual native round-trip confirmation still awaits the repaired source CI. No deployment or live publication occurred.

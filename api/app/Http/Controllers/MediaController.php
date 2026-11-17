@@ -23,15 +23,15 @@ class MediaController extends Controller
         $meta = DB::table('media_blobs')->select('public_id', 'mime', 'size', 'storage')
             ->where('public_id', $publicId)->where('is_private', false)
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('stories')
-                ->whereColumn('stories.media_id', 'media_blobs.public_id')->where('protected_media', true))
+                ->where('stories.media_id', $publicId)->where('protected_media', true))
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('messages')
-                ->whereColumn('messages.media_id', 'media_blobs.public_id'))
-            ->where(function ($q) {
+                ->where('messages.media_id', $publicId))
+            ->where(function ($q) use ($publicId) {
                 $q->whereExists(fn ($q) => $q->selectRaw('1')->from('post_media')->join('posts', 'posts.id', '=', 'post_media.post_id')
-                    ->where(fn ($q) => $q->whereColumn('post_media.path', 'media_blobs.public_id')->orWhereColumn('post_media.thumbnail_path', 'media_blobs.public_id'))
+                    ->where(fn ($q) => $q->where('post_media.path', $publicId)->orWhere('post_media.thumbnail_path', $publicId))
                     ->whereNull('posts.deleted_at'))
-                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('users')->whereColumn('users.avatar', 'media_blobs.public_id'))
-                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('stories')->whereColumn('stories.media_id', 'media_blobs.public_id')->where('expires_at', '>', now()));
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('users')->where('users.avatar', $publicId))
+                    ->orWhereExists(fn ($q) => $q->selectRaw('1')->from('stories')->where('stories.media_id', $publicId)->where('expires_at', '>', now()));
             })->first();
         abort_unless($meta, 404);
 

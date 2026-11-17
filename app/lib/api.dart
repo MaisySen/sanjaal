@@ -302,6 +302,8 @@ class Session extends ChangeNotifier {
 
   Future<void> login(String id, String password) async {
     _sessionEpoch++;
+    _home = null;
+    _homeData = null;
     _refreshingAccess = null;
     await _grant({
       'grant_type': 'password',
@@ -405,6 +407,8 @@ class Session extends ChangeNotifier {
 
   Future<void> _clear() async {
     _sessionEpoch++;
+    _home = null;
+    _homeData = null;
     _refreshingAccess = null;
     _uploadRequest++;
     _access = null;
@@ -471,7 +475,7 @@ class Session extends ChangeNotifier {
     final epoch = _homeEpoch;
     _homeData ??= await pending;
     final data = _homeData;
-    if (epoch != _sessionEpoch || data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 20)) {
+    if (epoch != _sessionEpoch || data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 5)) {
       _home = null;
       _homeData = null;
       return null;

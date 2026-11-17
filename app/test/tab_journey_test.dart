@@ -66,6 +66,25 @@ void main() {
       expect(t.takeException(), isNull);
     });
   });
+  testWidgets('production Home startup is one bundled request and still renders feed and stories', (t) async {
+    await fixture(t, (s, reads) async {
+      s.homeBundleEnabled = true;
+      await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: HomeShell(session: s)));
+      await flush(t);
+      expect(reads.map((u) => u.path).toList(), ['/api/v1/home'], reason: 'feed, stories and unread come from one request');
+      expect(t.takeException(), isNull);
+      expect(find.text('Bundled fixture post'), findsWidgets);
+    }, onRequest: (r) async {
+      if (r.url.path.endsWith('/home')) {
+        return json({
+          'feed': {'data': [{'public_id': 'p-home', 'kind': 'post', 'body': 'Bundled fixture post', 'author': {'public_id': 'u2', 'username': 'asha', 'name': 'Asha'}, 'created_at': '2026-11-17T00:00:00Z', 'media': [], 'hashtags': [], 'comments_count': 0, 'likes_count': 0}], 'next_cursor': null},
+          'stories': {'data': []},
+          'unread_messages': 0,
+        });
+      }
+      return null;
+    });
+  });
   testWidgets('destinations load on first visit and retain their state on return', (t) async {
     await fixture(t, (s, reads) async {
       await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: HomeShell(session: s)));

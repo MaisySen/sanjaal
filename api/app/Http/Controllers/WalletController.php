@@ -21,6 +21,7 @@ class WalletController extends Controller
         return response()->json([
             'balance' => (int) $me->coin_balance,
             'transfer_replay' => true,
+            'transfers_available' => (bool) config('wallet.member_transfers_enabled', false),
             'topup' => [
                 'esewa' => Esewa::configured(),
                 'esewa_mode' => config('services.esewa.env') === 'live' ? 'live' : 'test',
@@ -42,6 +43,9 @@ class WalletController extends Controller
 
     public function transfer(Request $request): JsonResponse
     {
+        if (! config('wallet.member_transfers_enabled', false)) {
+            return response()->json(['message' => 'Transfers are unavailable until verification is complete.', 'code' => 'transfers_unavailable'], 503);
+        }
         $data = $request->validate([
             'client_id' => ['required', 'string', 'min:16', 'max:80', 'regex:/^[A-Za-z0-9_-]+$/'],
             'username' => ['required', 'string', 'max:40'],

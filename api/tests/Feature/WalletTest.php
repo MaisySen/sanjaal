@@ -15,6 +15,7 @@ class WalletTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config(['wallet.member_transfers_enabled' => true]);
         config(['services.esewa.product_code' => 'TESTCODE', 'services.esewa.secret' => 'test-secret', 'services.esewa.env' => 'test']);
     }
 

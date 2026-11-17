@@ -20,6 +20,7 @@ class PostgresRaceTest extends TestCase
             $this->markTestSkipped('Set PG_RACE=1 and DB_CONNECTION=pgsql against a throwaway local database.');
         }
         parent::setUp();
+        config(['wallet.member_transfers_enabled' => true]);
         // Fail closed before destructive setup, including a DB_URL override.
         $connection = DB::connection();
         $this->assertSame('pgsql', $connection->getDriverName());

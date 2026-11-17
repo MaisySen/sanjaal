@@ -8,7 +8,7 @@ require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
 $kernel->bootstrap();
-config(['services.uploads.replay_safe' => true]);
+config(['services.uploads.replay_safe' => true, 'wallet.member_transfers_enabled' => true]);
 config(['services.auth0.domain' => 'tenant.example.auth0.com', 'services.auth0.audience' => 'https://api.test', 'services.auth0.jwks' => json_decode(file_get_contents($jwksFile), true)]);
 if (getenv('PAYOUT_FAKE') === '1') {
     require_once __DIR__.'/FakePayout.php';

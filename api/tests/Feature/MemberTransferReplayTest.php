@@ -9,6 +9,11 @@ use Tests\TestCase;
 class MemberTransferReplayTest extends TestCase
 {
     use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['wallet.member_transfers_enabled' => true]);
+    }
     private function payload(array $changes = []): array
     {
         return $changes + ['client_id' => 'fixture-transfer-key-001', 'username' => 'bina', 'amount' => 25, 'note' => 'Fixture momo'];

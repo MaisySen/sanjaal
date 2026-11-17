@@ -67,3 +67,22 @@ First-use form follow-through: English/Nepali labels, helper/errors and social/p
 Wallet follow-through: localized availability/history, coherent real/stale/error states, readable large-text amounts/actions, scrollable transfer form and one active operation now support the required destination without enabling providers. Ambiguous transfer outcomes block Send only in the current view; durable backend replay remains absent. Full local source checks now total 530 passed/one intentional live skip, analyzer 21 info. This improves the honest experience of unavailable money features, not their availability. Provider-dependent daily value, roadmap, native/device and legitimate release gaps remain.
 
 Later reconciliation,09:39AEDT: the native fixture IME gate now passes with actual Gboard/235inset/unmocked evidence on826f6df, after expected notification permission setup restored native focus. Member-transfer source now has permanent replay receipts, secure saved-original reconciliation and a filled review/confirm/activity journey; localFlutter544pass/one skip, API121/973normal/cachedSQLite+PG and16PG races/118assertions. No rollout or wallet readiness is claimed: receipt capacity/retention and API-client migration/compatibility need review, native storage restore remains unverified, gifts/cash-out are separate, providers stay off. Legitimate stable-signed production-endpoint preview and actual-device/two-device proof remain open. Full-product daily value/roadmap work is not replaced by these fixes.
+
+### Nov17,15:42 product continuation
+
+The full vision remains open after the private beta installation. Source
+follow-through now makes call transport state visible over participant video:
+connecting, waiting for a remote member, connected, reconnecting and disconnected
+are separate. A connected room alone is not presented as another member answering.
+Media controls pause during reconnect while End remains available. Own camera
+preview stays visible before anyone joins. Previously the preview existed only
+inside the remote-participant branch, and the UI kept the literal Connected
+state after initial setup even when transport changed.
+
+Five simulated presentation/widget contracts and13 existing setup-cancellation
+contracts pass. Eight light/dark call renders pass, including320px/180%text
+waiting/reconnecting states. Actual pixels were inspected and a fixture-route
+assertion prevents accidental fallback to an unrelated Post screen. These are
+not real camera frames, audio, Samsung or two-device proof. Native CI, interruption,
+audio routing, media recovery and real two-device calls remain required.
+No live call was started, no account used and no money/provider enabled.

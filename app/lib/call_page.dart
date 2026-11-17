@@ -1,8 +1,10 @@
 import 'ph.dart';
-import 'package:livekit_client/livekit_client.dart' hide Session;
+import 'package:livekit_client/livekit_client.dart' hide Session, ConnectionState;
+import 'package:livekit_client/livekit_client.dart' as livekit show ConnectionState;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_lifecycle.dart';
+import 'call_presentation.dart';
 import 'ui.dart' show showError;
 
 /// Voice or video call for one conversation, over LiveKit.
@@ -28,6 +30,7 @@ class _CallPageState extends State<CallPage> {
   bool _ended = false;
   bool _closed = false;
   bool _mediaBusy = false;
+  bool _setupComplete = false;
   late final Future<void> _joining;
   Future<void>? _mediaChange;
 
@@ -63,7 +66,7 @@ class _CallPageState extends State<CallPage> {
         await _disconnectSafely();
         return;
       }
-      if (mounted) setState(() { status = 'Connected'; camOn = widget.video; });
+      if (mounted) setState(() { _setupComplete = true; camOn = widget.video; });
     } on ApiError catch (e) {
       _endCall();
       await _disconnectSafely();
@@ -148,6 +151,16 @@ class _CallPageState extends State<CallPage> {
   @override
   Widget build(BuildContext context) {
     final remotes = room.remoteParticipants.values.toList();
+    final presentation = presentCall(
+      transport: switch (room.connectionState) {
+        livekit.ConnectionState.connected => CallTransport.connected,
+        livekit.ConnectionState.reconnecting => CallTransport.reconnecting,
+        livekit.ConnectionState.disconnected => CallTransport.disconnected,
+        livekit.ConnectionState.connecting => CallTransport.connecting,
+      },
+      setupComplete: _setupComplete, remoteCount: remotes.length,
+      previouslyConnected: _setupComplete,
+    );
     final tiles = <Widget>[];
     for (final p in remotes) {
       final v = _videoOf(p);
@@ -156,14 +169,14 @@ class _CallPageState extends State<CallPage> {
     final me = room.localParticipant;
     return CallView(
       title: widget.title,
-      status: status,
+      status: failed ? status : presentation.status,
       failed: failed,
       video: widget.video,
       muted: muted,
       camOn: camOn,
       tiles: tiles,
       selfPreview: me != null && camOn && _videoOf(me) != null ? VideoTrackRenderer(_videoOf(me)!) : null,
-      controlsBusy: _mediaBusy || status != 'Connected',
+      controlsBusy: _mediaBusy || !presentation.mediaAvailable,
       onMute: () => _changeMedia(camera: false),
       onCamera: () => _changeMedia(camera: true),
       onEnd: () => Navigator.of(context).pop(),
@@ -217,23 +230,26 @@ class CallView extends StatelessWidget {
       backgroundColor: Colors.black,
       appBar: AppBar(leading: Navigator.of(context).canPop() ? BackButton(color: Colors.white, style: IconButton.styleFrom(foregroundColor: Colors.white), onPressed: onEnd) : null, title: Text(title, style: const TextStyle(color: Colors.white)), iconTheme: const IconThemeData(color: Colors.white), backgroundColor: Colors.black, foregroundColor: Colors.white),
       body: Column(children: [
-        Expanded(
-          child: tiles.isEmpty
-              ? Center(child: Text(failed ? status : (status == 'Connected' ? 'Waiting for others to join' : status), style: const TextStyle(color: Colors.white), textAlign: TextAlign.center))
-              : Stack(children: [
-                  LayoutBuilder(builder: (context, box) {
-                    final cols = tiles.length > 1 ? 2 : 1;
-                    final rows = (tiles.length / cols).ceil();
-                    return GridView.count(
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: cols,
-                      childAspectRatio: (box.maxWidth / cols) / (box.maxHeight / rows),
-                      children: tiles,
-                    );
-                  }),
-                  if (selfPreview != null) Positioned(right: 14, top: 14, child: SizedBox(height: 120, width: 90, child: ClipRRect(borderRadius: BorderRadius.circular(14), child: selfPreview))),
-                ]),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Semantics(liveRegion: true, child: Text(status, textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70))),
         ),
+        Expanded(child: Stack(children: [
+          if (tiles.isEmpty)
+            const Center(child: PhIcon('user-fill', size: 80, color: Colors.white54))
+          else LayoutBuilder(builder: (context, box) {
+            final cols = tiles.length > 1 ? 2 : 1;
+            final rows = (tiles.length / cols).ceil();
+            return GridView.count(
+              physics: const NeverScrollableScrollPhysics(), crossAxisCount: cols,
+              childAspectRatio: (box.maxWidth / cols) / (box.maxHeight / rows), children: tiles,
+            );
+          }),
+          if (selfPreview != null) Positioned(right: 14, top: 14,
+            child: Semantics(label: 'Your camera preview', child: SizedBox(height: 120, width: 90,
+              child: ClipRRect(borderRadius: BorderRadius.circular(14), child: selfPreview)))),
+        ])),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(32, 8, 32, 16),

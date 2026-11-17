@@ -60,7 +60,7 @@ def main():
     run=json.loads(Path(a.ci_run).read_text());jobs=json.loads(Path(a.ci_jobs).read_text())['jobs'];evidence=json.loads(Path(a.artifact_evidence).read_text())
     assert run['status']=='completed' and run['conclusion']=='success','Selected CI run did not pass'
     assert run['head_sha']==evidence['head_sha'] and run['id']==evidence['run_id'],'Artifact/run source mismatch'
-    for name in ['api','app','ios','emulator']:
+    for name in ['api','app','ios','emulator','bundle']:
         match=[j for j in jobs if j['name']==name]
         assert len(match)==1 and match[0]['status']=='completed' and match[0]['conclusion']=='success','Missing or failed '+name+' gate'
     assert sha(inp)==evidence['apk_sha256'],'Input differs from downloaded CI artifact'
@@ -80,7 +80,7 @@ def main():
         call(tool/'zipalign','-c','-P','16','4',candidate)
         check_payload(candidate,tool,a.version,a.version_code)
         os.replace(candidate,out)
-    report={'package':PACKAGE,'version_name':a.version,'version_code':a.version_code,'abi':'arm64-v8a','certificate_sha256':CERT,'sha256':sha(out),'bytes':out.stat().st_size,'source_commit':run['head_sha'],'ci_run_id':run['id'],'ci_url':run['html_url'],'production_api':PRODUCTION_API.decode(),'checks':['all_four_ci_jobs_passed','input_archive_digest','package_version_abi','v2_v3_signature','stable_certificate','16kb_zip_and_native_segments','no_fixture_or_tunnel_markers','production_api','backup_disabled','not_debuggable']}
+    report={'package':PACKAGE,'version_name':a.version,'version_code':a.version_code,'abi':'arm64-v8a','certificate_sha256':CERT,'sha256':sha(out),'input_sha256':evidence['apk_sha256'],'bytes':out.stat().st_size,'source_commit':run['head_sha'],'ci_run_id':run['id'],'ci_url':run['html_url'],'production_api':PRODUCTION_API.decode(),'checks':['five_ci_jobs_passed','input_archive_digest','package_version_abi','v2_v3_signature','stable_certificate','16kb_zip_and_native_segments','no_fixture_or_tunnel_markers','production_api','backup_disabled','not_debuggable']}
     out.with_suffix('.verification.json').write_text(json.dumps(report,indent=2)+'\n')
     out.parent.joinpath('SHA256SUMS.txt').write_text(report['sha256']+'  '+out.name+'\n')
     print(json.dumps(report,indent=2))

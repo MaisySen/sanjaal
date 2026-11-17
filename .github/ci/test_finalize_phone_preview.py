@@ -14,7 +14,7 @@ class Contracts(unittest.TestCase):
   with zipfile.ZipFile(self.inp,'w') as z:
    for n,b in [('AndroidManifest.xml',b'fake'),('classes.dex',b'fake'),('lib/arm64-v8a/libapp.so',elf())]:z.writestr(n,b)
   self.run={'id':1,'status':'completed','conclusion':'success','head_sha':'abc','html_url':'https://example.invalid/fixture'}
-  self.jobs={'jobs':[{'name':n,'status':'completed','conclusion':'success'} for n in ['api','app','ios','emulator']]}
+  self.jobs={'jobs':[{'name':n,'status':'completed','conclusion':'success'} for n in ['api','app','ios','emulator','bundle']]}
   self.evidence={'run_id':1,'head_sha':'abc','apk_sha256':m.sha(self.inp)}
   self.cert=m.CERT;self.abi='arm64-v8a';self.backup='0x0';self.debug=''
  def tools(self,*args):
@@ -40,11 +40,12 @@ class Contracts(unittest.TestCase):
   with self.assertRaises(AssertionError):self.execute()
   self.assertFalse(self.out.exists())
  def test_complete_fake_contract_creates_report_checksum_and_does_not_overwrite(self):
-  self.execute();report=json.loads(self.out.with_suffix('.verification.json').read_text());self.assertEqual(report['sha256'],m.sha(self.out));self.assertTrue((self.d/'SHA256SUMS.txt').exists())
+  self.execute();report=json.loads(self.out.with_suffix('.verification.json').read_text());self.assertEqual(report['sha256'],m.sha(self.out));self.assertEqual(report['input_sha256'],m.sha(self.inp));self.assertTrue((self.d/'SHA256SUMS.txt').exists())
   with self.assertRaises(AssertionError):self.execute()
  def test_non_green_run_is_not_signable(self):self.run['conclusion']='failure';self.fails()
- def test_missing_native_gate_is_not_signable(self):self.jobs['jobs']=self.jobs['jobs'][:-1];self.fails()
- def test_failed_native_gate_is_not_signable(self):self.jobs['jobs'][-1]['conclusion']='failure';self.fails()
+ def test_missing_bundle_gate_is_not_signable(self):self.jobs['jobs']=self.jobs['jobs'][:-1];self.fails()
+ def test_failed_bundle_gate_is_not_signable(self):self.jobs['jobs'][-1]['conclusion']='failure';self.fails()
+ def test_failed_emulator_gate_is_not_signable(self):self.jobs['jobs'][-2]['conclusion']='failure';self.fails()
  def test_wrong_source_is_not_signable(self):self.evidence['head_sha']='other';self.fails()
  def test_wrong_input_digest_is_not_signable(self):self.evidence['apk_sha256']='bad';self.fails()
  def test_wrong_abi_is_not_signable(self):self.abi='x86_64';self.fails()

@@ -4,7 +4,7 @@ Automatic tag publication remains disabled. A compiled CI artifact is not a deli
 
 ## Required evidence
 
-Select one immutable source commit and its GitHub Actions run. Download the actual run JSON, jobs JSON and `sanjaal-apk` artifact from that run. Require completed success for API, app, unsigned iOS and emulator, not merely the app job. Record the artifact ID, run ID, head SHA and SHA256 of the exact extracted ARM64 input APK in a private artifact-evidence JSON:
+Select one immutable source commit and its GitHub Actions run. Download the actual run JSON, jobs JSON and `sanjaal-apk` artifact from that run. Require completed success for API, app, unsigned iOS, emulator and bundle, not merely the app job. Record the artifact ID, run ID, head SHA and SHA256 of the exact extracted ARM64 input APK in a private artifact-evidence JSON:
 
 ```
 {"run_id": 123, "head_sha": "the-real-full-source-commit", "artifact_id": 456, "apk_sha256": "the-real-downloaded-input-digest"}
@@ -23,7 +23,7 @@ Run `.github/ci/finalize_phone_preview.py` with these required flags:
 - `--build-tools`: installed Android SDK build-tools directory
 - `--version`, `--version-code`: intended versionName and ARM64 versionCode
 
-The script refuses an incomplete/non-green run, missing mandatory jobs, source/digest mismatch, wrong package/version/ABI, debuggable or backup-enabled app, missing production API or fixture/tunnel markers. It signs only after those checks, using the existing upload identity, then verifies v2/v3 signatures, the expected certificate, 16KB zip alignment, every ARM64 native library's PT_LOAD segment alignment and payload again. Private decoded key material lives in an automatically removed temporary directory. The script creates the signed APK, adjacent `.verification.json`, and `SHA256SUMS.txt`. Keep that evidence with the selected source and run. Failure is not a completed preview.
+The script refuses an incomplete/non-green run, missing mandatory jobs, source/digest mismatch, wrong package/version/ABI, debuggable or backup-enabled app, missing production API or fixture/tunnel markers. It signs only after those checks, using the existing upload identity, then verifies v2/v3 signatures, the expected certificate, 16KB zip alignment, every ARM64 native library's PT_LOAD segment alignment and payload again. Private decoded key material lives in an automatically removed temporary directory. The script creates the signed APK, adjacent `.verification.json` binding the original input SHA256 to the signed output, and `SHA256SUMS.txt`. Keep that evidence with the selected source and run. Failure is not a completed preview.
 
 The stable certificate SHA256 is `e6d401f11358c43e232921a088401b9c2aa25eabe4ecd972e17954220d9783a7`, independently confirmed from the existing0.5.1 artifact. The older0.2/0.3/0.4 certificates differ. Do not suggest uninstalling or wiping app data to bypass an update error. Confirm the installed identity and preserve data before choosing an update/migration path.
 

@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Phone preview finalizer unit contracts (fake Android tools)
-        run: python3 .github/ci/test_finalize_phone_preview.py && python3 .github/ci/test_finalize_play_bundle.py
+        run: python3 .github/ci/test_finalize_phone_preview.py && python3 .github/ci/test_finalize_play_bundle.py && python3 .github/ci/test_candidate_manifest.py
         working-directory: .
       - uses: actions/setup-java@v4
         with:

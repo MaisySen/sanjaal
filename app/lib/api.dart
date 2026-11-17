@@ -35,6 +35,12 @@ class ApiError implements Exception {
   String toString() => message;
 }
 
+/// Only the identity provider's explicit rejection of this refresh grant can
+/// end a stored session during startup. HTTP status alone is not that proof.
+class _RejectedRefresh extends ApiError {
+  _RejectedRefresh(super.message, super.status);
+}
+
 /// Stable per-draft key, never an account credential.
 String newUploadIntent() => List.generate(24, (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0')).join();
 
@@ -175,27 +181,35 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A cold-start failure is not a sign-out. No cached identity is opened until
+  /// both the refresh grant and the account read have succeeded.
+  String? restoreError;
+  bool _restoring = false;
   Future<void> restore() async {
+    if (_restoring) return;
+    _restoring = true;
+    loading = true;
+    restoreError = null;
+    notifyListeners();
     try {
       _refresh = await RefreshStore.read();
-    } catch (_) {
-      loading = false;
-      notifyListeners();
-      return;
-    }
-    if (_refresh != null) {
+      if (_refresh == null) return;
       try {
         await _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
-        await _loadMe();
-      } on ApiError catch (e) {
-        // Only a rejected refresh token ends the session. A network error keeps it.
-        if (e.status == 400 || e.status == 401 || e.status == 403) {
-          await _clear();
-        }
-      } catch (_) {}
+      } on _RejectedRefresh {
+        await _clear();
+        return;
+      }
+      await _loadMe();
+    } catch (_) {
+      // Storage, transport, service/configuration errors and a failed /auth/me
+      // read must not erase the saved grant or pretend there is no session.
+      restoreError = 'Could not restore your sign-in. Try again.';
+    } finally {
+      _restoring = false;
+      loading = false;
+      notifyListeners();
     }
-    loading = false;
-    notifyListeners();
   }
 
   Future<void> _grant(Map<String, String> form) async {
@@ -213,6 +227,13 @@ class Session extends ChangeNotifier {
       throw ApiError('No connection. Check your internet and try again.');
     }
     if (r.statusCode != 200) {
+      if (form['grant_type'] == 'refresh_token') {
+        try {
+          if ((jsonDecode(r.body) as Map)['error'] == 'invalid_grant') {
+            throw _RejectedRefresh(_errorText(r), r.statusCode);
+          }
+        } on _RejectedRefresh { rethrow; } catch (_) {}
+      }
       var msg = _errorText(r);
       if (msg.toLowerCase().contains('wrong email or password')) msg = 'Wrong email or password.';
       throw ApiError(msg, r.statusCode);

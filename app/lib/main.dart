@@ -180,6 +180,9 @@ class _SanjaalAppState extends State<SanjaalApp> {
               if (session.loading || !prefs.ready) {
                 return const Scaffold(body: Center(child: Logo(size: 96)));
               }
+              if (session.restoreError != null) {
+                return RestoreSessionPage(session: session);
+              }
               if (session.user == null) {
                 return prefs.seenOnboarding
                     ? AuthPage(session: session, initialRegister: _createAccount)
@@ -195,6 +198,29 @@ class _SanjaalAppState extends State<SanjaalApp> {
       ),
     );
   }
+}
+
+/// A recoverable cold start must not look like a deliberate sign-out.
+class RestoreSessionPage extends StatelessWidget {
+  const RestoreSessionPage({super.key, required this.session});
+  final Session session;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(t_('Sanjaal'))),
+    body: SafeArea(child: SingleChildScrollView(child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 56),
+      child: EmptyState(
+        icon: Ph.cloud_off,
+        title: t_('Could not restore your sign-in. Try again.'),
+        hint: t_('Your account has not been opened. Check your connection and try again.'),
+        action: OutlinedButton.icon(
+          onPressed: session.loading ? null : session.restore,
+          icon: const PhIcon('arrow-clockwise'),
+          label: Text(t_('Try again')),
+        ),
+      ),
+    ))),
+  );
 }
 
 class HomeShell extends StatefulWidget {

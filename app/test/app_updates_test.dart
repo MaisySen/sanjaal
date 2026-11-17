@@ -10,6 +10,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/app_updates.dart';
 import 'package:sanjaal/app_update_tile.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
+import 'package:sanjaal/ui.dart' show prefs;
 
 class FakeUpdates implements AppUpdateGateway {
   @override
@@ -64,6 +65,17 @@ void main() {
   tearDown(() {
     controller.dispose();
     gateway.stream.close();
+  });
+  testWidgets('Nepali update states and actions stay translated without side effects',(t)async{
+    prefs.lang='ne';addTearDown(()=>prefs.lang='en');
+    for(final phase in UpdatePhase.values){
+      controller.phase=phase;
+      await t.pumpWidget(MaterialApp(theme:buildTheme(Brightness.dark),home:Scaffold(body:AppUpdateTile(key:ValueKey(phase),controller:controller))));await t.pump();
+      final texts=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data??'').where((s)=>s.isNotEmpty).toList();
+      expect(texts,everyElement(matches(RegExp(r'[\u0900-\u097F]'))),reason:'all status/action/help text is Nepali in $phase');
+      expect(t.takeException(),isNull);
+    }
+    expect(gateway.checks+gateway.starts+gateway.installs,0);
   });
   test('idle has no silent check, download or install', () {
     expect(controller.phase, UpdatePhase.idle);

@@ -15,34 +15,34 @@ class AboutPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    Widget h(String s) => Padding(padding: const EdgeInsets.only(top: 20, bottom: 6), child: Text(s, style: t.titleMedium));
+    Widget h(String s) => Padding(padding: const EdgeInsets.only(top: 20, bottom: 6), child: Text(t_(s), style: t.titleMedium));
     return Scaffold(
       appBar: AppBar(title: Text(t_('About Sanjaal'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         const Align(alignment: Alignment.centerLeft, child: Logo(size: 64)),
-        FutureBuilder<String>(future: installedVersion(), builder: (_, value) => Text('Version ${value.data ?? '...'}')),
+        FutureBuilder<String>(future: installedVersion(), builder: (_, value) => Text('${t_('Version')} ${value.data == 'Unavailable' ? t_('Unavailable') : value.data ?? '...'}')),
         const SizedBox(height: 8),
-        const Text('A community app for Nepalis: a feed, short videos, chat, calls and a coin wallet.'),
+        Text(t_('A community app for Nepalis: a feed, short videos, chat, calls and a coin wallet.')),
         h('App updates'),
         const AppUpdateTile(),
         h('Publisher'),
         const Text('Fintex Australia Pty Ltd\nABN 60 688 406 108\ncontact@fintex.au'),
         h('Privacy'),
-        const Text(
+        Text(t_(
           'We store your email, username, display name, what you post and your messages so the app can work. '
           'We do not run ads, we do not sell your data and we do not track you across other apps. '
           'To delete your account and data, write to contact@fintex.au.',
-        ),
+        )),
         h('Terms'),
-        const Text(
+        Text(t_(
           'Be kind. Do not post illegal content, spam or other people\'s private details. '
           'We may remove content or accounts that break these rules. '
           'Coins are an in-app balance.',
-        ),
+        )),
         Text(t_('Adding coins is not switched on yet. Cash out is not available.')),
         Text(t_('Transfers are unavailable until live verification is complete.')),
         h('Open source licences'),
-        OutlinedButton(onPressed: () => showLicensePage(context: context, applicationName: 'Sanjaal', applicationVersion: null), child: const Text('View licences')),
+        OutlinedButton(onPressed: () => showLicensePage(context: context, applicationName: 'Sanjaal', applicationVersion: null), child: Text(t_('View licences'))),
       ]),
     );
   }

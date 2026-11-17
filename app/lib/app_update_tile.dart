@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'app_updates.dart';
+import 'ui.dart' show t_;
 
 /// Manual check, Play consent, then separate explicit restart. No startup nag.
 class AppUpdateTile extends StatefulWidget {
@@ -68,7 +69,7 @@ class _AppUpdateTileState extends State<AppUpdateTile>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(message),
+        Text(t_(message)),
         const SizedBox(height: 8),
         if (controller.phase == UpdatePhase.downloading) ...[
           LinearProgressIndicator(value: controller.progress),
@@ -88,16 +89,16 @@ class _AppUpdateTileState extends State<AppUpdateTile>
                     }
                   },
             child: Text(
-              ready
+              t_(ready
                   ? 'Restart and install'
                   : available
                   ? 'Download update'
-                  : 'Check for updates',
+                  : 'Check for updates'),
             ),
           ),
         const SizedBox(height: 4),
         Text(
-          'These are full app updates, not background code patches.',
+          t_('These are full app updates, not background code patches.'),
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

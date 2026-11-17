@@ -130,48 +130,48 @@ class BlockedPage extends StatefulWidget {
 class _BlockedPageState extends State<BlockedPage> {
   List<Map<String, dynamic>>? list;
   String? error;
+  bool loading = false;
+  bool changing = false;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    if (loading) return;
+    setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/blocked') as Map<String, dynamic>;
-      if (mounted) setState(() => list = (j['data'] as List).cast<Map<String, dynamic>>());
-    } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
-    }
+      final rows = (j['data'] as List).map((v) => (v as Map).cast<String,dynamic>()).toList();
+      if (rows.any((u) => u['username'] is! String)) throw const FormatException('Invalid blocked member');
+      if (mounted) setState(() => list = rows);
+    } catch (e) {
+      if (mounted) setState(() => error = e is ApiError ? t_(e.message) : t_('Blocked people could not be loaded.'));
+    } finally { if (mounted) setState(() => loading = false); }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(t_('Blocked people'))),
-      body: list == null
-          ? (error != null ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!) : const Center(child: CircularProgressIndicator()))
-          : list!.isEmpty
-              ? const EmptyState(icon: Ph.block, title: 'You have not blocked anyone')
-              : ListView(children: [
-                  for (final u in list!)
-                    ListTile(
-                      leading: Avatar(user: u),
-                      title: Text('@${u['username']}'),
-                      trailing: TextButton(
-                        onPressed: () async {
-                          try {
-                            await widget.session.call('DELETE', '/users/${u['username']}/block');
-                            await _load();
-                          } catch (e) {
-                            if (context.mounted) showError(context, e);
-                          }
-                        },
-                        child: Text(t_('Unblock')),
-                      ),
-                    ),
-                ]),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Blocked people'), maxLines: 2, style: const TextStyle(fontSize: 18)), actions: [IconButton(tooltip: t_('Refresh'), onPressed: loading ? null : _load, icon: const PhIcon('arrow-clockwise'))]),
+    body: list == null && loading
+      ? const Center(child: CircularProgressIndicator())
+      : RefreshIndicator(onRefresh: _load, child: ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
+        if (loading) const LinearProgressIndicator(),
+        if (error != null) Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+          Text(error!, textAlign: TextAlign.center),
+          TextButton(onPressed: loading ? null : _load, child: Text(t_('Try again'))),
+        ])),
+        if (list != null && list!.isEmpty) EmptyState(icon: Ph.block, title: t_('You have not blocked anyone')),
+        for (final u in list ?? <Map<String,dynamic>>[]) ListTile(
+          leading: Avatar(user: u), title: Text('@${u['username']}'),
+          trailing: TextButton(onPressed: loading || changing ? null : () async {
+            setState(() => changing = true);
+            try {
+              await widget.session.call('DELETE', '/users/${u['username']}/block');
+              await _load();
+            } catch (e) { if (context.mounted) showError(context, e); }
+            finally { if (mounted) setState(() => changing = false); }
+          }, child: Text(t_('Unblock'))),
+        ),
+      ])),
+  );
 }

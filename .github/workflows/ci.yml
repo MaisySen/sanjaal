@@ -137,11 +137,18 @@ jobs:
       - name: Fail closed - the user APK must carry no test endpoint, test token or tunnel
         run: |
           set -e
+          expected_version=$(sed -n 's/^version: \([^+]*\)+.*/\1/p' pubspec.yaml)
+          expected_code=$(sed -n 's/^version: .*+\([0-9]*\)$/\1/p' pubspec.yaml)
+          [ "$expected_code" -ge 2008 ]
+          aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)
+          test -x "$aapt"
           cd build/app/outputs/flutter-apk
           n=0
           for f in *.apk; do
             n=$((n+1))
             echo "checking $f"
+            "$aapt" dump badging "$f" > /tmp/sanjaal-apk-version.txt
+            grep -F "package: name='au.fintex.sanjaal' versionCode='$expected_code' versionName='$expected_version'" /tmp/sanjaal-apk-version.txt
             unzip -tq "$f"
             mkdir -p "/tmp/x/$f"
             unzip -qo "$f" -d "/tmp/x/$f"

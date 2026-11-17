@@ -153,3 +153,8 @@ The actual viewer screenshot exposed a wrapping long owner name and a small imag
 ### AAB preparation boundary
 
 `2bb0e90` adds a separate unsigned ARM64 engineering-bundle CI job. It does not publish, upload to Play or carry a key in CI. The offline finalizer requires all five CI gates and downloaded-artifact/source matching, pins bundletool1.18.3 by SHA-256, validates the bundle before/after signing, checks package/version/backup/non-debuggable flags, rejects test endpoint markers, checks production API and 16KB ARM64 ELF segments, and verifies full JAR signature coverage and the retained certificate. Fake-tool unit tests are contract checks, not signature evidence. A real signed-AAB verification result is still pending. Play certificate acceptance, version-code availability, delivered APK packaging, policy review, other ABIs and live-service readiness remain separate gates. No key replacement, store enrollment or distribution is part of this source work.
+
+
+### APK/AAB update version continuity
+
+The held stable-key0.5.2 ARM64 APK's published verification asset was read back and confirms versionCode2007. Flutter's split-APK ABI offset produced that value from base7, while an AAB from unchanged source would have code7. Such a bundle is not an upgrade candidate even when certificates match. The next source candidate is0.5.3+2008, with Flutter's explicit `force-version-code-ignoring-abi=true` property making every split APK and the AAB use the same source code. CI reads each actual APK manifest back against pubspec; the offline bundle finalizer independently requires code2008 or above and checks its actual manifest. Build/sign verification remains required. No Play version has been uploaded or reserved by this source change.

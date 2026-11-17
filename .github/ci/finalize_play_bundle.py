@@ -24,6 +24,7 @@ spec.loader.exec_module(preview)
 BUNDLETOOL_SHA = 'a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29'
 BUNDLETOOL_URL = 'https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar'
 ANDROID = '{http://schemas.android.com/apk/res/android}'
+MIN_UPGRADE_CODE = 2008  # Held stable-key ARM64 APK is code2007.
 
 
 def call(*args):
@@ -78,7 +79,7 @@ def main():
     p.add_argument('--version-code', required=True, type=int)
     a = p.parse_args()
     inp, out = Path(a.input), Path(a.output)
-    assert a.version_code > 0, 'Invalid version code'
+    assert a.version_code >= MIN_UPGRADE_CODE, 'Bundle must upgrade held stable-key APK code2007'
     assert not out.exists() and not out.with_suffix('.verification.json').exists(), 'Refuse to overwrite final artifact/report'
     assert preview.sha(a.bundletool) == BUNDLETOOL_SHA, 'Wrong bundletool binary'
     run = json.loads(Path(a.ci_run).read_text())

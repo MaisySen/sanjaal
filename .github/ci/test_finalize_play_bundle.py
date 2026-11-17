@@ -86,6 +86,17 @@ class Contracts(unittest.TestCase):
                     self.payload()
         self.manifest = original
 
+    def test_current_source_uses_one_upgrade_version_sequence(self):
+        import re
+        root = Path(__file__).resolve().parents[2]
+        pubspec = (root / 'app/pubspec.yaml').read_text()
+        code = int(re.search(r'^version: [^+]+\+(\d+)$', pubspec, re.M).group(1))
+        self.assertGreaterEqual(code, m.MIN_UPGRADE_CODE)
+        props = (root / 'app/android/gradle.properties').read_text()
+        self.assertRegex(props, r'(?m)^force-version-code-ignoring-abi=true$')
+        gradle = (root / 'app/android/app/build.gradle.kts').read_text()
+        self.assertIn('versionCode = flutter.versionCode', gradle)
+
     def test_real_bad_elf_rejected(self):
         with self.assertRaises(AssertionError):
             m.preview.check_elf16k(b'fake', 'fake.so')

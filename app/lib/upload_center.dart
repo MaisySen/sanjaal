@@ -144,9 +144,12 @@ class UploadStrip extends StatelessWidget {
         ? center.preparing ? t_('Preparing upload...') : center.progress == 1 ? t_('Finishing upload...') : t_('Uploading... Keep the app open.')
         : t_(center.kind == 'story' ? 'Your story is up.' : center.kind == 'reel' ? 'Your reel is live in the Reels tab.' : 'Your post is up.');
     return Material(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: SafeArea(bottom: false, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 8, 8, 6), child: Row(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 8, 8, 6), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         PhIcon(error != null ? 'warning-circle' : center.busy ? 'upload-simple' : 'check-circle', size: 20),
         const SizedBox(width: 10), Expanded(child: Text(label, style: Theme.of(context).textTheme.bodySmall, maxLines: 4, overflow: TextOverflow.ellipsis)),
+        ]),
+        if (!center.busy && !center.restoring) Wrap(alignment: WrapAlignment.end, spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
         if (!center.busy && ((error is UploadError && error.resourceId != null) || center.result != null)) TextButton(onPressed: () => center.openOriginal(context), child: Text(t_('Open original'))),
         if (center.canRetry) TextButton(onPressed: center.retry, child: Text(t_('Try again'))),
         if (!center.busy && !center.restoring) IconButton(tooltip: t_('Dismiss'), onPressed: () async {
@@ -157,6 +160,7 @@ class UploadStrip extends StatelessWidget {
           ));
           if (yes == true) await center.dismiss();
         }, icon: const PhIcon('x', size: 18)),
+        ]),
       ])),
       if (center.busy) LinearProgressIndicator(value: center.progress),
     ])));

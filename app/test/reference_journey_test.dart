@@ -12,6 +12,8 @@ import 'package:sanjaal/api.dart';
 import 'package:sanjaal/main.dart';
 import 'package:sanjaal/glass_nav.dart';
 import 'package:sanjaal/feed_page.dart';
+import 'package:sanjaal/reels_page.dart';
+import 'package:sanjaal/upload_center.dart';
 import 'package:sanjaal/settings_page.dart';
 import 'package:sanjaal/ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -50,6 +52,42 @@ void main(){
    await t.tap(find.text('Following'));await flush(t);await t.tap(find.text('For you'));await flush(t);
    expect(reads.where((u)=>u.path.endsWith('/posts')&&u.queryParameters['scope']==null).length,1,reason:'switching feed filters must not refetch For you');expect(stories(),1);expect(t.takeException(),isNull);
   });
+ });
+ testWidgets('Home keeps exact offset and no extra request across all five tabs and route back',(t)async{
+   await fixture(t,(session,reads)async{
+     final feed=t.state<FeedListState>(find.byType(FeedList).first);
+     feed.scroll.jumpTo(420);await flush(t);
+     final offset=feed.scroll.offset;
+     int homeReads()=>reads.where((u)=>u.path.endsWith('/posts')&&u.queryParameters['kind']=='post'&&u.queryParameters['scope']==null&&u.queryParameters['username']==null).length;
+     final before=homeReads();
+     for(final tab in ['Reels','Chats','Wallet','Me','Home']){await select(t,tab);}
+     expect(feed.scroll.offset,offset);expect(homeReads(),before);
+     await t.tap(find.byTooltip('Settings'));await flush(t);await t.pageBack();await flush(t);
+     expect(feed.scroll.offset,offset);expect(homeReads(),before);
+     expect(t.takeException(),isNull);
+   });
+ });
+ // Image-only reel fixtures isolate navigation/index behavior, not media playback.
+ testWidgets('Reels keeps exact page on tab returns and inserts upload without refetch',(t)async{
+   await fixture(t,(session,reads)async{
+     await select(t,'Reels');
+     final pages=find.byWidgetPredicate((w)=>w is PageView&&w.scrollDirection==Axis.vertical);
+     final pager=t.widget<PageView>(pages).controller!;
+     pager.jumpToPage(2);await flush(t);
+     final before=reads.where((u)=>u.path.endsWith('/posts')&&u.queryParameters['kind']=='reel').length;
+     final current=t.widgetList<ReelItem>(find.byType(ReelItem)).where((w)=>w.playing).single.reel['public_id'];
+     for(final tab in ['Home','Chats','Wallet','Me','Reels']){await select(t,tab);}
+     expect(pager.page,2);expect(reads.where((u)=>u.path.endsWith('/posts')&&u.queryParameters['kind']=='reel').length,before);
+     final published={...post(99,kind:'reel'),'public_id':'new-reel'};
+     final center=UploadCenter.of(session);expect(center.start('reel',()async=>published),isTrue);await flush(t);
+     expect(center.result?['public_id'],'new-reel');
+     expect(pager.page,3,reason:'insert is visible in the list without replacing the viewed reel');
+     expect(t.widgetList<ReelItem>(find.byType(ReelItem)).where((w)=>w.playing).single.reel['public_id'],current);
+     pager.jumpToPage(0);await flush(t);
+     expect(t.widgetList<ReelItem>(find.byType(ReelItem)).where((w)=>w.playing).single.reel['public_id'],'new-reel');
+     expect(reads.where((u)=>u.path.endsWith('/posts')&&u.queryParameters['kind']=='reel').length,before);
+     expect(t.takeException(),isNull);
+   });
  });
  testWidgets('explicit top-left hamburger opens searchable Settings and a real blocked destination',(t)async{
   await fixture(t,(s,reads)async{

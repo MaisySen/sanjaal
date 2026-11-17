@@ -12,7 +12,7 @@ import 'package:sanjaal/api.dart';
 import 'package:sanjaal/wallet_page.dart';
 import 'package:sanjaal/wallet_transfer_store.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
-import 'package:sanjaal/ui.dart' show prefs;
+import 'package:sanjaal/ui.dart' show prefs, t_;
 import 'package:shared_preferences/shared_preferences.dart';
 // Fake persistence adapter for offline journeys only, not device keystore evidence.
 class FixtureTransferStore extends WalletTransferStore {
@@ -52,7 +52,7 @@ Future<void> fixture(WidgetTester t, Widget Function(Session) page, Future<void>
   }));
 }
 
-Map<String,dynamic> wallet({int balance=1200,List<Map<String,dynamic>> entries=const[]}) => {'balance':balance,'transfer_replay':true,'entries':entries,'topup':{'esewa':false},'cashout':{'available':false,'min':500}};
+Map<String,dynamic> wallet({int balance=1200,List<Map<String,dynamic>> entries=const[]}) => {'balance':balance,'transfer_replay':true,'transfers_available':true,'entries':entries,'topup':{'esewa':false},'cashout':{'available':false,'min':500}};
 Future<void> sendForm(WidgetTester t)async{await t.ensureVisible(find.widgetWithText(OutlinedButton,'Send'));await t.tap(find.widgetWithText(OutlinedButton,'Send'));await flush(t);await t.pumpAndSettle();}
 Future<void> fillTransfer(WidgetTester t)async{await t.enterText(find.byType(TextFormField).at(0),'asha');await t.enterText(find.byType(TextFormField).at(1),'25');await t.tap(find.widgetWithText(FilledButton,'Send'));await flush(t);await t.pumpAndSettle();await t.tap(find.widgetWithText(FilledButton,'Confirm send'));await flush(t);}
 Future<void> shot(WidgetTester t,String name) async {await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('review')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());});}
@@ -133,8 +133,38 @@ void main(){
  });
  }}
 
+ for (final language in ['en','ne']) {
+ testWidgets('held wallet clearly disables all money actions $language',(t)async{
+   t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+   await fixture(t,(s)=>WalletPage(session:s, transferStore: const FixtureTransferStore()),()async{
+     expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,t_('Add coins'))).onPressed,isNull);
+     for(final label in ['Send','Cash out']){
+       expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,t_(label))).onPressed,isNull);
+     }
+     await shot(t,'wallet_hold_${language}_top');
+     await t.ensureVisible(find.text(t_('Transfers are unavailable until live verification is complete.')));
+     await t.pumpAndSettle();
+     await shot(t,'wallet_hold_${language}_notice');
+   },language:language,brightness:language=='en'?Brightness.dark:Brightness.light,scale:1.8,
+   respond:(r)async=>r.url.path.endsWith('/withdrawals')?json({'data':[]}):json({...wallet(),'transfer_replay':false,'transfers_available':false}));
+ });
+ }
+ for (final availability in [false, null]) {
+ testWidgets('server transfer hold or missing availability cannot enable Send $availability',(t)async{
+   await fixture(t,(s)=>WalletPage(session:s, transferStore: const FixtureTransferStore()),()async{
+     expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Send')).onPressed,isNull);
+     expect(find.text('Transfers are unavailable until live verification is complete.'),findsOneWidget);
+   },respond:(r)async{
+     expect(r.method,'GET',reason:'the held screen must never attempt a transfer');
+     if(r.url.path.endsWith('/withdrawals'))return json({'data':[]});
+     final data=wallet();
+     if(availability==null){data.remove('transfers_available');}else{data['transfers_available']=availability;}
+     return json(data);
+   });
+ });
+ }
  testWidgets('unsupported server never permits legacy unkeyed send',(t)async{
-  await fixture(t,(s)=>WalletPage(session:s, transferStore: const FixtureTransferStore()),()async{expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Send')).onPressed,isNull);expect(find.text('Sending coins is unavailable until transfer safety is ready.'),findsOneWidget);},respond:(r)async=>r.url.path.endsWith('/withdrawals')?json({'data':[]}):json({...wallet(),'transfer_replay':false}));
+  await fixture(t,(s)=>WalletPage(session:s, transferStore: const FixtureTransferStore()),()async{expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Send')).onPressed,isNull);expect(find.text('Transfers are unavailable until live verification is complete.'),findsOneWidget);},respond:(r)async=>r.url.path.endsWith('/withdrawals')?json({'data':[]}):json({...wallet(),'transfer_replay':false}));
  });
  testWidgets('navigation and fresh session restore only original transfer and same immutable key',(t)async{
   final sent=<Map<String,dynamic>>[];String? persisted;

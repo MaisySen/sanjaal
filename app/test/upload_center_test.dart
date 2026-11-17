@@ -1,6 +1,11 @@
 // Synthetic HTTP/files only. No live post, notification or device upload.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:sanjaal/ui.dart' show prefs;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -26,6 +31,22 @@ Future<void> fixture(WidgetTester t, Future<void> Function(Session,UploadCenter)
  }));
 }
 void main(){
+ setUpAll(()async{
+    for(final p in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final f=File(p.$2);if(f.existsSync()){final l=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await l.load();}}
+ });
+
+ for(final language in ['en','ne']){
+ testWidgets('persistent upload strip fits narrow phone and large text $language',(t)async{
+  prefs.lang=language;addTearDown(()=>prefs.lang='en');
+  t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+  await fixture(t,(s,c)async{
+   await t.pumpWidget(RepaintBoundary(key:const ValueKey('strip-review'),child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(Brightness.dark,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(context,w)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(1.8)),child:w!),home:Scaffold(body:Column(children:[UploadStrip(center:c),Expanded(child:Center(child:Text('Synthetic content')))])))));await flush(t);
+   c.start('post',()async=>throw UploadError('A recoverable upload failed. Retry the same original.',resourceId:'original'));await flush(t);
+   expect(t.takeException(),isNull);
+   await t.runAsync(()async{final boundary=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('strip-review')));final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/upload_strip_$language.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
+  });
+ });
+ }
  testWidgets('one app-level job survives composer exit and permits tab navigation until confirmed',(t) async {
   final reply=Completer<http.Response>();var writes=0,reads=0;
   await fixture(t,(s,center)async{

@@ -148,7 +148,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         entries = nextEntries;
         topup = nextTopup;
         cashout = nextCashout;
-        transferReplay = j['transfer_replay'] == true;
+        transferReplay = j['transfer_replay'] == true && j['transfers_available'] == true;
         error = null;
         loaded = true;
         loading = false;
@@ -414,7 +414,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
                       Expanded(child: Text(t_(!esewa && cashout['available'] != true ? 'Adding coins is not switched on yet. Cash out is not available.' : !esewa ? 'Adding coins is not switched on yet.' : 'Cash out is not available yet.'))),
                     ]),
                   ),
-                if (!transferReplay) Padding(padding: const EdgeInsets.only(top: 12), child: Text(t_('Sending coins is unavailable until transfer safety is ready.'))),
+                if (!transferReplay) Padding(padding: const EdgeInsets.only(top: 12), child: Text(t_('Transfers are unavailable until live verification is complete.'))),
                 if (transferStoreError != null) ...[
                   Text(transferStoreError!),
                   TextButton(onPressed: operationBusy ? null : _restoreTransfer, child: Text(t_('Reload pending transfer'))),

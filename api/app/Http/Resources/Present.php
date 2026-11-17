@@ -125,13 +125,14 @@ class Present
         ];
     }
 
-    public static function comment(Comment $c): array
+    public static function comment(Comment $c, ?array $parentPublicIds = null): array
     {
         return [
             'public_id' => $c->public_id,
             'body' => $c->body,
             'author' => self::user($c->user),
-            'parent_id' => $c->parent_id ? Comment::whereKey($c->parent_id)->value('public_id') : null,
+            // A page of comments passes its parents' public ids in one read; a missing id means the parent is gone, as whereKey() would say.
+            'parent_id' => $c->parent_id ? ($parentPublicIds !== null ? ($parentPublicIds[$c->parent_id] ?? null) : Comment::whereKey($c->parent_id)->value('public_id')) : null,
             'created_at' => $c->created_at->toIso8601String(),
         ];
     }

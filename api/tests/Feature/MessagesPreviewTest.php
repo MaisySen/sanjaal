@@ -15,7 +15,7 @@ class MessagesPreviewTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function post($user, string $body): int
+    private function mkPost($user, string $body): int
     {
         return DB::table('posts')->insertGetId(['public_id' => (string) \Illuminate\Support\Str::uuid(), 'user_id' => $user->id, 'kind' => 'post', 'body' => $body, 'created_at' => now(), 'updated_at' => now()]);
     }
@@ -51,9 +51,9 @@ class MessagesPreviewTest extends TestCase
         [$o] = $this->member('mpother');
         [$bl] = $this->member('mpblocked');
         $c = $this->chat($me, $o);
-        $live = $this->post($o, 'live post');
-        $gone = $this->post($o, 'gone post');
-        $blockedPost = $this->post($bl, 'blocked author post');
+        $live = $this->mkPost($o, 'live post');
+        $gone = $this->mkPost($o, 'gone post');
+        $blockedPost = $this->mkPost($bl, 'blocked author post');
         DB::table('blocks')->insert(['blocker_id' => $me->id, 'blocked_id' => $bl->id, 'created_at' => now()]);
         $m1 = $this->say($c, $o, 'first');
         $m2 = $this->say($c, $me, 'second');
@@ -88,7 +88,7 @@ class MessagesPreviewTest extends TestCase
         $make = function (int $n) use ($c, $o) {
             for ($i = 0; $i < $n; $i++) {
                 $first = $this->say($c, $o, 'hello '.$i);
-                $this->say($c, $o, 'look '.$i, ['shared_post_id' => $this->post($o, 'p'.$i), 'reply_to_id' => $first->id]);
+                $this->say($c, $o, 'look '.$i, ['shared_post_id' => $this->mkPost($o, 'p'.$i), 'reply_to_id' => $first->id]);
             }
         };
         $make(2);

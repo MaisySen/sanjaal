@@ -38,6 +38,40 @@ Future<void> withSession(WidgetTester t, Future<void> Function(Session) run, Fut
 Widget app(Widget home) => MaterialApp(theme: buildTheme(Brightness.light), home: home);
 
 void main() {
+  testWidgets('confirmed inbox settings force fresh data past an older pending poll',(t)async{
+    final old=Completer<http.Response>();var reads=0,writes=0;
+    Map<String,dynamic> row(String title)=>{'public_id':'chat','title':title};
+    await withSession(t,(s)async{
+      await t.pumpWidget(app(ChatsPage(session:s)));await flush(t);await t.pump(const Duration(seconds:12));await flush(t);expect(reads,2);
+      await t.longPress(find.text('Community music'));await t.pumpAndSettle();await t.tap(find.text('Pin to top'));await flush(t);expect(writes,1);expect(reads,3);expect(find.text('Updated conversation'),findsOneWidget);
+      old.complete(reply({'data':[row('Stale conversation')]}));await flush(t);expect(find.text('Stale conversation'),findsNothing);expect(find.text('Updated conversation'),findsOneWidget);expect(t.takeException(),isNull);
+    },(r)async{if(r.method=='PATCH'){writes++;return reply({});}reads++;return reads==2?old.future:reply({'data':[row(reads==1?'Community music':'Updated conversation')]});});
+  });
+
+  testWidgets('slow inbox polling does not overlap while current list is pending',(t)async{
+    final pending=Completer<http.Response>();var reads=0;
+    await withSession(t,(s)async{
+      await t.pumpWidget(app(ChatsPage(session:s)));await flush(t);await t.pump(const Duration(seconds:36));await flush(t);expect(reads,1);
+      pending.complete(reply({'data':[]}));await flush(t);expect(find.text('Start a conversation'),findsOneWidget);expect(t.takeException(),isNull);
+    },(_)async{reads++;return pending.future;});
+  });
+  testWidgets('malformed inbox data retries without offering a broken chat destination',(t)async{
+    var reads=0;
+    await withSession(t,(s)async{
+      await t.pumpWidget(app(ChatsPage(session:s)));await flush(t);expect(find.text('Chats could not be loaded.'),findsOneWidget);expect(find.text('Start a conversation'),findsNothing);
+      await t.tap(find.text('Try again'));await flush(t);expect(find.text('Community music'),findsOneWidget);expect(t.takeException(),isNull);
+    },(_)async=>reply({'data':++reads==1?[{'title':'Missing identity'}]:[{'public_id':'chat','title':'Community music'}]}));
+  });
+  testWidgets('failed inbox refresh retains content and has an explicit retry',(t)async{
+    var reads=0;
+    await withSession(t,(s)async{
+      await t.pumpWidget(app(ChatsPage(session:s)));await flush(t);
+      await t.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();await flush(t);
+      expect(find.text('Community music'),findsOneWidget);expect(find.text('Shared a post'),findsOneWidget);expect(find.text('Could not refresh.'),findsOneWidget);
+      await t.tap(find.text('Try again'));await flush(t);expect(reads,3);expect(find.text('Could not refresh.'),findsNothing);expect(t.takeException(),isNull);
+    },(_)async=>++reads==2?reply({'message':'Temporary failure'},503):reply({'data':[{'public_id':'chat','title':'Community music','last_message':{'kind':'post','created_at':'2026-11-17T00:00:00Z'}}]}));
+  });
+
   for(final page in ['calls','rooms']){
     final row=page=='calls'?{'public_id':'call','conversation_id':'chat','title':'Asha Gurung','caller':{'username':'asha'},'direction':'incoming','kind':'voice','status':'ended','duration_s':125,'created_at':'2026-11-17T00:00:00Z'}:{'public_id':'room','title':'Community music','host_name':'Asha Gurung'};
     testWidgets('$page malformed initial read is retryable without routing unknown identities',(t)async{

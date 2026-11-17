@@ -96,6 +96,17 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Chats could not be loaded.': 'च्याटहरू लोड हुन सकेनन्।',
+  'No messages yet': 'अहिलेसम्म सन्देश छैन',
+  'Shared a post': 'पोस्ट साझा गर्नुभयो',
+  'Unpin': 'पिन हटाउनुहोस्',
+  'Pin to top': 'माथि पिन गर्नुहोस्',
+  'Unarchive': 'अभिलेखबाट हटाउनुहोस्',
+  'Archive': 'अभिलेखमा राख्नुहोस्',
+  'Archived': 'अभिलेख',
+  'Back to chats': 'च्याटमा फर्कनुहोस्',
+  'Archived chats': 'अभिलेखमा राखिएका च्याटहरू',
+  'More': 'थप',
   'Calls could not be loaded.': 'कलहरू लोड हुन सकेनन्।',
   'Rooms could not be loaded.': 'रुमहरू लोड हुन सकेनन्।',
   'Hosted by': 'सञ्चालक:',

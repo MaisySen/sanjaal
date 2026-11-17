@@ -31,6 +31,11 @@ Future<void> setup(WidgetTester t,Future<void> Function() body,Future<http.Respo
 Future<void> search(WidgetTester t,String text)async{await t.enterText(find.byType(TextField).last,text);await flush(t);}
 Future<void> group(WidgetTester t)async{await t.tap(find.byTooltip('New group'));await flush(t);await t.enterText(find.byType(TextField).first,'Sydney Nepali meetup');await search(t,'asha');await t.tap(find.text('Asha Gurung'));await flush(t);}
 void main(){
+ for(final bad in [{'name':'No username'},{'username':''},{'username':'  '}]){
+ testWidgets('invalid member identity cannot start or select a chat $bad',(t)async{
+  var writes=0;await setup(t,()async{await search(t,'asha');expect(find.text('Could not load members. Try again.'),findsOneWidget);expect(find.text('@null'),findsNothing);expect(find.byType(Checkbox),findsNothing);expect(writes,0);expect(t.takeException(),isNull);},(r)async{if(r.method!='GET')writes++;return reply({'users':[bad]});});
+ });}
+
  setUpAll(()async{for(final x in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final l=FontLoader(x.$1)..addFont(Future.value(ByteData.sublistView(File(x.$2).readAsBytesSync())));await l.load();}});
  testWidgets('editing invalidates an older response before the next debounce fires',(t)async{
   final old=Completer<http.Response>();await setup(t,()async{

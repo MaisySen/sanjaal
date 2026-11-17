@@ -36,6 +36,7 @@ class _ChatsPageState extends State<ChatsPage> {
   Timer? timer;
   bool showArchived = false;
   int _loadVersion = 0;
+  bool? _readingArchive;
 
   @override
   void initState() {
@@ -56,30 +57,29 @@ class _ChatsPageState extends State<ChatsPage> {
     super.dispose();
   }
 
-  Future<void> _load({bool quiet = false}) async {
+  Future<void> _load({bool quiet = false, bool force = false}) async {
+    if(!mounted || (!force && _readingArchive==showArchived)) return;
+    final archived=showArchived;
+    _readingArchive=archived;
     final version = ++_loadVersion;
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
       if (!mounted || version != _loadVersion) return;
-      setState(() {
-        convos = (j['data'] as List).cast<Map<String, dynamic>>();
-        error = null;
-      });
-    } on ApiError catch (e) {
-      if (mounted && version == _loadVersion && !quiet) setState(() => error = e.message);
+      final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
+      if(rows.any((c)=>c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty || (c['last_message']!=null && c['last_message'] is! Map) || (c['unread']!=null && c['unread'] is! num))) throw const FormatException('Invalid inbox');
+      setState(() { convos=rows; error=null; });
+    } catch (e) {
+      if (mounted && version == _loadVersion && !quiet) setState(() => error=e is ApiError?t_(e.message):t_('Chats could not be loaded.'));
+    } finally {
+      if(version==_loadVersion) _readingArchive=null;
+      if (mounted && version == _loadVersion && loading) setState(() => loading = false);
     }
-    if (mounted && version == _loadVersion && loading) setState(() => loading = false);
   }
 
   String _preview(Map<String, dynamic>? last) {
-    if (last == null) return 'No messages yet';
-    switch (last['kind']) {
-      case 'image':
-        return 'Photo';
-      case 'voice':
-        return 'Voice message';
-    }
-    return last['body'].toString();
+    if (last == null) return t_('No messages yet');
+    if(['image','voice','post'].contains(last['kind'])) return t_(kindLabel(last['kind'],last['body']));
+    return (last['body']??'').toString();
   }
 
   Future<void> _menu(Map<String, dynamic> c) async {
@@ -88,7 +88,7 @@ class _ChatsPageState extends State<ChatsPage> {
       Navigator.pop(context);
       try {
         await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
-        await _load(quiet: true);
+        await _load(quiet: true,force:true);
       } catch (e) {
         if (mounted) showError(context, e);
       }
@@ -98,9 +98,9 @@ class _ChatsPageState extends State<ChatsPage> {
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(c['pinned'] == true ? 'Unpin' : 'Pin to top'), onTap: () => set({'pinned': c['pinned'] != true})),
-          ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(c['muted'] == true ? 'Unmute' : 'Mute'), onTap: () => set({'muted': c['muted'] != true})),
-          ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(c['archived'] == true ? 'Unarchive' : 'Archive'), onTap: () => set({'archived': c['archived'] != true})),
+          ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(t_(c['pinned'] == true ? 'Unpin' : 'Pin to top')), onTap: () => set({'pinned': c['pinned'] != true})),
+          ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(t_(c['muted'] == true ? 'Unmute' : 'Mute')), onTap: () => set({'muted': c['muted'] != true})),
+          ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(t_(c['archived'] == true ? 'Unarchive' : 'Archive')), onTap: () => set({'archived': c['archived'] != true})),
         ]),
       ),
     );
@@ -108,13 +108,13 @@ class _ChatsPageState extends State<ChatsPage> {
 
   Future<void> _open(Map<String, dynamic> c) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: c)));
-    _load(quiet: true);
+    _load(quiet: true,force:true);
   }
 
   Future<void> _new() async {
     final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session)));
     if (c != null) {
-      await _load(quiet: true);
+      await _load(quiet: true,force:true);
       if (mounted) _open(c);
     }
   }
@@ -123,11 +123,11 @@ class _ChatsPageState extends State<ChatsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(showArchived ? 'Archived' : t_('Chats')),
+        title: Text(t_(showArchived ? 'Archived' : 'Chats')),
         actions: [
           IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
           PopupMenuButton<String>(
-            tooltip: 'More',
+            tooltip: t_('More'),
             onSelected: (_) {
               setState(() {
                 showArchived = !showArchived;
@@ -138,12 +138,13 @@ class _ChatsPageState extends State<ChatsPage> {
               _load();
             },
             itemBuilder: (_) => [
-              PopupMenuItem(value: 'archive', child: Text(showArchived ? 'Back to chats' : 'Archived chats')),
+              PopupMenuItem(value: 'archive', child: Text(t_(showArchived ? 'Back to chats' : 'Archived chats'))),
             ],
           ),
         ],
       ),
       body: Column(children: [
+        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:()=>_load()),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
           child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, runSpacing: 4, children: [
@@ -160,9 +161,9 @@ class _ChatsPageState extends State<ChatsPage> {
         Expanded(child: RefreshIndicator(
         onRefresh: _load,
         child: loading
-            ? ListView(children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
+            ? ListView(physics:const AlwaysScrollableScrollPhysics(),children: const [SizedBox(height: 300, child: Center(child: CircularProgressIndicator()))])
             : convos.isEmpty
-                ? ListView(padding: const EdgeInsets.only(bottom: 100), children: [EmptyState(
+                ? ListView(physics:const AlwaysScrollableScrollPhysics(),padding: const EdgeInsets.only(bottom: 100), children: [EmptyState(
                     icon: error != null ? Ph.error_outline : Ph.forum,
                     title: error ?? t_(showArchived ? 'No archived chats' : 'Start a conversation'),
                     hint: error != null || showArchived ? null : t_('Find someone by name or username.'),
@@ -171,6 +172,7 @@ class _ChatsPageState extends State<ChatsPage> {
                         : showArchived ? null : FilledButton.icon(onPressed: _new, icon: const PhIcon('note-pencil', size: 18), label: Text(t_('New chat'))),
                   )])
                 : ListView.separated(
+                    physics:const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 100),
                     itemCount: convos.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
@@ -262,7 +264,8 @@ class _NewChatPageState extends State<NewChatPage> {
   Future<void> _search(String query, int seq) async {
     try {
       final response = await widget.session.call('GET', '/users/search', query: {'q': query});
-      final users = ((response as Map)['users'] as List).cast<Map<String, dynamic>>();
+      final users = ((response as Map)['users'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
+      if(users.any((u)=>u['username'] is! String || (u['username'] as String).trim().isEmpty)) throw const FormatException('Invalid member identity');
       if (!mounted || seq != _seq) return;
       setState(() { results = users; searched = true; searching = false; searchError = null; });
     } catch (e) {

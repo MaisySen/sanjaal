@@ -1,3 +1,9 @@
+## Nov17 22:30 loading and session-safety candidate
+
+Current live sampling confirms a loading problem: median of3 requests each, feed3.285s/stories2.159s/unread1.628s/incoming call2.172s; parallel Home-shaped feed/story/unread5.595s. These are external API samples, not Samsung frame timing. Feed controller10queries cost about2.05s. A local correction folds viewer block/bookmark/follow/comment-share state into the feed query, reducing populated nonpoll feed reads10 to5 while rechecking current controls and both block directions. Full local PostgreSQL158pass/1286assertions; SQLite157pass/1PG-onlyskip/1284assertions. Not yet deployed or speed-accepted.
+
+Local client follow-up rejects refresh/API/private-story responses from a superseded session and serializes secure credential mutations so logout cannot be undone by a late exchange. Before-change regression reproduced stale response credential resurrection; after-change logout/account-replacement/stale API regressions and related104tests passed. Prior372 CIallfivegreen, release skipped. This newer batch needs its own exact CI. No install/release or Samsung acceptance.
+
 # Verification status
 
 Updated November 17, 2026. This is a test record, not a claim that the full app is finished.

@@ -35,6 +35,34 @@ class ReadRoundTripTest extends TestCase
         DB::disableQueryLog();
     }
 
+    public function test_populated_feed_uses_five_reads_with_live_viewer_state(): void
+    {
+        [$a, $ha] = $this->member('feedowner');
+        [$b, $hb] = $this->member('feedviewer');
+        $post = $this->postJson('/api/v1/posts', ['body' => 'Feed fixture #roundtrip'], $ha)->assertCreated()->json('post');
+        $id = \App\Models\Post::where('public_id', $post['public_id'])->value('id');
+        DB::table('bookmarks')->insert(['user_id' => $b->id, 'post_id' => $id, 'created_at' => now()]);
+        $b->following()->attach($a->id);
+        $this->getJson('/api/v1/posts', $hb)->assertOk();
+        DB::enableQueryLog(); DB::flushQueryLog();
+        $this->getJson('/api/v1/posts', $hb)->assertOk()
+            ->assertJsonPath('data.0.saved', true)->assertJsonPath('data.0.author.following', true)
+            ->assertJsonPath('data.0.can_comment', true)->assertJsonPath('data.0.can_share_to_chat', true);
+        $reads = array_filter(DB::getQueryLog(), fn ($q) => str_starts_with(strtolower($q['query']), 'select') && !str_contains($q['query'], 'personal_access_tokens') && !str_contains($q['query'], '"auth0_sub"'));
+        $this->assertCount(5, $reads, json_encode(array_values($reads)));
+        DB::disableQueryLog();
+        DB::table('member_controls')->insert(['user_id' => $a->id, 'comments_from' => 'following', 'share_to_chat' => false, 'created_at' => now(), 'updated_at' => now()]);
+        $this->getJson('/api/v1/posts', $hb)->assertJsonPath('data.0.can_comment', false)->assertJsonPath('data.0.can_share_to_chat', false);
+        $a->following()->attach($b->id);
+        $this->getJson('/api/v1/posts', $hb)->assertJsonPath('data.0.can_comment', true);
+        $this->getJson('/api/v1/posts', $ha)->assertJsonPath('data.0.can_comment', true)->assertJsonPath('data.0.can_share_to_chat', true);
+        foreach ([[$a->id, $b->id], [$b->id, $a->id]] as [$blocker, $blocked]) {
+            DB::table('blocks')->insert(['blocker_id' => $blocker, 'blocked_id' => $blocked, 'created_at' => now()]);
+            $this->getJson('/api/v1/posts', $hb)->assertJsonCount(0, 'data');
+            DB::table('blocks')->delete();
+        }
+    }
+
     public function test_story_list_uses_three_reads_and_honors_both_block_directions(): void
     {
         [$a, $ha] = $this->member('owner');

@@ -26,16 +26,17 @@ class PostController extends Controller
             'username' => ['nullable', 'string', 'max:30'],
         ]);
         $viewer = $request->user();
-        $q = Post::with(self::WITH)->orderByDesc('id');
-
-        $hidden = \Illuminate\Support\Facades\DB::table('blocks')
-            ->where(fn ($b) => $b->where('blocker_id', $viewer->id)->orWhere('blocked_id', $viewer->id))
-            ->get(['blocker_id', 'blocked_id'])
-            ->flatMap(fn ($r) => [$r->blocker_id, $r->blocked_id])
-            ->reject(fn ($id) => $id === $viewer->id)->unique()->values();
-        if ($hidden->isNotEmpty()) {
-            $q->whereNotIn('user_id', $hidden);
-        }
+        // Keep viewer-specific state in the same database round trip as the feed.
+        // These are live correlated checks, never cached access decisions.
+        $uid = $viewer->id;
+        $q = Post::with(self::WITH)->select('posts.*')->orderByDesc('id')
+            ->whereNotExists(fn ($b) => $b->selectRaw('1')->from('blocks')->where(fn ($w) => $w
+                ->where(fn ($d) => $d->whereColumn('blocks.blocker_id', 'posts.user_id')->where('blocks.blocked_id', $uid))
+                ->orWhere(fn ($d) => $d->where('blocks.blocker_id', $uid)->whereColumn('blocks.blocked_id', 'posts.user_id'))))
+            ->selectRaw('exists(select 1 from bookmarks where bookmarks.post_id = posts.id and bookmarks.user_id = ?) as _saved', [$uid])
+            ->selectRaw('exists(select 1 from follows where follows.follower_id = ? and follows.followee_id = posts.user_id) as _following', [$uid])
+            ->selectRaw("(posts.user_id = ? or coalesce((select share_to_chat from member_controls where member_controls.user_id = posts.user_id), true)) as _can_share", [$uid])
+            ->selectRaw("(posts.user_id = ? or coalesce((select comments_from from member_controls where member_controls.user_id = posts.user_id), 'everyone') = 'everyone' or ((select comments_from from member_controls where member_controls.user_id = posts.user_id) = 'following' and exists(select 1 from follows where follows.follower_id = posts.user_id and follows.followee_id = ?))) as _can_comment", [$uid, $uid]);
         if ($request->filled('kind')) {
             $q->where('kind', $request->kind);
         }
@@ -57,11 +58,9 @@ class PostController extends Controller
                 Present::preload($page->items(), $viewer);
 
                 $items = collect($page->items());
-                $followed = $viewer->following()->whereIn('users.id', $items->pluck('user_id')->unique()->all())->pluck('users.id')->all();
-
-                return $items->map(function ($p) use ($viewer, $followed) {
+                return $items->map(function ($p) use ($viewer) {
                     $a = Present::post($p, $viewer);
-                    $a['author']['following'] = in_array($p->user_id, $followed, true);
+                    $a['author']['following'] = (bool) $p->getAttribute('_following');
 
                     return $a;
                 })->values();

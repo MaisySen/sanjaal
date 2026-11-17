@@ -198,6 +198,8 @@ jobs:
               names=z.namelist()
               assert not any(n.upper().endswith(('.RSA','.DSA','.EC','.SF')) and n.upper().startswith('META-INF/') for n in names), 'AAB must be unsigned'
               assert {'BundleConfig.pb','base/manifest/AndroidManifest.xml','base/lib/arm64-v8a/libapp.so'}.issubset(names)
+              libs=[n for n in names if n.startswith('base/lib/') and n.endswith('.so')]
+              assert libs and all(n.startswith('base/lib/arm64-v8a/') for n in libs), 'Incomplete extra ABI in ARM64 bundle'
               for n in names:
                   if not n.endswith('/'):
                       b=z.read(n)

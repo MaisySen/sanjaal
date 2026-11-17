@@ -158,3 +158,8 @@ The actual viewer screenshot exposed a wrapping long owner name and a small imag
 ### APK/AAB update version continuity
 
 The held stable-key0.5.2 ARM64 APK's published verification asset was read back and confirms versionCode2007. Flutter's split-APK ABI offset produced that value from base7, while an AAB from unchanged source would have code7. Such a bundle is not an upgrade candidate even when certificates match. The next source candidate is0.5.3+2008, with Flutter's explicit `force-version-code-ignoring-abi=true` property making every split APK and the AAB use the same source code. CI reads each actual APK manifest back against pubspec; the offline bundle finalizer independently requires code2008 or above and checks its actual manifest. Build/sign verification remains required. No Play version has been uploaded or reserved by this source change.
+
+
+### First real AAB verification rejected incomplete extra ABIs
+
+The `2bb0e90` unsigned-bundle job passed and artifact14296300357 was downloaded; its archive SHA-256 matched the GitHub artifact digest. The offline verifier rejected plugin ARMv7/x86_64 libraries without matching Flutter binaries. Flutter's ARM64 target flag did not remove transitive plugin AAR architectures. The bundle-only Gradle path now explicitly clears ABI filters and includes ARM64, and CI rejects any extra bundle ABI. All eight actual ARM64 native libraries in the rejected bundle independently passed the native16KB segment check and bundletool accepted its structure, but neither check makes the extra-ABI payload correct. The rejected bundle was not signed or uploaded. The filtered artifact still needs genuine build/inspection.

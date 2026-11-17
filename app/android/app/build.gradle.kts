@@ -31,6 +31,14 @@ android {
         // Flutter's per-ABI offset so Play and sideload updates cannot diverge.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        if (unsignedBundle) {
+            // Flutter's target-platform flag limits its own binaries, not plugin
+            // AAR libraries. Do not advertise incomplete ARMv7/x86_64 support.
+            ndk {
+                abiFilters.clear()
+                abiFilters.add("arm64-v8a")
+            }
+        }
     }
 
     buildTypes {

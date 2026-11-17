@@ -36,7 +36,7 @@ class Contracts(unittest.TestCase):
             self.artifacts['artifacts'].append({'id': i, 'name': 'sanjaal-apk' if kind == 'apk' else 'sanjaal-unsigned-aab-engineering-only', 'digest': 'sha256:' + m.digest(archive), 'expired': False, 'workflow_run': {'id': 12, 'head_sha': 'a' * 40}})
 
     def make(self):
-        with patch.object(m, 'app_tree', return_value='b' * 40):
+        with patch.object(m, 'app_tree', return_value='b' * 40), patch.object(m, 'api_tree', return_value='9' * 40):
             return m.build(self.run, self.jobs, self.artifacts, 'fake', 'c' * 40, 'sha256:' + 'd' * 64, self.evidence)
 
     def alter_report(self, kind, key, value):
@@ -109,9 +109,17 @@ class Contracts(unittest.TestCase):
             self.make()
 
     def test_app_tree_change_refused(self):
-        with patch.object(m, 'app_tree', side_effect=['b' * 40, 'e' * 40]):
-            with self.assertRaisesRegex(ValueError, 'app tree'):
+        with patch.object(m, 'app_tree', side_effect=['b' * 40, 'e' * 40]), patch.object(m, 'api_tree', side_effect=['1' * 40, '2' * 40]):
+            with self.assertRaisesRegex(ValueError, 'Neither app tree nor API tree'):
                 m.build(self.run, self.jobs, self.artifacts, 'fake', 'c' * 40, 'sha256:' + 'd' * 64, self.evidence)
+
+    def test_new_client_with_identical_api_source_is_bound_not_relabelled(self):
+        with patch.object(m, 'app_tree', side_effect=['b' * 40, 'e' * 40]), patch.object(m, 'api_tree', return_value='9' * 40):
+            r = m.build(self.run, self.jobs, self.artifacts, 'fake', 'c' * 40, 'sha256:' + 'd' * 64, self.evidence)
+        self.assertEqual(r['api']['source_commit'], 'c' * 40)
+        self.assertEqual(r['source_commit'], 'a' * 40)
+        self.assertEqual(r['api']['source_relation'], 'identical_api_tree')
+        self.assertEqual(r['api']['client_api_tree'], r['api']['image_api_tree'])
 
     def test_unsafe_or_missing_member(self):
         for name in ['../input.apk', '/input.apk', 'not-here.apk', 'input.aab']:

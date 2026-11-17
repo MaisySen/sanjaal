@@ -42,8 +42,14 @@ Create a new output using `.github/ci/candidate_manifest.py` with `--run`,
 `--jobs`, `--artifacts`, `--repo`, `--api-source`, `--api-image`, `--evidence`
 and `--output`. The API image must be an immutable `sha256:` digest, not a
 mutable tag. `--api-source` is a full commit. If it differs from the client
-source, both commits' entire `app` tree hashes must match. This permits a
-reviewed API-only fix without silently promoting a changed client.
+source, either both commits' entire `app` tree hashes or their entire `api` tree
+hashes must match. The manifest records which relation passed and both API
+tree hashes. This permits a reviewed API-only fix with the identical client,
+or a new client against exactly the API source it passed CI with, without
+relabeling the older image's source as the new commit. Neither relation proves
+that an arbitrary claimed image digest really contains that source: independently
+verify the image/source provenance and its current live capabilities. If both
+trees differ, a separate compatibility review and new verified image are needed.
 
 The validator requires each job's run and source, exactly one successful
 instance of all five gates, expected artifact name/origin, the provider's

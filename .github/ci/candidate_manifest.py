@@ -42,6 +42,11 @@ def app_tree(repo, commit):
     return subprocess.check_output(['git', '-C', str(repo), 'rev-parse', '--verify', commit + ':app'], text=True).strip()
 
 
+def api_tree(repo, commit):
+    require(re.fullmatch('[0-9a-f]{40}', commit) is not None, 'Full API source SHA required')
+    return subprocess.check_output(['git', '-C', str(repo), 'rev-parse', '--verify', commit + ':api'], text=True).strip()
+
+
 def check_run(run, jobs):
     require(run.get('status') == 'completed' and run.get('conclusion') == 'success', 'CI not successful')
     require(run.get('repository', {}).get('full_name') == 'MaisySen/sanjaal', 'Wrong repository')
@@ -97,7 +102,12 @@ def build(run, jobs, artifacts, repo, api_source, api_image, evidence):
     check_run(run, jobs)
     require(re.fullmatch('sha256:[0-9a-f]{64}', api_image) is not None, 'Immutable API image digest required')
     client_tree = app_tree(repo, run['head_sha'])
-    require(client_tree == app_tree(repo, api_source), 'API source changes client app tree')
+    same_app = client_tree == app_tree(repo, api_source)
+    client_api_tree = api_tree(repo, run['head_sha'])
+    image_api_tree = api_tree(repo, api_source)
+    require(same_app or client_api_tree == image_api_tree, 'Neither app tree nor API tree matches image source')
+    source_relation = 'identical_app_tree' if same_app else 'identical_api_tree'
+
     outputs = {}
     versions = set()
     for kind in ('apk', 'aab'):
@@ -115,6 +125,7 @@ def build(run, jobs, artifacts, repo, api_source, api_image, evidence):
             'package': PACKAGE, 'version_name': version_name, 'version_code': version_code,
             'certificate_sha256': CERTIFICATE, 'abi': 'arm64-v8a', 'artifacts': outputs,
             'api': {'source_commit': api_source, 'image_digest': api_image, 'base_url': API,
+                    'source_relation': source_relation, 'client_api_tree': client_api_tree, 'image_api_tree': image_api_tree,
                     'required_capabilities': list(CAPABILITIES), 'wallet_transfer_replay_required': True,
                     'funding_and_payouts_must_be_disabled': True},
             'remaining_gates': ['independent final binary signature verification', 'current Play code and certificate acceptance',

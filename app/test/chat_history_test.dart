@@ -28,6 +28,19 @@ Future<void> fixture(WidgetTester t,Future<http.Response> Function(http.Request)
 }
 void main(){
  setUpAll(()async{for(final p in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final f=File(p.$2);if(f.existsSync()){final l=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await l.load();}}});
+ for(final language in ['en','ne']){
+ testWidgets('foreign private photo stays unavailable without a credentialed image $language',(t)async{
+  t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+  await fixture(t,(r)async=>json({'data':[{
+   ...msg(1),'body':'','kind':'image','media_url':'https://unrelated.invalid/private.jpg',
+  }]}),()async{
+   expect(find.text(language=='ne'?'यो तस्बिर उपलब्ध छैन।':'This photo is unavailable.'),findsOneWidget);
+   expect(t.widgetList<Image>(find.byType(Image)).where((w)=>w.image is NetworkImage && (w.image as NetworkImage).url=='https://unrelated.invalid/private.jpg'),isEmpty);
+   expect(t.takeException(),isNull);
+   await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('history-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/chat_private_photo_unavailable_${language}_1.8.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
+  },lang:language,brightness:Brightness.dark,scale:1.8);
+ });
+ }
  testWidgets('history loads only on request and retries the same cursor with draft intact',(t)async{
   final held=Completer<http.Response>();final cursors=<String>[];var fail=true;
   await fixture(t,(r)async{final before=r.url.queryParameters['before_seq'];if(before!=null){cursors.add(before);if(fail){fail=false;return json({'message':'Fixture older read failed'},503);}return json({'data':page(1,50)});}if(r.url.queryParameters.containsKey('after_seq'))return held.future;return json({'data':page(51,100)});},()async{

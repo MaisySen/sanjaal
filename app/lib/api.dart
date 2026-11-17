@@ -123,13 +123,26 @@ class Session extends ChangeNotifier {
   bool interactionControlsEnabled = false;
   bool protectedStoriesEnabled = false;
   bool loading = true;
-  /// Sign-in header for files that need it (chat photos). Used by widgets that cannot await.
-  Map<String, String> get mediaHeaders => {if (_access != null) 'Authorization': 'Bearer $_access'};
+  /// Credentials belong to this API, never to a URL's claimed purpose.
+  bool supportsPrivateMedia(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null && ['http','https'].contains(uri.scheme) && uri.hasAuthority && uri.userInfo.isEmpty && uri.origin == Uri.parse(apiBase).origin;
+  }
+  Map<String, String> mediaHeadersFor(String url) => {
+    if (supportsPrivateMedia(url) && _access != null) 'Authorization': 'Bearer $_access',
+  };
 
-  /// Downloads a file that needs sign-in, such as a chat voice message.
+  /// Downloads private chat audio without following a redirect or returning an
+  /// old member's bytes after a session identity change.
   Future<Uint8List> fetchBytes(String url) async {
-    final token = await _token();
-    final r = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'}).timeout(_wait);
+    if (!supportsPrivateMedia(url)) throw ApiError('This private media link is not supported.');
+    final account = user?['public_id'];
+    final headers = await privateMediaHeaders(url);
+    if (account == null || account != user?['public_id']) throw ApiError('Please sign in again.',401);
+    final request = http.Request('GET',Uri.parse(url))..followRedirects = false;
+    request.headers.addAll(headers);
+    final r = await http.Response.fromStream(await request.send().timeout(_wait)).timeout(_wait);
+    if (account != user?['public_id']) throw ApiError('Please sign in again.',401);
     if (r.statusCode != 200) throw ApiError('Could not load this file.', r.statusCode);
     return r.bodyBytes;
   }
@@ -137,8 +150,7 @@ class Session extends ChangeNotifier {
   /// Protected story routes are same-origin. Never send a sign-in header to a
   /// URL supplied by an unrelated host or through an object-storage redirect.
   Future<Map<String, String>> privateMediaHeaders(String url) async {
-    final uri = Uri.parse(url);
-    if (uri.origin != Uri.parse(apiBase).origin || uri.userInfo.isNotEmpty) {
+    if (!supportsPrivateMedia(url)) {
       throw ApiError('This private media link is not supported.');
     }
     return {'Authorization': 'Bearer ${await _token()}'};

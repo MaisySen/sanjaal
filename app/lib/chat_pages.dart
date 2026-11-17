@@ -711,14 +711,15 @@ class _ChatPageState extends State<ChatPage> {
               Text(t_(m['kind'] == 'voice' ? 'Voice message' : 'Photo')),
               if (failed) TextButton(onPressed: () => _removeMediaCopy(m), style: TextButton.styleFrom(foregroundColor: scheme.onErrorContainer), child: Text(t_('Remove retry copy'))),
             ],
-            if (m['kind'] == 'image' && m['media_url'] != null)
+            if (m['kind'] == 'image' && m['media_url'] is String && widget.session.supportsPrivateMedia(m['media_url'] as String))
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: GestureDetector(
-                  onTap: () => openImage(context, m['media_url'] as String, headers: widget.session.mediaHeaders),
-                  child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeaders, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
+                  onTap: () => openImage(context, m['media_url'] as String, headers: widget.session.mediaHeadersFor(m['media_url'] as String)),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeadersFor(m['media_url'] as String), width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
                 ),
               ),
+            if (m['kind'] == 'image' && m['media_url'] != null && (m['media_url'] is! String || !widget.session.supportsPrivateMedia(m['media_url'] as String))) Text(t_('This photo is unavailable.')),
             if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
             if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
             if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),

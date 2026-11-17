@@ -352,7 +352,7 @@ void main() {
         () => session.call('DELETE', '/stories/${story['public_id']}'),
       );
       final gone = await t.runAsync(
-        () => http.get(Uri.parse(storyUrl), headers: session.mediaHeaders),
+        () => http.get(Uri.parse(storyUrl), headers: session.mediaHeadersFor(storyUrl)),
       );
       expect(gone!.statusCode, 404);
       // A second synthetic member goes from no access to allowed, then loses

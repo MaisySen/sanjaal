@@ -726,11 +726,11 @@ void main() {
       SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
       final s = Session();
       await tester.runAsync(() => s.restore());
-      expect(s.mediaHeaders['Authorization'], startsWith('Bearer '));
+      expect(s.mediaHeadersFor('$apiBase/conversations/c1/messages/m1/media')['Authorization'], startsWith('Bearer '));
       await tester.runAsync(() async {
-        final bytes = await s.fetchBytes('https://api.test/api/v1/conversations/c1/messages/m1/media');
+        final bytes = await s.fetchBytes('$apiBase/conversations/c1/messages/m1/media');
         expect(bytes, [1, 2, 3]);
-        await expectLater(s.fetchBytes('https://api.test/api/v1/conversations/c1/messages/gone/media'), throwsA(isA<ApiError>()));
+        await expectLater(s.fetchBytes('$apiBase/conversations/c1/messages/gone/media'), throwsA(isA<ApiError>()));
       });
       expect(seen['m1'], startsWith('Bearer '), reason: 'the media request carries the access token');
     }, () => MockClient((r) async {

@@ -96,6 +96,8 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'This private media link is not supported.': 'यो निजी मिडिया लिङ्क चल्दैन।',
+  'This photo is unavailable.': 'यो तस्बिर उपलब्ध छैन।',
   'Could not read stories. Try again.': 'स्टोरी पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।',
   'No upload details to show.': 'देखाउनका लागि अपलोडको विवरण छैन।',
   'Upload safety info could not be cleared. Uploading is paused.': 'अपलोडको सुरक्षा जानकारी हटाउन सकिएन। अपलोड रोकिएको छ।',

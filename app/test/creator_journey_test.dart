@@ -31,7 +31,7 @@ Future<void> fixture(WidgetTester t, Widget Function(Session) page, Future<void>
     await t.pumpWidget(const SizedBox()); await t.pump(const Duration(seconds: 1));
   }, () => MockClient((r) async {
     if (r.url.path.endsWith('/oauth/token')) return json({'access_token':'fixture','expires_in':3600});
-    if (r.url.path.endsWith('/auth/me')) return json({'features':{'polls':true,'upload_intents':intents},'user':{'public_id':'me','username':'fixture'}});
+    if (r.url.path.endsWith('/auth/me')) return json({'features':{'polls':true,'upload_intents':intents,'protected_stories':true},'user':{'public_id':'me','username':'fixture'}});
     return respond == null ? json({}) : respond(r);
   }));
 }

@@ -57,8 +57,10 @@ class ExtrasController extends Controller
     public function stories(Request $request): JsonResponse
     {
         $me = $request->user();
-        $ids = $me->following()->pluck('users.id')->push($me->id)->diff($this->hiddenIds($me))->values();
-        $rows = DB::table('stories')->whereIn('user_id', $ids)->where('expires_at', '>', now())->orderBy('id')->get();
+        $ids = $me->following()->pluck('users.id')->merge(DB::table('story_relationships')->where('member_id',$me->id)->where('close_friend',true)->pluck('owner_id'))->push($me->id)->unique()->diff($this->hiddenIds($me))->values();
+        $query = DB::table('stories')->whereIn('user_id', $ids)->where('expires_at', '>', now())->orderBy('id');
+        \App\Support\StoryAudience::filter($query,$me->id);
+        $rows = $query->get();
         $viewed = DB::table('story_views')->where('user_id', $me->id)->whereIn('story_id', $rows->pluck('id'))->pluck('story_id')->all();
         $users = User::whereIn('id', $rows->pluck('user_id')->unique())->get()->keyBy('id');
         $groups = $rows->groupBy('user_id')->map(function ($items, $uid) use ($users, $viewed) {
@@ -69,14 +71,16 @@ class ExtrasController extends Controller
             ];
         })->values()->sortBy(fn ($g) => [$g['author']['username'] === $me->username ? 0 : 1, $g['all_viewed'] ? 1 : 0])->values();
 
-        return response()->json(['data' => $groups]);
+        return response()->json(['data' => $groups])->header('Cache-Control','private, no-store');
     }
 
     private static function story($s, bool $viewed): array
     {
         return [
             'public_id' => $s->public_id,
-            'url' => url('/api/v1/media/'.$s->media_id),
+            'url' => $s->protected_media ? url('/api/v1/stories/'.$s->public_id.'/media') : url('/api/v1/media/'.$s->media_id),
+            'protected_media' => (bool)$s->protected_media,
+            'audience' => $s->protected_media ? $s->audience : 'legacy_public',
             'mime' => $s->media_mime,
             'type' => str_starts_with($s->media_mime, 'video/') ? 'video' : 'image',
             'caption' => $s->caption,
@@ -92,16 +96,21 @@ class ExtrasController extends Controller
             'upload_intent' => \App\Support\UploadIntent::RULE,
             'media' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,mp4,mov', 'max:25600'],
             'caption' => ['nullable', 'string', 'max:200'],
+            'protected_media' => ['sometimes','boolean'],
+            'audience' => ['sometimes','in:followers,close_friends,only_me'],
         ]);
         $file = $request->file('media');
         $caption = trim($data['caption'] ?? '');
-        return \App\Support\UploadIntent::run($request, 'story', \App\Support\UploadIntent::fingerprint([$caption], [$file]),
-            function (bool $keyed) use ($request, $file, $caption) {
+        $audience = $data['audience'] ?? 'followers';
+        abort_if(isset($data['protected_media']) && !$data['protected_media'],422,'New stories require protected media.');
+        return \App\Support\UploadIntent::run($request, 'story', \App\Support\UploadIntent::fingerprint([$caption,true,$audience], [$file]),
+            function (bool $keyed) use ($request, $file, $caption, $audience) {
                 $blob = (string) Str::uuid();
-                \App\Support\MediaStore::putFile($blob, $file, $keyed);
+                \App\Support\MediaStore::putFile($blob, $file, true);
                 $pid = (string) Str::uuid();
                 DB::table('stories')->insert([
                     'public_id' => $pid, 'user_id' => $request->user()->id, 'media_id' => $blob, 'media_mime' => $file->getMimeType(),
+                    'protected_media'=>true, 'audience'=>$audience,
                     'caption' => $caption === '' ? null : $caption, 'expires_at' => now()->addHours(24), 'created_at' => now(), 'updated_at' => now(),
                 ]);
                 return $pid;
@@ -115,7 +124,7 @@ class ExtrasController extends Controller
     {
         $s = DB::table('stories')->where('public_id', $id)->where('expires_at', '>', now())->first();
         abort_unless($s, 404);
-        abort_if($this->cannotContact($request->user(), $s->user_id), 404);
+        abort_unless(\App\Support\StoryAudience::visible($s,$request->user()->id),404);
         DB::table('story_views')->insertOrIgnore(['story_id' => $s->id, 'user_id' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
 
         return response()->json(['viewed' => true]);

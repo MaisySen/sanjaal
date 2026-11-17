@@ -33,7 +33,7 @@ Future<void> fixture(WidgetTester t, Future<void> Function(Session, List<Uri>) r
     await t.pump(const Duration(seconds: 1));
   }, () => MockClient((r) async {
     if (r.url.path.endsWith('/oauth/token')) return json({'access_token': 'fixture', 'expires_in': 3600});
-    if (r.url.path.endsWith('/auth/me')) return json({'user': {'public_id': 'me', 'username': 'fixture', 'name': 'Fixture member'}});
+    if (r.url.path.endsWith('/auth/me')) return json({'features':{'protected_stories':true},'user': {'public_id': 'me', 'username': 'fixture', 'name': 'Fixture member'}});
     reads.add(r.url);
     final custom = await onRequest?.call(r);
     if (custom != null) return custom;

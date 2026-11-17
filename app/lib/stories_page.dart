@@ -158,6 +158,10 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
   double progress = 0;
   bool paused = false;
   int _startVersion = 0;
+  bool mediaLoading = true;
+  String? mediaError;
+  Uint8List? storyBytes;
+  Map<String,String> storyHeaders = const {};
 
   Map<String, dynamic> get author => (widget.group['author'] as Map).cast<String, dynamic>();
   bool get isMine => author['username'] == widget.session.user?['username'];
@@ -172,6 +176,8 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
   void dispose() {
     _startVersion++;
     timer?.cancel();
+    final bytes = storyBytes;
+    if (bytes != null) unawaited(MemoryImage(bytes).evict());
     video?.dispose();
     super.dispose();
   }
@@ -183,21 +189,44 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
     if (!mounted || version != _startVersion) return;
     video = null;
     progress = 0;
+    final previousBytes = storyBytes;
+    if (previousBytes != null) unawaited(MemoryImage(previousBytes).evict());
+    storyBytes = null;
+    mediaError = null;
+    mediaLoading = true;
+    storyHeaders = const {};
+    setState(() {});
     final item = items[index];
+    if (item['protected_media'] == true) {
+      try {
+        final url = item['url'] as String;
+        final headers = await widget.session.privateMediaHeaders(url);
+        final bytes = item['type'] == 'video' ? null : await widget.session.fetchProtectedBytes(url);
+        if (!mounted || version != _startVersion) return;
+        storyHeaders = headers;
+        storyBytes = bytes;
+      } catch (_) {
+        if (mounted && version == _startVersion) setState(() { mediaLoading = false; mediaError = t_('This story is unavailable. It may have expired or its audience changed.'); });
+        return;
+      }
+    }
     widget.session.call('POST', '/stories/${item['public_id']}/view').catchError((_) => null);
     var total = const Duration(seconds: 6);
     if (item['type'] == 'video') {
-      final c = VideoPlayerController.networkUrl(Uri.parse(item['url'] as String));
+      final c = VideoPlayerController.networkUrl(Uri.parse(item['url'] as String), httpHeaders: storyHeaders);
       video = c;
       try {
         await c.initialize();
         if (!mounted || version != _startVersion) return;
         if (mediaVisible && !paused) await c.play();
         total = c.value.duration > Duration.zero ? c.value.duration : total;
-      } catch (_) {}
+      } catch (_) {
+        if (mounted && version == _startVersion) setState(() { mediaLoading = false; mediaError = t_('This story is unavailable. It may have expired or its audience changed.'); });
+        return;
+      }
     }
     if (!mounted || version != _startVersion) return;
-    setState(() {});
+    setState(() => mediaLoading = false);
     const tick = Duration(milliseconds: 50);
     timer = Timer.periodic(tick, (t) {
       if (paused || !mediaVisible) return;
@@ -293,11 +322,17 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
     final item = items[index];
     final caption = (item['caption'] as String?) ?? '';
     Widget media;
-    if (item['type'] == 'video') {
+    if (mediaError != null) {
+      media = Center(child:Padding(padding:const EdgeInsets.all(28),child:Column(mainAxisSize:MainAxisSize.min,children:[Text(mediaError!,textAlign:TextAlign.center,style:const TextStyle(color:Colors.white)),const SizedBox(height:12),TextButton(onPressed:_start,child:Text(t_('Try again')))])));
+    } else if (mediaLoading) {
+      media = const Center(child:CircularProgressIndicator());
+    } else if (item['type'] == 'video') {
       final c = video;
       media = (c != null && c.value.isInitialized)
           ? Center(child: AspectRatio(aspectRatio: c.value.aspectRatio, child: VideoPlayer(c)))
           : const Center(child: CircularProgressIndicator());
+    } else if (storyBytes != null) {
+      media = Center(child:Image.memory(storyBytes!,fit:BoxFit.contain,errorBuilder:(_,e,s)=>Text(t_('Photo preview unavailable'),style:const TextStyle(color:Colors.white))));
     } else {
       media = Center(
         child: Image.network(
@@ -395,16 +430,21 @@ class _StoryComposePageState extends State<StoryComposePage> {
   bool handedOff = false;
   String? error;
   String intent = newUploadIntent();
+  String audience = 'followers';
+  bool audienceLocked = false;
   UploadError? uploadError;
   @override
   void dispose() { caption.dispose(); super.dispose(); }
 
   Future<void> share() async {
     if (busy || uploadError?.terminal == true) return;
+    if (!widget.session.protectedStoriesEnabled) { showInfo(context, t_('Story sharing needs the protected-story server update. Your draft is still here.')); return; }
+    setState(() => audienceLocked = true);
     if (widget.backgroundUpload) {
       final session = widget.session;
       final center = UploadCenter.of(session);
       final originalCaption = caption.text.trim();
+      final originalAudience = audience;
       final originalIntent = intent;
       final generation = center.generation;
       final originalOwner = session.user?['public_id'];
@@ -416,7 +456,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
         if (data.length > 25 * 1024 * 1024) throw ApiError(t_('That file is over 25 MB. Choose a smaller one.'));
         if (center.generation != generation || session.user?['public_id'] != originalOwner) throw ApiError('Please sign in again.', 401);
         center.sending();
-        final value = await session.upload('/stories', fields: {'caption': originalCaption}, file: UploadFile(data, mimeFor(fileName, video: isVideo), fileName), intent: originalIntent);
+        final value = await session.upload('/stories', fields: {'caption': originalCaption, 'protected_media':'1', 'audience':originalAudience}, file: UploadFile(data, mimeFor(fileName, video: isVideo), fileName), intent: originalIntent);
         return (value['story'] as Map).cast<String, dynamic>();
       });
       if (!started) { showInfo(context, 'Check the current upload before starting another.'); return; }
@@ -429,11 +469,21 @@ class _StoryComposePageState extends State<StoryComposePage> {
     try {
       final data = await bytes;
       if (data.length > 25 * 1024 * 1024) throw ApiError(t_('That file is over 25 MB. Choose a smaller one.'));
-      await widget.session.upload('/stories', fields: {'caption': caption.text.trim()}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name), intent: intent);
+      await widget.session.upload('/stories', fields: {'caption': caption.text.trim(), 'protected_media':'1', 'audience':audience}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name), intent: intent);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) setState(() { busy = false; error = e.toString(); uploadError = e is UploadError ? e : null; });
     }
+  }
+
+  Future<void> chooseAudience() async {
+    if(busy || audienceLocked)return;
+    final choice=await showModalBottomSheet<String>(context:context,isScrollControlled:true,builder:(c)=>SafeArea(child:SingleChildScrollView(child:Padding(padding:const EdgeInsets.all(16),child:Column(mainAxisSize:MainAxisSize.min,children:[
+      Text(t_('Who can see this story'),style:Theme.of(c).textTheme.titleMedium),
+      for(final option in [('followers','Followers'),('close_friends','Close friends'),('only_me','Only me')])ListTile(title:Text(t_(option.$2)),trailing:PhIcon(audience==option.$1?'check-circle-fill':'circle',size:24),onTap:()=>Navigator.of(c).pop(option.$1)),
+      Text(t_('Close friends can view it even if they do not follow you. Hide my stories and blocking take priority.')),
+    ])))));
+    if(choice!=null && mounted)setState(()=>audience=choice);
   }
 
   Future<void> openOriginal() async {
@@ -469,16 +519,21 @@ class _StoryComposePageState extends State<StoryComposePage> {
             : value.hasError ? Center(child: Text(t_('File could not be read'), style: const TextStyle(color: Colors.white))) : const Center(child: CircularProgressIndicator()))))),
         const SizedBox(height: 16),
         TextField(controller: caption, enabled: !busy, maxLength: 200, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: t_('Caption (optional)'))),
+        if (widget.session.protectedStoriesEnabled) ...[
+          Text(t_('Hidden people and blocked people cannot view it. People can save what they see.')),
+          const SizedBox(height:16),
+        ] else Padding(padding:const EdgeInsets.only(bottom:16),child:Text(t_('Story sharing needs the protected-story server update. Your draft is still here.'))),
       ])),
+      if (widget.session.protectedStoriesEnabled) Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Tooltip(message:t_('Who can see this story'),child:TextButton.icon(onPressed:busy || audienceLocked?null:chooseAudience,icon:const PhIcon('users',size:20),label:Row(mainAxisSize:MainAxisSize.min,children:[Flexible(child:Text(t_(audience=='close_friends'?'Close friends':audience=='only_me'?'Only me':'Followers'),maxLines:2)),const SizedBox(width:8),const PhIcon('caret-down',size:16)])))),
       if (error != null) UploadNotice(
         message: error!,
         openOriginal: uploadError?.resourceId == null ? null : openOriginal,
         prepareNew: uploadError?.terminal == true ? () async {
-          if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); error = null; uploadError = null; });
+          if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); audienceLocked = false; error = null; uploadError = null; });
         } : null,
         newLabel: 'Prepare a new story',
       ),
-      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy || handedOff || uploadError?.terminal == true ? null : share,
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: !widget.session.protectedStoriesEnabled || busy || handedOff || uploadError?.terminal == true ? null : share,
         icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt', size: 20),
         label: Text(t_(busy ? 'Sharing...' : error != null && uploadError?.terminal != true ? 'Try again' : 'Share story'))))),
     ])),

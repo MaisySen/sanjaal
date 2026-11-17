@@ -105,6 +105,9 @@ void main() {
                     .onTap !=
                 null,
       );
+      // A ready controller can precede its first camera frame. Allow real frames
+      // before capture; the decoded photo below must contain varied pixels.
+      await t.pump(const Duration(seconds: 2));
       await bridge(t, 'camera');
       await t.tap(find.bySemanticsLabel('Take a photo'));
       await wait(t, () => capture != null);
@@ -114,6 +117,33 @@ void main() {
         final codec = await ui.instantiateImageCodec(bytes);
         final frame = await codec.getNextFrame();
         final dimensions = (frame.image.width, frame.image.height);
+        final pixels = await frame.image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        final colors = <int>{};
+        final data = pixels!.buffer.asUint8List();
+        for (
+          var y = 0;
+          y < frame.image.height;
+          y += (frame.image.height ~/ 20).clamp(1, frame.image.height)
+        ) {
+          for (
+            var x = 0;
+            x < frame.image.width;
+            x += (frame.image.width ~/ 20).clamp(1, frame.image.width)
+          ) {
+            final offset = (y * frame.image.width + x) * 4;
+            colors.add(
+              (data[offset] << 16) | (data[offset + 1] << 8) | data[offset + 2],
+            );
+          }
+        }
+        expect(
+          colors.length,
+          greaterThan(4),
+          reason:
+              'The actual emulator capture must not be a blank first frame.',
+        );
         frame.image.dispose();
         codec.dispose();
         return dimensions;
@@ -164,8 +194,20 @@ void main() {
       // The bridge seeded a known synthetic image in Android MediaStore. No fake
       // library adapter, thumbnail override or request bypass is used here.
       await wait(t, () => find.byType(Image).evaluate().isNotEmpty);
+      await t.tap(find.text('Photos'));
+      await wait(
+        t,
+        () => t
+            .widgetList<RawImage>(find.byType(RawImage))
+            .any((image) => image.image != null),
+      );
       await bridge(t, 'gallery');
-      final thumbnail = find.byType(Image).first;
+      final thumbnail = find
+          .ancestor(
+            of: find.byWidgetPredicate((w) => w is RawImage && w.image != null),
+            matching: find.byType(Image),
+          )
+          .first;
       await t.ensureVisible(thumbnail);
       await t.tap(thumbnail);
       await wait(t, () => selection != null);
@@ -175,6 +217,20 @@ void main() {
         await t.runAsync(() => selection!.single.file.length()),
         greaterThan(0),
       );
+      await t.runAsync(() async {
+        final codec = await ui.instantiateImageCodec(
+          await selection!.single.file.readAsBytes(),
+        );
+        final frame = await codec.getNextFrame();
+        expect(
+          (frame.image.width, frame.image.height),
+          (160, 240),
+          reason:
+              'Select the known MediaStore fixture, not an unrelated asset.',
+        );
+        frame.image.dispose();
+        codec.dispose();
+      });
       // ignore: avoid_print
       print(
         'Native photo decode, video playback initialization and MediaStore gallery selection passed; no content posted.',

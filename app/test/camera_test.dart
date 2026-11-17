@@ -50,7 +50,7 @@ Future<Session> _session(WidgetTester tester) async {
 http.Client _client(List<String> posts, List<String> bodies) => MockClient((r) async {
       final h = {'content-type': 'application/json'};
       if (r.url.path == '/oauth/token') return http.Response(jsonEncode({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'}), 200, headers: h);
-      if (r.url.path.endsWith('/auth/me')) return http.Response(jsonEncode({'user': {'public_id': 'me', 'name': 'B', 'username': 'b'}}), 200, headers: h);
+      if (r.url.path.endsWith('/auth/me')) return http.Response(jsonEncode({'features':{'protected_stories':true},'user': {'public_id': 'me', 'name': 'B', 'username': 'b'}}), 200, headers: h);
       if (r.method == 'POST') {
         posts.add(r.url.path);
         bodies.add(latin1.decode(r.bodyBytes));

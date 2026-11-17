@@ -18,6 +18,7 @@ class MediaController extends Controller
     /** Public post media. Files that belong to a chat message are never served here. */
     public function show(Request $request, string $publicId): Response
     {
+        abort_if(DB::table('stories')->where('media_id', $publicId)->where('protected_media',true)->exists(),404);
         abort_if(DB::table('messages')->where('media_id', $publicId)->exists(), 404);
         // An absent message reference does not make a blob public. Attachments
         // can outlive their conversation or still be awaiting a message row.
@@ -29,6 +30,14 @@ class MediaController extends Controller
 
 
         return $this->serve($request, $publicId, false);
+    }
+
+    /** Protected story media never redirects to a bucket or enters a public cache. */
+    public function story(Request $request,string $id):Response
+    {
+        $story=DB::table('stories')->where('public_id',$id)->where('protected_media',true)->where('expires_at','>',now())->first();
+        abort_unless($story && \App\Support\StoryAudience::visible($story,$request->user()->id),404);
+        return $this->serve($request,$story->media_id,true);
     }
 
     /** Chat media: only current members, and only for messages from after they joined. Sign-in required. */

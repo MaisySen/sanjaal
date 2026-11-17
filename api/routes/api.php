@@ -12,6 +12,9 @@ Route::get('/v1/ping', fn () => response()->json(['app' => 'sanjaal', 'status' =
 
 Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/me/story-audience', [\App\Http\Controllers\StoryAudienceController::class, 'index']);
+    Route::get('/me/story-audience/{username}', [\App\Http\Controllers\StoryAudienceController::class, 'show']);
+    Route::put('/me/story-audience/{username}', [\App\Http\Controllers\StoryAudienceController::class, 'update'])->middleware('throttle:30,1');
     Route::get('/me/controls', [\App\Http\Controllers\MemberControlsController::class, 'show']);
     Route::patch('/me/controls', [\App\Http\Controllers\MemberControlsController::class, 'update'])->middleware('throttle:30,1');
     Route::patch('/me', [AuthController::class, 'update']);
@@ -50,6 +53,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     $x = \App\Http\Controllers\ExtrasController::class;
     Route::post('/posts/{post}/reaction', [$x, 'react']);
     Route::delete('/posts/{post}/reaction', [$x, 'unreact']);
+    Route::get('/stories/{id}/media', [\App\Http\Controllers\MediaController::class, 'story'])->whereUuid('id');
     Route::get('/stories', [$x, 'stories']);
     Route::post('/stories', [$x, 'storeStory'])->middleware('throttle:20,1');
     Route::post('/stories/{id}/view', [$x, 'viewStory']);

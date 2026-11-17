@@ -121,6 +121,7 @@ class Session extends ChangeNotifier {
   bool pollsEnabled = false;
   bool uploadIntentsEnabled = false;
   bool interactionControlsEnabled = false;
+  bool protectedStoriesEnabled = false;
   bool loading = true;
   /// Sign-in header for files that need it (chat photos). Used by widgets that cannot await.
   Map<String, String> get mediaHeaders => {if (_access != null) 'Authorization': 'Bearer $_access'};
@@ -131,6 +132,27 @@ class Session extends ChangeNotifier {
     final r = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'}).timeout(_wait);
     if (r.statusCode != 200) throw ApiError('Could not load this file.', r.statusCode);
     return r.bodyBytes;
+  }
+
+  /// Protected story routes are same-origin. Never send a sign-in header to a
+  /// URL supplied by an unrelated host or through an object-storage redirect.
+  Future<Map<String, String>> privateMediaHeaders(String url) async {
+    final uri = Uri.parse(url);
+    if (uri.origin != Uri.parse(apiBase).origin || uri.userInfo.isNotEmpty) {
+      throw ApiError('This private media link is not supported.');
+    }
+    return {'Authorization': 'Bearer ${await _token()}'};
+  }
+  Future<Uint8List> fetchProtectedBytes(String url) async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final request = http.Request('GET', Uri.parse(url))..followRedirects = false;
+      request.headers.addAll(await privateMediaHeaders(url));
+      final result = await http.Response.fromStream(await request.send().timeout(_wait)).timeout(_wait);
+      if (result.statusCode == 401 && attempt == 0) { _expires = DateTime.fromMillisecondsSinceEpoch(0); continue; }
+      if (result.statusCode != 200) throw ApiError('This story is unavailable. It may have expired or its audience changed.',result.statusCode);
+      return result.bodyBytes;
+    }
+    throw ApiError('Please sign in again.',401);
   }
 
   /// True after a request failed for lack of a connection; cleared by the next response.
@@ -286,6 +308,7 @@ class Session extends ChangeNotifier {
     pollsEnabled = (j['features'] as Map?)?['polls'] == true;
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
+    protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
     unawaited(Push.register(this));
   }
 
@@ -303,6 +326,7 @@ class Session extends ChangeNotifier {
     pollsEnabled = false;
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
+    protectedStoriesEnabled = false;
     await RefreshStore.clear();
   }
 
@@ -332,6 +356,7 @@ class Session extends ChangeNotifier {
           'GET' => http.get(uri, headers: headers),
           'POST' => http.post(uri, headers: headers, body: enc),
           'PATCH' => http.patch(uri, headers: headers, body: enc),
+          'PUT' => http.put(uri, headers: headers, body: enc),
           'DELETE' => http.delete(uri, headers: headers),
           _ => throw ArgumentError(method),
         };

@@ -72,6 +72,25 @@ class PostgresRaceTest extends TestCase
         return $c;
     }
 
+    public function test_simultaneous_story_relationship_saves_have_one_revision_winner_and_no_stale_resurrection():void {
+        $owner=$this->user('owner');$this->user('friend');
+        $uri='/api/v1/auth/me/story-audience/friend';
+        $codes=$this->race([
+            ['owner','PUT',$uri,['revision'=>0,'close_friend'=>true,'hide_story'=>false]],
+            ['owner','PUT',$uri,['revision'=>0,'close_friend'=>false,'hide_story'=>true]],
+        ]);
+        sort($codes);$this->assertSame([200,409],$codes);
+        $this->assertSame(1,DB::table('story_relationships')->where('owner_id',$owner->id)->count());
+        $this->assertSame(1,(int)DB::table('story_relationships')->where('owner_id',$owner->id)->value('revision'));
+        $codes=$this->race([
+            ['owner','PUT',$uri,['revision'=>1,'close_friend'=>false,'hide_story'=>false]],
+            ['owner','PUT',$uri,['revision'=>0,'close_friend'=>true,'hide_story'=>false]],
+        ]);
+        sort($codes);$this->assertSame([200,409],$codes);
+        $row=DB::table('story_relationships')->where('owner_id',$owner->id)->first();
+        $this->assertSame(2,(int)$row->revision);$this->assertFalse((bool)$row->close_friend);$this->assertFalse((bool)$row->hide_story);
+    }
+
     public function test_simultaneous_first_control_saves_have_exactly_one_revision_winner(): void
     {
         $owner = $this->user('owner');

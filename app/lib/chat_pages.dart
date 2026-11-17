@@ -644,7 +644,7 @@ class _ChatPageState extends State<ChatPage> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             leading: const PhIcon('arrow-bend-up-left'),
-            title: const Text('Reply'),
+            title: Text(t_('Reply')),
             onTap: () {
               Navigator.pop(ctx);
               setState(() => replyTo = m);
@@ -751,8 +751,8 @@ class _ChatPageState extends State<ChatPage> {
           ]),
         ),
         actions: [
-          IconButton(tooltip: 'Voice call', icon: const PhIcon('phone-fill'), onPressed: () => _call(false)),
-          IconButton(tooltip: 'Video call', icon: const PhIcon('video-camera'), onPressed: () => _call(true)),
+          IconButton(tooltip: t_('Voice call'), icon: const PhIcon('phone-fill'), onPressed: () => _call(false)),
+          IconButton(tooltip: t_('Video call'), icon: const PhIcon('video-camera'), onPressed: () => _call(true)),
         ],
       ),
       body: Column(children: [
@@ -822,7 +822,7 @@ class _ChatPageState extends State<ChatPage> {
                 IconButton(tooltip: t_('Attach photo'), onPressed: hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
                 Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
                 IconButton(onPressed: hasLocalMedia || pickingMedia ? null : () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
-                IconButton.filled(tooltip: 'Send message', onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
+                IconButton.filled(tooltip: t_('Send message'), onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
               ]),
             ]),
           ),

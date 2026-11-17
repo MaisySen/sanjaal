@@ -272,7 +272,7 @@ class CallView extends StatelessWidget {
                   ),
                 IconButton.filled(
                   style: IconButton.styleFrom(backgroundColor: Colors.red),
-                  tooltip: 'End call',
+                  tooltip: t_('End call'),
                   onPressed: onEnd,
                   icon: const PhIcon('phone-x-fill', color: Colors.white),
                 ),

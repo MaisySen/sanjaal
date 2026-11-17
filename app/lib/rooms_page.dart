@@ -452,7 +452,7 @@ class RoomView extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: Text(title), actions: [
-        if (!isHost && !failed) IconButton(tooltip: 'Send a gift', onPressed: onGift, icon: const PhIcon('gift')),
+        if (!isHost && !failed) IconButton(tooltip: t_('Send a gift'), onPressed: onGift, icon: const PhIcon('gift')),
         if (isHost && !failed) TextButton(onPressed: onEnd, child: Text(t_('End'))),
       ]),
       body: failed
@@ -518,7 +518,7 @@ class RoomView extends StatelessWidget {
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: Align(alignment: Alignment.centerLeft, child: Text('On stage', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.6))),
+                child: Align(alignment: Alignment.centerLeft, child: Text(t_('On stage'), style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.6))),
               ),
               if (stage.isEmpty)
                 const Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, 16), child: Align(alignment: Alignment.centerLeft, child: Text('Nobody is speaking yet.')))
@@ -590,7 +590,7 @@ class RoomView extends StatelessWidget {
                     if (speaker) const SizedBox(width: 8),
                     Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => onSend())),
                     const SizedBox(width: 8),
-                    IconButton.filled(tooltip: 'Send', onPressed: onSend, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
+                    IconButton.filled(tooltip: t_('Send'), onPressed: onSend, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
                   ]),
                 ),
               ),

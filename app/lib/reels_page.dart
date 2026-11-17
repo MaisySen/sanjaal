@@ -190,7 +190,7 @@ class _ReelsPageState extends State<ReelsPage> {
               const Spacer(),
               Text(t_('Reels'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
               const Spacer(),
-              IconButton(color: Colors.white, tooltip: 'Refresh', icon: const PhIcon('arrow-clockwise'), onPressed: () => _load(refresh: true)),
+              IconButton(color: Colors.white, tooltip: t_('Refresh'), icon: const PhIcon('arrow-clockwise'), onPressed: () => _load(refresh: true)),
             ]),
           ),
         ),
@@ -333,7 +333,7 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
     final body = (widget.reel['body'] ?? '').toString();
     return Stack(fit: StackFit.expand, children: [
       if (failed)
-        const Positioned(top: 104, left: 24, right: 84, child: Text('Video could not load', style: TextStyle(color: Colors.white70)))
+        Positioned(top: 104, left: 24, right: 84, child: Text(t_('Video could not load'), style: TextStyle(color: Colors.white70)))
       else if (!ready || ctl == null)
         const Center(child: CircularProgressIndicator())
       else

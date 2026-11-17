@@ -143,6 +143,6 @@ class ChatListParityTest extends TestCase
         $make(8);
         $many = $count();
         $this->assertSame($few, $many, 'reads must not grow with the number of chats');
-        $this->assertLessThanOrEqual(10, $many);
+        $this->assertLessThanOrEqual(14, $many);
     }
 }

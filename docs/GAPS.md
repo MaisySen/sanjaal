@@ -1,6 +1,6 @@
 # Functional gaps and reconciliation
 
-Updated November 17, 2026. Source, deployed API, published APK, fixture tests and genuine device tests are different states. See [VERIFICATION_STATUS.md](VERIFICATION_STATUS.md) for current evidence. The full app is not complete.
+Updated November 17, 2026. The table below contains historical checkpoints. Read the current checkpoint at the top of VERIFICATION_STATUS.md before relying on a status such as not device-tested or candidate-only. Source, deployed API, published APK, fixture tests and genuine device tests are different states. See [VERIFICATION_STATUS.md](VERIFICATION_STATUS.md) for current evidence. The full app is not complete.
 
 | Area | Built | Remaining gap |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ Updated November 17, 2026. Source, deployed API, published APK, fixture tests an
 | Language | English and Nepali strings | Native Nepali review and remaining English-only auth labels need work. |
 | iOS | CI unsigned build | Signing/distribution and real-device verification. |
 
-Synthetic fixture renders are layout evidence only. Genuine Auth0/live API reads do not prove posting, messaging, payments, media, calls or push. No physical Samsung/TeamViewer result is recorded by this engineering check.
+Synthetic fixture renders are layout evidence only. Genuine Auth0/live API reads do not prove posting, messaging, payments, media, calls or push. Physical Samsung results are now recorded in the current checkpoint of VERIFICATION_STATUS.md, with their limits. This historical table is not that acceptance record.
 
 
 Whole-product review: [PRODUCT_RECONCILIATION.md](PRODUCT_RECONCILIATION.md). The requested glass bar is preserved; profile hierarchy and a primary Wallet destination with disabled providers still weaken the first-use experience. No payment activation or removal of the approved destination is implied. Historical tag publication now has a mandatory emulator dependency and explicitly disabled publication condition; stable signing integration remains a separate release prerequisite.

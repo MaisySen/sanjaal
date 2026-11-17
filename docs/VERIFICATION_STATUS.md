@@ -2,6 +2,25 @@
 
 Updated November 17, 2026. This is a test record, not a claim that the full app is finished.
 
+## Current checkpoint: November 17, 20:42 AEDT
+
+This section supersedes conflicting status statements in the historical checkpoints below. A successful source check is not a deployment, an installed build or device acceptance.
+
+- Exact source `68aec83024c80f8d0951a03b79cd6112c4f40074`, Android **0.5.5 (2010)**, was privately installed over the previous app on the Samsung without uninstalling or wiping. About was visually checked. This was not a Play Store update.
+- Actual Samsung recordings cover the five tabs and searchable top-left Settings; successful synthetic photo, Only me story and reel uploads; a small persistent upload bar; Wallet usable during upload; new profile counts without manual refresh; and Home position retained through tab navigation. Story upload/viewing are separate clips. The new reel later appeared in the main Reels list after deliberate refresh.
+- Open findings: sign-in was required after the update, cause unknown; slow story/original loading; captionless reel profile tile lacks a poster. The static five-second QA reel does not establish motion/audio playback. Failure/retry, background/process death, room/call audio, push delivery and Play flexible-update proof remain open.
+- The Samsung remote connection stopped updating and then explicitly reported unavailable. Device work is paused. A stale remote frame is not an app failure and must not be used to prove current state.
+- Startup source `bb88ff5ddfe6757a305d08d8094815abaff3c601` separates a retryable restore error from sign-out. Storage, transport, service or account-read failures preserve the saved grant; only an explicit refresh `invalid_grant` rejection removes it. A complete local 51-file Flutter sweep passed 843 tests with one opt-in live skip. This fixes a proven error-handling flaw, not the confirmed cause of the Samsung sign-in observation.
+- Poster source `e70b84c1d8a4a42faf6f3ca4b24a6cbb27c8ab78` adds bounded local native first-frame extraction, a capability-gated immutable upload poster, validation/metadata removal, transaction/replay binding and lifecycle/access checks. Legacy videos have a visible play fallback, not a fabricated thumbnail. Local API: 154 passed, one PostgreSQL-only skip; focused Flutter regression groups: 106 and 181 passed. These groups overlap earlier suites and must not be added to their totals. Native emulator assertions were added, not yet accepted.
+- Current CI for that exact poster/startup source: https://github.com/MaisySen/sanjaal/actions/runs/44055078702 . At 20:42 all five jobs passed: API, app, unsigned Android bundle, unsigned iOS and actual emulator. Release was skipped. Downloaded emulator logs show all four groups passing; the native-media test requires actual camera first-frame extraction, byte decoding, poster upload/read/delete against its throwaway local API. These are emulator results, not Samsung acceptance. Actual artifact inspection found that the OS notification permission dialog covers later frames in the recording and the Flutter-only story screenshot is black at capture. The decoder/HTTP assertions passed, but visual acceptance of that journey is withheld. A follow-up grants notification permission only in the throwaway emulator setup and adds full-Android-screen poster/story captures after decoded image presentation; its new CI is pending.
+- New startup and poster source is not installed on the Samsung. No new stable-key candidate finalization, API deployment, Play upload or release was performed for these changes. Wallet remains unavailable until live money paths are independently verified.
+
+Source: https://github.com/MaisySen/sanjaal/commit/e70b84c1d8a4a42faf6f3ca4b24a6cbb27c8ab78
+
+## Historical checkpoints
+
+The sections below preserve what was checked at the time. Their older versions, counts, deployment labels and open gaps are not a current-state inventory.
+
 ## Published preview
 
 Android 0.5.1+6 was built from `51c1c73`, signed with the stable upload key, and published as a test prerelease:

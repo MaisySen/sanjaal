@@ -24,12 +24,13 @@ if args[:3]==['shell','dumpsys','window']:print('mCurrentFocus=Window{abc u0 '+(
  try:
   time.sleep(.3)
   assert request({'action':'prepare'})[0]==200
-  for action in ['camera','recording','gallery']:assert request({'action':action})[0]==200
+  for action in ['camera','recording','gallery','poster','story']:assert request({'action':action})[0]==200
   assert request({'action':'prepare'},False)[0]==403
   for bad in ['shell','../private','gallery;evil','wipe']:assert request({'action':bad})[0]==422
   (d/'mode').write_text('grantfail');assert request({'action':'prepare'})[0]==502
   (d/'mode').write_text('unfocused');assert request({'action':'camera'})[0]==502
   calls=(d/'calls').read_text();assert 'pm grant au.fintex.sanjaal android.permission.CAMERA' in calls
+  assert 'pm grant au.fintex.sanjaal android.permission.POST_NOTIFICATIONS' in calls
   assert '/sdcard/Pictures/sanjaal-fixture.png' in calls and 'wipe' not in calls
   print('Fixed media bridge: authentication, action whitelist, failed permissions and native focus enforced')
  finally:proc.terminate();proc.wait()

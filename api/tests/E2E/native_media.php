@@ -9,7 +9,7 @@ if (getenv('E2E_NATIVE_INPUT') !== '1' || $expected === '' || !hash_equals('Bear
     http_response_code(403); echo json_encode(['ok'=>false]); exit;
 }
 $action = $input['action'] ?? '';
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !in_array($action,['prepare','camera','gallery','recording'],true)) {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !in_array($action,['prepare','camera','gallery','recording','poster','story'],true)) {
     http_response_code(422); echo json_encode(['ok'=>false]); exit;
 }
 $adb = rtrim(getenv('ANDROID_HOME') ?: getenv('ANDROID_SDK_ROOT'),'/').'/platform-tools/adb';
@@ -22,7 +22,7 @@ $run = static function(array $args) use($adb): array {
 $dir=__DIR__.'/../../../app/build/screenshots';@mkdir($dir,0755,true);
 $results=[];
 if ($action==='prepare') {
-    foreach (['CAMERA','RECORD_AUDIO','READ_MEDIA_IMAGES','READ_MEDIA_VIDEO'] as $permission) {
+    foreach (['CAMERA','RECORD_AUDIO','READ_MEDIA_IMAGES','READ_MEDIA_VIDEO','POST_NOTIFICATIONS'] as $permission) {
         [$code,$out]=$run(['shell','pm','grant','au.fintex.sanjaal','android.permission.'.$permission]);$results[$permission]=$code;
     }
     // Fixed generated image, not the owner's library or a user-supplied file.

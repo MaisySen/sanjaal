@@ -13,6 +13,8 @@ import 'ui.dart';
 import 'voice.dart';
 import 'share_post.dart';
 import 'post_page.dart';
+import 'private_media_image.dart';
+import 'photo_gallery.dart';
 
 String kindLabel(Object? kind, Object? body) {
   if (kind == 'image') return 'Photo';
@@ -715,8 +717,8 @@ class _ChatPageState extends State<ChatPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: GestureDetector(
-                  onTap: () => openImage(context, m['media_url'] as String, headers: widget.session.mediaHeadersFor(m['media_url'] as String)),
-                  child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, headers: widget.session.mediaHeadersFor(m['media_url'] as String), width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PhotoViewer(urls: [m['media_url'] as String], provider: (url) => PrivateMediaImage(widget.session,url)))),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image(image: PrivateMediaImage(widget.session,m['media_url'] as String), width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const PhIcon('image-broken'))),
                 ),
               ),
             if (m['kind'] == 'image' && m['media_url'] != null && (m['media_url'] is! String || !widget.session.supportsPrivateMedia(m['media_url'] as String))) Text(t_('This photo is unavailable.')),

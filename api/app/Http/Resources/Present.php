@@ -29,7 +29,8 @@ class Present
         }
         $ids = $posts->pluck('id')->all();
         $uid = $viewer?->id ?? 0;
-        $rows = \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)
+        $reactionsInline = $posts->every(fn ($p) => array_key_exists('_r_mine', $p->getAttributes()));
+        $rows = $reactionsInline ? collect() : \Illuminate\Support\Facades\DB::table('likes')->whereIn('post_id', $ids)
             ->selectRaw('post_id, reaction, count(*) as n, sum(case when user_id = ? then 1 else 0 end) as mine', [$uid])
             ->groupBy('post_id', 'reaction')->get()->groupBy('post_id');
         $counts = $rows;
@@ -58,8 +59,10 @@ class Present
                 $p->setAttribute('_saved', in_array($p->id, $savedIds, true));
             }
             if (is_array($p->poll_options)) $p->setAttribute('_poll_rows', $pollRows[$p->id] ?? collect());
-            $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
-            $p->setAttribute('_mine', $mine->has($p->id) ? ($mine[$p->id] ?? '') : false);
+            if (! array_key_exists('_r_mine', $p->getAttributes())) {
+                $p->setAttribute('_reactions', ($counts[$p->id] ?? collect())->pluck('n', 'reaction'));
+                $p->setAttribute('_mine', $mine->has($p->id) ? ($mine[$p->id] ?? '') : false);
+            }
         }
     }
 

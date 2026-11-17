@@ -35,7 +35,7 @@ class ReadRoundTripTest extends TestCase
         DB::disableQueryLog();
     }
 
-    public function test_populated_feed_uses_five_reads_with_live_viewer_state(): void
+    public function test_populated_feed_uses_three_reads_with_live_viewer_state(): void
     {
         [$a, $ha] = $this->member('feedowner');
         [$b, $hb] = $this->member('feedviewer');
@@ -43,13 +43,20 @@ class ReadRoundTripTest extends TestCase
         $id = \App\Models\Post::where('public_id', $post['public_id'])->value('id');
         DB::table('bookmarks')->insert(['user_id' => $b->id, 'post_id' => $id, 'created_at' => now()]);
         $b->following()->attach($a->id);
+        DB::table('likes')->insert([
+            ['post_id' => $id, 'user_id' => $b->id, 'reaction' => 'love', 'created_at' => now(), 'updated_at' => now()],
+            ['post_id' => $id, 'user_id' => $a->id, 'reaction' => 'like', 'created_at' => now(), 'updated_at' => now()],
+        ]);
         $this->getJson('/api/v1/posts', $hb)->assertOk();
         DB::enableQueryLog(); DB::flushQueryLog();
         $this->getJson('/api/v1/posts', $hb)->assertOk()
             ->assertJsonPath('data.0.saved', true)->assertJsonPath('data.0.author.following', true)
-            ->assertJsonPath('data.0.can_comment', true)->assertJsonPath('data.0.can_share_to_chat', true);
+            ->assertJsonPath('data.0.can_comment', true)->assertJsonPath('data.0.can_share_to_chat', true)
+            ->assertJsonPath('data.0.my_reaction', 'love')->assertJsonPath('data.0.liked', true)
+            ->assertJsonPath('data.0.reactions.love', 1)->assertJsonPath('data.0.reactions.like', 1)
+            ->assertJsonPath('data.0.author.username', $a->username)->assertJsonPath('data.0.author.public_id', $a->public_id);
         $reads = array_filter(DB::getQueryLog(), fn ($q) => str_starts_with(strtolower($q['query']), 'select') && !str_contains($q['query'], 'personal_access_tokens') && !str_contains($q['query'], '"auth0_sub"'));
-        $this->assertCount(5, $reads, json_encode(array_values($reads)));
+        $this->assertCount(3, $reads, json_encode(array_values($reads)));
         DB::disableQueryLog();
         DB::table('member_controls')->insert(['user_id' => $a->id, 'comments_from' => 'following', 'share_to_chat' => false, 'created_at' => now(), 'updated_at' => now()]);
         $this->getJson('/api/v1/posts', $hb)->assertJsonPath('data.0.can_comment', false)->assertJsonPath('data.0.can_share_to_chat', false);

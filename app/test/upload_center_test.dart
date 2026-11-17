@@ -61,6 +61,69 @@ void main(){
   });
  });
  }
+ for(final language in ['en','ne']){
+ testWidgets('unknown-result details stay readable and hide on account change $language',(t)async{
+  prefs.lang=language;addTearDown(()=>prefs.lang='en');
+  t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+  await fixture(t,(s,c)async{
+   await t.pumpWidget(RepaintBoundary(key:const ValueKey('details-review'),child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(Brightness.dark,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(context,w)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(1.8)),child:w!),home:Scaffold(body:Column(children:[UploadStrip(center:c),const Expanded(child:Center(child:Text('Synthetic content')))])))));await flush(t);
+   c.start('post',()async=>throw UploadError('The upload result is unknown. Check your posts or stories before sharing again.',uncertain:true));await flush(t);
+   expect(c.canRetry,isFalse);expect(t.takeException(),isNull);
+   await t.tap(find.text(language=='ne'?'विवरण':'Details'));await t.pumpAndSettle();
+   expect(find.byType(AlertDialog),findsOneWidget);
+   final dialogText=t.widget<Text>(find.descendant(of:find.byType(AlertDialog),matching:find.byType(Text)).at(1));
+   expect(dialogText.maxLines,isNull);expect(dialogText.data,language=='ne'?'अपलोडको नतिजा थाहा भएन। फेरि साझा गर्नुअघि आफ्ना पोस्ट वा स्टोरी जाँच्नुहोस्।':'The upload result is unknown. Check your posts or stories before sharing again.');
+   await t.runAsync(()async{final boundary=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('details-review')));final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/upload_details_${language}_1.8.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
+   s.user={'public_id':'different','username':'other'};s.notifyListeners();await t.pump();
+   expect(find.text(dialogText.data!),findsNothing);expect(t.takeException(),isNull);
+  });
+ });
+ }
+ testWidgets('delayed open-original story cannot navigate across an account change',(t)async{
+  final reply=Completer<http.Response>();var reads=0;
+  await fixture(t,(s,c)async{
+   late BuildContext page;
+   await t.pumpWidget(MaterialApp(home:Builder(builder:(context){page=context;return const Scaffold(body:Text('Current screen'));})));await flush(t);
+   c.start('story',()async=>{'public_id':'story','url':'https://fixture.invalid/story.jpg','type':'image'});await flush(t);
+   final opening=c.openOriginal(page);await flush(t);await c.openOriginal(page);expect(reads,1);expect(c.openingOriginal,isTrue);
+   s.user={'public_id':'different','username':'other'};s.notifyListeners();
+   reply.complete(json({'data':[{'author':{'public_id':'me','username':'fixture'},'items':[{'public_id':'story','url':'https://fixture.invalid/story.jpg','type':'image'}]}]}));await opening;await flush(t);
+   expect(find.byType(StoryViewer),findsNothing);expect(find.text('Current screen'),findsOneWidget);expect(t.takeException(),isNull);
+  },respond:(r)async{reads++;return reply.future;});
+ });
+ testWidgets('malformed original-story response does not claim it was deleted',(t)async{
+  await fixture(t,(s,c)async{
+   late BuildContext page;
+   await t.pumpWidget(MaterialApp(home:Builder(builder:(context){page=context;return const Scaffold(body:Text('Current screen'));})));await flush(t);
+   c.start('story',()async=>{'public_id':'story','url':'https://fixture.invalid/story.jpg','type':'image'});await flush(t);
+   await c.openOriginal(page);await t.pump();
+   expect(find.text('Could not read stories. Try again.'),findsOneWidget);expect(find.text('The original story was removed or expired.'),findsNothing);expect(find.byType(StoryViewer),findsNothing);expect(t.takeException(),isNull);
+  },respond:(r)async=>json({'data':[{'author':{},'items':[]}]}));
+ });
+ for(final malformed in <(String,Map<String,dynamic>)>[
+  ('post',{...post(' ')}),('post',{...post('bad'),'author':{'public_id':'me','username':' '}}),
+  ('post',{...post('bad'),'author':{'public_id':' ','username':'fixture'}}),
+  ('story',{'public_id':' ','url':'https://fixture.invalid/a.jpg','type':'image'}),
+  ('story',{'public_id':'story','url':' ','type':'image'}),
+  ('story',{'public_id':'story','url':'https://fixture.invalid/a.jpg','type':'unknown'}),
+ ]){
+ testWidgets('malformed confirmed ${malformed.$1} identity ${malformed.$2} stays uncertain',(t)async{
+  await fixture(t,(s,c)async{
+   c.start(malformed.$1,()async=>malformed.$2);await flush(t);
+   expect(c.result,isNull);expect(c.error,isA<UploadError>());expect(c.canRetry,isFalse);expect(c.confirmedPosts,isEmpty);expect(c.confirmedStories,isEmpty);
+  });
+ });
+ }
+ testWidgets('valid original-story response opens only that story',(t)async{
+  await fixture(t,(s,c)async{
+   late BuildContext page;
+   await t.pumpWidget(MaterialApp(home:Builder(builder:(context){page=context;return const Scaffold(body:Text('Current screen'));})));await flush(t);
+   c.start('story',()async=>{'public_id':'story','url':'https://fixture.invalid/story.jpg','type':'image'});await flush(t);
+   final opening=c.openOriginal(page);await flush(t);await t.pump(const Duration(milliseconds:400));
+   expect(find.byType(StoryViewer),findsOneWidget);expect(t.widget<StoryViewer>(find.byType(StoryViewer)).group['items'].length,1);
+   Navigator.of(t.element(find.byType(StoryViewer))).pop();await t.pump(const Duration(milliseconds:400));await opening;expect(t.takeException(),isNull);
+  },respond:(r)async=>json({'data':[{'author':{'public_id':'me','username':'fixture'},'items':[{'public_id':'other','url':'https://fixture.invalid/other.jpg','type':'image','created_at':'2026-11-17T06:00:00Z'},{'public_id':'story','url':'https://fixture.invalid/story.jpg','type':'image','created_at':'2026-11-17T06:00:00Z'}]}]}));
+ });
  testWidgets('one app-level job survives composer exit and permits tab navigation until confirmed',(t) async {
   final reply=Completer<http.Response>();var writes=0,reads=0;
   await fixture(t,(s,center)async{

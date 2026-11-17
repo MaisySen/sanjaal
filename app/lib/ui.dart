@@ -96,6 +96,15 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Could not read stories. Try again.': 'स्टोरी पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'No upload details to show.': 'देखाउनका लागि अपलोडको विवरण छैन।',
+  'Upload safety info could not be cleared. Uploading is paused.': 'अपलोडको सुरक्षा जानकारी हटाउन सकिएन। अपलोड रोकिएको छ।',
+  'Your upload was confirmed, but its safety info could not be cleared. Open the original before starting another.': 'तपाईंको अपलोड पुष्टि भयो, तर यसको सुरक्षा जानकारी हटाउन सकिएन। अर्को सुरु गर्नुअघि मूल पोस्ट वा स्टोरी खोल्नुहोस्।',
+  'Upload safety info could not be saved. Nothing was sent.': 'अपलोडको सुरक्षा जानकारी सुरक्षित गर्न सकिएन। केही पनि पठाइएको छैन।',
+  'Earlier upload safety info could not be read. Uploading is paused.': 'अघिल्लो अपलोडको सुरक्षा जानकारी पढ्न सकिएन। अपलोड रोकिएको छ।',
+  'An earlier upload may already be posted. Check your profile before starting another.': 'अघिल्लो अपलोड पोस्ट भइसकेको हुन सक्छ। अर्को सुरु गर्नुअघि आफ्नो प्रोफाइल जाँच्नुहोस्।',
+  'Details': 'विवरण',
+  'Upload details': 'अपलोडको विवरण',
   'Camera or media picker could not be opened. Try again.': 'क्यामेरा वा मिडिया छान्ने सुविधा खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
   'Photo permissions could not be opened. Try again.': 'तस्बिरका अनुमति खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
   "Sign in again to view this account's local drafts.": 'यो खाताका स्थानीय मस्यौदा हेर्न फेरि साइन इन गर्नुहोस्।',

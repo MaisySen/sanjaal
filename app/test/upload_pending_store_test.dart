@@ -12,7 +12,7 @@ class Store extends UploadPendingStore {
 }
 Future<void> flush(WidgetTester t)async{await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:15)));await t.pump();}
 Session member([String id='owner'])=>Session()..user={'public_id':id,'username':id};
-Map<String,dynamic> post()=>{'public_id':'confirmed','kind':'post','author':{'username':'owner'},'media':[]};
+Map<String,dynamic> post()=>{'public_id':'confirmed','kind':'post','author':{'public_id':'owner','username':'owner'},'media':[]};
 void main(){
  const store=UploadPendingStore();
  test('secure marker round-trips, stays member-scoped and clears with readback',()async{

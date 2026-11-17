@@ -32,6 +32,7 @@ class UploadCenter extends ChangeNotifier {
   String? _localId;
   bool busy = false;
   bool preparing = false;
+  bool openingOriginal = false;
   Object? error;
   Map<String, dynamic>? result;
   Future<Map<String, dynamic>> Function()? _original;
@@ -43,7 +44,7 @@ class UploadCenter extends ChangeNotifier {
     if (_owner == owner) return;
     _owner = owner;
     _epoch++;
-    busy = false; preparing = false; error = null; result = null;
+    busy = false; preparing = false; openingOriginal = false; error = null; result = null;
     _original = null; kind = null;
     confirmedPosts.clear(); confirmedStories.clear(); revision++;
     restoring = true;
@@ -85,7 +86,12 @@ class UploadCenter extends ChangeNotifier {
       if (epoch != _epoch) return;
       final value = await original();
       if (epoch != _epoch) return;
-      if (value['public_id'] is! String || (kind == 'story' ? value['url'] is! String || value['type'] is! String : value['author'] is! Map || value['media'] is! List || value['kind'] != kind)) throw UploadError('The upload result is unknown. Check your posts or stories before sharing again.', uncertain: true);
+      bool text(Object? v) => v is String && v.trim().isNotEmpty;
+      final author = value['author'];
+      final valid = text(value['public_id']) && (kind == 'story'
+          ? text(value['url']) && ['image','video'].contains(value['type'])
+          : author is Map && text(author['public_id']) && text(author['username']) && value['media'] is List && value['kind'] == kind);
+      if (!valid) throw UploadError('The upload result is unknown. Check your posts or stories before sharing again.', uncertain: true);
       result = Map<String, dynamic>.from(value);
       final list = kind == 'story' ? confirmedStories : confirmedPosts;
       list.removeWhere((p) => p['public_id'] == value['public_id']);
@@ -119,17 +125,31 @@ class UploadCenter extends ChangeNotifier {
   }
   Future<void> openOriginal(BuildContext context) async {
     final id = (error is UploadError ? (error as UploadError).resourceId : null) ?? result?['public_id'];
-    if (id == null) return;
-    if (kind != 'story') { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: session, postId: id))); return; }
+    if (id == null || openingOriginal) return;
+    final epoch = _epoch;
+    openingOriginal = true; notifyListeners();
     try {
-      final value = await session.call('GET', '/stories') as Map;
+      if (kind != 'story') { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: session, postId: id))); return; }
+      final value = await session.call('GET', '/stories');
+      if (epoch != _epoch || !context.mounted) return;
+      if (value is! Map || value['data'] is! List) throw ApiError('Could not read stories. Try again.');
+      Map<String,dynamic>? matching;
       for (final item in value['data'] as List) {
-        final group = (item as Map).cast<String, dynamic>();
-        final originals = (group['items'] as List).where((s) => s['public_id'] == id).toList();
-        if (originals.isNotEmpty && context.mounted) { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewer(session: session, group: {'author': group['author'], 'items': originals}))); return; }
+        if (item is! Map || item['author'] is! Map || item['items'] is! List) throw ApiError('Could not read stories. Try again.');
+        final author = item['author'] as Map;
+        if (author['public_id'] is! String || (author['public_id'] as String).trim().isEmpty || author['username'] is! String || (author['username'] as String).trim().isEmpty) throw ApiError('Could not read stories. Try again.');
+        for (final story in item['items'] as List) {
+          if (story is! Map || story['public_id'] is! String || (story['public_id'] as String).trim().isEmpty || story['url'] is! String || (story['url'] as String).trim().isEmpty || !['image','video'].contains(story['type']) || story['created_at'] is! String || DateTime.tryParse(story['created_at'] as String) == null) throw ApiError('Could not read stories. Try again.');
+          if (story['public_id'] == id) matching = {'author': Map<String,dynamic>.from(author), 'items': [Map<String,dynamic>.from(story)]};
+        }
+      }
+      if (matching != null) {
+        await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewer(session: session, group: matching!)));
+        return;
       }
       if (context.mounted) showInfo(context, t_('The original story was removed or expired.'));
-    } catch (e) { if (context.mounted) showError(context, e); }
+    } catch (e) { if (epoch == _epoch && context.mounted) showError(context, e); }
+    finally { if (epoch == _epoch) { openingOriginal = false; notifyListeners(); } }
   }
 }
 
@@ -140,7 +160,7 @@ class UploadStrip extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(listenable: center, builder: (context, _) {
     if (!center.busy && center.error == null && center.result == null && !center.restoring) return const SizedBox.shrink();
     final error = center.error;
-    final label = center.restoring ? t_('Checking earlier uploads...') : error != null ? error.toString() : center.busy
+    final label = center.restoring ? t_('Checking earlier uploads...') : error != null ? t_(error.toString()) : center.busy
         ? center.preparing ? t_('Preparing upload...') : center.progress == 1 ? t_('Finishing upload...') : t_('Uploading... Keep the app open.')
         : t_(center.kind == 'story' ? 'Your story is up.' : center.kind == 'reel' ? 'Your reel is live in the Reels tab.' : 'Your post is up.');
     return Material(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: SafeArea(bottom: false, child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -150,8 +170,12 @@ class UploadStrip extends StatelessWidget {
         const SizedBox(width: 10), Expanded(child: Text(label, style: Theme.of(context).textTheme.bodySmall, maxLines: 4, overflow: TextOverflow.ellipsis)),
         ]),
         if (!center.busy && !center.restoring) Wrap(alignment: WrapAlignment.end, spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        if (!center.busy && ((error is UploadError && error.resourceId != null) || center.result != null)) TextButton(onPressed: () => center.openOriginal(context), child: Text(t_('Open original'))),
+        if (!center.busy && ((error is UploadError && error.resourceId != null) || center.result != null)) TextButton(onPressed: center.openingOriginal ? null : () => center.openOriginal(context), child: Text(t_('Open original'))),
         if (center.canRetry) TextButton(onPressed: center.retry, child: Text(t_('Try again'))),
+        if (error != null) TextButton(onPressed:()=>showDialog<void>(context:context,builder:(c)=>ListenableBuilder(listenable:center,builder:(c,_)=>AlertDialog(
+          scrollable:true,title:Text(t_('Upload details')),content:Text(center.error == null ? t_('No upload details to show.') : t_(center.error.toString())),
+          actions:[TextButton(onPressed:()=>Navigator.pop(c),child:Text(t_('Close')))],
+        ))),child:Text(t_('Details'))),
         if (!center.busy && !center.restoring) IconButton(tooltip: t_('Dismiss'), onPressed: () async {
           if (error == null) { await center.dismiss(); return; }
           final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(scrollable: true,

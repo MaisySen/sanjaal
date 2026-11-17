@@ -20,7 +20,9 @@ class WalletController extends Controller
 
         return response()->json([
             'balance' => (int) $me->coin_balance,
-            'transfer_replay' => true,
+            // Legacy clients use this key to enable Send, so advertise false during hold.
+            'transfer_replay' => (bool) config('wallet.member_transfers_enabled', false),
+            'transfer_replay_supported' => true,
             'transfers_available' => (bool) config('wallet.member_transfers_enabled', false),
             'topup' => [
                 'esewa' => Esewa::configured(),

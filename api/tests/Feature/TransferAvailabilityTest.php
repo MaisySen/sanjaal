@@ -14,7 +14,7 @@ class TransferAvailabilityTest extends TestCase
         $this->assertFalse(config('wallet.member_transfers_enabled'));
         [$user, $headers] = $this->member('transferhold');
         $this->getJson('/api/v1/wallet', $headers)->assertOk()
-            ->assertJsonPath('transfer_replay', true)->assertJsonPath('transfers_available', false);
+            ->assertJsonPath('transfer_replay', false)->assertJsonPath('transfer_replay_supported', true)->assertJsonPath('transfers_available', false);
         $this->postJson('/api/v1/wallet/transfer', ['client_id' => 'fixture-hold-no-transfer', 'username' => 'nobody', 'amount' => 1], $headers)
             ->assertStatus(503)->assertJsonPath('code', 'transfers_unavailable');
         $this->assertSame(0, (int) $user->fresh()->coin_balance);

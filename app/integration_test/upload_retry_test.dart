@@ -82,6 +82,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
     final offeredRetry = find.text('Try again').evaluate().isNotEmpty;
+    expect(offeredRetry, isTrue, reason: 'a lost reply on a replay-safe upload must offer Try again, not claim success');
+    expect(find.text('Your post is up.'), findsNothing);
     // ignore: avoid_print
     print('Upload-retry after lost reply: offered Try again = $offeredRetry');
     await binding.takeScreenshot('upload_retry_1_lost_reply');

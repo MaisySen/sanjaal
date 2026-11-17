@@ -54,9 +54,10 @@ if (getenv('E2E_FAULT_AFTER_COMMIT') === '1') {
     if ($uri === '/api/v1/posts' && $_SERVER['REQUEST_METHOD'] === 'POST' && is_file($flag)) {
         @unlink($flag);
         file_put_contents(dirname($file).'/fault-fired', (string) (1 + (int) @file_get_contents(dirname($file).'/fault-fired')));
-        ob_start();
-        $app->handleRequest(Request::capture());
-        ob_end_clean();
+        // Run the real handler to commit, but never send its response: handleRequest() would flush and send it
+        // (the server API closes output buffers), which made earlier runs deliver the real 201 and prove nothing.
+        $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
+        $kernel->handle(Request::capture());
         header_remove('Content-Length');
         header_remove('Content-Type');
         http_response_code(503);

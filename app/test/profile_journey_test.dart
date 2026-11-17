@@ -42,6 +42,13 @@ void main(){
   setUpAll(()async{
     for(final p in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final f=File(p.$2);if(f.existsSync()){final l=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await l.load();}}
   });
+  testWidgets('empty Posts section does not deny existing reel activity',(t)async{
+    await fixture(t,(s)=>MePage(session:s),()async{
+      expect(find.text('5'),findsOneWidget);
+      expect(find.text('No photo or text posts yet'),findsOneWidget);
+      expect(find.text('You have not posted yet'),findsNothing);
+    },respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(posts:5)}):json({'data':[],'next_cursor':null}));
+  });
   testWidgets('unchanged edit leaves without a discard question',(t)async{
     await fixture(t,(s)=>EditProfilePage(session:s),()async{await t.pageBack();await t.pumpAndSettle();expect(find.byType(EditProfilePage),findsNothing);expect(find.text('Discard this draft?'),findsNothing);});
   });

@@ -28,9 +28,11 @@ class _NotificationsPageState extends State<NotificationsPage> {
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/notifications') as Map<String, dynamic>;
-      if (mounted) setState(() { items = (j['data'] as List).cast<Map<String, dynamic>>(); error = null; });
-    } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
+      final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
+      if(rows.any((v)=>!['like','comment','follow'].contains(v['type']) || v['actor'] is! String || (v['actor'] as String).trim().isEmpty)) throw const FormatException('Invalid notification');
+      if (mounted) setState(() { items = rows; error = null; });
+    } catch (e) {
+      if (mounted) setState(() => error = e is ApiError ? t_(e.message) : t_('Notifications could not be loaded.'));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -58,14 +60,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
             final type = n['type'];
             final who = '@${n['actor']}';
             final (icon, color, text) = switch (type) {
-              'like' => (Ph.favorite, brandRed, '$who liked your post'),
-              'comment' => (Ph.mode_comment, const Color(0xFF24405F), '$who commented: ${n['text']}'),
-              _ => (Ph.person_add, const Color(0xFF3F5B45), '$who started following you'),
+              'like' => (Ph.favorite, brandRed, '$who ${t_('liked your post')}'),
+              'comment' => (Ph.mode_comment, Theme.of(context).colorScheme.onSurface, '$who ${t_('commented:')} ${n['text'] ?? ''}'),
+              _ => (Ph.person_add, Theme.of(context).colorScheme.onSurface, '$who ${t_('started following you')}'),
             };
             return ListTile(
               leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: PhIcon(icon, color: color, size: 20)),
-              title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
-              subtitle: Text(type == 'like' && (n['text'] ?? '').toString().isNotEmpty ? '${n['text']}  ·  ${ago(n['created_at'].toString())}' : ago(n['created_at'].toString())),
+              title: Text(text, maxLines: MediaQuery.textScalerOf(context).scale(14)>19 ? 4 : 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text(type == 'like' && (n['text'] ?? '').toString().isNotEmpty ? '${n['text']}  ·  ${t_(ago(n['created_at'].toString()))}' : t_(ago(n['created_at'].toString()))),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => n['post_id'] is String
                   ? PostPage(session: widget.session, postId: n['post_id'] as String)
                   : UserProfilePage(session: widget.session, username: n['actor'].toString()))),
@@ -86,6 +88,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
         Expanded(child: body),
       ]);
     }
-    return Scaffold(appBar: AppBar(title: Text(t_('Notifications'))), body: body);
+    return Scaffold(appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56,96), title: Text(t_('Notifications'),maxLines:2,style:const TextStyle(fontSize:18)), actions:[IconButton(tooltip:t_('Refresh'),onPressed:loading?null:_load,icon:const PhIcon('arrow-clockwise'))]), body: body);
   }
 }

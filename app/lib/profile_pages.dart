@@ -184,7 +184,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         session: widget.session,
         query: {'username': widget.username},
         emptyIcon: Ph.image_outlined,
-        emptyTitle: t_(isMe ? 'You have not posted yet' : 'No posts yet'),
+        emptyTitle: t_('No photo or text posts yet'),
         header: Column(children: [
           if (error != null) _ProfileReadNotice(message: error!, retry: loading || busy ? null : _load),
           if (loading) const LinearProgressIndicator(),
@@ -278,7 +278,7 @@ class _MePageState extends State<MePage> {
         session: s,
         query: {'username': (s.user?['username'] ?? '').toString()},
         emptyIcon: Ph.image_outlined,
-        emptyTitle: t_('You have not posted yet'),
+        emptyTitle: t_('No photo or text posts yet'),
         emptyHint: t_('A photo, a thought, a little of your day.'),
         emptyAction: widget.onCompose == null ? null : FilledButton.icon(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
         header: Column(children: [

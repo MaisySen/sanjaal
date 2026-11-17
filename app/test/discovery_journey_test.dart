@@ -15,6 +15,7 @@ import 'package:sanjaal/search_page.dart';
 import 'package:sanjaal/post_page.dart';
 import 'package:sanjaal/notifications_page.dart';
 import 'package:sanjaal/share_post.dart';
+import 'package:sanjaal/ui.dart' show prefs,t_;
 import 'package:shared_preferences/shared_preferences.dart';
 
 http.Response reply(Object body, [int code = 200]) => http.Response(jsonEncode(body), code);
@@ -58,6 +59,33 @@ Future<void> fixture(WidgetTester t, Future<void> Function() run, Future<http.Re
 }
 
 void main() {
+  testWidgets('Nepali notifications preserve actor/content while translating action',(t)async{
+    prefs.lang='ne';addTearDown(()=>prefs.lang='en');
+    await fixture(t,()async{
+      await flush(t);
+      expect(find.text('@asha ${t_('liked your post')}'),findsOneWidget);
+      expect(find.text('@bina ${t_('commented:')} Original caption'),findsOneWidget);
+      expect(find.text('@chandra ${t_('started following you')}'),findsOneWidget);
+      expect(find.textContaining('liked your post'),findsNothing);expect(t.takeException(),isNull);
+    },(_)async=>reply({'data':[{'type':'like','actor':'asha'},{'type':'comment','actor':'bina','text':'Original caption'},{'type':'follow','actor':'chandra'}]}),home:(s)=>NotificationsPage(session:s));
+  });
+  testWidgets('malformed refresh preserves previous activity and never routes malformed identity',(t)async{
+    var reads=0;
+    await fixture(t,()async{
+      await flush(t);await t.tap(find.byTooltip('Refresh'));await flush(t);
+      expect(find.text('@asha liked your post'),findsOneWidget);expect(find.text('Could not refresh.'),findsOneWidget);
+      expect(find.textContaining('@null'),findsNothing);expect(t.takeException(),isNull);
+    },(_)async=>++reads==1?reply({'data':[{'type':'like','actor':'asha'}]}):reply({'data':[{'type':'unexpected','actor':null}]}),home:(s)=>NotificationsPage(session:s));
+  });
+  testWidgets('malformed notifications are retryable instead of an endless spinner',(t)async{
+    var reads=0;
+    await fixture(t,()async{
+      await flush(t);expect(find.text('Notifications could not be loaded.'),findsOneWidget);
+      expect(find.byType(CircularProgressIndicator),findsNothing);
+      await t.tap(find.text('Try again'));await flush(t);
+      expect(find.text('@asha liked your post'),findsOneWidget);expect(t.takeException(),isNull);
+    },(_)async=>++reads==1?reply({'data':[{'type':'follow'}]}):reply({'data':[{'type':'like','actor':'asha'}]}),home:(s)=>NotificationsPage(session:s));
+  });
   testWidgets('clearing search ignores a late response and stops the spinner', (t) async {
     final pending = Completer<http.Response>();
     await fixture(t, () async {

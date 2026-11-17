@@ -96,6 +96,11 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Notifications could not be loaded.': 'सूचनाहरू लोड हुन सकेनन्।',
+  'liked your post': 'ले तपाईंको पोस्ट मन पराउनुभयो',
+  'commented:': 'ले टिप्पणी गर्नुभयो:',
+  'started following you': 'ले तपाईंलाई फलो गर्न थाल्नुभयो',
+  'No photo or text posts yet': 'अहिलेसम्म तस्बिर वा लेख पोस्ट छैन',
   'No connection. Check your internet and try again.': 'इन्टरनेट जडान छैन। जडान जाँच गरेर फेरि प्रयास गर्नुहोस्।',
   'The server took too long. Try again.': 'सर्भरले धेरै समय लियो। फेरि प्रयास गर्नुहोस्।',
   'Please sign in again.': 'कृपया फेरि साइन इन गर्नुहोस्।',

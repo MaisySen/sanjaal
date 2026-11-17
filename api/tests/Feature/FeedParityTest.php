@@ -81,7 +81,12 @@ class FeedParityTest extends TestCase
                     $p = $legacy[$item['public_id']];
                     $expected = Present::post($p, $viewer);
                     $expected['author']['following'] = $viewer->following()->where('users.id', $p->user_id)->exists();
-                    $this->assertSame(json_decode(json_encode($expected), true), $item, 'viewer '.$viewer->username.' post '.$item['public_id']);
+                    // Reaction keys come back in database order on the older path; object key order carries no meaning.
+                    $expected = json_decode(json_encode($expected), true);
+                    ksort($expected['reactions']);
+                    $got = $item;
+                    ksort($got['reactions']);
+                    $this->assertSame($expected, $got, 'viewer '.$viewer->username.' post '.$item['public_id']);
                     $compared++;
                     $withReactions += $item['reactions'] ? 1 : 0;
                 }

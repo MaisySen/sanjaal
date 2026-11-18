@@ -23,3 +23,16 @@ catch (RuntimeException $e) { if ($e !== $failure) throw $e; }
 $r = $middleware->handle(Illuminate\Http\Request::create('/'), fn () => new Symfony\Component\HttpFoundation\Response('same',207));
 if ($r->getStatusCode() !== 207 || $r->getContent() !== 'same' || !str_contains($r->headers->get('Server-Timing'),'0 connector calls')) throw new RuntimeException('reset or response changed');
 echo "exact-image exception wrapping, one attempt, failed-call accounting and middleware reset passed\n";
+$app = require '/app/bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$actualWindow = $app->make(App\Support\ConnectionTiming::class);
+$db = $app->make('db')->connection();
+$actualWindow->begin();
+$db->select('select 1 as fixture');
+$db->select('select 2 as fixture');
+if ($actualWindow->finish()['calls'] !== 1) throw new RuntimeException('exact-runtime lazy/reuse accounting failed');
+$db->disconnect();
+$actualWindow->begin();
+$db->select('select 3 as fixture');
+if ($actualWindow->finish()['calls'] !== 1) throw new RuntimeException('exact-runtime reconnect accounting failed');
+echo "exact-image actual PostgreSQL lazy/reuse/reconnect request accounting passed\n";

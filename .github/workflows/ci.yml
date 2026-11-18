@@ -127,7 +127,9 @@ jobs:
             : > /tmp/res.$1
             echo "$SPECS" | tr '|' '\n' | while read -r path a; do
               hit "$path" $a >/dev/null            # warm: the first signed-in request verifies the token and fills the claims cache
-              sc=$(hit "$path" $a); h=$(sha256sum < /tmp/b | cut -c1-12); t=$(grep -i '^server-timing' /tmp/h | tr -d '\r' | cut -d' ' -f2-)
+              sc=$(hit "$path" $a)
+              if [ "$path" = /api/v1/posts ]; then python3 -c 'import json; x=json.load(open("/tmp/b")); assert len(x["data"]) > 0 and len(x["data"][0]["media"]) > 0 and len(x["data"][0]["hashtags"]) > 0'; fi
+              h=$(sha256sum < /tmp/b | cut -c1-12); t=$(grep -i '^server-timing' /tmp/h | tr -d '\r' | cut -d' ' -f2-)
               q=$(printf '%s' "$t" | grep -oE '[0-9]+ queries' | head -1)
               echo "$path auth=$a $sc $h $q" >> /tmp/res.$1; echo "  $1 $path auth=$a -> $sc $h [$t]"
               if [ "$path" = /api/v1/auth/me ] && [ "$a" = 1 ]; then echo "$t" > /tmp/me_timing.$1; fi

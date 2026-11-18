@@ -52,6 +52,23 @@ class ChatTest extends TestCase
         $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertOk();
     }
 
+    public function test_rollback_guard_keeps_owner_only_groups_closed_to_member_invites(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        $this->member('chandra');
+        $cid = $this->group($ha, ['bina']);
+        // The column exists in the database this image may run against; set it as the newer image would have.
+        \DB::table('conversations')->where('public_id', $cid)->update(['add_policy' => 'owner']);
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $hb)->assertForbidden();
+        $this->assertSame(2, \DB::table('conversation_members')->count());
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['chandra']], $ha)->assertOk();
+        // Members-allowed groups still work for any member, as before.
+        \DB::table('conversations')->where('public_id', $cid)->update(['add_policy' => 'members']);
+        $this->member('dipesh');
+        $this->postJson("/api/v1/conversations/$cid/members", ['usernames' => ['dipesh']], $hb)->assertOk();
+    }
+
     public function test_group_add_with_an_unknown_name_writes_nothing(): void
     {
         [$a, $ha] = $this->member('asha');

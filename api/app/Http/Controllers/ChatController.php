@@ -134,13 +134,17 @@ class ChatController extends Controller
         }
         $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
             ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();
-        $over = DB::transaction(function () use ($convo, $users, $blocked) {
+        $over = DB::transaction(function () use ($convo, $users, $blocked, $me) {
             // Lock the conversation row so two invitations cannot both pass the capacity check.
-            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            $locked = Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            // Rollback guard: keeps the owner-only setting enforced when this image runs against a database that already has it.
+            if (($locked->add_policy ?? 'members') === 'owner' && ! $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists()) {
+                return 'owner_only';
+            }
             $existing = $convo->members()->pluck('users.id')->all();
             $fresh = $users->reject(fn ($u) => in_array($u->id, $existing, true) || in_array($u->id, $blocked, true));
             if (count($existing) + $fresh->count() > 50) {
-                return true;
+                return 'full';
             }
             if ($fresh->isNotEmpty()) {
                 // New members see messages from now on, not the history from before they joined.
@@ -148,9 +152,12 @@ class ChatController extends Controller
                 $convo->members()->attach($fresh->pluck('id')->all(), ['role' => 'member', 'history_from_id' => $from, 'last_read_message_id' => $from]);
             }
 
-            return false;
+            return 'ok';
         });
-        if ($over) {
+        if ($over === 'owner_only') {
+            return response()->json(['message' => 'Only the group owner can add people to this group.'], 403);
+        }
+        if ($over === 'full') {
             return response()->json(['message' => 'A group can have at most 50 members.', 'errors' => ['usernames' => ['A group can have at most 50 members.']]], 422);
         }
 

@@ -475,9 +475,12 @@ class Session extends ChangeNotifier {
     final pending = _home;
     if (pending == null) return null;
     final epoch = _homeEpoch;
-    _homeData ??= await pending;
+    final received = await pending;
+    // An old completion must not write or clear a replacement account/request's bundle.
+    if (epoch != _sessionEpoch || !identical(pending, _home)) return null;
+    _homeData ??= received;
     final data = _homeData;
-    if (epoch != _sessionEpoch || data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 5)) {
+    if (data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 5)) {
       _home = null;
       _homeData = null;
       return null;

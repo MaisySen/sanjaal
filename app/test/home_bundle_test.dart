@@ -111,4 +111,25 @@ void main() {
     }));
   });
 
+  test('superseded same-account bundle cannot overwrite the newest handover', () async {
+    final first = Completer<http.Response>(), second = Completer<http.Response>();
+    var count = 0;
+    final s = Session()..homeBundleEnabled = true;
+    await http.runWithClient(() async {
+      await s.restore(); s.prefetchHome(); final oldTake = s.takeHome('feed');
+      await Future<void>.delayed(Duration.zero);
+      s.prefetchHome(); await Future<void>.delayed(Duration.zero);
+      first.complete(ok({'feed': {'data':['superseded']}}));
+      expect(await oldTake,isNull); expect(s.homePending,isTrue);
+      second.complete(ok({'feed': {'data':['newest']}}));
+      final parts = await Future.wait([s.takeHome('feed'),s.takeHome('feed')]);
+      expect(parts.whereType<Map>().toList(),[{'data':['newest']}]);
+      expect(parts.where((p)=>p==null).length,1);
+    },()=>MockClient((r) async {
+      if(r.url.path.endsWith('/oauth/token')) return ok({'access_token':'fixture','expires_in':3600});
+      if(r.url.path.endsWith('/home')) return ++count==1 ? first.future : second.future;
+      return ok({'user':{'public_id':'member'}});
+    }));
+  });
+
 }

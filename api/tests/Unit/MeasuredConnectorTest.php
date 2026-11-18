@@ -143,4 +143,24 @@ class MeasuredConnectorTest extends TestCase
         }
     }
 
+    public function test_window_middleware_preserves_thrown_object_and_resets_accounting(): void
+    {
+        $window = new \App\Support\ConnectionTiming;
+        $middleware = new \App\Http\Middleware\ConnectionTimingWindow($window);
+        $failure = new \RuntimeException('synthetic downstream failure');
+        try {
+            $middleware->handle(\Illuminate\Http\Request::create('/'), function () use ($window, $failure) {
+                $window->record(3.0);
+                throw $failure;
+            });
+            $this->fail('Expected failure');
+        } catch (\RuntimeException $e) {
+            $this->assertSame($failure, $e);
+        }
+        $response = $middleware->handle(\Illuminate\Http\Request::create('/'), fn () => new \Symfony\Component\HttpFoundation\Response('same body', 207));
+        $this->assertSame(207, $response->getStatusCode());
+        $this->assertSame('same body', $response->getContent());
+        $this->assertStringContainsString('0 connector calls', $response->headers->get('Server-Timing'));
+    }
+
 }

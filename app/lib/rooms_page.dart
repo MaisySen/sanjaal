@@ -521,7 +521,7 @@ class RoomView extends StatelessWidget {
                 child: Align(alignment: Alignment.centerLeft, child: Text(t_('On stage'), style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant, letterSpacing: 0.6))),
               ),
               if (stage.isEmpty)
-                const Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, 16), child: Align(alignment: Alignment.centerLeft, child: Text('Nobody is speaking yet.')))
+                Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 16), child: Align(alignment: Alignment.centerLeft, child: Text(t_('Nobody is speaking yet.'))))
               else
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

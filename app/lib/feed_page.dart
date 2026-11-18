@@ -980,7 +980,7 @@ class _ComposePageState extends State<ComposePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_draftAccountChanged) return Scaffold(appBar: AppBar(title: const Text('Local draft')), body: const Padding(padding: EdgeInsets.all(20), child: Text('This editor belongs to another signed-in session. Close it and sign in again to continue.')));
+    if (_draftAccountChanged) return Scaffold(appBar: AppBar(title: Text(t_('Local draft'))), body: Padding(padding: const EdgeInsets.all(20), child: Text(t_('This editor belongs to another signed-in session. Close it and sign in again to continue.'))));
     return DraftExitGuard(
       hasChanges: !handedOff && _unsaved,
       busy: busy || _savingDraft,
@@ -993,7 +993,7 @@ class _ComposePageState extends State<ComposePage> {
         ),
       ]),
       body: Column(children: [
-        if (widget.initialLocalDraft != null) Padding(padding: const EdgeInsets.all(12), child: Text('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.')),
+        if (widget.initialLocalDraft != null) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
         if (uploadError != null) UploadNotice(
           message: uploadError!.message,
           openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),
@@ -1022,7 +1022,7 @@ class _ComposePageState extends State<ComposePage> {
             Text(t_('One choice per person. Results show counts, not names.')),
           ],
           if (video != null)
-            Card(child: ListTile(leading: const PhIcon('video-camera'), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
+            Card(child: ListTile(leading: const PhIcon('video-camera'), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: Text(t_('Posts as a reel')))),
           if (images.isNotEmpty)
             SizedBox(
               height: 140,
@@ -1049,7 +1049,7 @@ class _ComposePageState extends State<ComposePage> {
               if (pollOptions == null) TextButton.icon(onPressed: busy ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
               if (pollOptions == null) TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
               if (widget.session.pollsEnabled && pollOptions == null) TextButton.icon(onPressed: busy ? null : _poll, icon: const PhIcon('check', size: 20), label: Text(t_('Poll'))),
-              if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: const Text('Remove media')),
+              if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: Text(t_('Remove media'))),
             ]),
           ),
         ),

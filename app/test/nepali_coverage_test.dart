@@ -16,4 +16,18 @@ void main() {
     }
     expect(missing, isEmpty);
   });
+
+  /// A literal shown as Text('Capitalised words') without t_() stays English in Nepali mode and no test notices.
+  /// Brand and legal text are allowed; anything else must go through t_().
+  test('no fixed English label is shown without t_()', () {
+    const allowed = {'Sanjaal', 'DEMO DATA: test fixture, not live'};
+    final bad = <String>{};
+    for (final f in Directory('lib').listSync().whereType<File>().where((f) => f.path.endsWith('.dart') && !f.path.endsWith('ui.dart'))) {
+      for (final m in RegExp(r"\bText\(\s*'([A-Z][a-z][^']*)'\s*[,)]").allMatches(f.readAsStringSync())) {
+        final k = m.group(1)!;
+        if (!allowed.contains(k) && !k.contains('Fintex')) bad.add('$k (${f.path})');
+      }
+    }
+    expect(bad, isEmpty);
+  });
 }

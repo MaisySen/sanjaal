@@ -31,9 +31,17 @@ class SweepB2Orphans extends Command
         $cutoffMs = (now()->subHours($hours)->getTimestamp()) * 1000;
         $found = 0;
         $bytes = 0;
+        $unknown = 0;
+        $unknownBytes = 0;
         foreach (MediaStore::listObjects() as $o) {
             // Only objects this protocol wrote (marker set at upload), old enough that no upload can still be committing.
-            if ($o['protocol'] !== MediaStore::PROTOCOL || ! Str::isUuid($o['name']) || $o['uploaded_ms'] > $cutoffMs) {
+            if ($o['protocol'] !== MediaStore::PROTOCOL || ! Str::isUuid($o['name'])) {
+                $unknown++;
+                $unknownBytes += $o['size'];
+
+                continue;
+            }
+            if ($o['uploaded_ms'] > $cutoffMs) {
                 continue;
             }
             if (DB::table('media_blobs')->where('public_id', $o['name'])->exists()) {
@@ -55,6 +63,7 @@ class SweepB2Orphans extends Command
             ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('users')->whereRaw('CAST(users.avatar AS VARCHAR(64)) = CAST(m.public_id AS VARCHAR(64))'))
             ->selectRaw('COUNT(*) AS n, COALESCE(SUM(m.size), 0) AS bytes')->first();
         $this->info(sprintf('report only: %d unreferenced B2 media row(s), %d bytes counted against the budget.', $stranded->n, $stranded->bytes));
+        $this->info(sprintf('inventory only, never reclaimable by this report: %d object(s) without the protocol marker or a UUID name, %d bytes.', $unknown, $unknownBytes));
         $this->info(sprintf('report only: %d unreferenced keyed-upload object(s), %d bytes. Nothing was deleted.', $found, $bytes));
 
         return self::SUCCESS;

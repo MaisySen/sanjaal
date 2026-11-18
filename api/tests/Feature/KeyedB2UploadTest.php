@@ -108,6 +108,30 @@ class KeyedB2UploadTest extends TestCase
         $this->assertCount(2, $this->uploaded);
     }
 
+    public function test_rollback_and_fix_forward_never_undercount_legacy_rows_or_serve_unreferenced_ones(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        // A guarded v40 fallback wrote a legacy B2 row (no reservation) and a keyed row's reservation outlived its deleted row.
+        $legacy = (string) \Illuminate\Support\Str::uuid();
+        DB::table('media_blobs')->insert(['public_id' => $legacy, 'mime' => 'image/png', 'size' => 1000, 'storage' => 'b2', 'is_private' => false, 'data' => '', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('b2_stage_attempts')->insert(['name' => (string) \Illuminate\Support\Str::uuid(), 'size' => 2000, 'created_at' => now(), 'updated_at' => now()]);
+        // Used = 1000 (legacy, unreserved) + 2000 (orphan reservation). A new upload of N bytes must fit only if 3000+N <= cap.
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
+        $n = (int) DB::table('b2_stage_attempts')->orderByDesc('id')->value('size');
+        DB::table('posts')->delete(); DB::table('post_media')->delete(); DB::table('upload_receipts')->delete();
+        $other = UploadedFile::fake()->image('b.png', 23, 23);
+        $m = strlen($other->get());
+        // Without the unreserved legacy row the new object would fit (2000+n+m <= cap); with it (3000+n+m) it must not.
+        config(['services.uploads.b2_budget_bytes' => 2000 + $n + $m + 500]);
+        $this->post('/api/v1/posts', $this->body([$other]), $h)->assertStatus(503);
+        $this->assertSame(2000 + $n, (int) DB::table('b2_stage_attempts')->sum('size'), 'a refused attempt reserves nothing');
+        // A legacy row with no reference is not served and mints no download link.
+        $before = count(Http::recorded());
+        $this->get('/api/v1/media/'.$legacy)->assertNotFound();
+        $this->assertSame($before, count(Http::recorded()));
+    }
+
     public function test_b2_upload_happens_outside_any_database_transaction(): void
     {
         $this->fakeB2();
@@ -201,7 +225,7 @@ class KeyedB2UploadTest extends TestCase
                 ['fileName' => 'not-a-media-name.txt', 'uploadTimestamp' => $old, 'contentLength' => 3, 'fileInfo' => $p],
             ], 'nextFileName' => null]),
         ]);
-        $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('1 unreferenced keyed-upload object(s), 7 bytes')->assertSuccessful();
+        $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('2 object(s) without the protocol marker or a UUID name, 14 bytes')->expectsOutputToContain('1 unreferenced keyed-upload object(s), 7 bytes')->assertSuccessful();
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'delete'));
         DB::table('media_blobs')->where('public_id', $kept)->update(['created_at' => now()->subDays(2)]);
         $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('1 unreferenced B2 media row(s), 1 bytes')->assertSuccessful();

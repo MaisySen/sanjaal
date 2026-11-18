@@ -138,17 +138,25 @@ class PostController extends Controller
         $fields = [$kind, $body, $options];
         if ($posters) $fields['poster_indices'] = array_keys($posters);
         $fingerprint = \App\Support\UploadIntent::fingerprint($fields, array_merge($files, array_values($posters)));
+        // Stage keyed bytes in B2 outside any transaction. Skip when a receipt exists (replay/conflict).
+        if ($request->input('upload_intent') !== null && config('services.uploads.replay_safe') && \App\Support\MediaStore::enabled() && ! \App\Support\UploadIntent::hasReceipt($request, 'post')) {
+            foreach ($files as $index => $file) {
+                \App\Support\MediaStore::stageKeyed(\App\Support\MediaStore::keyedName($request->user()->id, (string) $request->input('upload_intent'), $index, hash_file('sha256', $file->getRealPath())), (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()));
+            }
+        }
         return \App\Support\UploadIntent::run($request, 'post', $fingerprint,
             function (bool $keyed) use ($request, $body, $kind, $files, $options, $posters) {
                 $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $body === '' ? null : $body, 'poll_options' => $options]);
                 foreach ($files as $index => $file) {
                     $mime = $file->getMimeType();
-                    // Keyed uploads use an intent-derived object name: a retry reuses it, and a failed
-                    // commit removes it (MediaStore::putKeyed / discardAttempt). Posters stay in the DB.
-                    $blob = $keyed
-                        ? \Ramsey\Uuid\Uuid::uuid5(\Ramsey\Uuid\Uuid::NAMESPACE_URL, 'sanjaal:post-media:'.$request->user()->id.':'.$request->input('upload_intent').':'.$index)->toString()
-                        : (string) Str::uuid();
-                    $keyed ? \App\Support\MediaStore::putKeyedFile($blob, $file) : \App\Support\MediaStore::putFile($blob, $file);
+                    // Keyed uploads were staged to B2 before this transaction under a content-hashed name.
+                    $blob = (string) Str::uuid();
+                    if ($keyed) {
+                        $blob = \App\Support\MediaStore::keyedName($request->user()->id, (string) $request->input('upload_intent'), $index, hash_file('sha256', $file->getRealPath()));
+                        \App\Support\MediaStore::putKeyedFile($blob, $file);
+                    } else {
+                        \App\Support\MediaStore::putFile($blob, $file);
+                    }
                     $posterPath = null;
                     if (isset($posters[$index])) {
                         // Decode only a validated <=640px/256KB image, strip all

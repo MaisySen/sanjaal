@@ -67,76 +67,48 @@ class MediaStore
         return $publicId;
     }
 
-    /** Object names written by the current keyed attempt, so a failed commit can undo them. */
     public const PROTOCOL = 'keyed-post-v1';
 
-    private static array $attempt = [];
+    /**
+     * Name of a keyed object: member + intent + index + content hash. The hash means two different payloads
+     * can never share a name, so a racing request with the same intent but other bytes cannot overwrite
+     * what a committed post references. The same payload always maps to the same name.
+     */
+    public static function keyedName(int $userId, string $intent, int $index, string $sha256): string
+    {
+        return \Ramsey\Uuid\Uuid::uuid5(\Ramsey\Uuid\Uuid::NAMESPACE_URL, 'sanjaal:post-media:'.$userId.':'.$intent.':'.$index.':'.$sha256)->toString();
+    }
 
     /**
-     * Keyed (replay-safe) public media. Bytes go to B2 under a name derived from the intent, so a retry
-     * reuses the same object name instead of adding another. Leftovers from an earlier failed attempt are
-     * removed first, so a retry converges to exactly one stored version. The metadata row is inserted by
-     * the caller's transaction and commits with the resource and its receipt. Without B2 the bytes stay
-     * in the database under the admission caps, as before.
+     * Upload keyed bytes to B2 BEFORE any database transaction, so no DB connection or row lock is held
+     * during the network call. Never deletes anything: a repeat upload of identical bytes is harmless, and
+     * an unreferenced staged object is only reported by the sweep. No-op without B2 (bytes then stay in
+     * the database under the admission caps, see putKeyed).
      */
-    public static function putKeyed(string $publicId, string $mime, string $bytes): string
+    public static function stageKeyed(string $name, string $mime, string $bytes): void
+    {
+        if (self::enabled()) {
+            self::upload($name, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
+        }
+    }
+
+    /** Inside the transaction: record the staged B2 object (metadata only) or fall back to a capped DB write. */
+    public static function putKeyed(string $name, string $mime, string $bytes): string
     {
         if (! self::enabled()) {
-            return self::put($publicId, $mime, $bytes, false, true);
+            return self::put($name, $mime, $bytes, false, true);
         }
-        // The name is derived from member + intent + index, and a committed object always has a receipt, so the
-        // caller (UploadIntent::run) only reaches here under the member lock with no receipt. If a row for the
-        // name exists anyway, something is wrong: stop before any destructive call.
-        abort_if(DB::table('media_blobs')->where('public_id', $publicId)->exists(), 409, 'This upload already exists.');
-        try {
-            self::remove($publicId);
-        } catch (\Throwable $e) {
-            report($e);
-        }
-        self::upload($publicId, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
-        self::$attempt[] = $publicId;
         DB::table('media_blobs')->insert([
-            'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
+            'public_id' => $name, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
             'data' => '', 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        return $publicId;
+        return $name;
     }
 
-    public static function putKeyedFile(string $publicId, UploadedFile $file): string
+    public static function putKeyedFile(string $name, UploadedFile $file): string
     {
-        return self::putKeyed($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()));
-    }
-
-    public static function beginAttempt(): void
-    {
-        self::$attempt = [];
-    }
-
-    public static function commitAttempt(): void
-    {
-        self::$attempt = [];
-    }
-
-    /**
-     * The transaction did not return normally. Remove only objects that no committed row references.
-     * If the database cannot be asked (an ambiguous commit), keep the object: a stray file is recoverable
-     * by the orphan sweep, a deleted live file is not.
-     */
-    public static function discardAttempt(): void
-    {
-        $names = self::$attempt;
-        self::$attempt = [];
-        foreach ($names as $name) {
-            try {
-                if (DB::table('media_blobs')->where('public_id', $name)->exists()) {
-                    continue;
-                }
-                self::remove($name);
-            } catch (\Throwable $e) {
-                report($e);
-            }
-        }
+        return self::putKeyed($name, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()));
     }
 
     /** Objects in the bucket with their upload time (ms). Used only by the orphan sweep. */

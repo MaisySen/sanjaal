@@ -15,6 +15,7 @@ class KeyedB2UploadTest extends TestCase
     private array $uploaded = [];
     private array $deleted = [];
     private bool $failUpload = false;
+    private array $levels = [];
 
     protected function setUp(): void
     {
@@ -31,6 +32,7 @@ class KeyedB2UploadTest extends TestCase
             'https://up.test/*' => function ($req) {
                 if ($this->failUpload) { return Http::response(['message' => 'down'], 503); }
                 $this->uploaded[] = $req->header('X-Bz-File-Name')[0];
+                $this->levels[] = DB::transactionLevel();
                 return Http::response([], 200);
             },
             '*b2_list_file_versions*' => function ($req) {
@@ -58,7 +60,7 @@ class KeyedB2UploadTest extends TestCase
         $this->assertDatabaseCount('posts', 1); $this->assertDatabaseCount('media_blobs', 1);
     }
 
-    public function test_commit_failure_removes_the_object_and_the_retry_reuses_the_same_name(): void
+    public function test_commit_failure_deletes_nothing_and_the_retry_reuses_the_same_name(): void
     {
         $this->fakeB2();
         [$a, $h] = $this->member('asha');
@@ -67,11 +69,33 @@ class KeyedB2UploadTest extends TestCase
             $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500);
         } finally { \App\Models\PostMedia::flushEventListeners(); }
         $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('upload_receipts', 0);
-        $firstName = $this->uploaded[0];
-        $this->assertSame([$firstName], $this->deleted, 'the failed attempt object is removed');
+        $this->assertCount(1, $this->uploaded);
+        $this->assertSame([], $this->deleted, 'no automatic deletion: the staged object is only ever reported by the sweep');
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
-        $this->assertSame($firstName, $this->uploaded[1], 'retry uses the same intent-derived name');
-        $this->assertSame($firstName, DB::table('media_blobs')->value('public_id'));
+        $this->assertSame($this->uploaded[0], $this->uploaded[1], 'retry uses the same content-hashed name');
+        $this->assertSame($this->uploaded[0], DB::table('media_blobs')->value('public_id'));
+        $this->assertSame([], $this->deleted);
+    }
+
+    public function test_b2_upload_happens_outside_any_database_transaction(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        $base = DB::transactionLevel();
+        $this->post('/api/v1/posts', $this->body([$this->img(), $this->img('b.png')]), $h)->assertCreated();
+        $this->assertCount(2, $this->levels);
+        $this->assertSame([$base, $base], $this->levels, 'no DB transaction or member row lock is held during the B2 upload');
+    }
+
+    public function test_same_intent_with_different_bytes_can_never_share_or_overwrite_an_object_name(): void
+    {
+        $one = \App\Support\MediaStore::keyedName(1, 'fixture-intent-0000001', 0, hash('sha256', 'one'));
+        $two = \App\Support\MediaStore::keyedName(1, 'fixture-intent-0000001', 0, hash('sha256', 'two'));
+        $this->assertNotSame($one, $two);
+        $this->assertSame($one, \App\Support\MediaStore::keyedName(1, 'fixture-intent-0000001', 0, hash('sha256', 'one')));
+        $this->assertNotSame($one, \App\Support\MediaStore::keyedName(2, 'fixture-intent-0000001', 0, hash('sha256', 'one')));
+        $this->assertNotSame($one, \App\Support\MediaStore::keyedName(1, 'fixture-intent-0000001', 1, hash('sha256', 'one')));
+        $this->assertTrue(\Illuminate\Support\Str::isUuid($one));
     }
 
     public function test_b2_outage_leaves_no_post_row_receipt_and_a_safe_retry_works(): void
@@ -93,7 +117,7 @@ class KeyedB2UploadTest extends TestCase
         $this->post('/api/v1/posts', $this->body([$this->img()]), $hb)->assertCreated();
         $this->assertCount(3, array_unique($this->uploaded));
         $this->deleteJson('/api/v1/posts/'.$id, [], $ha)->assertOk();
-        $this->assertCount(2, $this->deleted);
+        $this->assertCount(2, $this->deleted, 'deleting the post removes exactly its own two objects');
         $this->post('/api/v1/posts', $this->body([$this->img(), $this->img('b.png')]), $ha)->assertStatus(410);
     }
 

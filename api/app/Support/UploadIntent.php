@@ -20,6 +20,13 @@ class UploadIntent
         ], $files)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     }
 
+    public static function hasReceipt(Request $request, string $operation): bool
+    {
+        $id = $request->input('upload_intent');
+
+        return $id !== null && DB::table('upload_receipts')->where('user_id', $request->user()->id)->where('operation', $operation)->where('intent_id', $id)->exists();
+    }
+
     /** $create returns the new public id. $present returns current resource or null if gone. */
     public static function run(Request $request, string $operation, string $fingerprint, callable $create, callable $present): JsonResponse
     {
@@ -27,10 +34,7 @@ class UploadIntent
         if ($id !== null && ! config('services.uploads.replay_safe')) {
             return response()->json(['message' => 'Safe upload retries are temporarily unavailable. Your draft is kept.', 'code' => 'upload_intents_unavailable'], 503);
         }
-        MediaStore::beginAttempt();
-        $closureDone = false;
-        try {
-            $response = DB::transaction(function () use ($request, $operation, $fingerprint, $create, $present, $id) {
+        return DB::transaction(function () use ($request, $operation, $fingerprint, $create, $present, $id) {
             if ($id !== null) {
                 // Serialize before any blob write. Unique receipt remains a final invariant.
                 User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
@@ -53,17 +57,7 @@ class UploadIntent
                     'created_at' => now(), 'updated_at' => now(),
                 ]);
             }
-            $closureDone = true;
             return response()->json([$operation => $present($resourceId)], 201);
-            });
-        } catch (\Throwable $e) {
-            // Failure inside the closure rolls back, so nothing references the object. Failure after the closure
-            // finished is the commit itself and may have succeeded: keep the object, never delete on ambiguity.
-            $closureDone ? MediaStore::commitAttempt() : MediaStore::discardAttempt();
-            throw $e;
-        }
-        MediaStore::commitAttempt();
-
-        return $response;
+        });
     }
 }

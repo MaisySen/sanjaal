@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     tags: ['v*']
-    branches: ['**']
+    branches: ['**', '!app-integrated-preparation']
   pull_request:
 
 jobs:

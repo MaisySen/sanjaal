@@ -1,0 +1,38 @@
+name: Integrated interaction regression evidence
+on:
+  push:
+    branches: [app-integrated-preparation]
+permissions:
+  contents: read
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - name: Focused synthetic startup and render tests
+        run: |
+          mkdir -p test/renders
+          flutter test test/media_visibility_test.dart test/auth_journey_test.dart test/story_audience_test.dart test/wallet_journey_test.dart --reporter expanded > focused.log 2>&1
+          tail -5 focused.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: interaction-regression-evidence
+          path: |
+            app/focused.log
+            app/test/renders/*.png
+          retention-days: 7

@@ -90,4 +90,57 @@ class MeasuredConnectorTest extends TestCase
         $this->assertSame(2, $meter->calls);
     }
 
+    public function test_request_windows_reset_on_failure_and_do_not_count_outside_work(): void
+    {
+        $window = new \App\Support\ConnectionTiming;
+        $inner = new class implements ConnectorInterface {
+            public bool $fail = false;
+            public function connect(array $config) {
+                if ($this->fail) { throw new PDOException('synthetic initialization failure'); }
+                return new PDO('sqlite::memory:');
+            }
+        };
+        $meter = new MeasuredConnector($inner, $window);
+        $meter->connect([]);
+        $window->begin();
+        $this->assertSame(0, $window->finish()['calls']);
+        $window->begin();
+        try {
+            $inner->fail = true;
+            $meter->connect([]);
+        } catch (PDOException) {
+        } finally {
+            $first = $window->finish();
+        }
+        $this->assertSame(1, $first['calls']);
+        $window->begin();
+        $inner->fail = false;
+        $meter->connect([]);
+        $meter->connect([]);
+        $this->assertSame(2, $window->finish()['calls']);
+        $window->begin();
+        $this->assertSame(['calls' => 0, 'milliseconds' => 0.0], $window->finish());
+    }
+
+    public function test_factory_preserves_initialization_exception_wrapper_with_meter(): void
+    {
+        foreach ([false, true] as $measured) {
+            $container = new \Illuminate\Container\Container;
+            $inner = new class implements ConnectorInterface {
+                public int $calls = 0;
+                public function connect(array $config) { $this->calls++; throw new PDOException('synthetic initialization failure'); }
+            };
+            $container->instance('db.connector.sqlite', $measured ? new MeasuredConnector($inner) : $inner);
+            $db = (new \Illuminate\Database\Connectors\ConnectionFactory($container))->make(['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '']);
+            try {
+                $db->select('select 1');
+                $this->fail('Expected failure');
+            } catch (\Illuminate\Database\QueryException $e) {
+                $this->assertSame(PDOException::class, get_class($e->getPrevious()));
+                $this->assertSame('synthetic initialization failure', $e->getPrevious()->getMessage());
+            }
+            $this->assertSame(1, $inner->calls, 'no added retry');
+        }
+    }
+
 }

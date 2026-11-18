@@ -10,7 +10,7 @@ final class MeasuredConnector implements ConnectorInterface
     public int $calls = 0;
     public float $milliseconds = 0.0;
 
-    public function __construct(private ConnectorInterface $inner) {}
+    public function __construct(private ConnectorInterface $inner, private ?ConnectionTiming $window = null) {}
 
     public function connect(array $config)
     {
@@ -19,7 +19,9 @@ final class MeasuredConnector implements ConnectorInterface
             return $this->inner->connect($config);
         } finally {
             $this->calls++;
-            $this->milliseconds += (hrtime(true) - $start) / 1e6;
+            $elapsed = (hrtime(true) - $start) / 1e6;
+            $this->milliseconds += $elapsed;
+            $this->window?->record($elapsed);
         }
     }
 }

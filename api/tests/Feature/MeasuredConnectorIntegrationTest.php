@@ -41,7 +41,8 @@ class MeasuredConnectorIntegrationTest extends TestCase
             public function __construct(private ConnectorInterface $inner) {}
             public function connect(array $config) { $this->calls++; return $this->inner->connect($config); }
         };
-        $meter = new MeasuredConnector($counting);
+        $window = new \App\Support\ConnectionTiming;
+        $meter = new MeasuredConnector($counting, $window);
         $baseline = [];
         $queries = 0;
         DB::listen(function () use (&$queries) { $queries++; });
@@ -51,7 +52,10 @@ class MeasuredConnectorIntegrationTest extends TestCase
             $before = $counting->calls;
             foreach ([['/api/v1/ping', []], ['/api/v1/auth/me', []], ['/api/v1/auth/me', $headers], ['/api/v1/auth/me', $headers], ['/api/v1/posts', $headers]] as $i => [$path, $auth]) {
                 $queries = 0;
+                $window->begin();
                 $response = $this->getJson($path, $auth);
+                $connect = $window->finish();
+                $this->assertSame($measured && $i === 2 ? 1 : 0, $connect['calls'], 'connector work belongs to its actual request');
                 $result = [$response->status(), $response->json(), $queries];
                 if (!$measured) { $baseline[$i] = $result; }
                 else { $this->assertSame($baseline[$i], $result, 'status/body/query count at request '.$i); }

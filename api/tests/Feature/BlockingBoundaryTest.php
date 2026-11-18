@@ -59,6 +59,10 @@ class BlockingBoundaryTest extends TestCase
         [$a, $ha] = $this->member('asha');
         [$b, $hb] = $this->member('bina');
         [$c, $hc] = $this->member('chitra');
+        // Search also matches display names; the factory's random names could contain 'asha' or 'bina' and make this flaky.
+        foreach ([[$a, 'Aaa One'], [$b, 'Bbb Two'], [$c, 'Ccc Three']] as [$u, $n]) {
+            $u->forceFill(['name' => $n])->save();
+        }
         $id = $this->postJson('/api/v1/posts', ['body' => 'A post'], $ha)->json('post.public_id');
         $comment = $this->postJson("/api/v1/posts/$id/comments", ['body' => 'B comment'], $hb)->json('comment.public_id');
         $this->postJson("/api/v1/posts/$id/comments", ['body' => 'C reply', 'parent_id' => $comment], $hc)->assertCreated();

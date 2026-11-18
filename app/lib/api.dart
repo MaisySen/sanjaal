@@ -152,6 +152,7 @@ class Session extends ChangeNotifier {
   bool uploadIntentsEnabled = false;
   bool interactionControlsEnabled = false;
   bool protectedStoriesEnabled = false;
+  bool videoPostersEnabled = false;
   bool loading = true;
   /// Credentials belong to this API, never to a URL's claimed purpose.
   bool supportsPrivateMedia(String url) {
@@ -394,6 +395,7 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
     protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
+    videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
     unawaited(Push.register(this));
   }
 
@@ -416,6 +418,7 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
     protectedStoriesEnabled = false;
+    videoPostersEnabled = false;
     await _writeCredentials(RefreshStore.clear);
   }
 
@@ -550,8 +553,12 @@ class Session extends ChangeNotifier {
     if (pollOptions != null) {
       for (var i = 0; i < pollOptions.length; i++) req.fields['poll_options[$i]'] = pollOptions[i];
     }
-    for (final f in files) {
+    for (var i = 0; i < files.length; i++) {
+      final f = files[i];
       req.files.add(http.MultipartFile.fromBytes('media[]', f.bytes, filename: f.name, contentType: MediaType.parse(f.mime)));
+      if (videoPostersEnabled && f.mime.startsWith('video/') && f.poster != null) {
+        req.files.add(http.MultipartFile.fromBytes('posters[$i]', f.poster!, filename: 'poster.jpg', contentType: MediaType('image', 'jpeg')));
+      }
     }
     final http.Response r;
     try {
@@ -614,10 +621,11 @@ class Session extends ChangeNotifier {
 }
 
 class UploadFile {
-  UploadFile(this.bytes, this.mime, this.name);
+  UploadFile(this.bytes, this.mime, this.name, {this.poster});
   final List<int> bytes;
   final String mime;
   final String name;
+  final List<int>? poster;
 }
 
 String mimeFor(String name, {bool video = false}) {

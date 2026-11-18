@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'video_poster.dart';
 import 'dart:convert' show jsonEncode;
 import 'creator_draft_store.dart';
 import 'media_library_page.dart';
@@ -260,13 +262,17 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
           final media = (p['media'] as List?) ?? [];
           final photo = media.where((m) => m['type'] == 'image').firstOrNull;
           final url = photo?['url'] ?? (media.isNotEmpty ? media.first['thumbnail_url'] : null);
-          return Semantics(button: true, label: (p['body'] ?? t_('Post')).toString(), child: InkWell(
+          final isVideo = media.any((m) => m['type'] == 'video');
+          final caption = (p['body'] ?? '').toString();
+          return Semantics(button: true, label: caption.isNotEmpty ? caption : t_(isVideo ? 'Video' : 'Post'), child: InkWell(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: p['public_id'].toString()))),
             child: Stack(fit: StackFit.expand, children: [
               ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: url == null
-                ? Center(child: Padding(padding: const EdgeInsets.all(10), child: Text((p['body'] ?? '').toString(), maxLines: 5, overflow: TextOverflow.ellipsis)))
+                ? Center(child: Padding(padding: const EdgeInsets.all(10), child: media.any((m) => m['type'] == 'video')
+                  ? Semantics(label: t_('Video preview unavailable'), child: const PhIcon('play-circle', size: 36))
+                  : Text((p['body'] ?? '').toString(), maxLines: 5, overflow: TextOverflow.ellipsis)))
                 : Image(image: feedImageProvider?.call(url.toString()) ?? NetworkImage(url.toString()), fit: BoxFit.cover, errorBuilder: (_,e,st) => const Center(child: PhIcon('image')))),
-              if (p['kind'] == 'reel') const Positioned(top: 8, right: 8, child: PhIcon('play-circle', color: Colors.white, size: 22)),
+              if (p['kind'] == 'reel') const Positioned(top: 8, right: 8, child: DecoratedBox(decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: Padding(padding: EdgeInsets.all(4), child: PhIcon('play-circle', color: Colors.white, size: 22)))),
             ]),
           ));
         }, childCount: posts.length), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 2, crossAxisSpacing: 2, childAspectRatio: 0.75)),
@@ -822,6 +828,8 @@ class _ComposePageState extends State<ComposePage> {
   bool handedOff = false;
   String intent = newUploadIntent();
   UploadError? uploadError;
+  final _posters = <String, Future<Uint8List?>>{};
+  Future<Uint8List?> _poster(XFile file) => _posters.putIfAbsent(file.path, () => VideoPoster.fromPath(file.path));
   List<TextEditingController>? pollOptions;
   String? _draftOwner, _localDraftId, _localDraftRevision, _savedFingerprint;
   bool _savingDraft = false;
@@ -935,7 +943,7 @@ class _ComposePageState extends State<ComposePage> {
         for (final file in picked) {
           final data = await file.readAsBytes();
           if (data.length > 25 * 1024 * 1024) throw ApiError('That file is over 25 MB. Choose a smaller one.');
-          result.add(UploadFile(data, mimeFor(file.name, video: isReel), file.name));
+          result.add(UploadFile(data, mimeFor(file.name, video: isReel), file.name, poster: isReel && widget.session.videoPostersEnabled ? await _poster(file) : null));
         }
         return List.unmodifiable(result);
       }
@@ -959,7 +967,7 @@ class _ComposePageState extends State<ComposePage> {
       for (final f in images) {
         files.add(UploadFile(await f.readAsBytes(), mimeFor(f.name), f.name));
       }
-      if (video != null) files.add(UploadFile(await video!.readAsBytes(), mimeFor(video!.name, video: true), video!.name));
+      if (video != null) files.add(UploadFile(await video!.readAsBytes(), mimeFor(video!.name, video: true), video!.name, poster: widget.session.videoPostersEnabled ? await _poster(video!) : null));
       final post = await widget.session.createPost(body, files: files, reel: video != null, pollOptions: options, intent: intent);
       if (mounted) Navigator.of(context).pop(post);
     } catch (e) {

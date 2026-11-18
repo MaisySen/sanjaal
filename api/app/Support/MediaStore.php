@@ -110,20 +110,31 @@ class MediaStore
 
             return true;
         });
-        try {
-            self::upload($name, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
-        } catch (\Throwable $e) {
-            // Only undo the admission row this call created, and only if nothing references it yet.
-            if ($inserted && ! self::referenced($name)) {
-                DB::table('media_blobs')->where('public_id', $name)->delete();
-            }
-            throw $e;
+        // A row that already exists (earlier attempt, failed commit) may or may not have its object. Skip the
+        // upload only when the bucket confirms this exact object; any doubt means upload again.
+        if (! $inserted && self::remoteMatches($name, strlen($bytes))) {
+            return;
         }
+        // The admission row is never removed here. If this fails, the row stays counted against the budget and
+        // is a stranded row for the reviewed cleanup: removing it could take a row another attempt relies on.
+        self::upload($name, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
     }
 
-    private static function referenced(string $name): bool
+    /** True only if B2 lists this exact name with the protocol marker and the expected size. Errors mean "not sure". */
+    private static function remoteMatches(string $name, int $size): bool
     {
-        return DB::table('post_media')->where('path', $name)->exists();
+        try {
+            $a = self::account();
+            $r = Http::withHeaders(['Authorization' => $a['token']])->timeout(15)->post($a['apiUrl'].'/b2api/v3/b2_list_file_names', [
+                'bucketId' => config('services.b2.bucket_id'), 'prefix' => $name, 'startFileName' => $name, 'maxFileCount' => 1,
+            ])->throw()->json('files', []);
+            $f = $r[0] ?? null;
+
+            return $f && ($f['fileName'] ?? null) === $name && (int) ($f['contentLength'] ?? -1) === $size
+                && ($f['fileInfo']['sanjaal_protocol'] ?? null) === self::PROTOCOL;
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /** Inside the transaction: ensure the staged B2 object has its media row, or fall back to a capped DB write. */

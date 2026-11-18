@@ -17,6 +17,7 @@ class KeyedB2UploadTest extends TestCase
     private bool $failUpload = false;
     private array $levels = [];
     private array $rowsAtUpload = [];
+    private array $sizes = [];
 
     protected function setUp(): void
     {
@@ -33,9 +34,14 @@ class KeyedB2UploadTest extends TestCase
             'https://up.test/*' => function ($req) {
                 if ($this->failUpload) { return Http::response(['message' => 'down'], 503); }
                 $this->uploaded[] = $req->header('X-Bz-File-Name')[0];
+                $this->sizes[$req->header('X-Bz-File-Name')[0]] = strlen($req->body());
                 $this->levels[] = DB::transactionLevel();
                 $this->rowsAtUpload[] = DB::table('media_blobs')->count();
                 return Http::response([], 200);
+            },
+            '*b2_list_file_names*' => function ($req) {
+                $n = $req->data()['prefix'];
+                return Http::response(['files' => isset($this->sizes[$n]) ? [['fileName' => $n, 'contentLength' => $this->sizes[$n], 'fileInfo' => ['sanjaal_protocol' => 'keyed-post-v1']]] : []]);
             },
             '*b2_list_file_versions*' => function ($req) {
                 $prefix = $req->data()['prefix'];
@@ -75,7 +81,7 @@ class KeyedB2UploadTest extends TestCase
         $this->assertCount(1, $this->uploaded);
         $this->assertSame([], $this->deleted, 'no automatic deletion: the staged object is only ever reported by the sweep');
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
-        $this->assertSame($this->uploaded[0], $this->uploaded[1], 'retry uses the same content-hashed name');
+        $this->assertCount(1, $this->uploaded, 'the retry finds the confirmed object and adds no second version');
         $this->assertSame($this->uploaded[0], DB::table('media_blobs')->value('public_id'));
         $this->assertSame([], $this->deleted);
     }
@@ -113,15 +119,34 @@ class KeyedB2UploadTest extends TestCase
         $this->assertTrue(\Illuminate\Support\Str::isUuid($one));
     }
 
-    public function test_b2_outage_leaves_no_post_row_receipt_and_a_safe_retry_works(): void
+    public function test_b2_outage_leaves_a_counted_stranded_row_no_post_and_a_retry_completes(): void
     {
         $this->fakeB2(); $this->failUpload = true;
         [$a, $h] = $this->member('asha');
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500);
-        $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('upload_receipts', 0);
+        $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('upload_receipts', 0);
+        $this->assertDatabaseCount('media_blobs', 1); // stranded, still counted, never removed automatically
+        $name = DB::table('media_blobs')->value('public_id');
+        $this->get('/api/v1/media/'.$name)->assertNotFound();
         $this->failUpload = false;
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
-        $this->assertDatabaseCount('posts', 1);
+        $this->assertSame([$name], $this->uploaded, 'the row existed but the object did not, so the retry uploaded it');
+        $this->assertDatabaseCount('media_blobs', 1);
+    }
+
+    public function test_unpublished_staged_bytes_are_not_downloadable_and_no_b2_link_is_minted(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        \App\Models\PostMedia::creating(function () { throw new \RuntimeException('fixture failure after upload'); });
+        try { $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500); }
+        finally { \App\Models\PostMedia::flushEventListeners(); }
+        $name = DB::table('media_blobs')->value('public_id');
+        $this->assertSame([$name], $this->uploaded);
+        $before = count(Http::recorded());
+        $this->get('/api/v1/media/'.$name)->assertNotFound();
+        $this->getJson('/api/v1/media/'.$name, $h)->assertNotFound();
+        $this->assertSame($before, count(Http::recorded()), 'no download authorization is requested for an unpublished object');
     }
 
     public function test_names_differ_per_member_and_per_index_and_delete_removes_the_objects(): void
@@ -155,6 +180,8 @@ class KeyedB2UploadTest extends TestCase
         ]);
         $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('1 unreferenced keyed-upload object(s), 7 bytes')->assertSuccessful();
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'delete'));
+        DB::table('media_blobs')->where('public_id', $kept)->update(['created_at' => now()->subDays(2)]);
+        $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('1 unreferenced B2 media row(s), 1 bytes')->assertSuccessful();
     }
 
     public function test_marker_is_sent_with_the_upload_and_a_committed_name_is_never_reused_destructively(): void

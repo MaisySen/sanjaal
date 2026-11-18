@@ -45,6 +45,16 @@ class SweepB2Orphans extends Command
                 break;
             }
         }
+        // Rows left behind by a failed upload or commit: counted against the budget, never served.
+        $cutoff = now()->subHours($hours);
+        $stranded = DB::table('media_blobs as m')->where('m.storage', 'b2')->where('m.created_at', '<', $cutoff)
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('post_media')->whereColumn('post_media.path', 'm.public_id'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('post_media')->whereColumn('post_media.thumbnail_path', 'm.public_id'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('messages')->whereColumn('messages.media_id', 'm.public_id'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('stories')->whereColumn('stories.media_id', 'm.public_id'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('users')->whereColumn('users.avatar', 'm.public_id'))
+            ->selectRaw('COUNT(*) AS n, COALESCE(SUM(m.size), 0) AS bytes')->first();
+        $this->info(sprintf('report only: %d unreferenced B2 media row(s), %d bytes counted against the budget.', $stranded->n, $stranded->bytes));
         $this->info(sprintf('report only: %d unreferenced keyed-upload object(s), %d bytes. Nothing was deleted.', $found, $bytes));
 
         return self::SUCCESS;

@@ -101,6 +101,14 @@ jobs:
           fi
           tail -3 test.log
           exit $code
+      - name: Keep rendered previews of this run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-renders
+          path: app/test/renders/*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Publish rendered previews
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         continue-on-error: true

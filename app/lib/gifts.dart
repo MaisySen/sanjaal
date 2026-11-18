@@ -117,7 +117,7 @@ class _GiftSheetState extends State<_GiftSheet> {
                             : PhIcon(_giftIcons[g['key']] ?? Ph.card_giftcard, size: 32),
                         const SizedBox(height: 4),
                         Text(g['name'].toString()),
-                        Text('${g['coins']} coins', style: Theme.of(context).textTheme.bodySmall),
+                        Text(tf_('{n} coins', {'n': g['coins']}), style: Theme.of(context).textTheme.bodySmall),
                       ]),
                     ),
                   ),

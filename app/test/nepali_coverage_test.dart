@@ -14,6 +14,13 @@ void main() {
         if (k != 'Sanjaal' && !keys.contains(k)) missing.add('$k (${f.path})');
       }
     }
+    // Sentences with data slots go through tf_() and need an entry for the whole template.
+    for (final f in Directory('lib').listSync().whereType<File>().where((f) => f.path.endsWith('.dart'))) {
+      for (final m in RegExp(r"\btf_\(\s*'((?:[^'\\]|\\.)*)'").allMatches(f.readAsStringSync())) {
+        final k = m.group(1)!.replaceAll(r"\'", "'");
+        if (!keys.contains(k)) missing.add('$k (${f.path})');
+      }
+    }
     expect(missing, isEmpty);
   });
 

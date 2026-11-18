@@ -303,7 +303,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
           }
           if (k == posts.length) {
             if (error != null) {
-              return Padding(padding: const EdgeInsets.all(16), child: Center(child: TextButton(onPressed: load, child: Text('$error  Tap to retry'))));
+              return Padding(padding: const EdgeInsets.all(16), child: Center(child: TextButton(onPressed: load, child: Text('$error  ${t_('Tap to retry')}'))));
             }
             return loading ? const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())) : const SizedBox(height: 8);
           }

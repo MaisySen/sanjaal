@@ -228,7 +228,7 @@ class _RoomPageState extends State<RoomPage> {
       final fromId = e.participant?.identity ?? '';
       switch (m['t']) {
         case 'gift':
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${m['from']} sent a ${m['name']}')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tf_('{from} sent a {name}', {'from': m['from'], 'name': m['name']}))));
         case 'chat':
           setState(() {
             final text = '${m['text']}';
@@ -478,7 +478,7 @@ class RoomView extends StatelessWidget {
                     child: Text(status.toUpperCase(), style: TextStyle(color: scheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
                   ),
                   const SizedBox(width: 10),
-                  Expanded(child: Text('$inRoom in the room', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),
+                  Expanded(child: Text(tf_('{n} in the room', {'n': inRoom}), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),
                   if (!isHost && !speaker) OutlinedButton.icon(onPressed: handUp ? null : onRaise, icon: const PhIcon('hand-waving', size: 18), label: Text(handUp ? 'Hand raised' : 'Raise hand'), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
                 ]),
               ),

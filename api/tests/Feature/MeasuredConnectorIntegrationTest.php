@@ -35,7 +35,7 @@ class MeasuredConnectorIntegrationTest extends TestCase
         }
         [$user, $headers] = $this->member('connector_fixture');
         $driver = config('database.connections.'.config('database.default').'.driver');
-        $original = (new ConnectionFactory($this->app))->createConnector(['driver' => $driver]);
+        $original = new \Illuminate\Database\Connectors\PostgresConnector;
         $counting = new class($original) implements ConnectorInterface {
             public int $calls = 0;
             public function __construct(private ConnectorInterface $inner) {}
@@ -44,7 +44,6 @@ class MeasuredConnectorIntegrationTest extends TestCase
         $window = new \App\Support\ConnectionTiming;
         $meter = new MeasuredConnector($counting, $window);
         $this->app->instance(\App\Support\ConnectionTiming::class, $window);
-        $this->app->make(\Illuminate\Contracts\Http\Kernel::class)->prependMiddleware(\App\Http\Middleware\ConnectionTimingWindow::class);
         $baseline = [];
         $queries = 0;
         DB::listen(function () use (&$queries) { $queries++; });

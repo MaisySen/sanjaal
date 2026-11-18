@@ -28,6 +28,7 @@ class UploadIntent
             return response()->json(['message' => 'Safe upload retries are temporarily unavailable. Your draft is kept.', 'code' => 'upload_intents_unavailable'], 503);
         }
         MediaStore::beginAttempt();
+        $closureDone = false;
         try {
             $response = DB::transaction(function () use ($request, $operation, $fingerprint, $create, $present, $id) {
             if ($id !== null) {
@@ -52,10 +53,13 @@ class UploadIntent
                     'created_at' => now(), 'updated_at' => now(),
                 ]);
             }
+            $closureDone = true;
             return response()->json([$operation => $present($resourceId)], 201);
             });
         } catch (\Throwable $e) {
-            MediaStore::discardAttempt();
+            // Failure inside the closure rolls back, so nothing references the object. Failure after the closure
+            // finished is the commit itself and may have succeeded: keep the object, never delete on ambiguity.
+            $closureDone ? MediaStore::commitAttempt() : MediaStore::discardAttempt();
             throw $e;
         }
         MediaStore::commitAttempt();

@@ -96,26 +96,41 @@ class KeyedB2UploadTest extends TestCase
         $this->post('/api/v1/posts', $this->body([$this->img(), $this->img('b.png')]), $ha)->assertStatus(410);
     }
 
-    public function test_orphan_sweep_is_dry_run_by_default_and_never_touches_referenced_or_recent_objects(): void
+    public function test_sweep_reports_only_unreferenced_protocol_objects_and_never_deletes(): void
     {
-        $this->fakeB2();
         $old = (now()->subDays(2)->getTimestamp()) * 1000; $new = now()->getTimestamp() * 1000;
-        $kept = (string) \Illuminate\Support\Str::uuid(); $orphan = (string) \Illuminate\Support\Str::uuid(); $recent = (string) \Illuminate\Support\Str::uuid();
+        $u = fn () => (string) \Illuminate\Support\Str::uuid();
+        [$kept, $orphan, $recent, $legacy] = [$u(), $u(), $u(), $u()];
         DB::table('media_blobs')->insert(['public_id' => $kept, 'mime' => 'image/png', 'size' => 1, 'storage' => 'b2', 'is_private' => false, 'data' => '', 'created_at' => now(), 'updated_at' => now()]);
+        $p = ['sanjaal_protocol' => 'keyed-post-v1'];
         Http::fake([
             '*b2_authorize_account*' => Http::response(['authorizationToken' => 'acct', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.test', 'downloadUrl' => 'https://dl.test']]]),
             '*b2_list_file_names*' => Http::response(['files' => [
-                ['fileName' => $kept, 'uploadTimestamp' => $old, 'contentLength' => 5],
-                ['fileName' => $orphan, 'uploadTimestamp' => $old, 'contentLength' => 7],
-                ['fileName' => $recent, 'uploadTimestamp' => $new, 'contentLength' => 9],
-                ['fileName' => 'not-a-media-name.txt', 'uploadTimestamp' => $old, 'contentLength' => 3],
+                ['fileName' => $kept, 'uploadTimestamp' => $old, 'contentLength' => 5, 'fileInfo' => $p],
+                ['fileName' => $orphan, 'uploadTimestamp' => $old, 'contentLength' => 7, 'fileInfo' => $p],
+                ['fileName' => $recent, 'uploadTimestamp' => $new, 'contentLength' => 9, 'fileInfo' => $p],
+                ['fileName' => $legacy, 'uploadTimestamp' => $old, 'contentLength' => 11, 'fileInfo' => []],
+                ['fileName' => 'not-a-media-name.txt', 'uploadTimestamp' => $old, 'contentLength' => 3, 'fileInfo' => $p],
             ], 'nextFileName' => null]),
-            '*b2_list_file_versions*' => fn ($req) => Http::response(['files' => [['fileName' => $req->data()['prefix'], 'fileId' => 'f']]]),
-            '*b2_delete_file_version*' => function ($req) { $this->deleted[] = $req->data()['fileName']; return Http::response([]); },
         ]);
-        $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('dry-run: 1 orphan object(s), 7 bytes')->assertSuccessful();
-        $this->assertSame([], $this->deleted);
-        $this->artisan('media:sweep-b2-orphans', ['--apply' => true])->expectsOutputToContain('1 deleted')->assertSuccessful();
-        $this->assertSame([$orphan], $this->deleted);
+        $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('1 unreferenced keyed-upload object(s), 7 bytes')->assertSuccessful();
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'delete'));
+    }
+
+    public function test_marker_is_sent_with_the_upload_and_a_committed_name_is_never_reused_destructively(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        $body = $this->body([$this->img()]);
+        $this->post('/api/v1/posts', $body, $h)->assertCreated();
+        Http::assertSent(fn ($r) => str_starts_with($r->url(), 'https://up.test') && $r->header('X-Bz-Info-sanjaal_protocol') === ['keyed-post-v1']);
+        $deletedBefore = $this->deleted;
+        // Same intent, changed payload: conflict is decided from the receipt before any B2 call.
+        $calls = count(Http::recorded());
+        $this->post('/api/v1/posts', $this->body([$this->img('other.png')]), $h)->assertStatus(409);
+        $this->assertSame($calls, count(Http::recorded()), 'a conflicting retry makes no B2 call at all');
+        $this->post('/api/v1/posts', $body, $h)->assertOk();
+        $this->assertSame($calls, count(Http::recorded()), 'a replay makes no B2 call at all');
+        $this->assertSame($deletedBefore, $this->deleted);
     }
 }

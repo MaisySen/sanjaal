@@ -68,6 +68,8 @@ class MediaStore
     }
 
     /** Object names written by the current keyed attempt, so a failed commit can undo them. */
+    public const PROTOCOL = 'keyed-post-v1';
+
     private static array $attempt = [];
 
     /**
@@ -82,12 +84,16 @@ class MediaStore
         if (! self::enabled()) {
             return self::put($publicId, $mime, $bytes, false, true);
         }
+        // The name is derived from member + intent + index, and a committed object always has a receipt, so the
+        // caller (UploadIntent::run) only reaches here under the member lock with no receipt. If a row for the
+        // name exists anyway, something is wrong: stop before any destructive call.
+        abort_if(DB::table('media_blobs')->where('public_id', $publicId)->exists(), 409, 'This upload already exists.');
         try {
             self::remove($publicId);
         } catch (\Throwable $e) {
             report($e);
         }
-        self::upload($publicId, $mime, $bytes);
+        self::upload($publicId, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
         self::$attempt[] = $publicId;
         DB::table('media_blobs')->insert([
             'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
@@ -145,7 +151,7 @@ class MediaStore
             }
             $r = Http::withHeaders(['Authorization' => $a['token']])->timeout(30)->post($a['apiUrl'].'/b2api/v3/b2_list_file_names', $body)->throw()->json();
             foreach ($r['files'] ?? [] as $f) {
-                yield ['name' => $f['fileName'], 'uploaded_ms' => (int) ($f['uploadTimestamp'] ?? 0), 'size' => (int) ($f['contentLength'] ?? 0)];
+                yield ['name' => $f['fileName'], 'protocol' => $f['fileInfo']['sanjaal_protocol'] ?? null, 'uploaded_ms' => (int) ($f['uploadTimestamp'] ?? 0), 'size' => (int) ($f['contentLength'] ?? 0)];
             }
             $start = $r['nextFileName'] ?? null;
         } while ($start !== null);
@@ -235,7 +241,7 @@ class MediaStore
         return strlen($body) === strlen($bytes) && hash_equals(sha1($bytes), sha1($body));
     }
 
-    private static function upload(string $name, string $mime, string $bytes): void
+    private static function upload(string $name, string $mime, string $bytes, array $info = []): void
     {
         $a = self::account();
         $u = Http::withHeaders(['Authorization' => $a['token']])->timeout(15)
@@ -243,7 +249,7 @@ class MediaStore
         Http::withHeaders([
             'Authorization' => $u['authorizationToken'], 'X-Bz-File-Name' => $name,
             'X-Bz-Content-Sha1' => sha1($bytes), 'Content-Type' => $mime,
-        ])->withBody($bytes, $mime)->timeout(120)->post($u['uploadUrl'])->throw();
+        ] + $info)->withBody($bytes, $mime)->timeout(120)->post($u['uploadUrl'])->throw();
     }
 
     private static function remove(string $name): void

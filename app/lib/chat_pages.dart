@@ -50,7 +50,7 @@ class _ChatsPageState extends State<ChatsPage> {
   @override
   void didUpdateWidget(ChatsPage old) {
     super.didUpdateWidget(old);
-    if (widget.active && !old.active) _load(quiet: true);
+    if (widget.active && !old.active && DateTime.now().difference(_lastLoad) > const Duration(seconds: 15)) _load(quiet: true);
   }
 
   @override
@@ -59,11 +59,13 @@ class _ChatsPageState extends State<ChatsPage> {
     super.dispose();
   }
 
+  DateTime _lastLoad = DateTime.fromMillisecondsSinceEpoch(0);
   Future<void> _load({bool quiet = false, bool force = false}) async {
     if(!mounted || (!force && _readingArchive==showArchived)) return;
     final archived=showArchived;
     _readingArchive=archived;
     final version = ++_loadVersion;
+    _lastLoad = DateTime.now();
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
       if (!mounted || version != _loadVersion) return;

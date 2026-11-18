@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'push.dart';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
@@ -26,6 +27,13 @@ const auth0Audience = 'https://api.sanjaal.app';
 const socialScheme = 'au.fintex.sanjaal';
 const socialRedirect = '$socialScheme://login-callback';
 const _wait = Duration(seconds: 90); // free hosts sleep and need about a minute to wake
+
+/// One keep-alive client for every API request, so a screen does not pay a new DNS, TCP and TLS
+/// handshake to the far-away host on each call. Flutter tests install their own client per zone through
+/// http.runWithClient, so under test the top-level functions are used and nothing is shared.
+final bool _underTest = Platform.environment.containsKey('FLUTTER_TEST');
+http.Client? _sharedHttp;
+http.Client get _keepAlive => _sharedHttp ??= http.Client();
 
 class ApiError implements Exception {
   ApiError(this.message, [this.status]);
@@ -441,12 +449,13 @@ class Session extends ChangeNotifier {
       final http.Response r;
       try {
         final enc = body == null ? null : jsonEncode(body);
+        final c = _underTest ? null : _keepAlive;
         final f = switch (method) {
-          'GET' => http.get(uri, headers: headers),
-          'POST' => http.post(uri, headers: headers, body: enc),
-          'PATCH' => http.patch(uri, headers: headers, body: enc),
-          'PUT' => http.put(uri, headers: headers, body: enc),
-          'DELETE' => http.delete(uri, headers: headers),
+          'GET' => c?.get(uri, headers: headers) ?? http.get(uri, headers: headers),
+          'POST' => c?.post(uri, headers: headers, body: enc) ?? http.post(uri, headers: headers, body: enc),
+          'PATCH' => c?.patch(uri, headers: headers, body: enc) ?? http.patch(uri, headers: headers, body: enc),
+          'PUT' => c?.put(uri, headers: headers, body: enc) ?? http.put(uri, headers: headers, body: enc),
+          'DELETE' => c?.delete(uri, headers: headers) ?? http.delete(uri, headers: headers),
           _ => throw ArgumentError(method),
         };
         r = await f.timeout(_wait);

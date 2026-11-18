@@ -13,7 +13,7 @@ class ServerTimingTest extends TestCase
     {
         [$u, $h] = $this->member('asha');
         $header = $this->getJson('/api/v1/auth/me', $h)->assertOk()->headers->get('Server-Timing');
-        $this->assertMatchesRegularExpression('/app;dur=\d+, db;dur=[\d.]+;desc="(\d+) queries", boot;dur=\d+/', $header);
+        $this->assertMatchesRegularExpression('/app;dur=\d+, db;dur=[\d.]+;desc="(\d+) queries", boot;dur=\d+, dbconn;dur=\d+/', $header);
         preg_match('/desc="(\d+) queries"/', $header, $m);
         $this->assertGreaterThanOrEqual(1, (int) $m[1], 'the authentication user lookup is inside the measured window');
     }
@@ -22,5 +22,6 @@ class ServerTimingTest extends TestCase
     {
         $header = $this->getJson('/api/v1/ping')->assertOk()->headers->get('Server-Timing');
         $this->assertStringContainsString('desc="0 queries"', $header);
+        $this->assertStringNotContainsString('dbconn', $header, 'a request with no query does not force a connection');
     }
 }

@@ -115,7 +115,7 @@ void main(){
    t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.resetPhysicalSize);addTearDown(t.view.resetDevicePixelRatio);
    final held=Completer<http.Response>();var reads=0;
    await fixture(t,(r)async=>r.method=='GET'?(++reads==1?json({'data':[]}):held.future):json({'message':'Fixture connection lost'},503),()async{
-    await t.enterText(find.byType(TextField),lang=='ne'?'भोलि भेटौँला।':'See you tomorrow.');await t.tap(find.byTooltip('Send message'));await flush(t);await t.enterText(find.byType(TextField),lang=='ne'?'यो नयाँ मस्यौदा हो।':'This is a newer draft.');await flush(t);await t.pump(const Duration(seconds:5));await flush(t);expect(t.takeException(),isNull);
+    await t.enterText(find.byType(TextField),lang=='ne'?'भोलि भेटौँला।':'See you tomorrow.');await t.tap(find.byTooltip(lang=='ne'?'सन्देश पठाउनुहोस्':'Send message'));await flush(t);await t.enterText(find.byType(TextField),lang=='ne'?'यो नयाँ मस्यौदा हो।':'This is a newer draft.');await flush(t);await t.pump(const Duration(seconds:5));await flush(t);expect(t.takeException(),isNull);
     await t.runAsync(()async{final boundary=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('chat-retry-shot')));final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/chat_retry_${lang}_${b.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());});held.complete(json({'data':[]}));
    },brightness:b,language:lang,scale:1.8,keyboard:240);
   });

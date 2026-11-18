@@ -36,3 +36,16 @@ jobs:
             app/focused.log
             app/test/renders/*.png
           retention-days: 7
+  exact-money-hold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refusal before DB or payment-provider work in exact current image
+        run: |
+          IMAGE=sanjaalapp/sanjaal-api@sha256:29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66
+          docker pull "$IMAGE"
+          docker create --name hold --network none --entrypoint sh "$IMAGE" -c 'sleep 120'
+          docker start hold
+          docker cp api/tests/Compat/wallet_hold_runtime.php hold:/tmp/wallet_hold_runtime.php
+          docker exec hold php /tmp/wallet_hold_runtime.php
+          docker rm -f hold

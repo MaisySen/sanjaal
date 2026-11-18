@@ -747,7 +747,7 @@ class _ChatPageState extends State<ChatPage> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text((widget.convo['title'] ?? 'Chat').toString()),
             if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
-            else if (group) Text('${(widget.convo['members'] as List?)?.length ?? 0} members', style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            else if (group) Text(tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ]),
         ),
         actions: [
@@ -943,7 +943,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         const SizedBox(height: 16),
         Center(child: CircleAvatar(radius: 44, backgroundColor: scheme.surfaceContainerHigh, child: PhIcon('users-three', size: 40, color: scheme.onSurfaceVariant))),
         Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4), child: Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700))),
-        Text('${members.length} members', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+        Text(tf_('{n} members', {'n': members.length}), textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 16),
         if (isOwner)
           ListTile(

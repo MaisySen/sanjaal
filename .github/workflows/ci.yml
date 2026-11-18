@@ -60,6 +60,7 @@ jobs:
           DB_PASSWORD: local-fixture-only
 
   timing-image-check:
+    if: github.ref != 'refs/heads/read-plan-evidence'
     # The live v40 image and the timing candidate image (live image + one layer, 2 files), both run against the SAME throwaway
     # database migrated by v40 source (the live schema). Compares status and body for each request and shows the timing headers.
     runs-on: ubuntu-latest
@@ -152,7 +153,7 @@ jobs:
           diff /tmp/schema_before.txt /tmp/schema_after.txt && echo "schema unchanged: $(cat /tmp/schema_after.txt)"
 
   app:
-    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43'
+    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43' && github.ref != 'refs/heads/read-plan-evidence'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -259,7 +260,7 @@ jobs:
 
   # Private engineering artifact only. It has no signature, upload or release step.
   bundle:
-    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43'
+    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43' && github.ref != 'refs/heads/read-plan-evidence'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -311,7 +312,7 @@ jobs:
           retention-days: 7
 
   emulator:
-    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43'
+    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43' && github.ref != 'refs/heads/read-plan-evidence'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -394,7 +395,7 @@ jobs:
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" emulator-shots
 
   ios:
-    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43'
+    if: github.ref != 'refs/heads/timing-connector-candidate' && github.ref != 'refs/heads/read-reduction-on-v43' && github.ref != 'refs/heads/read-plan-evidence'
     runs-on: macos-latest
     defaults:
       run:

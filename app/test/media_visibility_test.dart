@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -30,7 +31,7 @@ class _Video extends VideoPlayerPlatform {
     final id = nextId++;
     streams[id] = StreamController<VideoEvent>();
     playing[id] = false;
-    if (failNext) { failNext = false; streams[id]!.addError(StateError('fixture decoder failure')); } else if (!delayed) { initialize(id); }
+    if (failNext) { failNext = false; streams[id]!.addError(PlatformException(code:'VideoError',message:'fixture decoder failure')); } else if (!delayed) { initialize(id); }
     return id;
   }
   @override

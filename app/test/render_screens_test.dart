@@ -715,7 +715,7 @@ void main() {
     }));
   });
 
-  testWidgets('group info: add refused after the owner limited it hides Add people; a failed toggle keeps the old value', (tester) async {
+  testWidgets('group info: add refused after the owner limited it hides Add people;', (tester) async {
     var mode = 'refuse_add';
     Map<String, dynamic> user(String n, [String role = 'member']) => {'public_id': 'u_$n', 'name': n, 'username': n, 'role': role};
     await http.runWithClient(() async {
@@ -744,8 +744,32 @@ void main() {
       expect(find.text('Only the group owner can add people to this group.'), findsOneWidget);
       expect(find.text('Add people'), findsNothing);
       expect(find.text('@bina'), findsOneWidget, reason: 'member list is unchanged');
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      if (mode == 'refuse_add') return http.Response(jsonEncode({'message': 'Only the group owner can add people to this group.'}), 403, headers: {'content-type': 'application/json'});
+      return http.Response(jsonEncode({'message': 'Could not save. Try again.'}), 422, headers: {'content-type': 'application/json'});
+    }));
+  });
+
+  testWidgets('group info: a failed toggle keeps the old value', (tester) async {
+    var mode = 'fail_toggle';
+    Map<String, dynamic> user(String n, [String role = 'member']) => {'public_id': 'u_$n', 'name': n, 'username': n, 'role': role};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+      }
+      final base = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha', 'owner'), user('bina')]};
       // The owner's toggle fails: the switch keeps its old value and the reason shows.
-      mode = 'fail_toggle';
       await tester.pumpWidget(MaterialApp(home: GroupInfoPage(key: UniqueKey(), session: s, convo: {...base, 'my_role': 'owner', 'add_policy': 'members'})));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(Switch));

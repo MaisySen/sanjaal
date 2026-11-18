@@ -143,10 +143,12 @@ class PostController extends Controller
                 $post = Post::create(['user_id' => $request->user()->id, 'kind' => $kind, 'body' => $body === '' ? null : $body, 'poll_options' => $options]);
                 foreach ($files as $index => $file) {
                     $mime = $file->getMimeType();
-                    $blob = (string) Str::uuid();
-                    // Keyed bytes commit atomically with the receipt. Public migration can
-                    // move positively referenced objects later; no remote orphan on rollback.
-                    \App\Support\MediaStore::putFile($blob, $file, forceDatabase: $keyed);
+                    // Keyed uploads use an intent-derived object name: a retry reuses it, and a failed
+                    // commit removes it (MediaStore::putKeyed / discardAttempt). Posters stay in the DB.
+                    $blob = $keyed
+                        ? \Ramsey\Uuid\Uuid::uuid5(\Ramsey\Uuid\Uuid::NAMESPACE_URL, 'sanjaal:post-media:'.$request->user()->id.':'.$request->input('upload_intent').':'.$index)->toString()
+                        : (string) Str::uuid();
+                    $keyed ? \App\Support\MediaStore::putKeyedFile($blob, $file) : \App\Support\MediaStore::putFile($blob, $file);
                     $posterPath = null;
                     if (isset($posters[$index])) {
                         // Decode only a validated <=640px/256KB image, strip all

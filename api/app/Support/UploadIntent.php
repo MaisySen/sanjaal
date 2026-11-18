@@ -27,7 +27,9 @@ class UploadIntent
         if ($id !== null && ! config('services.uploads.replay_safe')) {
             return response()->json(['message' => 'Safe upload retries are temporarily unavailable. Your draft is kept.', 'code' => 'upload_intents_unavailable'], 503);
         }
-        return DB::transaction(function () use ($request, $operation, $fingerprint, $create, $present, $id) {
+        MediaStore::beginAttempt();
+        try {
+            $response = DB::transaction(function () use ($request, $operation, $fingerprint, $create, $present, $id) {
             if ($id !== null) {
                 // Serialize before any blob write. Unique receipt remains a final invariant.
                 User::whereKey($request->user()->id)->lockForUpdate()->firstOrFail();
@@ -51,6 +53,13 @@ class UploadIntent
                 ]);
             }
             return response()->json([$operation => $present($resourceId)], 201);
-        });
+            });
+        } catch (\Throwable $e) {
+            MediaStore::discardAttempt();
+            throw $e;
+        }
+        MediaStore::commitAttempt();
+
+        return $response;
     }
 }

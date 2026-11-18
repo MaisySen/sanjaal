@@ -1,0 +1,121 @@
+<?php
+namespace Tests\Feature;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+/** Keyed (replay-safe) post media in B2. B2 is faked: no bucket, keys or network. */
+class KeyedB2UploadTest extends TestCase
+{
+    use RefreshDatabase;
+    private const KEY = 'fixture-b2-intent-000001';
+    private array $uploaded = [];
+    private array $deleted = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['services.uploads.replay_safe' => true, 'services.b2.key_id' => 'k', 'services.b2.key' => 's', 'services.b2.bucket' => 'b', 'services.b2.bucket_id' => 'bid']);
+        \Illuminate\Support\Facades\Cache::flush();
+    }
+
+    private function fakeB2(bool $uploadFails = false): void
+    {
+        Http::fake([
+            '*b2_authorize_account*' => Http::response(['authorizationToken' => 'acct', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.test', 'downloadUrl' => 'https://dl.test']]]),
+            '*b2_get_upload_url*' => Http::response(['authorizationToken' => 'u', 'uploadUrl' => 'https://up.test/x']),
+            'https://up.test/*' => function ($req) use ($uploadFails) {
+                if ($uploadFails) { return Http::response(['message' => 'down'], 503); }
+                $this->uploaded[] = $req->header('X-Bz-File-Name')[0];
+                return Http::response([], 200);
+            },
+            '*b2_list_file_versions*' => function ($req) {
+                $prefix = $req->data()['prefix'];
+                return Http::response(['files' => in_array($prefix, $this->uploaded, true) ? [['fileName' => $prefix, 'fileId' => 'fid-'.$prefix]] : []]);
+            },
+            '*b2_delete_file_version*' => function ($req) { $this->deleted[] = $req->data()['fileName']; return Http::response([]); },
+        ]);
+    }
+
+    private function body(array $media): array { return ['body' => 'Hi', 'upload_intent' => self::KEY, 'media' => $media]; }
+    private function img(string $n = 'a.png'): UploadedFile { return UploadedFile::fake()->image($n, 10, 10); }
+
+    public function test_keyed_media_goes_to_b2_with_a_stable_name_and_replays_without_a_second_object(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        $body = $this->body([$this->img()]);
+        $id = $this->post('/api/v1/posts', $body, $h)->assertCreated()->json('post.public_id');
+        $row = DB::table('media_blobs')->first();
+        $this->assertSame('b2', $row->storage); $this->assertSame('', $row->data);
+        $this->assertSame([$row->public_id], $this->uploaded);
+        $this->post('/api/v1/posts', $body, $h)->assertOk()->assertJsonPath('post.public_id', $id)->assertJsonPath('replayed', true);
+        $this->assertCount(1, $this->uploaded, 'replay must not upload again');
+        $this->assertDatabaseCount('posts', 1); $this->assertDatabaseCount('media_blobs', 1);
+    }
+
+    public function test_commit_failure_removes_the_object_and_the_retry_reuses_the_same_name(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        \App\Models\PostMedia::creating(function () { throw new \RuntimeException('fixture failure after upload'); });
+        try {
+            $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500);
+        } finally { \App\Models\PostMedia::flushEventListeners(); }
+        $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('upload_receipts', 0);
+        $firstName = $this->uploaded[0];
+        $this->assertSame([$firstName], $this->deleted, 'the failed attempt object is removed');
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
+        $this->assertSame($firstName, $this->uploaded[1], 'retry uses the same intent-derived name');
+        $this->assertSame($firstName, DB::table('media_blobs')->value('public_id'));
+    }
+
+    public function test_b2_outage_leaves_no_post_row_receipt_and_a_safe_retry_works(): void
+    {
+        $this->fakeB2(true);
+        [$a, $h] = $this->member('asha');
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500);
+        $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('upload_receipts', 0);
+        $this->fakeB2(false);
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
+        $this->assertDatabaseCount('posts', 1);
+    }
+
+    public function test_names_differ_per_member_and_per_index_and_delete_removes_the_objects(): void
+    {
+        $this->fakeB2();
+        [$a, $ha] = $this->member('asha'); [$b, $hb] = $this->member('bina');
+        $id = $this->post('/api/v1/posts', $this->body([$this->img(), $this->img('b.png')]), $ha)->assertCreated()->json('post.public_id');
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $hb)->assertCreated();
+        $this->assertCount(3, array_unique($this->uploaded));
+        $this->deleteJson('/api/v1/posts/'.$id, [], $ha)->assertOk();
+        $this->assertCount(2, $this->deleted);
+        $this->post('/api/v1/posts', $this->body([$this->img(), $this->img('b.png')]), $ha)->assertStatus(410);
+    }
+
+    public function test_orphan_sweep_is_dry_run_by_default_and_never_touches_referenced_or_recent_objects(): void
+    {
+        $this->fakeB2();
+        $old = (now()->subDays(2)->getTimestamp()) * 1000; $new = now()->getTimestamp() * 1000;
+        $kept = (string) \Illuminate\Support\Str::uuid(); $orphan = (string) \Illuminate\Support\Str::uuid(); $recent = (string) \Illuminate\Support\Str::uuid();
+        DB::table('media_blobs')->insert(['public_id' => $kept, 'mime' => 'image/png', 'size' => 1, 'storage' => 'b2', 'is_private' => false, 'data' => '', 'created_at' => now(), 'updated_at' => now()]);
+        Http::fake([
+            '*b2_authorize_account*' => Http::response(['authorizationToken' => 'acct', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.test', 'downloadUrl' => 'https://dl.test']]]),
+            '*b2_list_file_names*' => Http::response(['files' => [
+                ['fileName' => $kept, 'uploadTimestamp' => $old, 'contentLength' => 5],
+                ['fileName' => $orphan, 'uploadTimestamp' => $old, 'contentLength' => 7],
+                ['fileName' => $recent, 'uploadTimestamp' => $new, 'contentLength' => 9],
+                ['fileName' => 'not-a-media-name.txt', 'uploadTimestamp' => $old, 'contentLength' => 3],
+            ], 'nextFileName' => null]),
+            '*b2_list_file_versions*' => fn ($req) => Http::response(['files' => [['fileName' => $req->data()['prefix'], 'fileId' => 'f']]]),
+            '*b2_delete_file_version*' => function ($req) { $this->deleted[] = $req->data()['fileName']; return Http::response([]); },
+        ]);
+        $this->artisan('media:sweep-b2-orphans')->expectsOutputToContain('dry-run: 1 orphan object(s), 7 bytes')->assertSuccessful();
+        $this->assertSame([], $this->deleted);
+        $this->artisan('media:sweep-b2-orphans', ['--apply' => true])->expectsOutputToContain('1 deleted')->assertSuccessful();
+        $this->assertSame([$orphan], $this->deleted);
+    }
+}

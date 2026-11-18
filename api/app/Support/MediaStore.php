@@ -67,6 +67,95 @@ class MediaStore
         return $publicId;
     }
 
+    /** Object names written by the current keyed attempt, so a failed commit can undo them. */
+    private static array $attempt = [];
+
+    /**
+     * Keyed (replay-safe) public media. Bytes go to B2 under a name derived from the intent, so a retry
+     * reuses the same object name instead of adding another. Leftovers from an earlier failed attempt are
+     * removed first, so a retry converges to exactly one stored version. The metadata row is inserted by
+     * the caller's transaction and commits with the resource and its receipt. Without B2 the bytes stay
+     * in the database under the admission caps, as before.
+     */
+    public static function putKeyed(string $publicId, string $mime, string $bytes): string
+    {
+        if (! self::enabled()) {
+            return self::put($publicId, $mime, $bytes, false, true);
+        }
+        try {
+            self::remove($publicId);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+        self::upload($publicId, $mime, $bytes);
+        self::$attempt[] = $publicId;
+        DB::table('media_blobs')->insert([
+            'public_id' => $publicId, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
+            'data' => '', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        return $publicId;
+    }
+
+    public static function putKeyedFile(string $publicId, UploadedFile $file): string
+    {
+        return self::putKeyed($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()));
+    }
+
+    public static function beginAttempt(): void
+    {
+        self::$attempt = [];
+    }
+
+    public static function commitAttempt(): void
+    {
+        self::$attempt = [];
+    }
+
+    /**
+     * The transaction did not return normally. Remove only objects that no committed row references.
+     * If the database cannot be asked (an ambiguous commit), keep the object: a stray file is recoverable
+     * by the orphan sweep, a deleted live file is not.
+     */
+    public static function discardAttempt(): void
+    {
+        $names = self::$attempt;
+        self::$attempt = [];
+        foreach ($names as $name) {
+            try {
+                if (DB::table('media_blobs')->where('public_id', $name)->exists()) {
+                    continue;
+                }
+                self::remove($name);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+    }
+
+    /** Objects in the bucket with their upload time (ms). Used only by the orphan sweep. */
+    public static function listObjects(): \Generator
+    {
+        $a = self::account();
+        $start = null;
+        do {
+            $body = ['bucketId' => config('services.b2.bucket_id'), 'maxFileCount' => 1000];
+            if ($start !== null) {
+                $body['startFileName'] = $start;
+            }
+            $r = Http::withHeaders(['Authorization' => $a['token']])->timeout(30)->post($a['apiUrl'].'/b2api/v3/b2_list_file_names', $body)->throw()->json();
+            foreach ($r['files'] ?? [] as $f) {
+                yield ['name' => $f['fileName'], 'uploaded_ms' => (int) ($f['uploadTimestamp'] ?? 0), 'size' => (int) ($f['contentLength'] ?? 0)];
+            }
+            $start = $r['nextFileName'] ?? null;
+        } while ($start !== null);
+    }
+
+    public static function removeObject(string $name): void
+    {
+        self::remove($name);
+    }
+
     public static function putFile(string $publicId, UploadedFile $file, bool $private = false, bool $forceDatabase = false): string
     {
         return self::put($publicId, (string) $file->getMimeType(), (string) file_get_contents($file->getRealPath()), $private, $forceDatabase);

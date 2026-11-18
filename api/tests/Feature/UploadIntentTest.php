@@ -30,9 +30,8 @@ class UploadIntentTest extends TestCase
     public function test_media_replay_fingerprint_order_and_atomic_db_storage(): void
     {
         [$a,$h] = $this->member('asha');
-        // Even with B2 configured, keyed writes must remain transaction-local.
-        config(['services.b2.key_id'=>'fixture', 'services.b2.bucket'=>'fixture']);
-        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        // Without B2 the keyed bytes stay in the database (the B2 path has its own tests).
+        config(['services.b2.key_id'=>null, 'services.b2.bucket'=>null]);
         $one = $this->image(); $two = $this->image('b.png',20);
         $body = $this->postBody(['media'=>[$one,$two]]);
         $id = $this->post('/api/v1/posts',$body,$h)->assertCreated()->json('post.public_id');

@@ -62,6 +62,9 @@ String _communicationState = '';
 Future<http.Response> _reply(http.Request r) async {
   if (_failSend && r.method == 'POST' && r.url.path.endsWith('/messages')) return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
   if (_communicationState == 'group_info_remove_refused' && r.method == 'DELETE' && r.url.path.contains('/members/')) return http.Response(jsonEncode({'message': 'Only the group owner can remove people.'}), 403, headers: {'content-type': 'application/json'});
+  if (_communicationState == 'group_info_owner_done' && r.method == 'POST' && r.url.path.endsWith('/owner')) {
+    return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'my_role': 'member', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}}), 200, headers: {'content-type': 'application/json'});
+  }
   final p = r.url.path;
   if (p == '/oauth/token') return _json({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'});
   if (p.endsWith('/auth/me')) return _json({'features': {'polls': true}, 'user': {'public_id': 'me', 'name': 'Bidur', 'username': 'bidur'}});
@@ -257,7 +260,7 @@ void main() {
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['post_detail', 'post_detail_small_big', 'post_unavailable_small_big', 'search_error_small_big', 'poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'group_info_remove', 'group_info_remove_refused', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'call_reconnecting_small_big', 'call_waiting_small_big', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['post_detail', 'post_detail_small_big', 'post_unavailable_small_big', 'search_error_small_big', 'poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'group_info_remove', 'group_info_remove_refused', 'group_info_owner', 'group_info_owner_done', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'call_reconnecting_small_big', 'call_waiting_small_big', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -310,7 +313,7 @@ void main() {
             'room_quiet' => _room(noChat: true, isHost: false, speaker: false, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
             'chat_voice' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
-            'group_info' || 'group_info_remove' || 'group_info_remove_refused' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'my_role': 'owner', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}),
+            'group_info' || 'group_info_remove' || 'group_info_remove_refused' || 'group_info_owner' || 'group_info_owner_done' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'my_role': 'owner', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}),
             'call_video' => CallView(title: 'Asha Gurung', status: 'Connected', failed: false, video: true, muted: false, camOn: true, tiles: [CallTile(name: 'Asha Gurung', video: Image(image: feedImageProvider!('x'), fit: BoxFit.cover)), const CallTile(name: 'Bikash Thapa')], selfPreview: Image(image: feedImageProvider!('y'), fit: BoxFit.cover), onMute: () {}, onCamera: () {}, onEnd: () {}),
             'call_reconnecting' => CallView(title: 'Asha Gurung', status: 'Reconnecting...', failed: false, video: true, muted: false, camOn: true, controlsBusy: true, tiles: const [CallTile(name: 'Asha Gurung')], selfPreview: const ColoredBox(color: Colors.blueGrey, child: Center(child: Text('LOCAL PREVIEW', style: TextStyle(color: Colors.white, fontSize: 10)))), onMute: () {}, onCamera: () {}, onEnd: () {}),
             'call_waiting' => CallView(title: 'Asha Gurung', status: 'Waiting for others to join', failed: false, video: true, muted: false, camOn: true, tiles: const [], selfPreview: const ColoredBox(color: Colors.blueGrey, child: Center(child: Text('LOCAL PREVIEW', style: TextStyle(color: Colors.white, fontSize: 10)))), onMute: () {}, onCamera: () {}, onEnd: () {}),
@@ -356,6 +359,22 @@ void main() {
                 await tester.pump(const Duration(milliseconds: 150));
               }
               expect(find.text('Only the group owner can remove people.'), findsOneWidget);
+            }
+          }
+          if (base == 'group_info_owner' || base == 'group_info_owner_done') {
+            for (var i = 0; i < 4; i++) {
+              await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+              await tester.pump(const Duration(milliseconds: 150));
+            }
+            await tester.tap(find.byTooltip('Make owner: Sunita Rai'));
+            await tester.pump(const Duration(milliseconds: 500));
+            if (base == 'group_info_owner_done') {
+              await tester.tap(find.widgetWithText(FilledButton, 'Make owner'));
+              for (var i = 0; i < 4; i++) {
+                await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+                await tester.pump(const Duration(milliseconds: 150));
+              }
+              expect(find.text('Rename group'), findsNothing);
             }
           }
           if (base == 'shell_reel') {

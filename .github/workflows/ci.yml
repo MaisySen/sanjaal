@@ -64,8 +64,8 @@ jobs:
     # database migrated by v40 source (the live schema). Compares status and body for each request and shows the timing headers.
     runs-on: ubuntu-latest
     env:
-      LIVE_IMAGE: sanjaalapp/sanjaal-api@sha256:48be7bd0c3076e8cf2fdd59e057e4df090b82cdb07e8259f041d0783f3678798
-      CAND_IMAGE: sanjaalapp/sanjaal-api@sha256:f112c0a1ea480f7cae2c3e5fe15e60ba9e7d7ba76302864bb617bf86e823c816
+      LIVE_IMAGE: sanjaalapp/sanjaal-api@sha256:f112c0a1ea480f7cae2c3e5fe15e60ba9e7d7ba76302864bb617bf86e823c816
+      CAND_IMAGE: sanjaalapp/sanjaal-api@sha256:b384617b848d0d53c6e24889950cdfeb7d4da6c1962b9dda599058533eb84f19
       APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
@@ -103,6 +103,12 @@ jobs:
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from migrations; select count(*) from information_schema.columns where table_name='conversations' and column_name='add_policy';" | tr '\n' ' ' | tee /tmp/schema_before.txt; echo
       - name: Run each image in turn against that database and compare
         run: |
+          docker create --name inspect-candidate "$CAND_IMAGE" >/dev/null
+          for p in app/Providers/AppServiceProvider.php app/Support/ConnectionTiming.php app/Support/MeasuredConnector.php app/Http/Middleware/ConnectionTimingWindow.php bootstrap/app.php; do
+            docker cp "inspect-candidate:/app/$p" /tmp/image-file
+            cmp "api/$p" /tmp/image-file
+          done
+          docker rm inspect-candidate >/dev/null
           # One at a time: with host networking both would share php-fpm's fixed local port, and the second would silently be served by the first.
           O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; aid=$(cat /tmp/avatar_id)
           SPECS="/api/v1/ping 0|/api/v1/media/$aid 0|/api/v1/media/00000000-0000-4000-8000-000000000000 0|/api/v1/auth/me 0|/api/v1/auth/me 1|/api/v1/posts 1|/api/v1/conversations 1|/api/v1/rooms 1|/api/v1/stories 1|/api/v1/wallet 1"
@@ -113,12 +119,17 @@ jobs:
             test "$(docker inspect -f '{{.State.Running}}' $1)" = true
             docker cp /tmp/compat/jwks.json $1:/tmp/jwks.json; docker exec $1 chmod 644 /tmp/jwks.json
             docker exec -u nobody $1 php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600);'
+            if [ "$1" = cand ]; then
+              docker cp api/tests/Compat/connector_runtime.php $1:/tmp/connector_runtime.php
+              docker exec $1 php /tmp/connector_runtime.php
+            fi
             echo "$1 runs $(docker inspect -f '{{.Image}}' $1)"
             : > /tmp/res.$1
             echo "$SPECS" | tr '|' '\n' | while read -r path a; do
               hit "$path" $a >/dev/null            # warm: the first signed-in request verifies the token and fills the claims cache
               sc=$(hit "$path" $a); h=$(sha256sum < /tmp/b | cut -c1-12); t=$(grep -i '^server-timing' /tmp/h | tr -d '\r' | cut -d' ' -f2-)
-              echo "$path auth=$a $sc $h" >> /tmp/res.$1; echo "  $1 $path auth=$a -> $sc $h [$t]"
+              q=$(printf '%s' "$t" | grep -oE '[0-9]+ queries' | head -1)
+              echo "$path auth=$a $sc $h $q" >> /tmp/res.$1; echo "  $1 $path auth=$a -> $sc $h [$t]"
               if [ "$path" = /api/v1/auth/me ] && [ "$a" = 1 ]; then echo "$t" > /tmp/me_timing.$1; fi
             done
             docker logs $1 2>&1 | grep -i -E 'migrat|nothing to' | head -3
@@ -129,7 +140,8 @@ jobs:
           echo "== compare status and body hash, live vs candidate"; diff /tmp/res.live /tmp/res.cand && echo "identical status and body for every request"
           echo "live signed-in /auth/me timing: $(cat /tmp/me_timing.live)"; echo "cand signed-in /auth/me timing: $(cat /tmp/me_timing.cand)"
           grep -qE 'desc="[1-9][0-9]* queries".*boot;dur=' /tmp/me_timing.cand
-          grep -q 'desc="0 queries"' /tmp/me_timing.live || echo "note: live image already counted queries on signed-in /auth/me"
+          grep -qE 'connect;dur=[0-9.]+;desc="[1-9][0-9]* connector calls"' /tmp/me_timing.cand
+          echo "connector time remains nested inside db time; no speed inference from CI"
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from migrations; select count(*) from information_schema.columns where table_name='conversations' and column_name='add_policy';" | tr '\n' ' ' > /tmp/schema_after.txt
           diff /tmp/schema_before.txt /tmp/schema_after.txt && echo "schema unchanged: $(cat /tmp/schema_after.txt)"
 

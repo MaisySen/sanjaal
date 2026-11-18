@@ -1,0 +1,123 @@
+name: Exact client native startup evidence
+on:
+  push:
+    branches: [client-native-evidence]
+permissions:
+  contents: read
+env:
+  CLIENT_SHA: 599da314c34bf0f6961ff4ca00d82c3ddd8c4003
+  API_SHA: 7bb60561c6e9efde2c99bcade0f77053fd1c7680
+jobs:
+  native-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 599da314c34bf0f6961ff4ca00d82c3ddd8c4003
+      - uses: actions/checkout@v4
+        with:
+          ref: 7bb60561c6e9efde2c99bcade0f77053fd1c7680
+          path: current-api
+      - name: Verify exact source trees
+        run: |
+          test "$(git rev-parse HEAD:app)" = 0bdafbf4f9f340d90ea6eb94fbf174dc0c68f0a2
+          test "$(git -C current-api rev-parse HEAD)" = "$API_SHA"
+          printf 'client %s app_tree %s api %s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD:app)" "$(git -C current-api rev-parse HEAD)"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - run: flutter pub get
+        working-directory: app
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring,pdo_sqlite,sqlite3,bcmath,gd
+          coverage: none
+      - name: Local synthetic API with delayed first-home responses, no live services
+        working-directory: current-api/api
+        env:
+          APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+          APP_ENV: local
+          DB_CONNECTION: sqlite
+          DB_DATABASE: /tmp/e2e/db.sqlite
+          CACHE_STORE: file
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          mkdir -p /tmp/e2e && touch /tmp/e2e/db.sqlite .env
+          php artisan migrate --force
+          php tests/E2E/prepare.php /tmp/e2e
+          echo "::add-mask::$(cat /tmp/e2e/token.txt)"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/E2E/server.php')
+          s=p.read_text()
+          marker="require __DIR__.'/../../vendor/autoload.php';"
+          assert s.count(marker)==1
+          s=s.replace(marker,"if ($uri === '/api/v1/home') { usleep(6000000); }\n"+marker)
+          p.write_text(s)
+          PY
+          E2E_JWKS_FILE=/tmp/e2e/jwks.json nohup php -S 0.0.0.0:8000 -t public tests/E2E/server.php > /tmp/e2e/server.log 2>&1 &
+          sleep 2
+          curl -s -o /dev/null -w 'local unauthenticated status %{http_code}\n' http://127.0.0.1:8000/api/v1/auth/me -H 'Accept: application/json'
+      - name: Real Android secure-store and startup against local API
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          script: |
+            cd app && mkdir -p build/screenshots && timeout 900 flutter drive --driver=test_driver/integration_test.dart --target=integration_test/signed_in_test.dart --no-pub --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8000 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt) > /tmp/native-startup.log 2>&1
+      - name: Native result and source integrity
+        if: always()
+        run: |
+          git diff --exit-code -- app
+          test "$(git rev-parse HEAD:app)" = 0bdafbf4f9f340d90ea6eb94fbf174dc0c68f0a2
+          tail -30 /tmp/native-startup.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exact599-native-startup-evidence
+          path: |
+            app/build/screenshots/*.png
+            /tmp/native-startup.log
+            /tmp/e2e/server.log
+          retention-days: 7
+  ios-compile:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 599da314c34bf0f6961ff4ca00d82c3ddd8c4003
+      - run: test "$(git rev-parse HEAD:app)" = 0bdafbf4f9f340d90ea6eb94fbf174dc0c68f0a2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+        working-directory: app
+      - name: Exact client unsigned iOS compile only
+        working-directory: app
+        run: flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1 > ios-compile.log 2>&1
+      - run: git diff --exit-code -- app/lib app/pubspec.lock
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exact599-ios-compile-evidence
+          path: app/ios-compile.log
+          retention-days: 7

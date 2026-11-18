@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     tags: ['v*']
-    branches: ['**', '!client-coldstart-isolated']
+    branches: ['**', '!client-coldstart-isolated', '!client-native-evidence']
   pull_request:
 
 jobs:

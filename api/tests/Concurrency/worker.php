@@ -14,6 +14,16 @@ if (getenv('PAYOUT_FAKE') === '1') {
     require_once __DIR__.'/FakePayout.php';
     $app->instance(App\Contracts\PayoutProvider::class, new Tests\Concurrency\FakePayout());
 }
+if (getenv('B2_RACE_FAKE') === '1') {
+    // Fake B2 for the budget race: slow upload, nothing confirmed by name lookups, every upload logged to a shared file.
+    config(['services.b2.key_id' => 'k', 'services.b2.key' => 's', 'services.b2.bucket' => 'b', 'services.b2.bucket_id' => 'bid', 'services.uploads.b2_budget_bytes' => (int) getenv('B2_RACE_BUDGET')]);
+    \Illuminate\Support\Facades\Http::fake([
+        '*b2_authorize_account*' => \Illuminate\Support\Facades\Http::response(['authorizationToken' => 'a', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.test', 'downloadUrl' => 'https://dl.test']]]),
+        '*b2_get_upload_url*' => \Illuminate\Support\Facades\Http::response(['authorizationToken' => 'u', 'uploadUrl' => 'https://up.test/x']),
+        '*b2_list_file_names*' => \Illuminate\Support\Facades\Http::response(['files' => []]),
+        'https://up.test/*' => function ($r) { usleep(400000); file_put_contents(getenv('B2_RACE_LOG'), $r->header('X-Bz-File-Name')[0]."\n", FILE_APPEND | LOCK_EX); return \Illuminate\Support\Facades\Http::response([], 200); },
+    ]);
+}
 $deadline = microtime(true) + 30;
 while (! file_exists($go) && microtime(true) < $deadline) {
     usleep(500);

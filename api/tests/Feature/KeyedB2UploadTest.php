@@ -18,6 +18,7 @@ class KeyedB2UploadTest extends TestCase
     private array $levels = [];
     private array $rowsAtUpload = [];
     private array $sizes = [];
+    private bool $failLookup = false;
 
     protected function setUp(): void
     {
@@ -41,6 +42,7 @@ class KeyedB2UploadTest extends TestCase
             },
             '*b2_list_file_names*' => function ($req) {
                 $n = $req->data()['prefix'];
+                if ($this->failLookup) { return Http::response(['message' => 'down'], 503); }
                 return Http::response(['files' => isset($this->sizes[$n]) ? [['fileName' => $n, 'contentLength' => $this->sizes[$n], 'fileInfo' => ['sanjaal_protocol' => 'keyed-post-v1']]] : []]);
             },
             '*b2_list_file_versions*' => function ($req) {
@@ -84,6 +86,26 @@ class KeyedB2UploadTest extends TestCase
         $this->assertCount(1, $this->uploaded, 'the retry finds the confirmed object and adds no second version');
         $this->assertSame($this->uploaded[0], DB::table('media_blobs')->value('public_id'));
         $this->assertSame([], $this->deleted);
+    }
+
+    public function test_an_uncertain_lookup_uploads_again_but_only_with_a_new_reservation_inside_the_budget(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        \App\Models\PostMedia::creating(function () { throw new \RuntimeException('fixture failure after upload'); });
+        try { $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500); }
+        finally { \App\Models\PostMedia::flushEventListeners(); }
+        $size = (int) DB::table('b2_stage_attempts')->value('size');
+        $this->assertSame(1, DB::table('b2_stage_attempts')->count());
+        $this->failLookup = true; // the bucket cannot confirm the object
+        config(['services.uploads.b2_budget_bytes' => $size + 1]);
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(503);
+        $this->assertSame(1, DB::table('b2_stage_attempts')->count(), 'a refused attempt reserves nothing and uploads nothing');
+        $this->assertCount(1, $this->uploaded);
+        config(['services.uploads.b2_budget_bytes' => 10 * 1024 * 1024]);
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
+        $this->assertSame(2, DB::table('b2_stage_attempts')->count(), 'an uncertain lookup costs a new reservation, never a free upload');
+        $this->assertCount(2, $this->uploaded);
     }
 
     public function test_b2_upload_happens_outside_any_database_transaction(): void
@@ -132,6 +154,7 @@ class KeyedB2UploadTest extends TestCase
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
         $this->assertSame([$name], $this->uploaded, 'the row existed but the object did not, so the retry uploaded it');
         $this->assertDatabaseCount('media_blobs', 1);
+        $this->assertDatabaseCount('b2_stage_attempts', 2); // both physical attempts stay reserved
     }
 
     public function test_unpublished_staged_bytes_are_not_downloadable_and_no_b2_link_is_minted(): void

@@ -286,6 +286,42 @@ class PostgresRaceTest extends TestCase
         } finally { unlink($file); }
     }
 
+    public function test_keyed_b2_budget_admission_is_atomic_across_members_and_every_upload_attempt_is_reserved(): void
+    {
+        foreach (['one', 'two', 'three', 'four'] as $n) $this->user($n);
+        $file = tempnam(sys_get_temp_dir(), 'upload-fixture');
+        file_put_contents($file, \Illuminate\Http\UploadedFile::fake()->image('same.png')->get());
+        $log = tempnam(sys_get_temp_dir(), 'b2log');
+        $size = filesize($file);
+        putenv('B2_RACE_FAKE=1'); putenv('B2_RACE_LOG='.$log);
+        try {
+            // Four different members at once, room for exactly two objects.
+            putenv('B2_RACE_BUDGET='.(2 * $size + 10));
+            $codes = $this->race(array_map(fn ($n) => [$n, 'POST', '/api/v1/posts', ['upload_intent' => 'b2-budget-race-'.$n, '_fixture_file' => $file, 'body' => 'Race']], ['one', 'two', 'three', 'four']));
+            sort($codes);
+            $this->assertSame([201, 201, 503, 503], $codes);
+            $uploads = array_filter(explode("\n", file_get_contents($log)));
+            $this->assertCount(2, $uploads);
+            $this->assertSame(2, DB::table('b2_stage_attempts')->count());
+            $this->assertSame(2 * $size, (int) DB::table('b2_stage_attempts')->sum('size'));
+
+            // One member, one intent, four identical requests at once, generous budget: however many objects
+            // were physically uploaded, each one has its own reservation (nothing unaccounted).
+            file_put_contents($log, '');
+            putenv('B2_RACE_BUDGET='.(100 * $size));
+            $before = DB::table('b2_stage_attempts')->count();
+            $codes = $this->race(array_fill(0, 4, ['one', 'POST', '/api/v1/posts', ['upload_intent' => 'b2-same-race-001', '_fixture_file' => $file, 'body' => 'Same']]));
+            $uploaded = count(array_filter(explode("\n", file_get_contents($log))));
+            $this->assertGreaterThanOrEqual(1, $uploaded);
+            $this->assertSame($uploaded, DB::table('b2_stage_attempts')->count() - $before, 'one reservation per physical upload');
+            $this->assertSame(1, DB::table('posts')->where('body', 'Same')->count());
+            $this->assertSame(1, DB::table('media_blobs')->where('storage', 'b2')->where('public_id', DB::table('post_media')->orderByDesc('id')->value('path'))->count());
+        } finally {
+            foreach (['B2_RACE_FAKE', 'B2_RACE_LOG', 'B2_RACE_BUDGET'] as $e) putenv($e);
+            unlink($file); unlink($log);
+        }
+    }
+
     public function test_same_intent_with_different_concurrent_payload_conflicts_without_orphan_media(): void
     {
         $this->user('asha');

@@ -90,33 +90,32 @@ class MediaStore
         if (! self::enabled()) {
             return;
         }
-        // Admission: record the object in the media table (its own short transaction, committed before the
-        // network call) so staged-but-uncommitted bytes count against a B2 budget below the free allowance.
-        $inserted = DB::transaction(function () use ($name, $mime, $bytes) {
+        // An existing row may or may not have its object. Skip the upload only when the bucket confirms this
+        // exact object (same name, size, protocol marker). Any doubt means a new, separately reserved attempt.
+        $size = strlen($bytes);
+        if (DB::table('media_blobs')->where('public_id', $name)->exists() && self::remoteMatches($name, $size)) {
+            return;
+        }
+        // Reservation: every physical upload attempt gets its own committed reservation row (short transaction,
+        // before the network call). Identical racing or retried uploads can each leave a retained B2 version, so
+        // each is counted. Reservations and admission rows are never removed automatically.
+        DB::transaction(function () use ($name, $mime, $size) {
             if (DB::getDriverName() === 'pgsql') {
                 DB::select('SELECT pg_advisory_xact_lock(736200832)');
             }
             $cap = filter_var(config('services.uploads.b2_budget_bytes'), FILTER_VALIDATE_INT);
             abort_if($cap === false || $cap < 1, 503, 'Media storage is temporarily unavailable.');
-            if (DB::table('media_blobs')->where('public_id', $name)->exists()) {
-                return false;
-            }
-            $used = (int) DB::table('media_blobs')->where('storage', 'b2')->sum('size');
-            abort_if($used + strlen($bytes) > $cap, 503, 'Media storage is temporarily full. Try again later.');
-            DB::table('media_blobs')->insert([
-                'public_id' => $name, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
+            $reserved = (int) DB::table('b2_stage_attempts')->sum('size');
+            $other = (int) DB::table('media_blobs')->where('storage', 'b2')
+                ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('b2_stage_attempts')->whereColumn('b2_stage_attempts.name', 'media_blobs.public_id'))
+                ->sum('size');
+            abort_if($reserved + $other + $size > $cap, 503, 'Media storage is temporarily full. Try again later.');
+            DB::table('b2_stage_attempts')->insert(['name' => $name, 'size' => $size, 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('media_blobs')->insertOrIgnore([
+                'public_id' => $name, 'mime' => $mime, 'size' => $size, 'storage' => 'b2', 'is_private' => false,
                 'data' => '', 'created_at' => now(), 'updated_at' => now(),
             ]);
-
-            return true;
         });
-        // A row that already exists (earlier attempt, failed commit) may or may not have its object. Skip the
-        // upload only when the bucket confirms this exact object; any doubt means upload again.
-        if (! $inserted && self::remoteMatches($name, strlen($bytes))) {
-            return;
-        }
-        // The admission row is never removed here. If this fails, the row stays counted against the budget and
-        // is a stranded row for the reviewed cleanup: removing it could take a row another attempt relies on.
         self::upload($name, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
     }
 

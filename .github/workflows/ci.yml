@@ -118,8 +118,8 @@ jobs:
           docker exec -u nobody guard php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600); echo "jwks cached: ".(Illuminate\Support\Facades\Cache::has("auth0.jwks") ? "yes" : "no")."\n";'
           cid=$(cat /tmp/compat/conversation_id); O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; M="Authorization: Bearer $(cat /tmp/compat/member.jwt)"
           B=http://127.0.0.1:10000/api/v1/conversations/$cid
-          code() { curl -s -o /tmp/resp -w '%{http_code}' -H "$1" -H 'Accept: application/json' -H 'Content-Type: application/json' -X "$2" "$B$3" ${4:+-d "$4"}; }
-          test "$(code "$O" GET '')" = 200
+          code() { c=$(curl -s -o /tmp/resp -w '%{http_code}' -H "$1" -H 'Accept: application/json' -H 'Content-Type: application/json' -X "$2" "$B$3" ${4:+-d "$4"}); echo "  -> $2 $3 = $c $(head -c 160 /tmp/resp)" >&2; echo "$c"; }
+          echo "owner reads the group"; test "$(code "$O" GET '')" = 200
           echo "owner-only: member invite";  test "$(code "$M" POST /members '{"usernames":["ctarget1"]}')" = 403
           echo "owner-only: member policy change"; test "$(code "$M" PATCH /add-policy '{"add_policy":"members"}')" = 403
           echo "owner-only: owner invite"; test "$(code "$O" POST /members '{"usernames":["ctarget1"]}')" = 200

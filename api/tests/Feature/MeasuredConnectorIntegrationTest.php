@@ -5,21 +5,27 @@ namespace Tests\Feature;
 use App\Support\MeasuredConnector;
 use Illuminate\Database\Connectors\ConnectorInterface;
 use Illuminate\Database\Connectors\ConnectionFactory;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /** Test-only binding. Production registration is deliberately absent. Runs on throwaway PG in CI; SQLite lazy paths have separate unit tests. */
 class MeasuredConnectorIntegrationTest extends TestCase
 {
-    use DatabaseMigrations { runDatabaseMigrations as private migrateFixture; }
-
-    public function runDatabaseMigrations(): void
+    protected function setUp(): void
     {
+        parent::setUp();
         if (config('database.connections.'.config('database.default').'.driver') !== 'pgsql') {
             $this->markTestSkipped('Cold purge requires the throwaway PostgreSQL service.');
         }
-        $this->migrateFixture();
+        // This test deliberately purges connections, so transactional fixtures do not apply.
+        // Use fresh only on the CI throwaway database, never historical down migrations.
+        $this->assertSame('sanjaal_test', config('database.connections.pgsql.database'));
+        $this->assertSame('127.0.0.1', config('database.connections.pgsql.host'));
+        $this->artisan('migrate:fresh', ['--force' => true])->assertExitCode(0);
+        $this->beforeApplicationDestroyed(function () {
+            DB::purge();
+            $this->artisan('migrate:fresh', ['--force' => true])->assertExitCode(0);
+        });
     }
 
     public function test_auth_status_body_and_query_counts_match_cold_and_reused_connections(): void

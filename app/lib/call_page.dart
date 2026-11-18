@@ -5,7 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_lifecycle.dart';
 import 'call_presentation.dart';
-import 'ui.dart' show showError;
+import 'ui.dart' show showError, t_;
 
 /// Voice or video call for one conversation, over LiveKit.
 class CallPage extends StatefulWidget {

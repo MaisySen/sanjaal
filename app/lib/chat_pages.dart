@@ -878,7 +878,11 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       final c = j['conversation'] as Map<String, dynamic>;
       if (mounted) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
     } on ApiError catch (e) {
-      if (mounted) _say(e.message);
+      if (mounted) {
+        // A refusal means the owner limited adding after this page opened: stop offering it.
+        if (e.status == 403) setState(() => addPolicy = 'owner');
+        _say(e.message);
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }

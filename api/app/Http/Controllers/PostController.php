@@ -31,7 +31,7 @@ class PostController extends Controller
         $uid = $viewer->id;
         // The author and the reaction counts ride in the same database round trip as the posts (live correlated
         // reads, never cached), so a feed page costs posts + media + hashtags instead of five sequential reads.
-        $q = Post::with(['media', 'hashtags'])->leftJoin('users as feed_author', 'feed_author.id', '=', 'posts.user_id')->select('posts.*')->orderByDesc('posts.id')
+        $q = Post::with(['media', 'hashtags'])->leftJoin('users as feed_author', 'feed_author.id', '=', 'posts.user_id')->select('posts.*')->orderByDesc('id')
             ->whereNotExists(fn ($b) => $b->selectRaw('1')->from('blocks')->where(fn ($w) => $w
                 ->where(fn ($d) => $d->whereColumn('blocks.blocker_id', 'posts.user_id')->where('blocks.blocked_id', $uid))
                 ->orWhere(fn ($d) => $d->where('blocks.blocker_id', $uid)->whereColumn('blocks.blocked_id', 'posts.user_id'))))

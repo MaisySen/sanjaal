@@ -4,7 +4,7 @@ require '/app/vendor/autoload.php';
 $app = require '/app/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 $app['config']->set('wallet.member_transfers_enabled', false);
-$app['config']->set('services.esewa.merchant', '');
+$app['config']->set('services.esewa.product_code', '');
 $app['config']->set('services.esewa.secret', '');
 $app->instance(App\Contracts\PayoutProvider::class, new App\Services\DisabledPayout());
 $controller = $app->make(App\Http\Controllers\WalletController::class);

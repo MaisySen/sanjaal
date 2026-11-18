@@ -115,7 +115,7 @@ jobs:
           # Authenticated owner-only group policy, through the shipped image (synthetic members, throwaway key in the image's own cache).
           docker cp /tmp/compat/jwks.json guard:/tmp/jwks.json
           docker exec guard chmod 644 /tmp/jwks.json
-          docker exec -u nobody -e HOME=/tmp -e XDG_CONFIG_HOME=/tmp -e XDG_DATA_HOME=/tmp guard php artisan tinker --execute='Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600);'
+          docker exec -u nobody guard php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600); echo "jwks cached: ".(Illuminate\Support\Facades\Cache::has("auth0.jwks") ? "yes" : "no")."\n";'
           cid=$(cat /tmp/compat/conversation_id); O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; M="Authorization: Bearer $(cat /tmp/compat/member.jwt)"
           B=http://127.0.0.1:10000/api/v1/conversations/$cid
           code() { curl -s -o /tmp/resp -w '%{http_code}' -H "$1" -H 'Accept: application/json' -H 'Content-Type: application/json' -X "$2" "$B$3" ${4:+-d "$4"}; }
@@ -127,6 +127,7 @@ jobs:
           echo "members policy: member invite"; test "$(code "$M" POST /members '{"usernames":["ctarget2"]}')" = 200
           echo "owner closes policy again"; test "$(code "$O" PATCH /add-policy '{"add_policy":"owner"}')" = 200
           docker exec guard php artisan migrate --force --pretend | tail -3 || true
+          echo steps-after-migrate
       - name: Candidate schema still intact after the guard image ran
         run: |
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from b2_stage_attempts; select count(*) from migrations where migration like '%create_b2_stage_attempts%';" | tr '\n' ' ' | grep -q '^0 1 '

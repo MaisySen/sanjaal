@@ -121,11 +121,12 @@ jobs:
           code() { c=$(curl -s -o /tmp/resp -w '%{http_code}' -H "$1" -H 'Accept: application/json' -H 'Content-Type: application/json' -X "$2" "$B$3" ${4:+-d "$4"}); echo "  -> $2 $3 = $c $(head -c 160 /tmp/resp)" >&2; echo "$c"; }
           echo "owner is authenticated by the image (conversation list)"; test "$(curl -s -o /dev/null -w '%{http_code}' -H "$O" -H 'Accept: application/json' http://127.0.0.1:10000/api/v1/conversations)" = 200
           echo "owner-only: member invite";  test "$(code "$M" POST /members '{"usernames":["ctarget1"]}')" = 403
-          echo "owner-only: member policy change"; test "$(code "$M" PATCH /add-policy '{"add_policy":"members"}')" = 403
+          echo "guard image has no policy-change route (policy is changed only by the candidate), so a member cannot change it there"; test "$(code "$M" PATCH /add-policy '{"add_policy":"members"}')" = 404
           echo "owner-only: owner invite"; test "$(code "$O" POST /members '{"usernames":["ctarget1"]}')" = 200
-          echo "owner opens policy"; test "$(code "$O" PATCH /add-policy '{"add_policy":"members"}')" = 200
+          echo "policy opened to members in the throwaway DB"; (cd api && php artisan tinker --execute='App\Models\Conversation::query()->update(["add_policy"=>"members"]);')
           echo "members policy: member invite"; test "$(code "$M" POST /members '{"usernames":["ctarget2"]}')" = 200
-          echo "owner closes policy again"; test "$(code "$O" PATCH /add-policy '{"add_policy":"owner"}')" = 200
+          echo "policy closed again in the throwaway DB"; (cd api && php artisan tinker --execute='App\Models\Conversation::query()->update(["add_policy"=>"owner"]);')
+          echo "closed again: member invite of an existing user is still refused"; test "$(code "$M" POST /members '{"usernames":["ctarget1"]}')" = 403
           docker exec guard php artisan migrate --force --pretend | tail -3 || true
           echo steps-after-migrate
       - name: Candidate schema still intact after the guard image ran

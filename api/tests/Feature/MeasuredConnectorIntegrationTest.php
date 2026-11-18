@@ -9,13 +9,16 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
-/** Test-only binding. Production registration is deliberately absent. Runs on SQLite and throwaway PG in CI. */
+/** Test-only binding. Production registration is deliberately absent. Runs on throwaway PG in CI; SQLite lazy paths have separate unit tests. */
 class MeasuredConnectorIntegrationTest extends TestCase
 {
     use DatabaseMigrations;
 
     public function test_auth_status_body_and_query_counts_match_cold_and_reused_connections(): void
     {
+        if (config('database.connections.'.config('database.default').'.driver') !== 'pgsql') {
+            $this->markTestSkipped('Cold purge requires the throwaway PostgreSQL service, not ephemeral SQLite memory.');
+        }
         [$user, $headers] = $this->member('connector_fixture');
         $driver = config('database.connections.'.config('database.default').'.driver');
         $original = (new ConnectionFactory($this->app))->createConnector(['driver' => $driver]);

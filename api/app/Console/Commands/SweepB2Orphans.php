@@ -48,11 +48,11 @@ class SweepB2Orphans extends Command
         // Rows left behind by a failed upload or commit: counted against the budget, never served.
         $cutoff = now()->subHours($hours);
         $stranded = DB::table('media_blobs as m')->where('m.storage', 'b2')->where('m.created_at', '<', $cutoff)
-            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('post_media')->whereColumn('post_media.path', 'm.public_id'))
-            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('post_media')->whereColumn('post_media.thumbnail_path', 'm.public_id'))
-            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('messages')->whereColumn('messages.media_id', 'm.public_id'))
-            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('stories')->whereColumn('stories.media_id', 'm.public_id'))
-            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('users')->whereColumn('users.avatar', 'm.public_id'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('post_media')->whereRaw('post_media.path = CAST(m.public_id AS VARCHAR(64))'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('post_media')->whereRaw('post_media.thumbnail_path = CAST(m.public_id AS VARCHAR(64))'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('messages')->whereRaw('messages.media_id = CAST(m.public_id AS VARCHAR(64))'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('stories')->whereRaw('stories.media_id = CAST(m.public_id AS VARCHAR(64))'))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('users')->whereRaw('users.avatar = CAST(m.public_id AS VARCHAR(64))'))
             ->selectRaw('COUNT(*) AS n, COALESCE(SUM(m.size), 0) AS bytes')->first();
         $this->info(sprintf('report only: %d unreferenced B2 media row(s), %d bytes counted against the budget.', $stranded->n, $stranded->bytes));
         $this->info(sprintf('report only: %d unreferenced keyed-upload object(s), %d bytes. Nothing was deleted.', $found, $bytes));

@@ -107,7 +107,7 @@ class MediaStore
             abort_if($cap === false || $cap < 1, 503, 'Media storage is temporarily unavailable.');
             $reserved = (int) DB::table('b2_stage_attempts')->sum('size');
             $other = (int) DB::table('media_blobs')->where('storage', 'b2')
-                ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('b2_stage_attempts')->whereColumn('b2_stage_attempts.name', 'media_blobs.public_id'))
+                ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('b2_stage_attempts')->whereRaw('b2_stage_attempts.name = CAST(media_blobs.public_id AS VARCHAR(64))'))
                 ->sum('size');
             abort_if($reserved + $other + $size > $cap, 503, 'Media storage is temporarily full. Try again later.');
             DB::table('b2_stage_attempts')->insert(['name' => $name, 'size' => $size, 'created_at' => now(), 'updated_at' => now()]);

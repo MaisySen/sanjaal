@@ -755,7 +755,7 @@ void main() {
     }, () => MockClient((r) async {
       if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
       if (mode == 'refuse_add') return http.Response(jsonEncode({'message': 'Only the group owner can add people to this group.'}), 403, headers: {'content-type': 'application/json'});
-      return http.Response(jsonEncode({'message': 'Could not save. Try again.'}), 503, headers: {'content-type': 'application/json'});
+      return http.Response(jsonEncode({'message': 'Could not save. Try again.'}), 422, headers: {'content-type': 'application/json'});
     }));
   });
 

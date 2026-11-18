@@ -24,4 +24,14 @@ jobs:
           for n in 1 2 3; do docker exec profile php /tmp/profile_boot.php; done
           echo 'CLI opcache enabled for this process, not equivalent to warm FPM'
           for n in 1 2 3; do docker exec profile php -d opcache.enable_cli=1 /tmp/profile_boot.php; done
+          echo 'Cached paired baseline and callback instrumentation, cold CLI, order alternates'
+          for n in 1 2 3 4 5; do
+            if [ $((n % 2)) -eq 1 ]; then
+              docker exec profile php /tmp/profile_boot.php --baseline
+              docker exec profile php /tmp/profile_boot.php
+            else
+              docker exec profile php /tmp/profile_boot.php
+              docker exec profile php /tmp/profile_boot.php --baseline
+            fi
+          done
           docker rm -f profile

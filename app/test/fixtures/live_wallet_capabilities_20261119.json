@@ -1,0 +1,18 @@
+{
+  "at": "2026-11-18T23:30:14.851380+00:00",
+  "url": "https://sanjaal-api.onrender.com/api/v1/wallet",
+  "transfer_replay": false,
+  "transfers_available": false,
+  "topup": {
+    "esewa": false,
+    "esewa_mode": "test",
+    "khalti": false,
+    "min": 10,
+    "max": 100000
+  },
+  "cashout": {
+    "available": false,
+    "min": 500,
+    "max": 100000
+  }
+}

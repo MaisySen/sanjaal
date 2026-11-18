@@ -146,7 +146,12 @@ void main(){
      await t.pumpAndSettle();
      await shot(t,'wallet_hold_${language}_notice');
    },language:language,brightness:language=='en'?Brightness.dark:Brightness.light,scale:1.8,
-   respond:(r)async=>r.url.path.endsWith('/withdrawals')?json({'data':[]}):json({...wallet(),'transfer_replay':false,'transfers_available':false}));
+   respond:(r)async {
+     expect(r.method,'GET',reason:'held capabilities must not produce a money request');
+     if(r.url.path.endsWith('/withdrawals')) return json({'data':[]});
+     final held=(jsonDecode(File('test/fixtures/live_wallet_capabilities_20261119.json').readAsStringSync()) as Map<String,dynamic>)..remove('url')..remove('at');
+     return json({'balance':0,'entries':[],...held});
+   });
  });
  }
  for (final availability in [false, null]) {

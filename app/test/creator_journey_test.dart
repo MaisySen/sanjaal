@@ -220,7 +220,23 @@ void main() {
       t.view.physicalSize=const Size(960,1920);t.view.devicePixelRatio=3;addTearDown(t.view.reset);
       await fixture(t,story,() async {
         await shot(t,'story_review_top_${b.name}_$lang');
-        await t.scrollUntilVisible(find.byType(TextField), 150, scrollable: find.byType(Scrollable).first); await t.enterText(find.byType(TextField),'A moment from the ridge.'); await t.pumpAndSettle(); await shot(t,'story_review_${b.name}_$lang');
+        final field=find.byType(TextField);
+        await t.ensureVisible(field); await t.pumpAndSettle();
+        await t.tap(field); await t.enterText(field,'A moment from the ridge.');
+        t.view.viewInsets=const FakeViewPadding(bottom:720); await t.pumpAndSettle();
+        await t.ensureVisible(field); await t.pumpAndSettle();
+        expect(field.hitTestable(),findsOneWidget);
+        expect(t.getRect(field).bottom,lessThanOrEqualTo(400));
+        final share=find.widgetWithText(FilledButton,t_('Share story'));
+        expect(share.hitTestable(),findsOneWidget);expect(t.getRect(share).bottom,lessThanOrEqualTo(400));
+        await shot(t,'story_review_keyboard_${b.name}_$lang');
+        t.view.viewInsets=const FakeViewPadding();await t.pumpAndSettle();
+        final privacy=find.text(t_('Hidden people and blocked people cannot view it. People can save what they see.'));
+        await t.ensureVisible(privacy); await t.pumpAndSettle();
+        expect(privacy.hitTestable(),findsOneWidget);
+        expect(t.getRect(privacy).bottom,lessThanOrEqualTo(t.getRect(find.byType(ListView).first).bottom));
+        expect(t.getRect(privacy).top,greaterThanOrEqualTo(t.getRect(find.byType(ListView).first).top));
+        await shot(t,'story_review_${b.name}_$lang');
         await t.pageBack(); await t.pumpAndSettle(); expect(t.takeException(),isNull); await shot(t,'draft_discard_${b.name}_$lang');
       },brightness:b,scale:1.8,language:lang);
     });

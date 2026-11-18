@@ -1,7 +1,6 @@
 name: Integrated interaction regression evidence
 on:
-  push:
-    branches: [app-integrated-preparation]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

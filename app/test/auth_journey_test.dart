@@ -56,6 +56,7 @@ void main(){
      await t.ensureVisible(field);await t.pumpAndSettle();
      expect(field.hitTestable(),findsOneWidget);
      expect(t.getRect(field).bottom,lessThanOrEqualTo(400),reason:'field must remain above keyboard');
+     await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('auth-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/auth_field_${i}_${register?'register':'signin'}_${lang}_${mode.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
    }
    final action=find.byType(FilledButton);await t.ensureVisible(action);await t.pumpAndSettle();expect(t.getBottomRight(action).dy,lessThanOrEqualTo(400));expect(t.takeException(),isNull);
    await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('auth-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/auth_entry_${register?'register':'signin'}_${lang}_${mode.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());});

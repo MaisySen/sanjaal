@@ -730,7 +730,7 @@ void main() {
           await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
           await tester.pump(const Duration(milliseconds: 100));
         }
-        await tester.pumpAndSettle(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
       }
       final base = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha', 'owner'), user('bina')]};
       // A member whose page still shows Add people after the owner limited it.

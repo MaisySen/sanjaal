@@ -7,13 +7,17 @@ adb shell settings get secure default_input_method
 adb shell ime list -s
 adb shell settings get secure show_ime_with_hard_keyboard
 rc=0
-for t in smoke signed_in flows native_media; do
+for t in smoke signed_in flows native_media upload_retry; do
   extra=""
   if [ "$t" = signed_in ] || [ "$t" = flows ] || [ "$t" = native_media ]; then
     extra="--dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8000 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
   fi
   if [ "$t" = native_media ]; then
     extra="$extra --dart-define=E2E_VIEWER_TOKEN=$(cat /tmp/e2e/viewer-token.txt)"
+  fi
+  if [ "$t" = upload_retry ]; then
+    # Second disposable local API (port 8001): replay-safe uploads ON and a one-shot lost-response fault.
+    extra="--dart-define=API_BASE_URL=http://10.0.2.2:8001/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8001 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
   fi
   mkdir -p build/screenshots
   adb shell "screenrecord --bit-rate 1500000 --time-limit 170 /sdcard/rec_$t.mp4" > /dev/null 2>&1 &

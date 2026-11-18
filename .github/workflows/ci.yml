@@ -115,7 +115,7 @@ jobs:
           # Authenticated owner-only group policy, through the shipped image (synthetic members, throwaway key in the image's own cache).
           docker cp /tmp/compat/jwks.json guard:/tmp/jwks.json
           docker exec guard chmod 644 /tmp/jwks.json
-          docker exec -u nobody guard php artisan tinker --execute='Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600);'
+          docker exec -u nobody -e HOME=/tmp -e XDG_CONFIG_HOME=/tmp -e XDG_DATA_HOME=/tmp guard php artisan tinker --execute='Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600);'
           cid=$(cat /tmp/compat/conversation_id); O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; M="Authorization: Bearer $(cat /tmp/compat/member.jwt)"
           B=http://127.0.0.1:10000/api/v1/conversations/$cid
           code() { curl -s -o /tmp/resp -w '%{http_code}' -H "$1" -H 'Accept: application/json' -H 'Content-Type: application/json' -X "$2" "$B$3" ${4:+-d "$4"}; }

@@ -158,19 +158,22 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
     });
   }
 
+  bool _firstLoad = true;
   Future<void> load({bool refresh = false}) async {
     if (loading) {
       if (refresh) _refreshQueued = true;
       return;
     }
     if (done && !refresh) return;
+    final firstLoad = _firstLoad;
+    _firstLoad = false;
     setState(() {
       loading = true;
       error = null;
     });
     try {
       final q = {...widget.query, if (!refresh && cursor != null) 'cursor': cursor!};
-      final forYou = widget.path == '/posts' && widget.query.length == 1 && widget.query['kind'] == 'post' && cursor == null && !refresh;
+      final forYou = firstLoad && widget.path == '/posts' && widget.query.length == 1 && widget.query['kind'] == 'post' && cursor == null;
       final bundled = forYou ? await widget.session.takeHome('feed') : null;
       final j = (bundled is Map ? bundled.cast<String, dynamic>() : null) ?? await widget.session.call('GET', widget.path, query: q) as Map<String, dynamic>;
       final items = (j['data'] as List).cast<Map<String, dynamic>>();

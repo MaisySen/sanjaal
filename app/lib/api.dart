@@ -453,6 +453,8 @@ class Session extends ChangeNotifier {
   int _homeEpoch = -1;
   DateTime _homeAt = DateTime.fromMillisecondsSinceEpoch(0);
 
+  bool get homePending => _home != null;
+
   void prefetchHome() {
     if (!homeBundleEnabled) return;
     final epoch = _sessionEpoch;

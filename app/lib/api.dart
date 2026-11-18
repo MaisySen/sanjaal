@@ -463,6 +463,9 @@ class Session extends ChangeNotifier {
     _homeAt = DateTime.now();
     _home = call('GET', '/home').then<Map<String, dynamic>?>((v) {
       if (epoch != _sessionEpoch || v is! Map) return null;
+      // Freshness runs from when the reply arrived, not when it was asked for: a slow or cold
+      // request must not expire its own answer and trigger duplicate requests.
+      _homeAt = DateTime.now();
       return v.cast<String, dynamic>();
     }).catchError((Object _) => null);
   }

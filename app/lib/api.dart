@@ -122,6 +122,7 @@ class Session extends ChangeNotifier {
   }
   String? _access;
   String? _refresh;
+  Future<void>? _refreshingAccess;
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   Map<String, dynamic>? user;
   bool pollsEnabled = false;
@@ -368,7 +369,20 @@ class Session extends ChangeNotifier {
       return _access!;
     }
     if (_refresh == null) throw ApiError('Please sign in again.', 401);
-    await _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
+    // Home, stories and polling can all need the same expired token. Share one
+    // exchange instead of concurrently reusing the same refresh credential.
+    final pending = _refreshingAccess;
+    if (pending != null) {
+      await pending;
+    } else {
+      final exchange = _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
+      _refreshingAccess = exchange;
+      try {
+        await exchange;
+      } finally {
+        if (identical(_refreshingAccess, exchange)) _refreshingAccess = null;
+      }
+    }
     return _access!;
   }
 

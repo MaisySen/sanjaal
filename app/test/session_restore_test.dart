@@ -62,4 +62,50 @@ void main() {
     }, () => MockClient((_) { calls++; return pending.future; }));
     expect(s.restoreError,isNotNull); expect(s.loading,isFalse);
   });
+  test('concurrent expired API requests share one refresh exchange', () async {
+    final s = Session(); var grants = 0; final pending = Completer<http.Response>();
+    await http.runWithClient(() async {
+      await s.login('fixture', 'fixture');
+      final requests = ['/posts', '/stories', '/rooms'].map((p) => s.call('GET', p)).toList();
+      await Future<void>.delayed(Duration.zero);
+      expect(grants, 1);
+      pending.complete(reply({'access_token':'renewed-fixture','refresh_token':'next-fixture','expires_in':3600}));
+      await Future.wait(requests);
+      expect(grants, 1); expect(await RefreshStore.read(), 'next-fixture');
+    }, () => MockClient((r) async {
+      if (r.url.path.endsWith('/oauth/token')) {
+        final form = Uri.splitQueryString(r.body);
+        if (form['grant_type'] == 'password') return reply({'access_token':'old-fixture','refresh_token':'saved-fixture','expires_in':3600});
+        grants++; return pending.future;
+      }
+      if (r.url.path.endsWith('/auth/me')) return reply({'user':{'public_id':'member-fixture'}});
+      if (r.headers['Authorization'] == 'Bearer old-fixture') return reply({'message':'expired'},401);
+      expect(r.headers['Authorization'], 'Bearer renewed-fixture');
+      return reply({'data':[]});
+    }));
+  });
+  test('failed shared refresh releases its guard and keeps the grant for a later retry', () async {
+    final s = Session(); var grants = 0; final pending = Completer<http.Response>();
+    await http.runWithClient(() async {
+      await s.login('fixture', 'fixture');
+      final a = expectLater(s.call('GET', '/posts'), throwsA(isA<ApiError>()));
+      final b = expectLater(s.call('GET', '/stories'), throwsA(isA<ApiError>()));
+      await Future<void>.delayed(Duration.zero); expect(grants, 1);
+      pending.complete(reply({'error':'temporarily_unavailable'},503));
+      await Future.wait([a,b]);
+      expect(await RefreshStore.read(), 'saved-fixture');
+      await s.call('GET', '/posts'); expect(grants, 2);
+    }, () => MockClient((r) async {
+      if (r.url.path.endsWith('/oauth/token')) {
+        final form = Uri.splitQueryString(r.body);
+        if (form['grant_type'] == 'password') return reply({'access_token':'old-fixture','refresh_token':'saved-fixture','expires_in':3600});
+        grants++;
+        return grants == 1 ? pending.future : reply({'access_token':'retry-fixture','expires_in':3600});
+      }
+      if (r.url.path.endsWith('/auth/me')) return reply({'user':{'public_id':'member-fixture'}});
+      if (r.headers['Authorization'] == 'Bearer old-fixture') return reply({'message':'expired'},401);
+      return reply({'data':[]});
+    }));
+  });
+
 }

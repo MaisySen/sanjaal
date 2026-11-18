@@ -846,6 +846,8 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   bool busy = false;
   late String title = (widget.convo['title'] ?? 'Group').toString();
   late bool isOwner = widget.convo['my_role'] == 'owner';
+  // Null when the server predates the setting: then there is no toggle and anyone can add, as before.
+  late String? addPolicy = widget.convo['add_policy'] as String?;
 
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
@@ -941,6 +943,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       if (mounted) {
         setState(() {
           isOwner = c['my_role'] == 'owner';
+          addPolicy = (c['add_policy'] as String?) ?? addPolicy;
           members = ((c['members'] as List?) ?? members).cast<Map<String, dynamic>>();
         });
       }
@@ -980,6 +983,19 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       final j = await widget.session.call('DELETE', '/conversations/${widget.convo['public_id']}/members/${Uri.encodeComponent(m['username'].toString())}') as Map<String, dynamic>;
       final c = j['conversation'] as Map<String, dynamic>;
       if (mounted) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
+    } on ApiError catch (e) {
+      if (mounted) _say(e.message);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _setAddPolicy(bool ownerOnly) async {
+    setState(() => busy = true);
+    try {
+      final j = await widget.session.call('PATCH', '/conversations/${widget.convo['public_id']}/add-policy', body: {'add_policy': ownerOnly ? 'owner' : 'members'}) as Map<String, dynamic>;
+      final c = j['conversation'] as Map<String, dynamic>;
+      if (mounted) setState(() => addPolicy = (c['add_policy'] as String?) ?? (ownerOnly ? 'owner' : 'members'));
     } on ApiError catch (e) {
       if (mounted) _say(e.message);
     } finally {
@@ -1030,16 +1046,23 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             title: Text(t_('Rename group'), style: const TextStyle(fontWeight: FontWeight.w600)),
             onTap: busy ? null : _rename,
           ),
-        ListTile(
-          leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('plus', size: 20)),
-          title: Text(t_('Add people'), style: const TextStyle(fontWeight: FontWeight.w600)),
-          onTap: busy ? null : _add,
-        ),
+        if (addPolicy != 'owner' || isOwner)
+          ListTile(
+            leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('plus', size: 20)),
+            title: Text(t_('Add people'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            onTap: busy ? null : _add,
+          ),
+        if (isOwner && addPolicy != null)
+          SwitchListTile(
+            title: Text(t_('Only the owner can add people'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            value: addPolicy == 'owner',
+            onChanged: busy ? null : _setAddPolicy,
+          ),
         for (final m in members)
           ListTile(
             leading: Avatar(user: m, radius: 22),
             title: Text((m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text('@${m['username']}'),
+            subtitle: Text(m['role'] == 'owner' ? '@${m['username']} · ${t_('Owner')}' : '@${m['username']}'),
             trailing: isOwner && m['public_id'] != session.user?['public_id']
                 ? Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(tooltip: '${t_('Make owner')}: ${_label(m)}', constraints: const BoxConstraints(minWidth: 48, minHeight: 48), icon: const PhIcon('crown', size: 24), onPressed: busy ? null : () => _makeOwner(m)),

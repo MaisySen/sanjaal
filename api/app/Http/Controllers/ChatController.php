@@ -527,7 +527,7 @@ class ChatController extends Controller
             'public_id' => $c->public_id,
             'type' => $c->type,
             'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
-            'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
+            'members' => $c->members->map(fn ($u) => Present::user($u) + ['role' => $c->type === 'group' ? ($u->pivot?->role ?? 'member') : null])->values(),
             'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), $hidden ?? Present::hiddenAuthors([$me->id]), $pre) : null,
             'my_role' => $c->type === 'group' ? ($pivot?->role ?? 'member') : null,
             'add_policy' => $c->type === 'group' ? ($c->add_policy ?? 'members') : null,

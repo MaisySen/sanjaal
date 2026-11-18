@@ -63,7 +63,7 @@ Future<http.Response> _reply(http.Request r) async {
   if (_failSend && r.method == 'POST' && r.url.path.endsWith('/messages')) return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
   if (_communicationState == 'group_info_remove_refused' && r.method == 'DELETE' && r.url.path.contains('/members/')) return http.Response(jsonEncode({'message': 'Only the group owner can remove people.'}), 403, headers: {'content-type': 'application/json'});
   if (_communicationState == 'group_info_owner_done' && r.method == 'POST' && r.url.path.endsWith('/owner')) {
-    return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'my_role': 'member', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}}), 200, headers: {'content-type': 'application/json'});
+    return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'my_role': 'member', 'add_policy': 'members', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null, 'role': n.$1 == 'sunita' ? 'owner' : 'member'}]}}), 200, headers: {'content-type': 'application/json'});
   }
   final p = r.url.path;
   if (p == '/oauth/token') return _json({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'});
@@ -313,7 +313,7 @@ void main() {
             'room_quiet' => _room(noChat: true, isHost: false, speaker: false, stage: [(id: 'h', name: 'Asha Gurung', host: true, you: false, muted: false, speaking: true)]),
             'room_failed' => _room(failed: true, status: 'Could not join the room. Check your connection and try again.'),
             'chat_voice' => ChatPage(session: s, convo: {'public_id': 'c1', 'type': 'direct', 'title': 'Asha Gurung'}),
-            'group_info' || 'group_info_remove' || 'group_info_remove_refused' || 'group_info_owner' || 'group_info_owner_done' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'my_role': 'owner', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null}]}),
+            'group_info' || 'group_info_remove' || 'group_info_remove_refused' || 'group_info_owner' || 'group_info_owner_done' => GroupInfoPage(session: s, convo: {'public_id': 'g1', 'type': 'group', 'my_role': 'owner', 'add_policy': 'members', 'title': 'Sydney Nepali meetup', 'members': [for (final n in [('bidur', 'Bidur Khatri'), ('asha', 'Asha Gurung'), ('bikash', 'Bikash Thapa'), ('sunita', 'Sunita Rai')]) {'public_id': n.$1 == 'bidur' ? 'me' : n.$1, 'username': n.$1, 'name': n.$2, 'avatar_url': null, 'role': n.$1 == 'bidur' ? 'owner' : 'member'}]}),
             'call_video' => CallView(title: 'Asha Gurung', status: 'Connected', failed: false, video: true, muted: false, camOn: true, tiles: [CallTile(name: 'Asha Gurung', video: Image(image: feedImageProvider!('x'), fit: BoxFit.cover)), const CallTile(name: 'Bikash Thapa')], selfPreview: Image(image: feedImageProvider!('y'), fit: BoxFit.cover), onMute: () {}, onCamera: () {}, onEnd: () {}),
             'call_reconnecting' => CallView(title: 'Asha Gurung', status: 'Reconnecting...', failed: false, video: true, muted: false, camOn: true, controlsBusy: true, tiles: const [CallTile(name: 'Asha Gurung')], selfPreview: const ColoredBox(color: Colors.blueGrey, child: Center(child: Text('LOCAL PREVIEW', style: TextStyle(color: Colors.white, fontSize: 10)))), onMute: () {}, onCamera: () {}, onEnd: () {}),
             'call_waiting' => CallView(title: 'Asha Gurung', status: 'Waiting for others to join', failed: false, video: true, muted: false, camOn: true, tiles: const [], selfPreview: const ColoredBox(color: Colors.blueGrey, child: Center(child: Text('LOCAL PREVIEW', style: TextStyle(color: Colors.white, fontSize: 10)))), onMute: () {}, onCamera: () {}, onEnd: () {}),
@@ -375,6 +375,8 @@ void main() {
                 await tester.pump(const Duration(milliseconds: 150));
               }
               expect(find.text('Rename group'), findsNothing);
+              expect(find.text('@sunita · Owner'), findsOneWidget);
+              expect(find.text('Only the owner can add people'), findsNothing);
             }
           }
           if (base == 'shell_reel') {
@@ -666,6 +668,50 @@ void main() {
       calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}');
       if (refuse) return http.Response(jsonEncode({'message': 'Only the group owner can remove people.'}), 403, headers: {'content-type': 'application/json'});
       return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'members': [user('asha')]}}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
+  testWidgets('group info: owner toggles who can add people; members see no Add people when owner-only; old servers show no toggle', (tester) async {
+    final calls = <String>[];
+    var policy = 'members';
+    Map<String, dynamic> user(String n, [String role = 'member']) => {'public_id': 'u_$n', 'name': n, 'username': n, 'role': role};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> open(Map<String, dynamic> convo) async {
+        await tester.pumpWidget(MaterialApp(home: GroupInfoPage(key: UniqueKey(), session: s, convo: convo)));
+        await tester.pumpAndSettle();
+      }
+      final base = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha', 'owner'), user('bina')]};
+      await open({...base, 'my_role': 'owner', 'add_policy': 'members'});
+      expect(find.text('@asha · Owner'), findsOneWidget);
+      expect(find.text('Add people'), findsOneWidget);
+      await tester.tap(find.byType(Switch));
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pumpAndSettle();
+      expect(calls, ['PATCH /conversations/g1/add-policy {"add_policy":"owner"}']);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      expect(find.text('Add people'), findsOneWidget, reason: 'the owner can still add');
+      // A member of an owner-only group has no Add people and no toggle.
+      await open({...base, 'my_role': 'member', 'add_policy': 'owner'});
+      expect(find.text('Add people'), findsNothing);
+      expect(find.byType(Switch), findsNothing);
+      // A server that predates the setting: no toggle, Add people as before.
+      await open({...base, 'my_role': 'owner'});
+      expect(find.byType(Switch), findsNothing);
+      expect(find.text('Add people'), findsOneWidget);
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')} ${r.body}'.trim());
+      policy = 'owner';
+      return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'my_role': 'owner', 'add_policy': policy, 'members': [user('asha', 'owner'), user('bina')]}}), 200, headers: {'content-type': 'application/json'});
     }));
   });
 

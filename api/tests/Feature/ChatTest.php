@@ -310,6 +310,8 @@ class ChatTest extends TestCase
 
         $r = $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'chandra'], $ha)->assertOk();
         $this->assertSame('member', $r->json('conversation.my_role'));
+        // Members carry their role so the app can show who the owner is.
+        $this->assertSame(['chandra'], collect($r->json('conversation.members'))->where('role', 'owner')->pluck('username')->values()->all());
         $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $c->id)->value('role'));
         $this->assertSame('member', \DB::table('conversation_members')->where('user_id', $a->id)->value('role'));
         $this->assertSame(1, \DB::table('conversation_members')->where('role', 'owner')->count());

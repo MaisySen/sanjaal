@@ -643,6 +643,8 @@ const _ne = <String, String>{
   'Reel': 'रिल',
   'Remove from saved': 'सुरक्षित गरिएकामध्येबाट हटाउनुहोस्',
   'Removed from saved': 'सुरक्षित गरिएकामध्येबाट हटाइयो',
+  'Only the owner can add people': 'मालिकले मात्र मानिसहरू थप्न सक्छन्',
+  'Owner': 'मालिक',
   'Rename group': 'समूहको नाम बदल्नुहोस्',
   'Retry': 'फेरि प्रयास गर्नुहोस्',
   'Sent to': 'पठाइयो',

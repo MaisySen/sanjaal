@@ -367,8 +367,8 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
               child: SizedBox(
                 height: 48,
                 child: following
-                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: const Text('Following'))
-                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 48), backgroundColor: Colors.white, foregroundColor: Colors.black), onPressed: _follow, child: const Text('Follow')),
+                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: Text(t_('Following')))
+                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 48), backgroundColor: Colors.white, foregroundColor: Colors.black), onPressed: _follow, child: Text(t_('Follow'))),
               ),
             ),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white))),

@@ -764,7 +764,7 @@ class _ChatPageState extends State<ChatPage> {
           child: loading
               ? const Center(child: CircularProgressIndicator())
               : msgs.isEmpty
-                  ? error == null ? const Center(child: Text('Say hello.')) : EmptyState(icon: Ph.cloud_off, title: error!, action: OutlinedButton(onPressed: fetching ? null : () => _fetch(), child: Text(t_('Try again'))))
+                  ? error == null ? Center(child: Text(t_('Say hello.'))) : EmptyState(icon: Ph.cloud_off, title: error!, action: OutlinedButton(onPressed: fetching ? null : () => _fetch(), child: Text(t_('Try again'))))
                   : Builder(builder: (context) {
                       final older = msgs.where((m) => m['seq'] is num && (m['seq'] as num) < (historyBoundary ?? 0)).toList().reversed.toList();
                       final recent = msgs.where((m) => m['seq'] is! num || (m['seq'] as num) >= (historyBoundary ?? 0)).toList();

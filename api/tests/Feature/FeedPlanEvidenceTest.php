@@ -36,20 +36,20 @@ class FeedPlanEvidenceTest extends TestCase
         $request = Request::create('/api/v1/posts', 'GET', ['kind' => 'post']);
         $request->setUserResolver(fn () => $users[0]);
         DB::statement('analyze');
-        $controllers = [new LegacyFeedController, new PostController];
+        $controllers = [new LegacyFeedController, new \Tests\Support\ScalarFeedController, new PostController];
         $canonical = function ($value) use (&$canonical) {
             if (!is_array($value)) return $value;
             if (!array_is_list($value)) ksort($value);
             return array_map($canonical, $value);
         };
         $legacy = $controllers[0]->index($request)->getData(true);
-        $candidate = $controllers[1]->index($request)->getData(true);
+        $candidate = $controllers[2]->index($request)->getData(true);
         $this->assertSame($canonical($legacy), $canonical($candidate));
-        $times = [[], []];
-        $queries = [[], []];
+        $times = [[], [], []];
+        $queries = [[], [], []];
         // Alternate order so one path is not always handed the warmer cache.
         foreach (range(0, 9) as $round) {
-            foreach ($round % 2 ? [1, 0] : [0, 1] as $which) {
+            foreach ($round % 2 ? [2, 1, 0] : [0, 1, 2] as $which) {
                 DB::enableQueryLog(); DB::flushQueryLog();
                 $start = hrtime(true);
                 $controllers[$which]->index($request);
@@ -60,7 +60,7 @@ class FeedPlanEvidenceTest extends TestCase
         }
         foreach ($times as &$values) sort($values);
         unset($values);
-        fwrite(STDERR, "\nEQUIVALENT-FEED local-PG full-controller median-ms legacy=".$times[0][5].' candidate='.$times[1][5].' query-counts='.count($queries[0]).'/'.count($queries[1])."; not production latency\n");
+        fwrite(STDERR, "\nEQUIVALENT-FEED local-PG full-controller median-ms legacy=".$times[0][5].' scalar='.$times[1][5].' join='.$times[2][5].' query-counts='.count($queries[0]).'/'.count($queries[1]).'/'.count($queries[2])."; not production latency\n");
         foreach ($queries as $which => $list) {
             foreach ($list as $query) {
                 if (!str_starts_with(strtolower($query['query']), 'select')) continue;
@@ -69,6 +69,7 @@ class FeedPlanEvidenceTest extends TestCase
                 fwrite(STDERR, 'FEED-PLAN path='.$which.' execution-ms='.$json['Execution Time'].' planning-ms='.$json['Planning Time'].' root='.$json['Plan']['Node Type']."\n");
             }
         }
-        $this->assertCount(count($queries[0]) - 2, $queries[1]);
+        $this->assertCount(count($queries[0]) - 2, $queries[2]);
+        $this->assertCount(count($queries[1]), $queries[2]);
     }
 }

@@ -153,13 +153,17 @@ class ChatController extends Controller
         }
         $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
             ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();
-        $over = DB::transaction(function () use ($convo, $users, $blocked) {
+        $over = DB::transaction(function () use ($convo, $users, $blocked, $me) {
             // Lock the conversation row so two invitations cannot both pass the capacity check.
-            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            $locked = Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            // The policy and the role are read after the lock, so a hand-over or a policy change cannot race an invitation.
+            if ($locked->add_policy === 'owner' && ! $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists()) {
+                return 'owner_only';
+            }
             $existing = $convo->members()->pluck('users.id')->all();
             $fresh = $users->reject(fn ($u) => in_array($u->id, $existing, true) || in_array($u->id, $blocked, true));
             if (count($existing) + $fresh->count() > 50) {
-                return true;
+                return 'full';
             }
             if ($fresh->isNotEmpty()) {
                 // New members see messages from now on, not the history from before they joined.
@@ -167,9 +171,12 @@ class ChatController extends Controller
                 $convo->members()->attach($fresh->pluck('id')->all(), ['role' => 'member', 'history_from_id' => $from, 'last_read_message_id' => $from]);
             }
 
-            return false;
+            return 'ok';
         });
-        if ($over) {
+        if ($over === 'owner_only') {
+            return response()->json(['message' => 'Only the group owner can add people to this group.'], 403);
+        }
+        if ($over === 'full') {
             return response()->json(['message' => 'A group can have at most 50 members.', 'errors' => ['usernames' => ['A group can have at most 50 members.']]], 422);
         }
 
@@ -212,6 +219,31 @@ class ChatController extends Controller
         }
 
         return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
+    }
+
+    /** The owner chooses who can add people: 'members' (anyone in the group, the default) or 'owner'. */
+    public function setAddPolicy(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if ($convo->type !== 'group') {
+            return response()->json(['message' => 'Only groups have a member list.'], 422);
+        }
+        $data = $request->validate(['add_policy' => ['required', 'string', 'in:members,owner']]);
+        $me = $request->user();
+        $ok = DB::transaction(function () use ($convo, $me, $data) {
+            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            if (! $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists()) {
+                return false;
+            }
+            Conversation::whereKey($convo->id)->update(['add_policy' => $data['add_policy']]);
+
+            return true;
+        });
+        if (! $ok) {
+            return response()->json(['message' => 'Only the group owner can change who adds people.'], 403);
+        }
+
+        return response()->json(['conversation' => $this->present($convo->fresh('members'), $me)]);
     }
 
     /** The owner hands the group to another member and becomes a plain member. Same lock and after-lock role read as leave(), rename() and removeMember(). */
@@ -498,6 +530,7 @@ class ChatController extends Controller
             'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
             'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), $hidden ?? Present::hiddenAuthors([$me->id]), $pre) : null,
             'my_role' => $c->type === 'group' ? ($pivot?->role ?? 'member') : null,
+            'add_policy' => $c->type === 'group' ? ($c->add_policy ?? 'members') : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),
             'unread' => $batchedUnread ?? $c->messages()->where('id', '>', max($pivot?->last_read_message_id ?? 0, $pivot?->history_from_id ?? 0))->where('user_id', '!=', $me->id)->count(),
         ];

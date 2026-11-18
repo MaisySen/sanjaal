@@ -326,6 +326,41 @@ class ChatTest extends TestCase
         $this->postJson("/api/v1/conversations/$direct/owner", ['username' => 'dipesh'], $ha)->assertStatus(422);
     }
 
+    public function test_owner_chooses_who_can_add_people_and_existing_groups_keep_today_s_behaviour(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        [$d, $hd] = $this->member('dipesh');
+        [$e, $he] = $this->member('esha');
+        $cid = $this->group($ha, ['bina']);
+        $url = "/api/v1/conversations/$cid";
+
+        // A group made before the setting existed (row without the value) behaves as it always did: any member can add.
+        $this->assertSame('members', \DB::table('conversations')->where('public_id', $cid)->value('add_policy'));
+        $this->postJson("$url/members", ['usernames' => ['chandra']], $hb)->assertOk();
+
+        // Only the owner changes it, to a known value, in a group.
+        $this->patchJson("$url/add-policy", ['add_policy' => 'owner'], $hb)->assertForbidden();
+        $this->patchJson("$url/add-policy", ['add_policy' => 'owner'], $hd)->assertNotFound();
+        $this->patchJson("$url/add-policy", ['add_policy' => 'everyone'], $ha)->assertStatus(422);
+        $this->patchJson("$url/add-policy", [], $ha)->assertStatus(422);
+        $this->assertSame('members', \DB::table('conversations')->where('public_id', $cid)->value('add_policy'));
+        $this->patchJson("$url/add-policy", ['add_policy' => 'owner'], $ha)->assertOk()->assertJsonPath('conversation.add_policy', 'owner');
+
+        // Under owner-only, a member cannot add (nothing is added), the owner still can.
+        $this->postJson("$url/members", ['usernames' => ['dipesh']], $hb)->assertForbidden();
+        $this->assertSame(3, \DB::table('conversation_members')->count());
+        $this->postJson("$url/members", ['usernames' => ['dipesh']], $ha)->assertOk();
+        // Hand-over moves the right with the role: the old owner can no longer add, the new owner can.
+        $this->postJson("$url/owner", ['username' => 'bina'], $ha)->assertOk();
+        $this->postJson("$url/members", ['usernames' => ['esha']], $ha)->assertForbidden();
+        $this->postJson("$url/members", ['usernames' => ['esha']], $hb)->assertOk();
+        // Back to members: anyone can add again.
+        $this->patchJson("$url/add-policy", ['add_policy' => 'members'], $hb)->assertOk();
+        $this->postJson("$url/members", ['usernames' => ['asha']], $hc)->assertOk();
+    }
+
     public function test_group_leave_transfers_ownership_and_last_leaver_removes_the_group(): void
     {
         [$a, $ha] = $this->member('asha');

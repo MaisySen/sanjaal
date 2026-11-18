@@ -32,7 +32,6 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
-        VideoPosterChannel(this).register(engine.dartExecutor.binaryMessenger)
         EventChannel(engine.dartExecutor.binaryMessenger, "au.fintex.sanjaal/updates/events")
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {

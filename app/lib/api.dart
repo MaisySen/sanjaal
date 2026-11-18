@@ -152,7 +152,6 @@ class Session extends ChangeNotifier {
   bool uploadIntentsEnabled = false;
   bool interactionControlsEnabled = false;
   bool protectedStoriesEnabled = false;
-  bool videoPostersEnabled = false;
   bool loading = true;
   /// Credentials belong to this API, never to a URL's claimed purpose.
   bool supportsPrivateMedia(String url) {
@@ -395,7 +394,6 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
     protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
-    videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
     unawaited(Push.register(this));
   }
 
@@ -418,7 +416,6 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
     protectedStoriesEnabled = false;
-    videoPostersEnabled = false;
     await _writeCredentials(RefreshStore.clear);
   }
 
@@ -466,6 +463,9 @@ class Session extends ChangeNotifier {
     _homeAt = DateTime.now();
     _home = call('GET', '/home').then<Map<String, dynamic>?>((v) {
       if (epoch != _sessionEpoch || v is! Map) return null;
+      // Freshness runs from when the reply arrived, not when it was asked for: a slow or cold
+      // request must not expire its own answer and trigger duplicate requests.
+      _homeAt = DateTime.now();
       return v.cast<String, dynamic>();
     }).catchError((Object _) => null);
   }
@@ -475,9 +475,12 @@ class Session extends ChangeNotifier {
     final pending = _home;
     if (pending == null) return null;
     final epoch = _homeEpoch;
-    _homeData ??= await pending;
+    final received = await pending;
+    // An old completion must not write or clear a replacement account/request's bundle.
+    if (epoch != _sessionEpoch || !identical(pending, _home)) return null;
+    _homeData ??= received;
     final data = _homeData;
-    if (epoch != _sessionEpoch || data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 5)) {
+    if (data == null || DateTime.now().difference(_homeAt) > const Duration(seconds: 5)) {
       _home = null;
       _homeData = null;
       return null;
@@ -547,12 +550,8 @@ class Session extends ChangeNotifier {
     if (pollOptions != null) {
       for (var i = 0; i < pollOptions.length; i++) req.fields['poll_options[$i]'] = pollOptions[i];
     }
-    for (var i = 0; i < files.length; i++) {
-      final f = files[i];
+    for (final f in files) {
       req.files.add(http.MultipartFile.fromBytes('media[]', f.bytes, filename: f.name, contentType: MediaType.parse(f.mime)));
-      if (videoPostersEnabled && f.mime.startsWith('video/') && f.poster != null) {
-        req.files.add(http.MultipartFile.fromBytes('posters[$i]', f.poster!, filename: 'poster.jpg', contentType: MediaType('image', 'jpeg')));
-      }
     }
     final http.Response r;
     try {
@@ -615,11 +614,10 @@ class Session extends ChangeNotifier {
 }
 
 class UploadFile {
-  UploadFile(this.bytes, this.mime, this.name, {this.poster});
+  UploadFile(this.bytes, this.mime, this.name);
   final List<int> bytes;
   final String mime;
   final String name;
-  final List<int>? poster;
 }
 
 String mimeFor(String name, {bool video = false}) {

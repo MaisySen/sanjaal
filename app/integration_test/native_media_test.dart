@@ -15,7 +15,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sanjaal/media_library_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:video_player/video_player.dart';
-import 'package:sanjaal/video_poster.dart';
 
 Future<void> wait(
   WidgetTester t,
@@ -56,7 +55,7 @@ Future<void> bridge(WidgetTester t, String action) async {
 }
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
     'native camera photo video codec and authorized gallery return only local review files',
     (t) async {
@@ -193,16 +192,6 @@ void main() {
       expect(video.value.isInitialized, true);
       expect(video.value.duration.inMilliseconds, greaterThan(0));
       await video.dispose();
-      final nativePoster = await t.runAsync(() => VideoPoster.fromPath(capture!.file.path));
-      expect(nativePoster, isNotNull, reason: 'Actual local camera video must produce a native first-frame poster.');
-      expect(nativePoster!.length, inInclusiveRange(1, 256 * 1024));
-      await t.runAsync(() async {
-        final codec = await ui.instantiateImageCodec(nativePoster);
-        final frame = await codec.getNextFrame();
-        expect(frame.image.width, inInclusiveRange(1, 320));
-        expect(frame.image.height, inInclusiveRange(1, 320));
-        frame.image.dispose(); codec.dispose();
-      });
       await t.pump(const Duration(seconds: 1));
       await t.tap(find.text('Open actual gallery'));
       // The bridge seeded a known synthetic image in Android MediaStore. No fake
@@ -257,32 +246,6 @@ void main() {
       final session = Session();
       await t.runAsync(() => session.login('fixture', 'local-fixture-only'));
       expect(session.protectedStoriesEnabled, true);
-      expect(session.videoPostersEnabled, true);
-      final posterPost = await t.runAsync(() async => session.createPost('',
-        files: [UploadFile(await capture!.file.readAsBytes(), 'video/mp4', 'native-camera.mp4', poster: nativePoster)],
-        reel: true, intent: newUploadIntent()));
-      final posterUrl = (posterPost!['media'] as List).single['thumbnail_url'] as String;
-      final posterRead = await t.runAsync(() => http.get(Uri.parse(posterUrl)));
-      expect(posterRead!.statusCode, 200);
-      expect(posterRead.headers['content-type'], contains('image/jpeg'));
-      await t.runAsync(() async {
-        final codec = await ui.instantiateImageCodec(posterRead.bodyBytes);
-        final frame = await codec.getNextFrame();
-        expect(frame.image.width, inInclusiveRange(1, 320));
-        expect(frame.image.height, inInclusiveRange(1, 320));
-        frame.image.dispose(); codec.dispose();
-      });
-      await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark), home: Scaffold(
-        appBar: AppBar(title: const Text('Native camera poster')),
-        body: Center(child: Image.memory(posterRead.bodyBytes, fit: BoxFit.contain)),
-      )));
-      await wait(t, () => t.widgetList<RawImage>(find.byType(RawImage)).any((image) => image.image != null));
-      await t.pump(const Duration(milliseconds: 500));
-      await bridge(t, 'poster'); // Full Android display, including system dialogs.
-      await t.runAsync(() => session.call('DELETE', '/posts/${posterPost['public_id']}'));
-      final removedPoster = await t.runAsync(() => http.get(Uri.parse(posterUrl)));
-      expect(removedPoster!.statusCode, 404);
-
       await t.pumpWidget(
         MaterialApp(
           theme: buildTheme(Brightness.dark),
@@ -312,8 +275,9 @@ void main() {
       await t.tap(find.text('Only me'));
       await t.pump(const Duration(seconds: 1));
       expect(find.text('Only me').hitTestable(), findsOneWidget);
-      await t.pump(const Duration(milliseconds: 500));
-      await bridge(t, 'composer');
+      await binding.convertFlutterSurfaceToImage();
+      await t.pump();
+      await binding.takeScreenshot('protected_story_composer_native');
       await t.tap(find.text('Share story'));
       await wait(
         t,
@@ -382,9 +346,7 @@ void main() {
             .widgetList<RawImage>(find.byType(RawImage))
             .any((image) => image.image != null),
       );
-      await t.pump(const Duration(milliseconds: 500));
-      await bridge(t, 'story'); // System-level capture must show the actual story.
-
+      await binding.takeScreenshot('protected_story_viewer_native');
       await t.pumpWidget(const SizedBox());
       await t.runAsync(
         () => session.call('DELETE', '/stories/${story['public_id']}'),
@@ -475,7 +437,7 @@ void main() {
       session.dispose();
       // ignore: avoid_print
       print(
-        'Native photo decode, video playback initialization, first-frame poster upload/read/delete, MediaStore selection and protected-story composer/read/delete passed against the throwaway local API. No live content posted.',
+        'Native photo decode, video playback initialization, MediaStore selection and protected-story composer/read/delete passed against the throwaway local API. No live content posted.',
       );
     },
   );

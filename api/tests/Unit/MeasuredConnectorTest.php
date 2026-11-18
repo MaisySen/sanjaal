@@ -69,4 +69,25 @@ class MeasuredConnectorTest extends TestCase
         $this->assertSame(2, $meter->calls);
         $this->assertSame(2, $inner->attempts);
     }
+    public function test_locked_factory_binding_remains_lazy_and_preserves_reconnect(): void
+    {
+        $container = new \Illuminate\Container\Container;
+        $meter = new MeasuredConnector(new \Illuminate\Database\Connectors\SQLiteConnector);
+        $container->instance('db.connector.sqlite', $meter);
+        $factory = new \Illuminate\Database\Connectors\ConnectionFactory($container);
+        $config = ['driver' => 'sqlite', 'database' => ':memory:', 'prefix' => ''];
+        $db = $factory->make($config);
+        $this->assertSame(0, $meter->calls, 'factory construction must remain lazy');
+        $this->assertEquals(7, $db->select('select 7 as value')[0]->value);
+        $db->select('select 8');
+        $this->assertSame(1, $meter->calls);
+        $db->disconnect();
+        $db->setReconnector(function ($connection) use ($factory, $config) {
+            $fresh = $factory->make($config);
+            $connection->setPdo($fresh->getRawPdo());
+        });
+        $this->assertEquals(9, $db->select('select 9 as value')[0]->value);
+        $this->assertSame(2, $meter->calls);
+    }
+
 }

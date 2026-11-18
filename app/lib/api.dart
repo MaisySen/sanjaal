@@ -32,6 +32,11 @@ const _wait = Duration(seconds: 90); // free hosts sleep and need about a minute
 /// handshake to the far-away host on each call. Flutter tests install their own client per zone through
 /// http.runWithClient, so under test the top-level functions are used and nothing is shared.
 final bool _underTest = Platform.environment.containsKey('FLUTTER_TEST');
+/// Regression tests turn this on to exercise the production keep-alive path.
+@visibleForTesting
+bool apiKeepAliveInTests = false;
+@visibleForTesting
+void resetApiKeepAlive() { _sharedHttp?.close(); _sharedHttp = null; }
 http.Client? _sharedHttp;
 http.Client get _keepAlive => _sharedHttp ??= http.Client();
 
@@ -449,7 +454,7 @@ class Session extends ChangeNotifier {
       final http.Response r;
       try {
         final enc = body == null ? null : jsonEncode(body);
-        final c = _underTest ? null : _keepAlive;
+        final c = _underTest && !apiKeepAliveInTests ? null : _keepAlive;
         final f = switch (method) {
           'GET' => c?.get(uri, headers: headers) ?? http.get(uri, headers: headers),
           'POST' => c?.post(uri, headers: headers, body: enc) ?? http.post(uri, headers: headers, body: enc),

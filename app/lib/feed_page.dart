@@ -379,7 +379,7 @@ class _PostCardState extends State<PostCard> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Delete post?'),
+        title: Text(t_('Delete post?')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Delete'))),
@@ -1097,7 +1097,7 @@ class _VideoTileState extends State<VideoTile> with MediaVisibility<VideoTile> {
 
   @override
   Widget build(BuildContext context) {
-    if (failed) return const SizedBox(height: 80, child: Center(child: Text('Video could not load')));
+    if (failed) return SizedBox(height: 80, child: Center(child: Text(t_('Video could not load'))));
     if (!ready) return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
     return GestureDetector(
       onTap: () { if (mediaVisible) c.value.isPlaying ? c.pause() : c.play(); },

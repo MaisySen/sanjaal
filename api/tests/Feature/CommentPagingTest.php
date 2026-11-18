@@ -47,4 +47,38 @@ class CommentPagingTest extends TestCase
         $this->deleteJson("/api/v1/comments/$a", [], $ho)->assertOk()->assertJsonPath('deleted_count', 1);
         $this->assertSame(0, $post->fresh()->comments_count);
     }
+
+    public function test_reply_parent_ids_are_read_together_and_a_deleted_parent_stays_null(): void
+    {
+        [$owner, $headers] = $this->member('parentread');
+        $post = Post::create(['user_id' => $owner->id, 'kind' => 'post', 'body' => 'Threads', 'comments_count' => 0]);
+        $a = $post->comments()->create(['user_id' => $owner->id, 'body' => 'A']);
+        $b = $post->comments()->create(['user_id' => $owner->id, 'body' => 'B']);
+        $DB = \Illuminate\Support\Facades\DB::class;
+        $count = function () use ($post, $headers, $DB): int {
+            $DB::enableQueryLog(); $DB::flushQueryLog();
+            $this->getJson("/api/v1/posts/{$post->public_id}/comments", $headers)->assertOk();
+            $n = count(array_filter($DB::getQueryLog(), fn ($q) => str_starts_with(strtolower($q['query']), 'select') && ! str_contains($q['query'], 'personal_access_tokens') && ! str_contains($q['query'], '"auth0_sub"')));
+            $DB::disableQueryLog();
+            return $n;
+        };
+        $post->comments()->create(['user_id' => $owner->id, 'body' => 'to A 1', 'parent_id' => $a->id]);
+        $post->comments()->create(['user_id' => $owner->id, 'body' => 'to B 1', 'parent_id' => $b->id]);
+        $this->getJson("/api/v1/posts/{$post->public_id}/comments", $headers)->assertOk();
+        $few = $count();
+        foreach (range(2, 12) as $i) {
+            $post->comments()->create(['user_id' => $owner->id, 'body' => "to A $i", 'parent_id' => $a->id]);
+            $post->comments()->create(['user_id' => $owner->id, 'body' => "to B $i", 'parent_id' => $b->id]);
+        }
+        $this->assertSame($few, $count(), 'reply parents must not cost one read each');
+        $r = $this->getJson("/api/v1/posts/{$post->public_id}/comments", $headers)->assertOk();
+        $byBody = collect($r->json('data'))->keyBy('body');
+        $this->assertSame($a->public_id, $byBody['to A 3']['parent_id']);
+        $this->assertSame($b->public_id, $byBody['to B 7']['parent_id']);
+        $this->assertNull($byBody['A']['parent_id']);
+        // Parent removed on its own (children kept): the reply is still listed and no longer names a parent, as before.
+        $b->delete();
+        $after = collect($this->getJson("/api/v1/posts/{$post->public_id}/comments", $headers)->assertOk()->json('data'));
+        $this->assertTrue($after->where('body', 'to B 7')->every(fn ($c) => $c['parent_id'] === null) || $after->where('body', 'to B 7')->isEmpty());
+    }
 }

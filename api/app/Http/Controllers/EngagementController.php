@@ -46,7 +46,12 @@ class EngagementController extends Controller
             ->orderBy('id')->cursorPaginate(30);
 
         return response()->json([
-            'data' => collect($page->items())->map(fn ($c) => Present::comment($c))->values(),
+            'data' => (function () use ($page) {
+                $parents = collect($page->items())->pluck('parent_id')->filter()->unique()->all();
+                $map = $parents ? Comment::whereIn('id', $parents)->pluck('public_id', 'id')->all() : [];
+
+                return collect($page->items())->map(fn ($c) => Present::comment($c, $map))->values();
+            })(),
             'next_cursor' => $page->nextCursor()?->encode(),
             'can_comment' => \App\Support\MemberControls::canComment($post->user_id, $request->user()->id),
         ]);

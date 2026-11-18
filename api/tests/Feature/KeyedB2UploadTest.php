@@ -16,6 +16,7 @@ class KeyedB2UploadTest extends TestCase
     private array $deleted = [];
     private bool $failUpload = false;
     private array $levels = [];
+    private array $rowsAtUpload = [];
 
     protected function setUp(): void
     {
@@ -33,6 +34,7 @@ class KeyedB2UploadTest extends TestCase
                 if ($this->failUpload) { return Http::response(['message' => 'down'], 503); }
                 $this->uploaded[] = $req->header('X-Bz-File-Name')[0];
                 $this->levels[] = DB::transactionLevel();
+                $this->rowsAtUpload[] = DB::table('media_blobs')->count();
                 return Http::response([], 200);
             },
             '*b2_list_file_versions*' => function ($req) {
@@ -68,7 +70,8 @@ class KeyedB2UploadTest extends TestCase
         try {
             $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500);
         } finally { \App\Models\PostMedia::flushEventListeners(); }
-        $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('upload_receipts', 0);
+        $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('upload_receipts', 0);
+        $this->assertDatabaseCount('media_blobs', 1); // the admission row stays, counted against the budget, until a reviewed cleanup
         $this->assertCount(1, $this->uploaded);
         $this->assertSame([], $this->deleted, 'no automatic deletion: the staged object is only ever reported by the sweep');
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
@@ -85,6 +88,18 @@ class KeyedB2UploadTest extends TestCase
         $this->post('/api/v1/posts', $this->body([$this->img(), $this->img('b.png')]), $h)->assertCreated();
         $this->assertCount(2, $this->levels);
         $this->assertSame([$base, $base], $this->levels, 'no DB transaction or member row lock is held during the B2 upload');
+    }
+
+    public function test_staged_bytes_are_admitted_against_a_budget_before_any_b2_call(): void
+    {
+        $this->fakeB2();
+        [$a, $h] = $this->member('asha');
+        config(['services.uploads.b2_budget_bytes' => 1]);
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(503);
+        $this->assertSame([], $this->uploaded); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('posts', 0);
+        config(['services.uploads.b2_budget_bytes' => 10 * 1024 * 1024]);
+        $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
+        $this->assertSame([1], $this->rowsAtUpload, 'the admission row is committed before the upload starts');
     }
 
     public function test_same_intent_with_different_bytes_can_never_share_or_overwrite_an_object_name(): void

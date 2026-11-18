@@ -55,6 +55,8 @@ return [
         // Include base64 overhead and leave disk for PostgreSQL/WAL/backups.
         'database_media_budget_bytes' => env('DATABASE_MEDIA_BUDGET_BYTES', 64 * 1024 * 1024),
         'database_budget_bytes' => env('DATABASE_BUDGET_BYTES', 256 * 1024 * 1024),
+        // Ceiling for bytes in B2 (committed or staged), well under the 10 GB free storage. Keyed uploads only.
+        'b2_budget_bytes' => env('B2_BUDGET_BYTES', 2 * 1024 * 1024 * 1024),
     ],
 
     'b2' => [

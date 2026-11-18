@@ -80,28 +80,64 @@ class MediaStore
     }
 
     /**
-     * Upload keyed bytes to B2 BEFORE any database transaction, so no DB connection or row lock is held
-     * during the network call. Never deletes anything: a repeat upload of identical bytes is harmless, and
+     * Upload keyed bytes to B2 outside any database transaction, so no DB connection or row lock is held
+     * during the network call (admission is a separate short transaction before it). Never deletes anything: a repeat upload of identical bytes is harmless, and
      * an unreferenced staged object is only reported by the sweep. No-op without B2 (bytes then stay in
      * the database under the admission caps, see putKeyed).
      */
     public static function stageKeyed(string $name, string $mime, string $bytes): void
     {
-        if (self::enabled()) {
+        if (! self::enabled()) {
+            return;
+        }
+        // Admission: record the object in the media table (its own short transaction, committed before the
+        // network call) so staged-but-uncommitted bytes count against a B2 budget below the free allowance.
+        $inserted = DB::transaction(function () use ($name, $mime, $bytes) {
+            if (DB::getDriverName() === 'pgsql') {
+                DB::select('SELECT pg_advisory_xact_lock(736200832)');
+            }
+            $cap = filter_var(config('services.uploads.b2_budget_bytes'), FILTER_VALIDATE_INT);
+            abort_if($cap === false || $cap < 1, 503, 'Media storage is temporarily unavailable.');
+            if (DB::table('media_blobs')->where('public_id', $name)->exists()) {
+                return false;
+            }
+            $used = (int) DB::table('media_blobs')->where('storage', 'b2')->sum('size');
+            abort_if($used + strlen($bytes) > $cap, 503, 'Media storage is temporarily full. Try again later.');
+            DB::table('media_blobs')->insert([
+                'public_id' => $name, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
+                'data' => '', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            return true;
+        });
+        try {
             self::upload($name, $mime, $bytes, ['X-Bz-Info-sanjaal_protocol' => self::PROTOCOL]);
+        } catch (\Throwable $e) {
+            // Only undo the admission row this call created, and only if nothing references it yet.
+            if ($inserted && ! self::referenced($name)) {
+                DB::table('media_blobs')->where('public_id', $name)->delete();
+            }
+            throw $e;
         }
     }
 
-    /** Inside the transaction: record the staged B2 object (metadata only) or fall back to a capped DB write. */
+    private static function referenced(string $name): bool
+    {
+        return DB::table('post_media')->where('path', $name)->exists();
+    }
+
+    /** Inside the transaction: ensure the staged B2 object has its media row, or fall back to a capped DB write. */
     public static function putKeyed(string $name, string $mime, string $bytes): string
     {
         if (! self::enabled()) {
             return self::put($name, $mime, $bytes, false, true);
         }
-        DB::table('media_blobs')->insert([
-            'public_id' => $name, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
-            'data' => '', 'created_at' => now(), 'updated_at' => now(),
-        ]);
+        if (! DB::table('media_blobs')->where('public_id', $name)->exists()) {
+            DB::table('media_blobs')->insert([
+                'public_id' => $name, 'mime' => $mime, 'size' => strlen($bytes), 'storage' => 'b2', 'is_private' => false,
+                'data' => '', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
 
         return $name;
     }

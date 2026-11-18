@@ -40,8 +40,7 @@ class VideoPosterTest extends TestCase
     }
     public function test_poster_is_frozen_by_upload_intent_and_atomic_with_video(): void
     {
-        config(['services.uploads.replay_safe'=>true,'services.b2.key_id'=>'fixture','services.b2.bucket'=>'fixture']);
-        \Illuminate\Support\Facades\Http::preventStrayRequests();
+        config(['services.uploads.replay_safe'=>true,'services.b2.key_id'=>null,'services.b2.bucket'=>null]);
         [, $h]=$this->member('asha'); $body=$this->body(['upload_intent'=>'fixture-poster-intent-001']);
         $r=$this->post('/api/v1/posts',$body,$h)->assertCreated();
         $this->post('/api/v1/posts',$body,$h)->assertOk()->assertJsonPath('post.public_id',$r->json('post.public_id'));

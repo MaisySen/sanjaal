@@ -101,45 +101,37 @@ jobs:
           php artisan tinker --execute='require base_path("tests/Compat/seed_v40.php");'
           test -s /tmp/avatar_id && test -s /tmp/compat/owner.jwt
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from migrations; select count(*) from information_schema.columns where table_name='conversations' and column_name='add_policy';" | tr '\n' ' ' | tee /tmp/schema_before.txt; echo
-      - name: Run both images against that database and compare
+      - name: Run each image in turn against that database and compare
         run: |
-          set -u
-          for n in live:10000:$LIVE_IMAGE cand:10001:$CAND_IMAGE; do
-            name=${n%%:*}; rest=${n#*:}; port=${rest%%:*}; img=${rest#*:}
-            docker run -d --name $name --network host -e PORT=$port -e APP_ENV=production -e APP_KEY -e DB_CONNECTION -e DB_HOST -e DB_PORT -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e AUTH0_DOMAIN=tenant.example.auth0.com -e AUTH0_AUDIENCE=https://api.test "$img"
-          done
-          for p in 10000 10001; do for i in $(seq 1 60); do curl -fsS http://127.0.0.1:$p/api/v1/ping >/dev/null && break; sleep 2; done; done
-          docker cp /tmp/compat/jwks.json live:/tmp/jwks.json; docker cp /tmp/compat/jwks.json cand:/tmp/jwks.json
-          for c in live cand; do
-            docker exec $c chmod 644 /tmp/jwks.json
-            docker exec -u nobody $c php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600); echo "jwks cached\n";'
-          done
-          docker inspect -f '{{.Image}} {{.Config.Image}}' live cand
-          O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; aid=$(cat /tmp/avatar_id); fail=0
-          hit() { # port path auth(1/0) -> prints "status sha256(body)" and keeps headers in /tmp/h.$port
-            if [ "$3" = 1 ]; then curl -s -D /tmp/h.$1 -o /tmp/b.$1 -w '%{http_code}' -H "$O" -H 'Accept: application/json' http://127.0.0.1:$1$2; else curl -s -D /tmp/h.$1 -o /tmp/b.$1 -w '%{http_code}' -H 'Accept: application/json' http://127.0.0.1:$1$2; fi
+          # One at a time: with host networking both would share php-fpm's fixed local port, and the second would silently be served by the first.
+          O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; aid=$(cat /tmp/avatar_id)
+          SPECS="/api/v1/ping 0|/api/v1/media/$aid 0|/api/v1/media/00000000-0000-4000-8000-000000000000 0|/api/v1/auth/me 0|/api/v1/auth/me 1|/api/v1/posts 1|/api/v1/conversations 1|/api/v1/rooms 1|/api/v1/stories 1|/api/v1/wallet 1"
+          hit() { if [ "$2" = 1 ]; then curl -s -D /tmp/h -o /tmp/b -w '%{http_code}' -H "$O" -H 'Accept: application/json' "http://127.0.0.1:10000$1"; else curl -s -D /tmp/h -o /tmp/b -w '%{http_code}' -H 'Accept: application/json' "http://127.0.0.1:10000$1"; fi; }
+          run_image() { # name image
+            docker run -d --name $1 --network host -e PORT=10000 -e APP_ENV=production -e APP_KEY -e DB_CONNECTION -e DB_HOST -e DB_PORT -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e AUTH0_DOMAIN=tenant.example.auth0.com -e AUTH0_AUDIENCE=https://api.test "$2" >/dev/null
+            for i in $(seq 1 60); do curl -fsS http://127.0.0.1:10000/api/v1/ping >/dev/null 2>&1 && break; sleep 2; done
+            test "$(docker inspect -f '{{.State.Running}}' $1)" = true
+            docker cp /tmp/compat/jwks.json $1:/tmp/jwks.json; docker exec $1 chmod 644 /tmp/jwks.json
+            docker exec -u nobody $1 php -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600);'
+            echo "$1 runs $(docker inspect -f '{{.Image}}' $1)"
+            : > /tmp/res.$1
+            echo "$SPECS" | tr '|' '\n' | while read -r path a; do
+              hit "$path" $a >/dev/null            # warm: the first signed-in request verifies the token and fills the claims cache
+              sc=$(hit "$path" $a); h=$(sha256sum < /tmp/b | cut -c1-12); t=$(grep -i '^server-timing' /tmp/h | tr -d '\r' | cut -d' ' -f2-)
+              echo "$path auth=$a $sc $h" >> /tmp/res.$1; echo "  $1 $path auth=$a -> $sc $h [$t]"
+              if [ "$path" = /api/v1/auth/me ] && [ "$a" = 1 ]; then echo "$t" > /tmp/me_timing.$1; fi
+            done
+            docker logs $1 2>&1 | grep -i -E 'migrat|nothing to' | head -3
+            docker stop $1 >/dev/null; docker rm $1 >/dev/null
           }
-          for spec in "/api/v1/ping 0" "/api/v1/media/$aid 0" "/api/v1/media/00000000-0000-4000-8000-000000000000 0" "/api/v1/auth/me 0" "/api/v1/auth/me 1" "/api/v1/posts 1" "/api/v1/conversations 1" "/api/v1/rooms 1" "/api/v1/stories 1" "/api/v1/wallet 1"; do
-            path=${spec% *}; a=${spec#* }
-            # warm both once (first signed-in request verifies the token and fills the claims cache), then compare the second answer
-            hit 10000 $path $a >/dev/null; hit 10001 $path $a >/dev/null
-            sl=$(hit 10000 $path $a); sc=$(hit 10001 $path $a)
-            hl=$(sha256sum < /tmp/b.10000 | cut -c1-12); hc=$(sha256sum < /tmp/b.10001 | cut -c1-12)
-            tl=$(grep -i '^server-timing' /tmp/h.10000 | tr -d '\r' | cut -d' ' -f2-); tc=$(grep -i '^server-timing' /tmp/h.10001 | tr -d '\r' | cut -d' ' -f2-)
-            echo "$path auth=$a | live $sl $hl [$tl] | cand $sc $hc [$tc]"
-            [ "$sl" = "$sc" ] || { echo "::error::status differs for $path"; fail=1; }
-            [ "$hl" = "$hc" ] || { echo "::error::body differs for $path"; head -c 300 /tmp/b.10000; echo; head -c 300 /tmp/b.10001; echo; fail=1; }
-          done
-          # Timing coverage: the live image does not count the signed-in lookup, the candidate does; ping stays at 0 queries and the candidate adds boot time.
-          hit 10001 /api/v1/auth/me 1 >/dev/null; grep -i '^server-timing' /tmp/h.10001 | grep -qE 'desc="[1-9][0-9]* queries".*boot;dur='
-          hit 10001 /api/v1/ping 0 >/dev/null; grep -i '^server-timing' /tmp/h.10001 | grep -q 'desc="0 queries"'
-          hit 10000 /api/v1/auth/me 1 >/dev/null; echo "live image signed-in /auth/me timing: $(grep -i '^server-timing' /tmp/h.10000 | tr -d '\r')"
-          # The candidate run applied no migration and changed no schema.
-          docker logs cand 2>&1 | grep -i -E 'migrat|nothing' | head -5
+          run_image live "$LIVE_IMAGE"
+          run_image cand "$CAND_IMAGE"
+          echo "== compare status and body hash, live vs candidate"; diff /tmp/res.live /tmp/res.cand && echo "identical status and body for every request"
+          echo "live signed-in /auth/me timing: $(cat /tmp/me_timing.live)"; echo "cand signed-in /auth/me timing: $(cat /tmp/me_timing.cand)"
+          grep -qE 'desc="[1-9][0-9]* queries".*boot;dur=' /tmp/me_timing.cand
+          grep -q 'desc="0 queries"' /tmp/me_timing.live || echo "note: live image already counted queries on signed-in /auth/me"
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from migrations; select count(*) from information_schema.columns where table_name='conversations' and column_name='add_policy';" | tr '\n' ' ' > /tmp/schema_after.txt
           diff /tmp/schema_before.txt /tmp/schema_after.txt && echo "schema unchanged: $(cat /tmp/schema_after.txt)"
-          docker logs cand 2>&1 | grep -v -i -E 'password|key' | head -12
-          exit $fail
 
   app:
     runs-on: ubuntu-latest

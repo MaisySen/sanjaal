@@ -292,6 +292,40 @@ class ChatTest extends TestCase
         $this->deleteJson("/api/v1/conversations/$direct/members/bina", [], $ha)->assertStatus(422);
     }
 
+    public function test_owner_hands_the_group_to_a_chosen_member(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        [$d, $hd] = $this->member('dipesh');
+        $cid = $this->group($ha, ['bina', 'chandra']);
+
+        // Only the owner can hand over; the target must be another member; direct chats have no owner.
+        $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'chandra'], $hb)->assertForbidden();
+        $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'chandra'], $hd)->assertNotFound();
+        $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'dipesh'], $ha)->assertNotFound();
+        $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'asha'], $ha)->assertStatus(422);
+        $this->postJson("/api/v1/conversations/$cid/owner", [], $ha)->assertStatus(422);
+        $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $a->id)->value('role'));
+
+        $r = $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'chandra'], $ha)->assertOk();
+        $this->assertSame('member', $r->json('conversation.my_role'));
+        $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $c->id)->value('role'));
+        $this->assertSame('member', \DB::table('conversation_members')->where('user_id', $a->id)->value('role'));
+        $this->assertSame(1, \DB::table('conversation_members')->where('role', 'owner')->count());
+        // The old owner can no longer rename, remove or hand over; the new owner can.
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Mine'], $ha)->assertForbidden();
+        $this->deleteJson("/api/v1/conversations/$cid/members/bina", [], $ha)->assertForbidden();
+        $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'bina'], $ha)->assertForbidden();
+        $this->patchJson("/api/v1/conversations/$cid", ['title' => 'Chandra runs it'], $hc)->assertOk();
+        // Handing back works; the former owner leaving no longer changes who owns it.
+        $this->postJson("/api/v1/conversations/$cid/owner", ['username' => 'asha'], $hc)->assertOk();
+        $this->postJson("/api/v1/conversations/$cid/leave", [], $hb)->assertOk();
+        $this->assertSame('owner', \DB::table('conversation_members')->where('user_id', $a->id)->value('role'));
+        $direct = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'dipesh'], $ha)->json('conversation.public_id');
+        $this->postJson("/api/v1/conversations/$direct/owner", ['username' => 'dipesh'], $ha)->assertStatus(422);
+    }
+
     public function test_group_leave_transfers_ownership_and_last_leaver_removes_the_group(): void
     {
         [$a, $ha] = $this->member('asha');

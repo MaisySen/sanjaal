@@ -214,6 +214,45 @@ class ChatController extends Controller
         return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
     }
 
+    /** The owner hands the group to another member and becomes a plain member. Same lock and after-lock role read as leave(), rename() and removeMember(). */
+    public function transferOwner(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if ($convo->type !== 'group') {
+            return response()->json(['message' => 'Only groups have an owner.'], 422);
+        }
+        $data = $request->validate(['username' => ['required', 'string']]);
+        $me = $request->user();
+        $result = DB::transaction(function () use ($convo, $me, $data) {
+            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            if (! $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists()) {
+                return 'forbidden';
+            }
+            $target = $convo->members()->where('users.username', $data['username'])->first();
+            if (! $target) {
+                return 'missing';
+            }
+            if ($target->id === $me->id) {
+                return 'self';
+            }
+            $convo->members()->updateExistingPivot($target->id, ['role' => 'owner']);
+            $convo->members()->updateExistingPivot($me->id, ['role' => 'member']);
+
+            return 'ok';
+        });
+        if ($result === 'forbidden') {
+            return response()->json(['message' => 'Only the group owner can hand over the group.'], 403);
+        }
+        if ($result === 'missing') {
+            return response()->json(['message' => 'That person is not in this group.'], 404);
+        }
+        if ($result === 'self') {
+            return response()->json(['message' => 'You already own this group.'], 422);
+        }
+
+        return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
+    }
+
     /** Leave a group. If the owner leaves, the longest standing member becomes owner. */
     /** Only the group owner renames. The role is read after the lock, like leave(), so a handoff cannot race. */
     public function rename(Request $request, string $id): JsonResponse

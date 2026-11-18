@@ -650,6 +650,65 @@ void main() {
     }));
   });
 
+  testWidgets('group info: owner hands the group over after a confirmation naming the member; controls then disappear', (tester) async {
+    final calls = <String>[];
+    var refuse = false;
+    Map<String, dynamic> user(String n) => {'public_id': 'u_$n', 'name': n, 'username': n};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+      }
+      final convo = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'my_role': 'owner', 'members': [user('asha'), user('bina')]};
+      await tester.pumpWidget(MaterialApp(home: GroupInfoPage(key: UniqueKey(), session: s, convo: convo)));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Make owner: asha'), findsOneWidget);
+      final size = tester.getSize(find.ancestor(of: find.byTooltip('Make owner: bina'), matching: find.byType(IconButton)).first);
+      expect(size.width >= 48 && size.height >= 48, isTrue, reason: 'touch target is $size');
+      // The confirmation names the tapped member; cancel sends nothing.
+      await tester.tap(find.byTooltip('Make owner: bina'));
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('@bina')), findsOneWidget);
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('@asha')), findsNothing);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(calls, isEmpty);
+      // A refusal keeps the owner controls.
+      refuse = true;
+      await tester.tap(find.byTooltip('Make owner: bina'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Make owner'));
+      await settle();
+      expect(find.text('Only the group owner can hand over the group.'), findsOneWidget);
+      expect(find.text('Rename group'), findsOneWidget);
+      refuse = false;
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.byTooltip('Make owner: bina'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Make owner'));
+      await settle();
+      expect(calls.where((c) => c == 'POST /conversations/g1/owner {"username":"bina"}').length, 2, reason: 'one refused, one accepted');
+      // After the hand-over this member is no longer owner: no rename, no remove, no hand-over controls.
+      expect(find.text('Rename group'), findsNothing);
+      expect(find.byTooltip('Make owner: bina'), findsNothing);
+      expect(find.byTooltip('Remove from group: bina'), findsNothing);
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')} ${r.body}'.trim());
+      if (refuse) return http.Response(jsonEncode({'message': 'Only the group owner can hand over the group.'}), 403, headers: {'content-type': 'application/json'});
+      return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'my_role': 'member', 'members': [user('asha'), user('bina')]}}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
   testWidgets('wallet: Cash out is off unless the server says so; a retry after a server error reuses the request id', (tester) async {
     final bodies = <Map<String, dynamic>>[];
     var available = false;

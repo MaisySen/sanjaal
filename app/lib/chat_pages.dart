@@ -832,7 +832,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-/// Group membership, owner-only rename and member removal, invitations and leaving.
+/// Group membership, owner-only rename, member removal and hand-over, invitations and leaving.
 class GroupInfoPage extends StatefulWidget {
   const GroupInfoPage({super.key, required this.session, required this.convo});
   final Session session;
@@ -845,7 +845,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   late List<Map<String, dynamic>> members = ((widget.convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
   bool busy = false;
   late String title = (widget.convo['title'] ?? 'Group').toString();
-  late final bool isOwner = widget.convo['my_role'] == 'owner';
+  late bool isOwner = widget.convo['my_role'] == 'owner';
 
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
@@ -909,6 +909,47 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   }
 
   String _label(Map<String, dynamic> m) => (m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString();
+
+  Future<void> _makeOwner(Map<String, dynamic> m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(t_('Make this person the owner?')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Avatar(user: m, radius: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_label(m), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              Text('@${m['username']}'),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          Text(t_('You become a member. Only the owner can rename the group, remove people and hand it over.')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Make owner'))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => busy = true);
+    try {
+      final j = await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/owner', body: {'username': m['username'].toString()}) as Map<String, dynamic>;
+      final c = j['conversation'] as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          isOwner = c['my_role'] == 'owner';
+          members = ((c['members'] as List?) ?? members).cast<Map<String, dynamic>>();
+        });
+      }
+    } on ApiError catch (e) {
+      if (mounted) _say(e.message);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
 
   Future<void> _remove(Map<String, dynamic> m) async {
     final ok = await showDialog<bool>(
@@ -1000,7 +1041,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             title: Text((m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text('@${m['username']}'),
             trailing: isOwner && m['public_id'] != session.user?['public_id']
-                ? IconButton(tooltip: '${t_('Remove from group')}: ${_label(m)}', constraints: const BoxConstraints(minWidth: 48, minHeight: 48), icon: const PhIcon('user-minus', size: 24), onPressed: busy ? null : () => _remove(m))
+                ? Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(tooltip: '${t_('Make owner')}: ${_label(m)}', constraints: const BoxConstraints(minWidth: 48, minHeight: 48), icon: const PhIcon('crown', size: 24), onPressed: busy ? null : () => _makeOwner(m)),
+                    IconButton(tooltip: '${t_('Remove from group')}: ${_label(m)}', constraints: const BoxConstraints(minWidth: 48, minHeight: 48), icon: const PhIcon('user-minus', size: 24), onPressed: busy ? null : () => _remove(m)),
+                  ])
                 : null,
             onTap: m['public_id'] == session.user?['public_id'] ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: session, username: m['username'].toString()))),
           ),

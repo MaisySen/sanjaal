@@ -52,6 +52,7 @@ Future<void> fixture(
   String lang = 'en',
   Brightness mode = Brightness.light,
   double scale = 1,
+  double keyboard = 0,
 }) async {
   SharedPreferences.setMockInitialValues({});
   prefs.lang = lang;
@@ -75,7 +76,7 @@ Future<void> fixture(
             ),
             builder: (c, w) => MediaQuery(
               data: MediaQuery.of(c)
-                  .copyWith(textScaler: TextScaler.linear(scale)),
+                  .copyWith(textScaler: TextScaler.linear(scale), viewInsets: EdgeInsets.only(bottom: keyboard)),
               child: w!,
             ),
             home: settings
@@ -576,6 +577,15 @@ void main() {
           (s) async {
             expect(find.text(t_('Followers')).hitTestable(), findsOneWidget);
             expect(t.takeException(), isNull);
+            final caption=find.byType(TextField).first;
+            await t.ensureVisible(caption);await t.pump();await t.tap(caption);await t.pump();
+            await t.enterText(caption,'Synthetic caption');
+            expect(caption.hitTestable(),findsOneWidget);
+            expect(t.getRect(caption).bottom,lessThanOrEqualTo(400));
+            final share=find.widgetWithText(FilledButton,t_('Share story'));
+            expect(share.hitTestable(),findsOneWidget);
+            expect(t.getRect(share).bottom,lessThanOrEqualTo(400));
+            await shot(t, 'story_composer_keyboard_$lang');
             await shot(t, 'story_composer_large_$lang');
             await t.tap(find.byTooltip(t_('Who can see this story')));
             await flush(t);
@@ -590,6 +600,7 @@ void main() {
           compose: true,
           lang: lang,
           scale: 1.8,
+          keyboard: 240,
         );
       },
     );

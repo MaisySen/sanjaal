@@ -49,6 +49,13 @@ void main(){
   t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
   await setup(t,()async{
    await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('auth-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/auth_top_${register?'register':'signin'}_${lang}_${mode.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
+   final fields=find.byType(TextFormField);
+   for(var i=0;i<fields.evaluate().length;i++){
+     final field=fields.at(i);await t.ensureVisible(field);await t.pumpAndSettle();
+     await t.tap(field);await t.pump();
+     expect(field.hitTestable(),findsOneWidget);
+     expect(t.getRect(field).bottom,lessThanOrEqualTo(400),reason:'field must remain above keyboard');
+   }
    final action=find.byType(FilledButton);await t.ensureVisible(action);await t.pumpAndSettle();expect(t.getBottomRight(action).dy,lessThanOrEqualTo(400));expect(t.takeException(),isNull);
    await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('auth-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/auth_entry_${register?'register':'signin'}_${lang}_${mode.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
   },register:register,lang:lang,mode:mode,scale:1.8,keyboard:240);

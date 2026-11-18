@@ -21,6 +21,7 @@ class _Video extends VideoPlayerPlatform {
   final calls = <String>[];
   var nextId = 0;
   bool delayed = false;
+  bool failNext = false;
   @override
   Future<void> init() async {}
   void initialize(int id) => streams[id]!.add(VideoEvent(eventType: VideoEventType.initialized, size: const Size(100, 100), duration: const Duration(seconds: 30)));
@@ -29,7 +30,7 @@ class _Video extends VideoPlayerPlatform {
     final id = nextId++;
     streams[id] = StreamController<VideoEvent>();
     playing[id] = false;
-    if (!delayed) initialize(id);
+    if (failNext) { failNext = false; streams[id]!.addError(StateError('fixture decoder failure')); } else if (!delayed) { initialize(id); }
     return id;
   }
   @override
@@ -79,6 +80,26 @@ void main() {
   late VideoPlayerPlatform old;
   setUp(() { old = VideoPlayerPlatform.instance; video = _Video(); VideoPlayerPlatform.instance = video; });
   tearDown(() { VideoPlayerPlatform.instance = old; });
+  testWidgets('accessible reel Refresh recovers a failed player at the same URL', (t) async {
+    final s = Session(); var reads = 0;
+    video.failNext = true;
+    await http.runWithClient(() async {
+      await s.login('fixture','fixture');
+      await t.pumpWidget(app(ReelsPage(session:s,active:true))); await flush(t); await flush(t);
+      expect(find.text('Video could not load'),findsOneWidget);
+      final refresh = find.byTooltip('Refresh'); expect(refresh.hitTestable(),findsOneWidget);
+      await t.tap(refresh); await flush(t); await flush(t);
+      expect(reads,2); expect(video.nextId,2,reason:'failed decoder must be replaced, not reused');
+      expect(find.text('Video could not load'),findsNothing);
+      expect(video.calls,contains('dispose:0'));expect(video.playing[1],isTrue);
+      expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());await flush(t);
+    },()=>MockClient((r) async {
+      if(r.url.path.endsWith('/oauth/token'))return http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200);
+      if(r.url.path.endsWith('/auth/me'))return http.Response(jsonEncode({'user':{'public_id':'me','username':'fixture'}}),200);
+      reads++;
+      return http.Response(jsonEncode({'data':[{'public_id':'r1','body':'Fixture','author':{'public_id':'other','username':'other'},'media':[{'type':'video','url':'https://fixture.invalid/same.mp4'}],'likes_count':0,'comments_count':0}],'next_cursor':null}),200);
+    }));
+  });
   testWidgets('a retained ReelItem swaps pruned pooled ownership without replaying disposed controllers',(t)async{
     final pool=ReelPlayerPool();final session=Session();
     final items=[for(var i=0;i<6;i++) <String,dynamic>{'public_id':'r$i','body':'Fixture','author':{'username':'fixture'},'media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];

@@ -26,7 +26,7 @@ jobs:
       - name: Focused synthetic startup and render tests
         run: |
           mkdir -p test/renders
-          flutter test test/media_visibility_test.dart test/auth_journey_test.dart test/story_audience_test.dart test/wallet_journey_test.dart test/creator_journey_test.dart --reporter expanded > focused.log 2>&1
+          timeout 300 flutter test test/media_visibility_test.dart test/auth_journey_test.dart test/story_audience_test.dart test/wallet_journey_test.dart test/creator_journey_test.dart --reporter expanded > focused.log 2>&1
           tail -5 focused.log
       - uses: actions/upload-artifact@v4
         if: always()

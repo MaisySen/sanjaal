@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -82,6 +83,7 @@ void main() {
   setUp(() { old = VideoPlayerPlatform.instance; video = _Video(); VideoPlayerPlatform.instance = video; });
   tearDown(() { VideoPlayerPlatform.instance = old; });
   testWidgets('accessible reel Refresh recovers a failed player at the same URL', (t) async {
+    SharedPreferences.setMockInitialValues({});
     final s = Session(); var reads = 0;
     video.failNext = true;
     await http.runWithClient(() async {

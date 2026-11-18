@@ -123,6 +123,16 @@ class Session extends ChangeNotifier {
   String? _access;
   String? _refresh;
   Future<void>? _refreshingAccess;
+  int _sessionEpoch = 0;
+  Future<void> _credentialWrites = Future<void>.value();
+  void _checkSession(int epoch) {
+    if (epoch != _sessionEpoch) throw ApiError('Please sign in again.', 401);
+  }
+  Future<void> _writeCredentials(Future<void> Function() action) {
+    final next = _credentialWrites.then((_) => action());
+    _credentialWrites = next.then<void>((_) {}, onError: (Object error, StackTrace stack) {});
+    return next;
+  }
   DateTime _expires = DateTime.fromMillisecondsSinceEpoch(0);
   Map<String, dynamic>? user;
   bool pollsEnabled = false;
@@ -163,10 +173,13 @@ class Session extends ChangeNotifier {
     return {'Authorization': 'Bearer ${await _token()}'};
   }
   Future<Uint8List> fetchProtectedBytes(String url) async {
+    final epoch = _sessionEpoch;
     for (var attempt = 0; attempt < 2; attempt++) {
       final request = http.Request('GET', Uri.parse(url))..followRedirects = false;
       request.headers.addAll(await privateMediaHeaders(url));
+      _checkSession(epoch);
       final result = await http.Response.fromStream(await request.send().timeout(_wait)).timeout(_wait);
+      _checkSession(epoch);
       if (result.statusCode == 401 && attempt == 0) { _expires = DateTime.fromMillisecondsSinceEpoch(0); continue; }
       if (result.statusCode != 200) throw ApiError('This story is unavailable. It may have expired or its audience changed.',result.statusCode);
       return result.bodyBytes;
@@ -189,15 +202,23 @@ class Session extends ChangeNotifier {
   Future<void> restore() async {
     if (_restoring) return;
     _restoring = true;
+    final epoch = _sessionEpoch;
     loading = true;
     restoreError = null;
     notifyListeners();
     try {
-      _refresh = await RefreshStore.read();
+      String? stored;
+      await _writeCredentials(() async {
+        _checkSession(epoch);
+        stored = await RefreshStore.read();
+        _checkSession(epoch);
+      });
+      _refresh = stored;
       if (_refresh == null) return;
       try {
         await _grant({'grant_type': 'refresh_token', 'refresh_token': _refresh!});
       } on _RejectedRefresh {
+        _checkSession(epoch);
         await _clear();
         return;
       }
@@ -205,7 +226,7 @@ class Session extends ChangeNotifier {
     } catch (_) {
       // Storage, transport, service/configuration errors and a failed /auth/me
       // read must not erase the saved grant or pretend there is no session.
-      restoreError = 'Could not restore your sign-in. Try again.';
+      if (epoch == _sessionEpoch) restoreError = 'Could not restore your sign-in. Try again.';
     } finally {
       _restoring = false;
       loading = false;
@@ -214,6 +235,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> _grant(Map<String, String> form) async {
+    final epoch = _sessionEpoch;
     if (_tokenBase.isNotEmpty && _isProductBuild) {
       throw ApiError('This build is not allowed to use a test token endpoint.');
     }
@@ -227,6 +249,7 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw ApiError('No connection. Check your internet and try again.');
     }
+    _checkSession(epoch);
     if (r.statusCode != 200) {
       if (form['grant_type'] == 'refresh_token') {
         try {
@@ -242,22 +265,30 @@ class Session extends ChangeNotifier {
     final j = jsonDecode(r.body) as Map<String, dynamic>;
     final rt = j['refresh_token'] as String?;
     try {
-      if (rt != null) {
-        await RefreshStore.write(rt);
-        _refresh = rt;
-      } else if (form['grant_type'] != 'refresh_token') {
-        // A new login must never inherit a different account's refresh token.
-        await RefreshStore.clear();
-        _refresh = null;
-      }
+      await _writeCredentials(() async {
+        _checkSession(epoch);
+        if (rt != null) {
+          await RefreshStore.write(rt);
+          _checkSession(epoch);
+          _refresh = rt;
+        } else if (form['grant_type'] != 'refresh_token') {
+          // A new login must never inherit a different account's refresh token.
+          await RefreshStore.clear();
+          _checkSession(epoch);
+          _refresh = null;
+        }
+      });
     } catch (_) {
       throw ApiError('Could not save your sign-in securely. Try again.');
     }
+    _checkSession(epoch);
     _access = j['access_token'] as String;
     _expires = DateTime.now().add(Duration(seconds: (j['expires_in'] as num?)?.toInt() ?? 3600));
   }
 
   Future<void> login(String id, String password) async {
+    _sessionEpoch++;
+    _refreshingAccess = null;
     await _grant({
       'grant_type': 'password',
       'username': id,
@@ -272,6 +303,8 @@ class Session extends ChangeNotifier {
   /// Social sign in through Auth0 with PKCE. [connection] is an Auth0 connection name,
   /// for example google-oauth2 or facebook. Uses Auth0 development keys until we have our own.
   Future<void> loginSocial(String connection) async {
+    final epoch = ++_sessionEpoch;
+    _refreshingAccess = null;
     final rnd = Random.secure();
     final verifier = base64UrlEncode(List<int>.generate(48, (_) => rnd.nextInt(256))).replaceAll('=', '');
     final challenge = base64UrlEncode(sha256.convert(utf8.encode(verifier)).bytes).replaceAll('=', '');
@@ -293,6 +326,7 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw ApiError('Sign in was cancelled.');
     }
+    _checkSession(epoch);
     final back = Uri.parse(result);
     if (back.queryParameters['state'] != state) throw ApiError('Sign in failed. Try again.');
     final err = back.queryParameters['error_description'] ?? back.queryParameters['error'];
@@ -337,7 +371,9 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> _loadMe() async {
+    final epoch = _sessionEpoch;
     final j = await call('GET', '/auth/me') as Map<String, dynamic>;
+    _checkSession(epoch);
     user = (j['user'] ?? j) as Map<String, dynamic>;
     pollsEnabled = (j['features'] as Map?)?['polls'] == true;
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
@@ -353,6 +389,8 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> _clear() async {
+    _sessionEpoch++;
+    _refreshingAccess = null;
     _uploadRequest++;
     _access = null;
     _refresh = null;
@@ -361,13 +399,14 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
     protectedStoriesEnabled = false;
-    await RefreshStore.clear();
+    await _writeCredentials(RefreshStore.clear);
   }
 
   Future<String> _token() async {
     if (_access != null && DateTime.now().isBefore(_expires.subtract(const Duration(seconds: 60)))) {
       return _access!;
     }
+    final epoch = _sessionEpoch;
     if (_refresh == null) throw ApiError('Please sign in again.', 401);
     // Home, stories and polling can all need the same expired token. Share one
     // exchange instead of concurrently reusing the same refresh credential.
@@ -383,14 +422,17 @@ class Session extends ChangeNotifier {
         if (identical(_refreshingAccess, exchange)) _refreshingAccess = null;
       }
     }
+    _checkSession(epoch);
     return _access!;
   }
 
   Future<dynamic> call(String method, String path,
       {Map<String, dynamic>? body, Map<String, String>? query}) async {
+    final epoch = _sessionEpoch;
     final uri = Uri.parse('$apiBase$path').replace(queryParameters: query);
     for (var attempt = 0; attempt < 2; attempt++) {
       final token = await _token();
+      _checkSession(epoch);
       final headers = {
         'Authorization': 'Bearer $token',
         'Accept': 'application/json',
@@ -416,6 +458,7 @@ class Session extends ChangeNotifier {
         setOffline(true);
         throw ApiError('No connection. Check your internet and try again.');
       }
+      _checkSession(epoch);
       setOffline(false);
       if (r.statusCode == 401 && attempt == 0) {
         _expires = DateTime.fromMillisecondsSinceEpoch(0);

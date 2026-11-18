@@ -84,6 +84,68 @@ void main() {
       return reply({'data':[]});
     }));
   });
+  test('account replacement rejects the old refresh without overwriting the new grant', () async {
+    final s = Session(); final pending = Completer<http.Response>(); var oldReads = 0;
+    await http.runWithClient(() async {
+      await s.login('first', 'fixture');
+      final request = expectLater(s.call('GET', '/posts'), throwsA(isA<ApiError>()));
+      await Future<void>.delayed(Duration.zero);
+      await s.login('second','fixture');
+      pending.complete(reply({'access_token':'late-first','refresh_token':'late-first-grant','expires_in':3600}));
+      await request;
+      expect(s.user?['public_id'],'second'); expect(await RefreshStore.read(),'second-grant'); expect(oldReads,0);
+    }, () => MockClient((r) async {
+      if (r.url.path.endsWith('/oauth/token')) {
+        final form = Uri.splitQueryString(r.body);
+        if (form['grant_type'] == 'password') {
+          final name = form['username'];
+          return reply({'access_token':'$name-access','refresh_token':'$name-grant','expires_in':3600});
+        }
+        return pending.future;
+      }
+      if (r.url.path.endsWith('/auth/me')) return reply({'user':{'public_id':r.headers['Authorization'] == 'Bearer second-access' ? 'second' : 'first'}});
+      if (r.headers['Authorization'] == 'Bearer first-access') return reply({'message':'expired'},401);
+      oldReads++; return reply({'data':[]});
+    }));
+  });
+  test('an old account API response is rejected after signing into another account', () async {
+    final s = Session(); final pending = Completer<http.Response>();
+    await http.runWithClient(() async {
+      await s.login('first','fixture');
+      final request = expectLater(s.call('GET','/posts'),throwsA(isA<ApiError>()));
+      await Future<void>.delayed(Duration.zero);
+      await s.login('second','fixture');
+      pending.complete(reply({'data':['first-private-content']}));
+      await request; expect(s.user?['public_id'],'second');
+    }, () => MockClient((r) async {
+      if (r.url.path.endsWith('/oauth/token')) {
+        final name = Uri.splitQueryString(r.body)['username'];
+        return reply({'access_token':'$name-access','refresh_token':'$name-grant','expires_in':3600});
+      }
+      if (r.url.path.endsWith('/auth/me')) return reply({'user':{'public_id':r.headers['Authorization'] == 'Bearer second-access' ? 'second' : 'first'}});
+      return pending.future;
+    }));
+  });
+  test('logout rejects a refresh response that arrives after the session was cleared', () async {
+    final s = Session(); final pending = Completer<http.Response>(); var lateReads = 0;
+    await http.runWithClient(() async {
+      await s.login('fixture', 'fixture');
+      final request = expectLater(s.call('GET', '/posts'), throwsA(isA<ApiError>()));
+      await Future<void>.delayed(Duration.zero);
+      await s.logout();
+      pending.complete(reply({'access_token':'late-fixture','refresh_token':'late-grant','expires_in':3600}));
+      await request;
+      expect(s.user,isNull); expect(await RefreshStore.read(),isNull); expect(lateReads,0);
+    }, () => MockClient((r) async {
+      if (r.url.path.endsWith('/oauth/token')) {
+        if (Uri.splitQueryString(r.body)['grant_type'] == 'password') return reply({'access_token':'old-fixture','refresh_token':'saved-fixture','expires_in':3600});
+        return pending.future;
+      }
+      if (r.url.path.endsWith('/auth/me')) return reply({'user':{'public_id':'member-fixture'}});
+      if (r.headers['Authorization'] == 'Bearer old-fixture') return reply({'message':'expired'},401);
+      lateReads++; return reply({'data':[]});
+    }));
+  });
   test('failed shared refresh releases its guard and keeps the grant for a later retry', () async {
     final s = Session(); var grants = 0; final pending = Completer<http.Response>();
     await http.runWithClient(() async {

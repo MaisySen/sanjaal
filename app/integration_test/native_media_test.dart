@@ -56,7 +56,7 @@ Future<void> bridge(WidgetTester t, String action) async {
 }
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
     'native camera photo video codec and authorized gallery return only local review files',
     (t) async {
@@ -312,9 +312,8 @@ void main() {
       await t.tap(find.text('Only me'));
       await t.pump(const Duration(seconds: 1));
       expect(find.text('Only me').hitTestable(), findsOneWidget);
-      await binding.convertFlutterSurfaceToImage();
-      await t.pump();
-      await binding.takeScreenshot('protected_story_composer_native');
+      await t.pump(const Duration(milliseconds: 500));
+      await bridge(t, 'composer');
       await t.tap(find.text('Share story'));
       await wait(
         t,
@@ -385,7 +384,7 @@ void main() {
       );
       await t.pump(const Duration(milliseconds: 500));
       await bridge(t, 'story'); // System-level capture must show the actual story.
-      await binding.takeScreenshot('protected_story_viewer_native');
+
       await t.pumpWidget(const SizedBox());
       await t.runAsync(
         () => session.call('DELETE', '/stories/${story['public_id']}'),

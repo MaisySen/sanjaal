@@ -13,5 +13,5 @@ User::factory()->create(['username' => 'cowner', 'auth0_sub' => 'auth0|cowner'])
 file_put_contents('/tmp/compat/owner.jwt', JWT::encode(['iss' => 'https://tenant.example.auth0.com/', 'aud' => 'https://api.test', 'sub' => 'auth0|cowner', 'iat' => time() - 10, 'exp' => time() + 3000], $pem, 'RS256', 'compat-key'));
 $owner = User::where('username', 'cowner')->firstOrFail();
 $post = \App\Models\Post::create(['user_id' => $owner->id, 'kind' => 'post', 'body' => 'Synthetic exact-image populated feed fixture']);
-$post->media()->create(['type' => 'image', 'path' => trim(file_get_contents('/tmp/avatar_id')), 'mime' => 'image/png']);
+$post->media()->create(['type' => 'image', 'path' => trim(file_get_contents('/tmp/avatar_id')), 'mime' => 'image/png', 'size' => 68]);
 $post->hashtags()->attach(\App\Models\Hashtag::firstOrCreate(['tag' => 'fixture'])->id);

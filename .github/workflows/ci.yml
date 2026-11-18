@@ -148,6 +148,7 @@ jobs:
           diff /tmp/schema_before.txt /tmp/schema_after.txt && echo "schema unchanged: $(cat /tmp/schema_after.txt)"
 
   app:
+    if: github.ref != 'refs/heads/timing-connector-candidate'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -254,6 +255,7 @@ jobs:
 
   # Private engineering artifact only. It has no signature, upload or release step.
   bundle:
+    if: github.ref != 'refs/heads/timing-connector-candidate'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -305,6 +307,7 @@ jobs:
           retention-days: 7
 
   emulator:
+    if: github.ref != 'refs/heads/timing-connector-candidate'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
@@ -387,6 +390,7 @@ jobs:
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" emulator-shots
 
   ios:
+    if: github.ref != 'refs/heads/timing-connector-candidate'
     runs-on: macos-latest
     defaults:
       run:

@@ -18,11 +18,12 @@ class ReelPlayback {
       if (disposed) return;
       await controller.setLooping(true);
     });
-    initialized.catchError((Object _) {});
+    initialized.catchError((Object _) { failed = true; });
   }
   final VideoPlayerController controller;
   late final Future<void> initialized;
   bool disposed = false;
+  bool failed = false;
   void dispose() { if (!disposed) { disposed = true; controller.dispose(); } }
 }
 class ReelPlayerPool {
@@ -43,6 +44,12 @@ class ReelPlayerPool {
     }
     for (final value in _players.keys.toList()) { if (!keep.contains(value)) _players.remove(value)!.dispose(); }
     for (final value in keep) { _players.putIfAbsent(value, () => ReelPlayback(value)); }
+  }
+  void discardFailed() {
+    for (final url in _players.keys.toList()) {
+      final player = _players[url]!;
+      if (player.failed || player.controller.value.hasError) _players.remove(url)!.dispose();
+    }
   }
   void dispose() { for (final value in _players.values) { value.dispose(); } _players.clear(); }
 }
@@ -125,6 +132,7 @@ class _ReelsPageState extends State<ReelsPage> {
         if (refresh) { reels.clear(); reels.addAll(uploads.confirmedPosts.where((p) => p['kind'] == 'reel')); index = 0; }
         final ids = reels.map((p) => p['public_id']).toSet();
         reels.addAll(items.where((p) => ids.add(p['public_id'])));
+        if (refresh) players.discardFailed();
         players.warm(reels, index);
         cursor = j['next_cursor'] as String?;
         done = cursor == null;

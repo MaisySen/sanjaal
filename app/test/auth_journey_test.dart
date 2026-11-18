@@ -52,7 +52,8 @@ void main(){
    final fields=find.byType(TextFormField);
    for(var i=0;i<fields.evaluate().length;i++){
      final field=fields.at(i);await t.ensureVisible(field);await t.pumpAndSettle();
-     await t.tap(field);await t.pump();
+     await t.tap(field);await t.pumpAndSettle();
+     await t.ensureVisible(field);await t.pumpAndSettle();
      expect(field.hitTestable(),findsOneWidget);
      expect(t.getRect(field).bottom,lessThanOrEqualTo(400),reason:'field must remain above keyboard');
    }

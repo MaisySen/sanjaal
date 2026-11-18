@@ -578,7 +578,8 @@ void main() {
             expect(find.text(t_('Followers')).hitTestable(), findsOneWidget);
             expect(t.takeException(), isNull);
             final caption=find.byType(TextField).first;
-            await t.ensureVisible(caption);await t.pump();await t.tap(caption);await t.pump();
+            await t.scrollUntilVisible(caption,100,scrollable:find.byType(Scrollable).first);await t.pumpAndSettle();await t.tap(caption);await t.pumpAndSettle();
+            await t.ensureVisible(caption);await t.pumpAndSettle();
             await t.enterText(caption,'Synthetic caption');
             expect(caption.hitTestable(),findsOneWidget);
             expect(t.getRect(caption).bottom,lessThanOrEqualTo(400));

@@ -103,6 +103,19 @@ void main() {
       return http.Response(jsonEncode({'data':[{'public_id':'r1','body':'Fixture','author':{'public_id':'other','username':'other'},'media':[{'type':'video','url':'https://fixture.invalid/same.mp4'}],'likes_count':0,'comments_count':0}],'next_cursor':null}),200);
     }));
   });
+  testWidgets('deliberate recovery preserves healthy players and never starts inactive replacements', (t) async {
+    final items=[for(var i=0;i<3;i++) <String,dynamic>{'public_id':'r$i','body':'Fixture','author':{'username':'fixture'},'media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];
+    final pool=ReelPlayerPool();video.failNext=true;pool.warm(items,1);await flush(t);
+    final failed=pool.forReel(items[0])!;final healthy=pool.forReel(items[1])!;
+    expect(failed.failed,isTrue);pool.discardFailed();pool.warm(items,1);await flush(t);
+    expect(failed.disposed,isTrue);expect(identical(pool.forReel(items[1]),healthy),isTrue);
+    expect(video.nextId,4);expect(pool.length,3);expect(video.playing.values.every((v)=>!v),isTrue);
+    final replacement=pool.forReel(items[0])!;
+    await t.pumpWidget(app(ReelItem(session:Session(),reel:items[0],playback:replacement,playing:false,muted:false,onToggleMute:(){})));await flush(t);
+    expect(video.playing.values.every((v)=>!v),isTrue);
+    pool.discardFailed();pool.warm(items,1);await flush(t);expect(video.nextId,4);
+    await t.pumpWidget(const SizedBox());pool.dispose();await flush(t);expect(t.takeException(),isNull);
+  });
   testWidgets('a retained ReelItem swaps pruned pooled ownership without replaying disposed controllers',(t)async{
     final pool=ReelPlayerPool();final session=Session();
     final items=[for(var i=0;i<6;i++) <String,dynamic>{'public_id':'r$i','body':'Fixture','author':{'username':'fixture'},'media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];

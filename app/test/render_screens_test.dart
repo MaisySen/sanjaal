@@ -565,6 +565,64 @@ void main() {
     }));
   });
 
+  testWidgets('group info: only the owner sees Remove; it asks first, deletes once and drops the member; a refusal keeps them', (tester) async {
+    final calls = <String>[];
+    var refuse = false;
+    Map<String, dynamic> user(String n) => {'public_id': 'u_$n', 'name': n, 'username': n};
+    await http.runWithClient(() async {
+      SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
+      final s = Session();
+      await tester.runAsync(() => s.restore());
+      tester.view.physicalSize = const Size(1080, 2160);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      Future<void> pump(Map<String, dynamic> convo) async {
+        await tester.pumpWidget(MaterialApp(home: GroupInfoPage(key: UniqueKey(), session: s, convo: convo)));
+        await tester.pumpAndSettle();
+      }
+      Future<void> settle() async {
+        for (var i = 0; i < 4; i++) {
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await tester.pumpAndSettle();
+      }
+      final base = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha'), user('bina')]};
+      await pump({...base, 'my_role': 'member'});
+      expect(find.byTooltip('Remove from group'), findsNothing);
+      await pump({...base, 'my_role': 'owner'});
+      expect(find.byTooltip('Remove from group'), findsNWidgets(2));
+      // Cancel sends nothing.
+      await tester.tap(find.byTooltip('Remove from group').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(calls, isEmpty);
+      // A refusal keeps the member and shows the server's words.
+      refuse = true;
+      await tester.tap(find.byTooltip('Remove from group').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await settle();
+      expect(find.text('Only the group owner can remove people.'), findsOneWidget);
+      expect(find.text('@bina'), findsOneWidget);
+      refuse = false;
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      await tester.tap(find.byTooltip('Remove from group').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await settle();
+      expect(find.text('@bina'), findsNothing);
+      expect(find.text('@asha'), findsOneWidget);
+      expect(calls.where((c) => c == 'DELETE /conversations/g1/members/bina').length, 2, reason: 'one refused, one accepted');
+    }, () => MockClient((r) async {
+      if (r.url.path.contains('token') || r.url.path.endsWith('/me')) return _reply(r);
+      calls.add('${r.method} ${r.url.path.replaceFirst('/api/v1', '')}');
+      if (refuse) return http.Response(jsonEncode({'message': 'Only the group owner can remove people.'}), 403, headers: {'content-type': 'application/json'});
+      return http.Response(jsonEncode({'conversation': {'public_id': 'g1', 'members': [user('asha')]}}), 200, headers: {'content-type': 'application/json'});
+    }));
+  });
+
   testWidgets('wallet: Cash out is off unless the server says so; a retry after a server error reuses the request id', (tester) async {
     final bodies = <Map<String, dynamic>>[];
     var available = false;

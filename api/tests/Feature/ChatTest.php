@@ -260,6 +260,38 @@ class ChatTest extends TestCase
         $this->patchJson("/api/v1/conversations/$direct", ['title' => 'x'], $hb)->assertStatus(422);
     }
 
+    public function test_only_the_owner_removes_a_member_and_the_removed_member_loses_access(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        [$d, $hd] = $this->member('dipesh');
+        $cid = $this->group($ha, ['bina', 'chandra']);
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'before', 'client_id' => 'r1'], $hb)->assertCreated();
+
+        // A plain member cannot remove anyone, including the owner; an outsider sees nothing.
+        $this->deleteJson("/api/v1/conversations/$cid/members/chandra", [], $hb)->assertForbidden();
+        $this->deleteJson("/api/v1/conversations/$cid/members/asha", [], $hb)->assertForbidden();
+        $this->deleteJson("/api/v1/conversations/$cid/members/chandra", [], $hd)->assertNotFound();
+        $this->assertSame(3, \DB::table('conversation_members')->count());
+        // The owner cannot remove themself or a person who is not in the group.
+        $this->deleteJson("/api/v1/conversations/$cid/members/asha", [], $ha)->assertStatus(422);
+        $this->deleteJson("/api/v1/conversations/$cid/members/dipesh", [], $ha)->assertNotFound();
+        $this->assertSame(3, \DB::table('conversation_members')->count());
+
+        $r = $this->deleteJson("/api/v1/conversations/$cid/members/chandra", [], $ha)->assertOk();
+        $this->assertSame(['asha', 'bina'], collect($r->json('conversation.members'))->pluck('username')->sort()->values()->all());
+        // The removed member no longer reads, sends or sees the chat; the others keep their messages.
+        $this->getJson("/api/v1/conversations/$cid/messages", $hc)->assertNotFound();
+        $this->postJson("/api/v1/conversations/$cid/messages", ['body' => 'still here?', 'client_id' => 'r2'], $hc)->assertNotFound();
+        $this->assertSame([], collect($this->getJson('/api/v1/conversations', $hc)->json('data'))->pluck('public_id')->all());
+        $this->getJson("/api/v1/conversations/$cid/messages", $hb)->assertOk()->assertJsonCount(1, 'data');
+        // Removing twice is not repeated, and a direct chat has no member list.
+        $this->deleteJson("/api/v1/conversations/$cid/members/chandra", [], $ha)->assertNotFound();
+        $direct = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->json('conversation.public_id');
+        $this->deleteJson("/api/v1/conversations/$direct/members/bina", [], $ha)->assertStatus(422);
+    }
+
     public function test_group_leave_transfers_ownership_and_last_leaver_removes_the_group(): void
     {
         [$a, $ha] = $this->member('asha');

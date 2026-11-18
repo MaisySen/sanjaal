@@ -176,6 +176,44 @@ class ChatController extends Controller
         return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
     }
 
+    /** Only the group owner removes a member. The owner cannot remove themself (they leave) and nobody removes the owner. */
+    public function removeMember(Request $request, string $id, string $username): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+        if ($convo->type !== 'group') {
+            return response()->json(['message' => 'Only groups have a member list.'], 422);
+        }
+        $me = $request->user();
+        $result = DB::transaction(function () use ($convo, $me, $username) {
+            // Same lock as leave() and rename(), and the role is read after it, so a handoff cannot race.
+            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            if (! $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists()) {
+                return 'forbidden';
+            }
+            $target = $convo->members()->where('users.username', $username)->first();
+            if (! $target) {
+                return 'missing';
+            }
+            if ($target->id === $me->id) {
+                return 'self';
+            }
+            $convo->members()->detach($target->id);
+
+            return 'ok';
+        });
+        if ($result === 'forbidden') {
+            return response()->json(['message' => 'Only the group owner can remove people.'], 403);
+        }
+        if ($result === 'missing') {
+            return response()->json(['message' => 'That person is not in this group.'], 404);
+        }
+        if ($result === 'self') {
+            return response()->json(['message' => 'Use Leave group to leave.'], 422);
+        }
+
+        return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
+    }
+
     /** Leave a group. If the owner leaves, the longest standing member becomes owner. */
     /** Only the group owner renames. The role is read after the lock, like leave(), so a handoff cannot race. */
     public function rename(Request $request, string $id): JsonResponse

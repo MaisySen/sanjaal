@@ -14,6 +14,7 @@ class KeyedB2UploadTest extends TestCase
     private const KEY = 'fixture-b2-intent-000001';
     private array $uploaded = [];
     private array $deleted = [];
+    private bool $failUpload = false;
 
     protected function setUp(): void
     {
@@ -22,13 +23,13 @@ class KeyedB2UploadTest extends TestCase
         \Illuminate\Support\Facades\Cache::flush();
     }
 
-    private function fakeB2(bool $uploadFails = false): void
+    private function fakeB2(): void
     {
         Http::fake([
             '*b2_authorize_account*' => Http::response(['authorizationToken' => 'acct', 'apiInfo' => ['storageApi' => ['apiUrl' => 'https://api.test', 'downloadUrl' => 'https://dl.test']]]),
             '*b2_get_upload_url*' => Http::response(['authorizationToken' => 'u', 'uploadUrl' => 'https://up.test/x']),
-            'https://up.test/*' => function ($req) use ($uploadFails) {
-                if ($uploadFails) { return Http::response(['message' => 'down'], 503); }
+            'https://up.test/*' => function ($req) {
+                if ($this->failUpload) { return Http::response(['message' => 'down'], 503); }
                 $this->uploaded[] = $req->header('X-Bz-File-Name')[0];
                 return Http::response([], 200);
             },
@@ -75,11 +76,11 @@ class KeyedB2UploadTest extends TestCase
 
     public function test_b2_outage_leaves_no_post_row_receipt_and_a_safe_retry_works(): void
     {
-        $this->fakeB2(true);
+        $this->fakeB2(); $this->failUpload = true;
         [$a, $h] = $this->member('asha');
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertStatus(500);
         $this->assertDatabaseCount('posts', 0); $this->assertDatabaseCount('media_blobs', 0); $this->assertDatabaseCount('upload_receipts', 0);
-        $this->fakeB2(false);
+        $this->failUpload = false;
         $this->post('/api/v1/posts', $this->body([$this->img()]), $h)->assertCreated();
         $this->assertDatabaseCount('posts', 1);
     }
@@ -127,7 +128,7 @@ class KeyedB2UploadTest extends TestCase
         $deletedBefore = $this->deleted;
         // Same intent, changed payload: conflict is decided from the receipt before any B2 call.
         $calls = count(Http::recorded());
-        $this->post('/api/v1/posts', $this->body([$this->img('other.png')]), $h)->assertStatus(409);
+        $this->post('/api/v1/posts', $this->body([UploadedFile::fake()->image('o.png', 30, 10)]), $h)->assertStatus(409);
         $this->assertSame($calls, count(Http::recorded()), 'a conflicting retry makes no B2 call at all');
         $this->post('/api/v1/posts', $body, $h)->assertOk();
         $this->assertSame($calls, count(Http::recorded()), 'a replay makes no B2 call at all');

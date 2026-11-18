@@ -98,9 +98,11 @@ jobs:
           php artisan migrate --force
           php artisan tinker --execute='$id=(string)\Illuminate\Support\Str::uuid(); \App\Support\MediaStore::put($id,"image/png",base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1kAAAAASUVORK5CYII="),false); \App\Models\User::factory()->create(["avatar"=>$id]); file_put_contents("/tmp/avatar_id",$id);'
           test -s /tmp/avatar_id
+          php artisan tinker --execute='require base_path("tests/Compat/seed.php");'
+          test -s /tmp/compat/conversation_id
       - name: Run the exact guard image against that database
         run: |
-          docker run -d --name guard --network host -e PORT=10000 -e APP_ENV=production -e APP_KEY -e DB_CONNECTION -e DB_HOST -e DB_PORT -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD "$GUARD_IMAGE"
+          docker run -d --name guard --network host -e PORT=10000 -e APP_ENV=production -e APP_KEY -e DB_CONNECTION -e DB_HOST -e DB_PORT -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e AUTH0_DOMAIN=tenant.example.auth0.com -e AUTH0_AUDIENCE=https://api.test "$GUARD_IMAGE"
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:10000/api/v1/ping && break; sleep 2; done
           echo
           docker logs guard 2>&1 | grep -v -i -E 'password|key' | head -20
@@ -110,6 +112,20 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/api/v1/media/00000000-0000-4000-8000-000000000000)" = 404
           test "$(docker inspect -f '{{.State.Running}}' guard)" = true
           docker exec guard php artisan migrate --force | tail -3
+          # Authenticated owner-only group policy, through the shipped image (synthetic members, throwaway key in the image's own cache).
+          docker cp /tmp/compat/jwks.json guard:/tmp/jwks.json
+          docker exec guard chmod 644 /tmp/jwks.json
+          docker exec -u nobody guard php artisan tinker --execute='Illuminate\Support\Facades\Cache::put("auth0.jwks", json_decode(file_get_contents("/tmp/jwks.json"), true), 3600);'
+          cid=$(cat /tmp/compat/conversation_id); O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; M="Authorization: Bearer $(cat /tmp/compat/member.jwt)"
+          B=http://127.0.0.1:10000/api/v1/conversations/$cid
+          code() { curl -s -o /tmp/resp -w '%{http_code}' -H "$1" -H 'Accept: application/json' -H 'Content-Type: application/json' -X "$2" "$B$3" ${4:+-d "$4"}; }
+          test "$(code "$O" GET '')" = 200
+          echo "owner-only: member invite";  test "$(code "$M" POST /members '{"usernames":["ctarget1"]}')" = 403
+          echo "owner-only: member policy change"; test "$(code "$M" PATCH /add-policy '{"add_policy":"members"}')" = 403
+          echo "owner-only: owner invite"; test "$(code "$O" POST /members '{"usernames":["ctarget1"]}')" = 200
+          echo "owner opens policy"; test "$(code "$O" PATCH /add-policy '{"add_policy":"members"}')" = 200
+          echo "members policy: member invite"; test "$(code "$M" POST /members '{"usernames":["ctarget2"]}')" = 200
+          echo "owner closes policy again"; test "$(code "$O" PATCH /add-policy '{"add_policy":"owner"}')" = 200
           docker exec guard php artisan migrate --force --pretend | tail -3 || true
       - name: Candidate schema still intact after the guard image ran
         run: |

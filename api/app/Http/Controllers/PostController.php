@@ -31,7 +31,7 @@ class PostController extends Controller
         $uid = $viewer->id;
         // The author and the reaction counts ride in the same database round trip as the posts (live correlated
         // reads, never cached), so a feed page costs posts + media + hashtags instead of five sequential reads.
-        $q = Post::with(['media', 'hashtags'])->select('posts.*')->orderByDesc('id')
+        $q = Post::with(['media', 'hashtags'])->leftJoin('users as feed_author', 'feed_author.id', '=', 'posts.user_id')->select('posts.*')->orderByDesc('posts.id')
             ->whereNotExists(fn ($b) => $b->selectRaw('1')->from('blocks')->where(fn ($w) => $w
                 ->where(fn ($d) => $d->whereColumn('blocks.blocker_id', 'posts.user_id')->where('blocks.blocked_id', $uid))
                 ->orWhere(fn ($d) => $d->where('blocks.blocker_id', $uid)->whereColumn('blocks.blocked_id', 'posts.user_id'))))
@@ -40,17 +40,17 @@ class PostController extends Controller
             ->selectRaw("(posts.user_id = ? or coalesce((select share_to_chat from member_controls where member_controls.user_id = posts.user_id), true)) as _can_share", [$uid])
             ->selectRaw("(posts.user_id = ? or coalesce((select comments_from from member_controls where member_controls.user_id = posts.user_id), 'everyone') = 'everyone' or ((select comments_from from member_controls where member_controls.user_id = posts.user_id) = 'following' and exists(select 1 from follows where follows.follower_id = posts.user_id and follows.followee_id = ?))) as _can_comment", [$uid, $uid]);
         foreach (['public_id', 'name', 'username', 'bio', 'avatar'] as $col) {
-            $q->selectRaw("(select users.$col from users where users.id = posts.user_id) as _a_$col");
+            $q->addSelect("feed_author.$col as _a_$col");
         }
         foreach (\App\Http\Controllers\ExtrasController::REACTIONS as $r) {
             $q->selectRaw("(select count(*) from likes where likes.post_id = posts.id and likes.reaction = ?) as _r_$r", [$r]);
         }
         $q->selectRaw('(select likes.reaction from likes where likes.post_id = posts.id and likes.user_id = ? limit 1) as _r_mine', [$uid]);
         if ($request->filled('kind')) {
-            $q->where('kind', $request->kind);
+            $q->where('posts.kind', $request->kind);
         }
         if ($request->scope === 'following') {
-            $q->where(fn ($w) => $w->whereIn('user_id', $viewer->following()->select('users.id'))->orWhere('user_id', $viewer->id));
+            $q->where(fn ($w) => $w->whereIn('posts.user_id', $viewer->following()->select('users.id'))->orWhere('posts.user_id', $viewer->id));
         }
         if ($request->filled('hashtag')) {
             $tag = Str::lower(ltrim($request->hashtag, '#'));

@@ -578,6 +578,8 @@ const _ne = <String, String>{
   'Dismiss': 'हटाउनुहोस्',
   'Back': 'पछाडि',
   'Copy': 'कपी',
+  'Could not restore your sign-in. Try again.': 'तपाईंको साइन इन फेरि खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Your account has not been opened. Check your connection and try again.': 'तपाईंको खाता खोलिएको छैन। इन्टरनेट जाँचेर फेरि प्रयास गर्नुहोस्।',
   'Try again': 'फेरि प्रयास गर्नुहोस्',
   'Refresh': 'रिफ्रेस',
   'Send': 'पठाउनुहोस्',

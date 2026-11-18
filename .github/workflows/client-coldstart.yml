@@ -1,0 +1,66 @@
+name: Isolated client cold-start evidence
+on:
+  push:
+    branches: [client-coldstart-isolated]
+permissions:
+  contents: read
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - name: Focused synthetic startup and render tests
+        run: |
+          mkdir -p test/renders
+          flutter test test/session_restore_test.dart test/session_restore_ui_test.dart test/api_keepalive_test.dart test/home_bundle_test.dart test/cold_start_shell_test.dart test/tab_journey_test.dart --reporter expanded > focused.log 2>&1
+          tail -5 focused.log
+      - name: Analyze and whole Flutter suite
+        run: |
+          flutter analyze --no-fatal-infos > analyze.log 2>&1
+          flutter test --reporter expanded > whole.log 2>&1
+          tail -5 whole.log
+      - name: Build internal engineering APK only, no signing for distribution
+        run: |
+          flutter build apk --release --target-platform android-arm64 --build-name=0.5.5-coldstart --build-number=2010 --obfuscate --split-debug-info=build/coldstart-symbols --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1
+          python3 - <<'PY'
+          import json,hashlib,os,pathlib
+          p=pathlib.Path('build/app/outputs/flutter-apk/app-release.apk')
+          r={'source_commit':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],'baseline_commit':'68aec83024c80f8d0951a03b79cd6112c4f40074','apk_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size,'distribution':'INTERNAL_ENGINEERING_ONLY_NO_DELIVERY','version':'0.5.5-coldstart','version_code':2010,'physical_device_acceptance':False}
+          pathlib.Path('build/coldstart-artifact.json').write_text(json.dumps(r,indent=2)+'\n')
+          print(json.dumps(r))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-client-coldstart-evidence
+          path: |
+            app/focused.log
+            app/analyze.log
+            app/whole.log
+            app/test/renders/restore_*.png
+            app/build/app/outputs/flutter-apk/app-release.apk
+            app/build/coldstart-artifact.json
+            app/build/coldstart-symbols/
+          retention-days: 7
+  existing-api-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify existing home route in pinned current image, no network or DB
+        run: |
+          IMAGE=sanjaalapp/sanjaal-api@sha256:29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66
+          docker pull "$IMAGE"
+          docker run --rm --network none --entrypoint php "$IMAGE" -r 'require "/app/vendor/autoload.php"; $app = require "/app/bootstrap/app.php"; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); $r=$app["router"]->getRoutes()->match(Illuminate\Http\Request::create("/api/v1/home")); if($r->getActionName()!=="App\\Http\\Controllers\\HomeController@show" || !in_array("auth:auth0",$r->gatherMiddleware(),true))throw new RuntimeException("route contract mismatch"); echo json_encode(["action"=>$r->getActionName(),"middleware"=>$r->gatherMiddleware()]).PHP_EOL;'

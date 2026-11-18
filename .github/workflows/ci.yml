@@ -60,13 +60,12 @@ jobs:
           DB_PASSWORD: local-fixture-only
 
   timing-image-check:
-    if: github.ref != 'refs/heads/read-reduction-on-v43'
     # The live v40 image and the timing candidate image (live image + one layer, 2 files), both run against the SAME throwaway
     # database migrated by v40 source (the live schema). Compares status and body for each request and shows the timing headers.
     runs-on: ubuntu-latest
     env:
-      LIVE_IMAGE: sanjaalapp/sanjaal-api@sha256:f112c0a1ea480f7cae2c3e5fe15e60ba9e7d7ba76302864bb617bf86e823c816
-      CAND_IMAGE: sanjaalapp/sanjaal-api@sha256:b384617b848d0d53c6e24889950cdfeb7d4da6c1962b9dda599058533eb84f19
+      LIVE_IMAGE: sanjaalapp/sanjaal-api@sha256:b384617b848d0d53c6e24889950cdfeb7d4da6c1962b9dda599058533eb84f19
+      CAND_IMAGE: sanjaalapp/sanjaal-api@sha256:29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66
       APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
       DB_CONNECTION: pgsql
       DB_HOST: 127.0.0.1
@@ -100,12 +99,13 @@ jobs:
           php artisan migrate --force
           php artisan tinker --execute='$id=(string)\Illuminate\Support\Str::uuid(); \App\Support\MediaStore::put($id,"image/png",base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1kAAAAASUVORK5CYII="),false); \App\Models\User::factory()->create(["avatar"=>$id]); file_put_contents("/tmp/avatar_id",$id);'
           php artisan tinker --execute='require base_path("tests/Compat/seed_v40.php");'
+          php artisan tinker --execute='require base_path("tests/Compat/seed_reads.php");'
           test -s /tmp/avatar_id && test -s /tmp/compat/owner.jwt
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from migrations; select count(*) from information_schema.columns where table_name='conversations' and column_name='add_policy';" | tr '\n' ' ' | tee /tmp/schema_before.txt; echo
       - name: Run each image in turn against that database and compare
         run: |
           docker create --name inspect-candidate "$CAND_IMAGE" >/dev/null
-          for p in app/Providers/AppServiceProvider.php app/Support/ConnectionTiming.php app/Support/MeasuredConnector.php app/Http/Middleware/ConnectionTimingWindow.php bootstrap/app.php; do
+          for p in app/Http/Controllers/PostController.php app/Http/Controllers/ChatController.php app/Http/Controllers/EngagementController.php app/Http/Resources/Present.php; do
             docker cp "inspect-candidate:/app/$p" /tmp/image-file
             cmp "api/$p" /tmp/image-file
           done
@@ -113,6 +113,7 @@ jobs:
           # One at a time: with host networking both would share php-fpm's fixed local port, and the second would silently be served by the first.
           O="Authorization: Bearer $(cat /tmp/compat/owner.jwt)"; aid=$(cat /tmp/avatar_id)
           SPECS="/api/v1/ping 0|/api/v1/media/$aid 0|/api/v1/media/00000000-0000-4000-8000-000000000000 0|/api/v1/auth/me 0|/api/v1/auth/me 1|/api/v1/posts 1|/api/v1/conversations 1|/api/v1/rooms 1|/api/v1/stories 1|/api/v1/wallet 1"
+          SPECS="$SPECS|$(cat /tmp/compat/read_specs)"
           hit() { if [ "$2" = 1 ]; then curl -s -D /tmp/h -o /tmp/b -w '%{http_code}' -H "$O" -H 'Accept: application/json' "http://127.0.0.1:10000$1"; else curl -s -D /tmp/h -o /tmp/b -w '%{http_code}' -H 'Accept: application/json' "http://127.0.0.1:10000$1"; fi; }
           run_image() { # name image
             docker run -d --name $1 --network host -e PORT=10000 -e APP_ENV=production -e APP_KEY -e DB_CONNECTION -e DB_HOST -e DB_PORT -e DB_DATABASE -e DB_USERNAME -e DB_PASSWORD -e AUTH0_DOMAIN=tenant.example.auth0.com -e AUTH0_AUDIENCE=https://api.test "$2" >/dev/null
@@ -125,14 +126,14 @@ jobs:
               docker exec $1 php /tmp/connector_runtime.php
             fi
             echo "$1 runs $(docker inspect -f '{{.Image}}' $1)"
-            : > /tmp/res.$1
+            : > /tmp/res.$1; : > /tmp/queries.$1
             echo "$SPECS" | tr '|' '\n' | while read -r path a; do
               hit "$path" $a >/dev/null            # warm: the first signed-in request verifies the token and fills the claims cache
               sc=$(hit "$path" $a)
               if [ "$path" = /api/v1/posts ]; then python3 -c 'import json; x=json.load(open("/tmp/b")); assert len(x["data"]) > 0 and len(x["data"][0]["media"]) > 0 and len(x["data"][0]["hashtags"]) > 0'; fi
-              h=$(sha256sum < /tmp/b | cut -c1-12); t=$(grep -i '^server-timing' /tmp/h | tr -d '\r' | cut -d' ' -f2-)
+              h=$(python3 api/tests/Compat/canonical_hash.py /tmp/b); t=$(grep -i '^server-timing' /tmp/h | tr -d '\r' | cut -d' ' -f2-)
               q=$(printf '%s' "$t" | grep -oE '[0-9]+ queries' | head -1)
-              echo "$path auth=$a $sc $h $q" >> /tmp/res.$1; echo "  $1 $path auth=$a -> $sc $h [$t]"
+              echo "$path auth=$a $sc $h" >> /tmp/res.$1; echo "$path auth=$a $q" >> /tmp/queries.$1; echo "  $1 $path auth=$a -> $sc $h [$t]"
               if [ "$path" = /api/v1/auth/me ] && [ "$a" = 1 ]; then echo "$t" > /tmp/me_timing.$1; fi
             done
             docker logs $1 2>&1 | grep -i -E 'migrat|nothing to' | head -3
@@ -141,6 +142,8 @@ jobs:
           run_image live "$LIVE_IMAGE"
           run_image cand "$CAND_IMAGE"
           echo "== compare status and body hash, live vs candidate"; diff /tmp/res.live /tmp/res.cand && echo "identical status and body for every request"
+          python3 api/tests/Compat/compare_read_counts.py /tmp/queries.live /tmp/queries.cand
+          echo "BASE query counts"; cat /tmp/queries.live; echo "CAND query counts"; cat /tmp/queries.cand
           echo "live signed-in /auth/me timing: $(cat /tmp/me_timing.live)"; echo "cand signed-in /auth/me timing: $(cat /tmp/me_timing.cand)"
           grep -qE 'desc="[1-9][0-9]* queries".*boot;dur=' /tmp/me_timing.cand
           grep -qE 'connect;dur=[0-9.]+;desc="[1-9][0-9]* connector calls"' /tmp/me_timing.cand

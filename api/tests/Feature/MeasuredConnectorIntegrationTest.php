@@ -12,7 +12,15 @@ use Tests\TestCase;
 /** Test-only binding. Production registration is deliberately absent. Runs on throwaway PG in CI; SQLite lazy paths have separate unit tests. */
 class MeasuredConnectorIntegrationTest extends TestCase
 {
-    use DatabaseMigrations;
+    use DatabaseMigrations { runDatabaseMigrations as private migrateFixture; }
+
+    public function runDatabaseMigrations(): void
+    {
+        if (config('database.connections.'.config('database.default').'.driver') !== 'pgsql') {
+            $this->markTestSkipped('Cold purge requires the throwaway PostgreSQL service.');
+        }
+        $this->migrateFixture();
+    }
 
     public function test_auth_status_body_and_query_counts_match_cold_and_reused_connections(): void
     {

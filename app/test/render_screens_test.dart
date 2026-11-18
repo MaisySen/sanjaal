@@ -783,7 +783,7 @@ void main() {
     }));
   });
 
-  testWidgets('group info DIAGNOSTIC: refusal then failed toggle in one test (sequential flow)', (tester) async {
+  testWidgets('group info: a refusal and then a failed toggle in one session; the newer message shows at once', (tester) async {
     final calls = <String>[];
     var mode = 'refuse_add';
     Map<String, dynamic> user(String n, [String role = 'member']) => {'public_id': 'u_$n', 'name': n, 'username': n, 'role': role};

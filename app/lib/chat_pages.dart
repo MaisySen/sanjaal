@@ -849,7 +849,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   // Null when the server predates the setting: then there is no toggle and anyone can add, as before.
   late String? addPolicy = widget.convo['add_policy'] as String?;
 
-  void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  // The newest message replaces the one on screen, so a second refusal is visible at once instead of queuing behind the first for seconds.
+  void _say(String m) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(m)));
 
   Future<void> _add() async {
     final ctrl = TextEditingController();

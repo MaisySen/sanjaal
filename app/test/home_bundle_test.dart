@@ -60,4 +60,16 @@ void main() {
       expect(await s.takeHome('stories'), isNull);
     }, () => fixture(paths, homeFails: true));
   });
+
+  test('sign-in as another account drops an unconsumed bundle', () async {
+    final paths = <String>[];
+    final s = Session()..homeBundleEnabled = true;
+    await http.runWithClient(() async {
+      await s.restore();
+      s.prefetchHome();
+      await s.login('another', 'not-a-password');
+      expect(await s.takeHome('feed'), isNull);
+      expect(await s.takeHome('unread_messages'), isNull);
+    }, () => fixture(paths));
+  });
 }

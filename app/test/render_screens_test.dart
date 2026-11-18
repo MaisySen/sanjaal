@@ -347,7 +347,7 @@ void main() {
               await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60)));
               await tester.pump(const Duration(milliseconds: 150));
             }
-            await tester.tap(find.byTooltip('Remove from group').last);
+            await tester.tap(find.byTooltip('Remove from group: Sunita Rai'));
             await tester.pump(const Duration(milliseconds: 500));
             if (base == 'group_info_remove_refused') {
               await tester.tap(find.text('Remove'));
@@ -606,18 +606,28 @@ void main() {
       }
       final base = {'public_id': 'g1', 'type': 'group', 'title': 'Trek', 'members': [user('asha'), user('bina')]};
       await pump({...base, 'my_role': 'member'});
-      expect(find.byTooltip('Remove from group'), findsNothing);
+      expect(find.byTooltip('Remove from group: bina'), findsNothing);
+      expect(find.byWidgetPredicate((w) => w is IconButton && (w.tooltip ?? '').startsWith('Remove from group')), findsNothing);
       await pump({...base, 'my_role': 'owner'});
-      expect(find.byTooltip('Remove from group'), findsNWidgets(2));
+      expect(find.byTooltip('Remove from group: asha'), findsOneWidget);
+      expect(find.byTooltip('Remove from group: bina'), findsOneWidget);
+      for (final n in ['asha', 'bina']) {
+        final size = tester.getSize(find.ancestor(of: find.byTooltip('Remove from group: $n'), matching: find.byType(IconButton)).first);
+        expect(size.width >= 48 && size.height >= 48, isTrue, reason: 'touch target for $n is $size');
+      }
       // Cancel sends nothing.
-      await tester.tap(find.byTooltip('Remove from group').last);
+      await tester.tap(find.byTooltip('Remove from group: bina'));
       await tester.pumpAndSettle();
+      // The confirmation names the member who was tapped, not the neighbour.
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('bina')), findsOneWidget);
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('@bina')), findsOneWidget);
+      expect(find.descendant(of: find.byType(AlertDialog), matching: find.text('asha')), findsNothing);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(calls, isEmpty);
       // A refusal keeps the member and shows the server's words.
       refuse = true;
-      await tester.tap(find.byTooltip('Remove from group').last);
+      await tester.tap(find.byTooltip('Remove from group: bina'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove'));
       await settle();
@@ -625,7 +635,7 @@ void main() {
       expect(find.text('@bina'), findsOneWidget);
       refuse = false;
       await tester.pumpAndSettle(const Duration(seconds: 5));
-      await tester.tap(find.byTooltip('Remove from group').last);
+      await tester.tap(find.byTooltip('Remove from group: bina'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove'));
       await settle();

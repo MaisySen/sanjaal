@@ -908,12 +908,25 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     }
   }
 
+  String _label(Map<String, dynamic> m) => (m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString();
+
   Future<void> _remove(Map<String, dynamic> m) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: Text(t_('Remove this person?')),
-        content: Text(t_('They will stop getting this group\'s messages. Someone has to add them again to rejoin.')),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Avatar(user: m, radius: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_label(m), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              Text('@${m['username']}'),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          Text(t_('They will stop getting this group\'s messages. Someone has to add them again to rejoin.')),
+        ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Remove'))),
@@ -987,7 +1000,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             title: Text((m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text('@${m['username']}'),
             trailing: isOwner && m['public_id'] != session.user?['public_id']
-                ? IconButton(tooltip: t_('Remove from group'), icon: const PhIcon('user-minus', size: 22), onPressed: busy ? null : () => _remove(m))
+                ? IconButton(tooltip: '${t_('Remove from group')}: ${_label(m)}', constraints: const BoxConstraints(minWidth: 48, minHeight: 48), icon: const PhIcon('user-minus', size: 24), onPressed: busy ? null : () => _remove(m))
                 : null,
             onTap: m['public_id'] == session.user?['public_id'] ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: session, username: m['username'].toString()))),
           ),

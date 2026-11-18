@@ -1,0 +1,27 @@
+name: Isolated boot profile
+on:
+  push:
+    branches: [boot-profile-evidence]
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Profile immutable current image without external network or DB
+        env:
+          IMAGE: sanjaalapp/sanjaal-api@sha256:29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66
+        run: |
+          docker pull "$IMAGE"
+          docker create --name profile --network none --entrypoint sh -e APP_ENV=production -e APP_KEY=base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM= "$IMAGE" -c 'sleep 600'
+          docker start profile
+          docker cp api/tests/Compat/profile_boot.php profile:/tmp/profile_boot.php
+          echo 'Uncached configuration/routes, CLI cold process, diagnostic overhead included'
+          for n in 1 2 3; do docker exec profile php /tmp/profile_boot.php; done
+          docker exec profile php /app/artisan config:cache
+          docker exec profile php /app/artisan route:cache
+          docker exec profile php /app/artisan event:cache
+          echo 'Cached configuration/routes, CLI cold process, diagnostic overhead included'
+          for n in 1 2 3; do docker exec profile php /tmp/profile_boot.php; done
+          echo 'CLI opcache enabled for this process, not equivalent to warm FPM'
+          for n in 1 2 3; do docker exec profile php -d opcache.enable_cli=1 /tmp/profile_boot.php; done
+          docker rm -f profile

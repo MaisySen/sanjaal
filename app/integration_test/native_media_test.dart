@@ -272,6 +272,13 @@ void main() {
         expect(frame.image.height, inInclusiveRange(1, 320));
         frame.image.dispose(); codec.dispose();
       });
+      await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.dark), home: Scaffold(
+        appBar: AppBar(title: const Text('Native camera poster')),
+        body: Center(child: Image.memory(posterRead.bodyBytes, fit: BoxFit.contain)),
+      )));
+      await wait(t, () => t.widgetList<RawImage>(find.byType(RawImage)).any((image) => image.image != null));
+      await t.pump(const Duration(milliseconds: 500));
+      await bridge(t, 'poster'); // Full Android display, including system dialogs.
       await t.runAsync(() => session.call('DELETE', '/posts/${posterPost['public_id']}'));
       final removedPoster = await t.runAsync(() => http.get(Uri.parse(posterUrl)));
       expect(removedPoster!.statusCode, 404);
@@ -376,6 +383,8 @@ void main() {
             .widgetList<RawImage>(find.byType(RawImage))
             .any((image) => image.image != null),
       );
+      await t.pump(const Duration(milliseconds: 500));
+      await bridge(t, 'story'); // System-level capture must show the actual story.
       await binding.takeScreenshot('protected_story_viewer_native');
       await t.pumpWidget(const SizedBox());
       await t.runAsync(

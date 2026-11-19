@@ -162,6 +162,7 @@ class Session extends ChangeNotifier {
   String? _refresh;
   Future<void>? _refreshingAccess;
   int _sessionEpoch = 0;
+  int get generation => _sessionEpoch;
   Future<void> _credentialWrites = Future<void>.value();
   void _checkSession(int epoch) {
     if (epoch != _sessionEpoch) throw ApiError('Please sign in again.', 401);

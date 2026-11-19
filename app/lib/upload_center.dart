@@ -12,6 +12,7 @@ import 'ui.dart';
 class UploadCenter extends ChangeNotifier {
   UploadCenter._(this.session, this.store) {
     _owner = owner;
+    _sessionGeneration = session.generation;
     session.addListener(_accountChanged);
     session.uploadProgress.addListener(_progressChanged);
     unawaited(_recover());
@@ -22,6 +23,7 @@ class UploadCenter extends ChangeNotifier {
   final UploadPendingStore store;
   String? get owner => session.user?['public_id']?.toString();
   String? _owner;
+  late int _sessionGeneration;
   int _epoch = 0;
   int get generation => _epoch;
   int revision = 0;
@@ -41,8 +43,9 @@ class UploadCenter extends ChangeNotifier {
   bool get occupied => restoring || busy || error != null;
   void _progressChanged() { if (busy) notifyListeners(); }
   void _accountChanged() {
-    if (_owner == owner) return;
+    if (_owner == owner && _sessionGeneration == session.generation) return;
     _owner = owner;
+    _sessionGeneration = session.generation;
     _epoch++;
     busy = false; preparing = false; openingOriginal = false; error = null; result = null;
     _original = null; kind = null; _localId = null;

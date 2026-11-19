@@ -3,7 +3,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
-import 'package:logging/logging.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
@@ -46,7 +45,6 @@ void main(){
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('livekit_client'),(call)async=>null);
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('FlutterWebRTC.Method'),(call)async=>null);
  });
- setUpAll((){Logger.root.level=Level.FINER;Logger.root.onRecord.listen((r){if(r.message.contains('dispose') || r.message.contains('cleanUp') || r.level>=Level.WARNING)print('REALTIME_DISPOSE ${r.message} ${r.error??''}');});});
  Future<void> setup(Future<void> Function(FixtureSession) work)async{
   await http.runWithClient(()async{final s=FixtureSession();await s.login('fixture','not-a-password');await work(s);},()=>MockClient((_)async=>http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200)));
  }
@@ -86,7 +84,12 @@ void main(){
    if(page=='call' || page=='room'){
     // LiveKit disconnect waits up to 10s for its event even before connecting.
     // Drain its finite teardown waits; keep pending-timer invariants enabled.
-    for(var i=0;i<6;i++){await t.pump(const Duration(seconds:11));}
+    for(var i=0;i<6;i++){
+     await t.pump(const Duration(seconds:11));
+     // Native SDK async streams may complete outside the widget test clock.
+     await t.runAsync(()async{await Future<void>.delayed(const Duration(milliseconds:20));});
+     await t.pump();
+    }
    }
    expect(s.requests.length,1);
   });

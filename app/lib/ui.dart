@@ -537,6 +537,7 @@ const _ne = <String, String>{
   'For you': 'तपाईंका लागि',
   'Following': 'फलोइङ',
   'Search': 'खोज्नुहोस्',
+  'Push notifications are not set up for iOS yet. Reopening the app will not enable them. Use Activity while Sanjaal is open.': 'iOS मा पुश सूचनाहरू अझै सेटअप भएका छैनन्। एप फेरि खोल्दैमा ती चालु हुँदैनन्। सञ्जाल खुला हुँदा गतिविधि हेर्नुहोस्।',
   'Notifications': 'सूचना',
   'Settings': 'सेटिङ',
   'Sign out': 'साइन आउट',

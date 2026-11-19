@@ -1,0 +1,23 @@
+name: iOS platform readiness checks
+on:
+  push:
+    branches: [ios-platform-readiness]
+permissions:
+  contents: read
+jobs:
+  ios-platform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/push.dart test/ios_push_readiness_test.dart
+      - run: flutter test test/ios_push_readiness_test.dart test/push_registration_test.dart test/push_settings_render_test.dart --reporter expanded

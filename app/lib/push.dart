@@ -78,8 +78,16 @@ class Push {
   static _SessionPushAccount _account(Session session) =>
       _accounts[session] ??= _SessionPushAccount(session);
   static ValueNotifier<String> get status => _registration.status;
-  static Future<void> register(Session session) =>
-      _registration.register(_account(session));
-  static Future<void> unregister(Session session) =>
-      _registration.unregister(_account(session));
+  static const iosUnavailable = 'Push notifications are not set up for iOS yet. Reopening the app will not enable them. Use Activity while Sanjaal is open.';
+  static bool get _ios => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  static Future<void> register(Session session) async {
+    // No Android Firebase initialization, token registration, permission prompt
+    // or suggestion that reopening can configure an absent APNs integration.
+    if (_ios) {status.value=iosUnavailable;return;}
+    await _registration.register(_account(session));
+  }
+  static Future<void> unregister(Session session) async {
+    if (_ios) {status.value=iosUnavailable;return;}
+    await _registration.unregister(_account(session));
+  }
 }

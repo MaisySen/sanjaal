@@ -63,3 +63,13 @@ The first native experiment rebuilt/reinstalled between phases and returned null
 The preceding full integrated pipeline at `5d0cebd09801d67265e2fc47ef0936685541514b` passed all seven required jobs, including five Android emulator drivers and 28 inspected native PNGs: https://github.com/MaisySen/sanjaal/actions/runs/44507020036 . It predates these marker/generation changes. A new whole-pipeline run must independently validate this runtime before combining that earlier evidence with it.
 
 The Samsung remains on the separately installed exact `0.5.6 (2011)` candidate. Neither correction has been installed there or accepted on a device. No API deployment, production room, real user-draft mutation, paid service, wallet activation, store upload or public release is part of this source batch.
+
+## Exact integrated and visual follow-through
+
+The marker/generation runtime completed all seven required full-pipeline jobs at `3b39b36f19f8ae5b22b5112d7ea88ab36ecb178f`: https://github.com/MaisySen/sanjaal/actions/runs/44518820649 . Actual whole-app 969 pass, one intentional live skip, analyzer zero errors/warnings and 88 info. Android release/bundle, unsigned iOS package, disposable API/Postgres fixtures, finalizers and five emulator drivers passed. Release and preview publishing skipped.
+
+Three of that run's 28 captures were transient rather than settled visual proof: composer enabled label, wallet loading, lost-reply strip. Harness-only `7605cb172396db27b72ce1d13455e49fc7416ccb` adds enabled-button checking and settled rendering waits. Its five emulator drivers pass: https://github.com/MaisySen/sanjaal/actions/runs/44522528554 . The three actual PNGs were inspected: Post label visible, wallet loaded with disabled money controls, and the lost reply showing Try again and Details. Runtime/native/pubspec files are unchanged from 3b39. This does not establish physical-device retry or production latency.
+
+## Discard-confirmation ownership
+
+Source `da353c245339e342c11f242a47492ba4dda2ebaf` binds a pending upload Discard dialog to both its original session generation and marker ID. An old confirmation cannot clear a newly recovered or replacement warning. A fresh confirmation still works. Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/44527422952 . Actual 971 pass, one intentional live skip; analyzer zero errors/warnings and 88 info. Removing the snapshot guard fails both adversarial widget cases; restored 39 focused upload/store cases pass. This is synthetic widget/storage evidence. A new full integrated run is required for this runtime, not inferred from 3b39.

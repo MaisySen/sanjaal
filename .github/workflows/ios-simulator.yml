@@ -1,0 +1,79 @@
+name: iOS simulator local flows
+on:
+  push:
+    branches: [app-integrated-preparation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios-simulator:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring,pdo_sqlite,sqlite3,bcmath,gd
+          coverage: none
+      - name: Disposable local API, no production data or services
+        working-directory: api
+        env:
+          APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+          APP_ENV: local
+          DB_CONNECTION: sqlite
+          DB_DATABASE: /tmp/ios-e2e/db.sqlite
+          CACHE_STORE: file
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          mkdir -p /tmp/ios-e2e;touch /tmp/ios-e2e/db.sqlite .env
+          php artisan migrate --force
+          php tests/E2E/prepare.php /tmp/ios-e2e
+          echo "::add-mask::$(cat /tmp/ios-e2e/token.txt)"
+          E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public tests/E2E/server.php > /tmp/ios-api.log 2>&1 &
+          curl --retry 5 --retry-connrefused --retry-delay 1 -s http://localhost:8000/api/v1/auth/me -H 'Accept: application/json'
+      - name: Select and boot available iPhone simulator
+        run: |
+          xcrun simctl list devices available --json > /tmp/ios-devices.json
+          python3 - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/ios-devices.json'))
+          eligible=[x for runtime,rows in d['devices'].items() if 'iOS' in runtime for x in rows if x['isAvailable'] and 'iPhone' in x['name']]
+          assert eligible,'No installed iPhone simulator runtime'
+          chosen=eligible[0]
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('IOS_DEVICE='+chosen['udid']+'\n')
+          print(chosen)
+          PY
+      - name: Run actual iOS simulator application and native storage plugins
+        working-directory: app
+        run: |
+          flutter pub get
+          mkdir -p build/screenshots
+          xcrun simctl boot "$IOS_DEVICE" || true
+          xcrun simctl bootstatus "$IOS_DEVICE" -b
+          xcrun simctl io "$IOS_DEVICE" recordVideo build/screenshots/ios-flows.mp4 > /tmp/ios-record.log 2>&1 &
+          REC=$!
+          set +e
+          flutter drive -d "$IOS_DEVICE" --driver=test_driver/integration_test.dart --target=integration_test/ios_flows_test.dart --no-pub --dart-define=API_BASE_URL=http://localhost:8000/api/v1 --dart-define=E2E_TOKEN_BASE=http://localhost:8000 --dart-define=E2E_TOKEN=$(cat /tmp/ios-e2e/token.txt) > ios-simulator.log 2>&1
+          RC=$?
+          kill -INT "$REC";wait "$REC"
+          xcrun simctl io "$IOS_DEVICE" screenshot build/screenshots/ios-final-native.png
+          tail -50 ios-simulator.log
+          exit "$RC"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-local-evidence
+          path: |
+            app/ios-simulator.log
+            app/build/screenshots/*
+            /tmp/ios-api.log
+            /tmp/ios-devices.json
+          retention-days: 7

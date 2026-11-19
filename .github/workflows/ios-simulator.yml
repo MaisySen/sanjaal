@@ -1,7 +1,7 @@
 name: iOS simulator local flows
 on:
   push:
-    branches: [app-integrated-preparation]
+    branches: [ios-direct-vm-attach]
   workflow_dispatch:
 permissions:
   contents: read
@@ -61,15 +61,40 @@ jobs:
           xcrun simctl bootstatus "$IOS_DEVICE" -b
           xcrun simctl io "$IOS_DEVICE" recordVideo build/screenshots/ios-flows.mp4 > /tmp/ios-record.log 2>&1 &
           REC=$!
+          # Compile once, then launch explicitly. Do not depend on the failed
+          # Flutter simulator log-reader discovery path to find its VM service.
+          flutter build ios --simulator --debug --target=integration_test/ios_flows_test.dart --no-pub --dart-define=API_BASE_URL=http://localhost:8000/api/v1 --dart-define=E2E_TOKEN_BASE=http://localhost:8000 --dart-define=E2E_TOKEN="$(cat /tmp/ios-e2e/token.txt)" > ios-build.log 2>&1
+          xcrun simctl install "$IOS_DEVICE" build/ios/iphonesimulator/Runner.app
+          # Debug-only simulator fixture, bind a fixed localhost port. Nothing
+          # listens remotely and these arguments never enter a release build.
+          xcrun simctl launch --console "$IOS_DEVICE" au.fintex.sanjaal --vm-service-host=127.0.0.1 --vm-service-port=57321 --disable-service-auth-codes > ios-native-console.log 2>&1 &
+          LAUNCH=$!
+          trap 'kill -INT "$REC" 2>/dev/null || true; kill "$LAUNCH" 2>/dev/null || true' EXIT
           set +e
           python3 - <<'PYDRIVE'
-          import os,subprocess,signal
-          args=['flutter','drive','-d',os.environ['IOS_DEVICE'],'--driver=test_driver/integration_test.dart','--target=integration_test/ios_flows_test.dart','--no-pub','--dart-define=API_BASE_URL=http://localhost:8000/api/v1','--dart-define=E2E_TOKEN_BASE=http://localhost:8000','--dart-define=E2E_TOKEN='+open('/tmp/ios-e2e/token.txt').read().strip()]
+          import os,subprocess,signal,time,json,urllib.request,pathlib
+          endpoint='http://127.0.0.1:57321/'
+          deadline=time.monotonic()+90
+          while True:
+            try:
+              with urllib.request.urlopen(endpoint+'getVM',timeout=2) as response:
+                state=json.load(response)
+              assert state.get('result',{}).get('type')=='VM',state
+              pathlib.Path('ios-vm-probe.json').write_text(json.dumps(state,indent=2))
+              print('Direct simulator VM service verified',flush=True)
+              break
+            except Exception as error:
+              if time.monotonic()>deadline:
+                print('Direct VM service unavailable within90s: '+str(error),flush=True)
+                subprocess.run(['xcrun','simctl','spawn',os.environ['IOS_DEVICE'],'launchctl','list'])
+                raise SystemExit(125)
+              time.sleep(1)
+          args=['flutter','drive','-d',os.environ['IOS_DEVICE'],'--driver=test_driver/integration_test.dart','--use-existing-app='+endpoint,'--no-pub']
           with open('ios-simulator.log','w') as log:
             child=subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-            try:code=child.wait(timeout=900)
+            try:code=child.wait(timeout=600)
             except subprocess.TimeoutExpired:
-              print('iOS drive exceeded15-minute diagnostic bound',flush=True)
+              print('Existing-app iOS driver exceeded10-minute diagnostic bound',flush=True)
               subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/ios-timeout-native.png'])
               os.killpg(child.pid,signal.SIGTERM)
               try:child.wait(timeout=15)
@@ -101,6 +126,9 @@ jobs:
           name: ios-simulator-local-evidence
           path: |
             app/ios-simulator.log
+            app/ios-build.log
+            app/ios-native-console.log
+            app/ios-vm-probe.json
             app/build/screenshots/*
             /tmp/ios-api.log
             /tmp/ios-devices.json

@@ -1,3 +1,4 @@
+import 'session_bound_state.dart';
 import 'ph.dart';
 import 'package:livekit_client/livekit_client.dart' hide Session, ConnectionState;
 import 'package:livekit_client/livekit_client.dart' as livekit show ConnectionState;
@@ -20,7 +21,9 @@ class CallPage extends StatefulWidget {
   State<CallPage> createState() => _CallPageState();
 }
 
-class _CallPageState extends State<CallPage> {
+class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
+  @override Session get viewSession => widget.session;
+
   final Room room = Room();
   String status = 'Connecting...';
   bool muted = false;
@@ -42,15 +45,21 @@ class _CallPageState extends State<CallPage> {
     _joining = _join();
   }
 
+  @override void sessionRetired(){
+    _closed=true;
+    // Do not end this call with credentials from a different login.
+    _ended=true;
+    _releaseRoom();
+  }
   void _changed() {
-    if (mounted) setState(() {});
+    if (mounted && sessionActive) setState(() {});
   }
 
   Future<void> _join() async {
     try {
       late Map<String, dynamic> token;
       final connected = await connectCallWhileActive(
-        isActive: () => !_closed,
+        isActive: () => mounted && !_closed && sessionActive,
         requestToken: () async {
           final qs = widget.callId != null ? '?call=${widget.callId}' : '?kind=${widget.video ? 'video' : 'voice'}';
           token = await widget.session.call('POST', '/conversations/${widget.conversationId}/call-token$qs') as Map<String, dynamic>;
@@ -66,11 +75,11 @@ class _CallPageState extends State<CallPage> {
         await _disconnectSafely();
         return;
       }
-      if (mounted) setState(() { _setupComplete = true; camOn = widget.video; });
+      if (mounted && sessionActive) setState(() { _setupComplete = true; camOn = widget.video; });
     } on ApiError catch (e) {
       _endCall();
       await _disconnectSafely();
-      if (mounted) {
+      if (mounted && sessionActive) {
         setState(() {
           failed = true;
           status = e.message;
@@ -79,7 +88,7 @@ class _CallPageState extends State<CallPage> {
     } catch (_) {
       _endCall();
       await _disconnectSafely();
-      if (mounted) {
+      if (mounted && sessionActive) {
         setState(() {
           failed = true;
           status = 'Could not start the call. Check your connection and microphone permission.';
@@ -89,7 +98,7 @@ class _CallPageState extends State<CallPage> {
   }
 
   void _endCall() {
-    if (_ended || _callId == null) return;
+    if (!sessionActive || _ended || _callId == null) return;
     _ended = true;
     widget.session.call('POST', '/calls/$_callId/action', body: {'action': 'end'}).catchError((_) => null);
   }
@@ -107,7 +116,8 @@ class _CallPageState extends State<CallPage> {
     try { await room.disconnect(); } catch (_) {}
   }
 
-  Future<void> _releaseRoom() async {
+  Future<void>? _release;
+  Future<void> _releaseRoom() => _release ??= () async {
     // Stop capture immediately, then wait for any token/connect operation to
     // observe _closed before disposing the native room it may still be using.
     await _disconnectSafely();
@@ -115,15 +125,15 @@ class _CallPageState extends State<CallPage> {
     try { await _mediaChange; } catch (_) {}
     await _disconnectSafely();
     try { await room.dispose(); } catch (_) {}
-  }
+  }();
 
   void _changeMedia({required bool camera}) {
-    if (_closed || _mediaBusy || failed || room.localParticipant == null) return;
+    if (!sessionActive || _closed || _mediaBusy || failed || room.localParticipant == null) return;
     _mediaChange = _media(camera: camera);
   }
 
   Future<void> _media({required bool camera}) async {
-    if (_closed || _mediaBusy || failed || room.localParticipant == null) return;
+    if (!sessionActive || _closed || _mediaBusy || failed || room.localParticipant == null) return;
     setState(() => _mediaBusy = true);
     try {
       final next = camera ? !camOn : !muted;
@@ -132,11 +142,11 @@ class _CallPageState extends State<CallPage> {
       } else {
         await room.localParticipant?.setMicrophoneEnabled(!next);
       }
-      if (mounted) setState(() { if (camera) { camOn = next; } else { muted = next; } });
+      if (mounted && sessionActive) setState(() { if (camera) { camOn = next; } else { muted = next; } });
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     } finally {
-      if (mounted) setState(() => _mediaBusy = false);
+      if (mounted && sessionActive) setState(() => _mediaBusy = false);
     }
   }
 
@@ -150,6 +160,7 @@ class _CallPageState extends State<CallPage> {
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     final remotes = room.remoteParticipants.values.toList();
     final presentation = presentCall(
       transport: switch (room.connectionState) {

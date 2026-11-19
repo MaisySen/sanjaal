@@ -1,3 +1,4 @@
+import 'session_bound_state.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -32,7 +33,10 @@ class _GiftSheet extends StatefulWidget {
   State<_GiftSheet> createState() => _GiftSheetState();
 }
 
-class _GiftSheetState extends State<_GiftSheet> {
+class _GiftSheetState extends State<_GiftSheet> with SessionBoundState<_GiftSheet> {
+  @override Session get viewSession=>widget.session;
+  @override void sessionRetired(){gifts=[];balance=null;sending=null;}
+
   List<Map<String, dynamic>> gifts = [];
   int? balance;
   String? sending;
@@ -47,15 +51,16 @@ class _GiftSheetState extends State<_GiftSheet> {
   Future<void> _load() async {
     try {
       final g = await widget.session.call('GET', '/gifts');
+      if(!mounted || !sessionActive)return;
       final w = await widget.session.call('GET', '/wallet');
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() {
         gifts = ((g['data'] as List).cast<Map<String, dynamic>>());
         balance = (w['balance'] as num).toInt();
         loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() => loading = false);
       showError(context, e);
     }
@@ -64,28 +69,30 @@ class _GiftSheetState extends State<_GiftSheet> {
   bool _affords(Map<String, dynamic> g) => balance == null || (g['coins'] as num) <= balance!;
 
   void _short(Map<String, dynamic> g) {
+    if(!sessionActive)return;
     final need = (g['coins'] as num).toInt() - (balance ?? 0);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tf_('Not enough coins. You need {n} more. Add coins from your wallet.', {'n': need}))));
   }
 
   Future<void> _send(Map<String, dynamic> g) async {
-    if (sending != null) return;
+    if (!sessionActive || sending != null) return;
     setState(() => sending = g['key'] as String);
     try {
       final r = await widget.session.call('POST', widget.path, body: {'gift': g['key']});
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() => balance = (r['balance'] as num).toInt());
       widget.onSent?.call((r['gift'] as Map).cast<String, dynamic>());
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tf_('Sent {g} to @{u}', {'g': g['name'], 'u': widget.username}))));
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     } finally {
-      if (mounted) setState(() => sending = null);
+      if (mounted && sessionActive) setState(() => sending = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return Padding(padding:const EdgeInsets.all(20),child:Text(t_('This screen belongs to another signed-in session. Close it and sign in again to continue.')));
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

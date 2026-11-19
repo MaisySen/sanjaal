@@ -1,3 +1,4 @@
+import 'session_bound_state.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -13,7 +14,9 @@ class CallsPage extends StatefulWidget {
   State<CallsPage> createState() => _CallsPageState();
 }
 
-class _CallsPageState extends State<CallsPage> {
+class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage> {
+  @override Session get viewSession => widget.session;
+
   List<Map<String, dynamic>> calls = [];
   bool loading = true;
   bool reading = false;
@@ -26,24 +29,26 @@ class _CallsPageState extends State<CallsPage> {
   }
 
   Future<void> _load() async {
-    if(reading || !mounted) return;
+    if(!sessionActive || reading || !mounted) return;
     setState(()=>reading=true);
     try {
       final j = await widget.session.call('GET', '/calls') as Map<String, dynamic>;
       final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
       if(rows.any((v)=>v['conversation_id'] is! String || (v['conversation_id'] as String).trim().isEmpty || v['created_at'] is! String || v['duration_s'] is! num || (v['direction']=='incoming' && v['caller'] is! Map))) throw const FormatException('Invalid calls');
-      if (mounted) setState(() { calls=rows; error=null; });
+      if (mounted && sessionActive) setState(() { calls=rows; error=null; });
     } catch (e) {
-      if (mounted) setState(() => error=e is ApiError?t_(e.message):t_('Calls could not be loaded.'));
+      if (mounted && sessionActive) setState(() => error=e is ApiError?t_(e.message):t_('Calls could not be loaded.'));
     } finally {
-      if(mounted) setState((){loading=false;reading=false;});
+      if(mounted && sessionActive) setState((){loading=false;reading=false;});
     }
   }
 
+  @override void sessionRetired(){calls=[];error=null;}
   String _length(int s) => s <= 0 ? '' : (s >= 60 ? '${s ~/ 60}m ${s % 60}s' : '${s}s');
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: Text(t_('Calls')), actions:[IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise'))]),
@@ -77,10 +82,11 @@ class _CallsPageState extends State<CallsPage> {
                           icon: PhIcon(video ? Ph.videocam_outlined : Ph.call_outlined),
                           tooltip: video ? t_('Video call') : t_('Voice call'),
                           onPressed: () async {
+                            if(!sessionActive)return;
                             await Navigator.of(context).push(MaterialPageRoute(
                               builder: (_) => CallPage(session: widget.session, conversationId: c['conversation_id'] as String, title: '${c['title'] ?? 'Call'}', video: video),
                             ));
-                            if (mounted) _load();
+                            if (mounted && sessionActive) _load();
                           },
                         ),
                       );
@@ -102,16 +108,18 @@ class IncomingCallPage extends StatefulWidget {
   State<IncomingCallPage> createState() => _IncomingCallPageState();
 }
 
-class _IncomingCallPageState extends State<IncomingCallPage> {
+class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundState<IncomingCallPage> {
+  @override Session get viewSession => widget.session;
+
   bool busy = false;
   String? error;
 
   Future<void> _answer(bool accept) async {
-    if (busy) return;
+    if (!sessionActive || busy) return;
     setState(() { busy = true; error = null; });
     try {
       await widget.session.call('POST', '/calls/${widget.call['public_id']}/action', body: {'action': accept ? 'answer' : 'decline'});
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       if (!accept) {
         Navigator.of(context).pop();
         return;
@@ -126,12 +134,13 @@ class _IncomingCallPageState extends State<IncomingCallPage> {
         ),
       ));
     } catch (e) {
-      if (mounted) setState(() { busy = false; error = e is ApiError ? e.message : t_('Could not update the call. Try again.'); });
+      if (mounted && sessionActive) setState(() { busy = false; error = e is ApiError ? e.message : t_('Could not update the call. Try again.'); });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     final caller = (widget.call['caller'] as Map).cast<String, dynamic>();
     final video = widget.call['kind'] == 'video';
     return Scaffold(

@@ -1,3 +1,4 @@
+import 'session_bound_state.dart';
 import 'dart:async';
 import 'room_microphone.dart';
 import 'room_lifecycle.dart';
@@ -18,7 +19,15 @@ class RoomsPage extends StatefulWidget {
   State<RoomsPage> createState() => _RoomsPageState();
 }
 
-class _RoomsPageState extends State<RoomsPage> {
+class _RoomsPageState extends State<RoomsPage> with SessionBoundState<RoomsPage> {
+  @override Session get viewSession => widget.session;
+
+  BuildContext? _titleDialog;
+  @override void sessionRetired(){
+    rooms=[];error=null;
+    final dialog=_titleDialog;
+    if(dialog!=null && dialog.mounted && ModalRoute.of(dialog)?.isCurrent==true)Navigator.of(dialog).pop();
+  }
   List<Map<String, dynamic>> rooms = [];
   bool loading = true;
   bool reading = false;
@@ -32,43 +41,45 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 
   Future<void> _load() async {
-    if(reading || !mounted) return;
+    if(!sessionActive || reading || !mounted) return;
     setState(()=>reading=true);
     try {
       final j = await widget.session.call('GET', '/rooms') as Map<String, dynamic>;
       final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
       if(rows.any((v)=>v['public_id'] is! String || (v['public_id'] as String).trim().isEmpty || v['title'] is! String)) throw const FormatException('Invalid rooms');
-      if (mounted) setState(() { rooms=rows; error=null; });
+      if (mounted && sessionActive) setState(() { rooms=rows; error=null; });
     } catch (e) {
-      if (mounted) setState(() => error=e is ApiError?t_(e.message):t_('Rooms could not be loaded.'));
+      if (mounted && sessionActive) setState(() => error=e is ApiError?t_(e.message):t_('Rooms could not be loaded.'));
     } finally {
-      if(mounted) setState((){loading=false;reading=false;});
+      if(mounted && sessionActive) setState((){loading=false;reading=false;});
     }
   }
 
   Future<void> _open(String id, {Map<String, dynamic>? created}) async {
+    if(!sessionActive)return;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomPage(session: widget.session, roomId: id, joined: created)));
-    if(mounted) _load();
+    if(mounted && sessionActive) _load();
   }
 
   Future<void> _start() async {
-    if (starting) return;
+    if (!sessionActive || starting) return;
     setState(() => starting = true);
     try {
-      final title = await showDialog<String>(context: context, builder: (_) => const _RoomTitleDialog());
-      if (!mounted || title == null) return;
+      final title = await showDialog<String>(context: context, builder: (c) { _titleDialog=c;return const _RoomTitleDialog(); });
+      if (!mounted || !sessionActive || title == null) return;
       final j = await widget.session.call('POST', '/rooms', body: {'title': title}) as Map<String, dynamic>;
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       await _open(j['room_id'] as String, created: {...j, 'title': title, 'is_host': true});
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     } finally {
-      if (mounted) setState(() => starting = false);
+      if (mounted && sessionActive) setState(() => starting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     return Scaffold(
       appBar: AppBar(title: Text(t_('Live rooms')), actions: [
         IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise')),
@@ -168,7 +179,9 @@ class RoomPage extends StatefulWidget {
   State<RoomPage> createState() => _RoomPageState();
 }
 
-class _RoomPageState extends State<RoomPage> {
+class _RoomPageState extends State<RoomPage> with SessionBoundState<RoomPage> {
+  @override Session get viewSession => widget.session;
+
   final Room room = Room();
   late final EventsListener<RoomEvent> _events = room.createListener();
   final _chat = TextEditingController();
@@ -200,7 +213,7 @@ class _RoomPageState extends State<RoomPage> {
     microphone.addListener(_changed);
     _events.on<DataReceivedEvent>(_onData);
     _events.on<RoomDisconnectedEvent>((_) {
-      if (mounted && !ended && !failed) {
+      if (sessionActive && mounted && !ended && !failed) {
         unawaited(microphone.revoke().catchError(_micStopFailed));
         setState(() => status = 'Disconnected');
       }
@@ -208,12 +221,18 @@ class _RoomPageState extends State<RoomPage> {
     _joining = _join();
   }
 
+  @override void sessionRetired(){
+    leaving=true;ended=true;
+    messages.clear();hands.clear();_chat.clear();
+    // Close is a permanent local latch, so a late grant cannot reopen capture.
+    unawaited(_releaseRoom());
+  }
   void _changed() {
-    if (mounted) setState(() {});
+    if (sessionActive && mounted) setState(() {});
   }
 
   void _micStopFailed(Object error) {
-    if (mounted && !leaving) {
+    if (sessionActive && mounted && !leaving) {
       setState(() {
         failed = true;
         status = 'Microphone state could not be confirmed. Leave this room.';
@@ -223,7 +242,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _onData(DataReceivedEvent e) {
-    if (!mounted) return;
+    if (!sessionActive || !mounted) return;
     try {
       final m = jsonDecode(utf8.decode(e.data)) as Map<String, dynamic>;
       final from = e.participant?.name ?? '';
@@ -250,18 +269,19 @@ class _RoomPageState extends State<RoomPage> {
       final wasSpeaker = speaker;
       final accepted = await microphone.hostPacket(sender: sender, host: hostIdentity,
         me: myId, target: packet['to'], allow: packet['allow']);
-      if (!mounted || leaving || !accepted) return;
+      if (!sessionActive || !mounted || leaving || !accepted) return;
       setState(() => handUp = false);
       if (packet['allow'] == true && !wasSpeaker) {
         showInfo(context, 'You can speak. Tap Unmute when ready.');
       }
     } catch (e) {
       if (microphone.stopUnconfirmed) _micStopFailed(e);
-      if (mounted && !leaving) showError(context, e);
+      if (sessionActive && mounted && !leaving) showError(context, e);
     }
   }
 
   Future<void> _send(Map<String, dynamic> m) async {
+    if(!sessionActive || leaving)return;
     await room.localParticipant?.publishData(utf8.encode(jsonEncode(m)), reliable: true);
   }
 
@@ -269,10 +289,10 @@ class _RoomPageState extends State<RoomPage> {
     try {
       late Map<String, dynamic> j;
       final connected = await connectRoomWhileActive(
-        isActive: () => mounted && !leaving,
+        isActive: () => sessionActive && mounted && !leaving,
         requestToken: () async {
           j = widget.joined ?? await widget.session.call('POST', '/rooms/${widget.roomId}/join') as Map<String, dynamic>;
-          if (!mounted || leaving) return;
+          if (!sessionActive || !mounted || leaving) return;
           title = (j['title'] ?? title).toString();
           isHost = j['is_host'] == true;
           myId = j['identity']?.toString();
@@ -282,10 +302,11 @@ class _RoomPageState extends State<RoomPage> {
         connect: () => room.connect(j['url'] as String, j['token'] as String),
         prepareMicrophone: () async { if (isHost) await microphone.startHost(); },
       );
-      if (connected && mounted && !leaving) setState(() => status = 'Live');
+      if(!connected){await _stopFailedJoin();return;}
+      if (sessionActive && mounted && !leaving) setState(() => status = 'Live');
     } on ApiError catch (e) {
       await _stopFailedJoin();
-      if (mounted && !leaving) {
+      if (sessionActive && mounted && !leaving) {
         setState(() {
           failed = true;
           status = e.status == 410 ? 'This room has ended.' : e.message;
@@ -293,7 +314,7 @@ class _RoomPageState extends State<RoomPage> {
       }
     } catch (_) {
       await _stopFailedJoin();
-      if (mounted && !leaving) {
+      if (sessionActive && mounted && !leaving) {
         setState(() {
           failed = true;
           status = 'Could not join. Check your connection${isHost ? ' and microphone permission' : ''}.';
@@ -308,24 +329,25 @@ class _RoomPageState extends State<RoomPage> {
   );
 
   Future<void> _toggleMic() async {
-    if (leaving || room.connectionState != ConnectionState.connected) return;
+    if (!sessionActive || leaving || room.connectionState != ConnectionState.connected) return;
     try { await microphone.toggle(); } catch (e) {
-      if (mounted && !leaving) showError(context, e);
+      if (sessionActive && mounted && !leaving) showError(context, e);
     }
   }
 
   Future<void> _end() async {
-    if (ended) return;
+    if (!sessionActive || ended) return;
     ended = true;
     leaving = true;
     try { await microphone.revoke(); } catch (_) {}
     try {
-      await widget.session.call('POST', '/rooms/${widget.roomId}/end');
+      if(sessionActive)await widget.session.call('POST', '/rooms/${widget.roomId}/end');
     } catch (_) {}
-    if (mounted) Navigator.pop(context);
+    if (sessionActive && mounted) Navigator.pop(context);
   }
 
   Future<void> _sendChat() async {
+    if(!sessionActive || leaving)return;
     final t = _chat.text.trim();
     if (t.isEmpty) return;
     _chat.clear();
@@ -335,21 +357,25 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Future<void> _raise() async {
+    if(!sessionActive || leaving)return;
     setState(() => handUp = true);
     await _send({'t': 'hand'});
   }
 
   Future<void> _allow(String id, bool allow) async {
+    if(!sessionActive || leaving)return;
     try {
       await widget.session.call('POST', '/rooms/${widget.roomId}/speaker', body: {'identity': id, 'allow': allow});
+      if(!sessionActive || leaving)return;
       await _send({'t': 'mic', 'to': id, 'allow': allow});
-      if (mounted) setState(() => hands.remove(id));
+      if (sessionActive && mounted) setState(() => hands.remove(id));
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (sessionActive && mounted) showError(context, e);
     }
   }
 
   void _gift() {
+    if(!sessionActive || leaving)return;
     showGiftSheet(
       context,
       widget.session,
@@ -370,18 +396,21 @@ class _RoomPageState extends State<RoomPage> {
     leaving = true;
     microphone.removeListener(_changed);
     room.removeListener(_changed);
-    unawaited(releaseRoomAfterJoin(
+    unawaited(_releaseRoom());
+    super.dispose();
+  }
+  Future<void>? _release;
+  Future<void> _releaseRoom() => _release ??= releaseRoomAfterJoin(
       joining: _joining,
       closeMicrophone: microphone.close,
       disconnect: room.disconnect,
       disposeMicrophone: microphone.dispose,
       disposeRoom: room.dispose,
-    ));
-    super.dispose();
-  }
+    );
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     return RoomView(
       title: title,
       status: microphone.stopUnconfirmed ? 'Microphone state could not be confirmed. Leave this room.' : status,

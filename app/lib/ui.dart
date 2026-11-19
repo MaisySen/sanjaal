@@ -550,6 +550,7 @@ const _ne = <String, String>{
   'A photo, a thought, a little of your day.': 'एउटा फोटो, एउटा विचार, तपाईंको दिनको सानो अंश।',
   'Home': 'गृह',
   'Reels': 'रिल्स',
+  'This screen belongs to another signed-in session. Close it and sign in again to continue.': 'यो पर्दा अर्को साइन-इन सत्रको हो। अगाडि बढ्न यसलाई बन्द गरेर फेरि साइन इन गर्नुहोस्।',
   'Chat': 'च्याट',
   'Chats': 'च्याट',
   'Wallet': 'वालेट',

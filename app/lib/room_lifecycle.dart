@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 /// A late join response must not connect a room after its page has closed.
 /// The caller owns native cleanup when setup returns false or throws.
 Future<bool> connectRoomWhileActive({
@@ -28,15 +27,10 @@ Future<void> releaseRoomAfterJoin({
   Future<void> attempt(Future<void> Function() action) async {
     try { await action(); } catch (_) {}
   }
-  debugPrint('ROOM_RELEASE microphone');
   await attempt(closeMicrophone);
-  debugPrint('ROOM_RELEASE disconnect');
   await attempt(disconnect);
-  debugPrint('ROOM_RELEASE join wait');
   try { await joining; } catch (_) {}
-  debugPrint('ROOM_RELEASE disconnect');
   await attempt(disconnect);
-  debugPrint('ROOM_RELEASE dispose');
   try { disposeMicrophone(); } finally { await attempt(disposeRoom); }
 }
 

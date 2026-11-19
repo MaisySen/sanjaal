@@ -70,11 +70,9 @@ class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
         camera: () async { await room.localParticipant?.setCameraEnabled(true); },
         video: widget.video,
       );
-      debugPrint('CALL_JOIN setup completed $connected');
       if (!connected) {
         _endCall();
         await _disconnectSafely();
-        debugPrint('CALL_JOIN inactive cleanup done');
         return;
       }
       if (mounted && sessionActive) setState(() { _setupComplete = true; camOn = widget.video; });
@@ -122,14 +120,10 @@ class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
   Future<void> _releaseRoom() => _release ??= () async {
     // Stop capture immediately, then wait for any token/connect operation to
     // observe _closed before disposing the native room it may still be using.
-    debugPrint('CALL_RELEASE disconnect start');
     await _disconnectSafely();
-    debugPrint('CALL_RELEASE join wait');
     try { await _joining; } catch (_) {}
-    debugPrint('CALL_RELEASE media wait');
     try { await _mediaChange; } catch (_) {}
     await _disconnectSafely();
-    debugPrint('CALL_RELEASE dispose');
     try { await room.dispose(); } catch (_) {}
   }();
 

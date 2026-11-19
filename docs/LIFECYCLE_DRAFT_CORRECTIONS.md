@@ -194,3 +194,15 @@ Offline SDK object cleanup still retains a periodic timer in four fixtures;
 resource-leak assertions remain enabled while the wait boundary is investigated.
 No real calls, rooms, gifts or payments were started. Hardware capture teardown,
 real push/two-device delivery and physical exact-candidate acceptance remain open.
+
+
+Realtime source `666bf4d0e3a4b4eb136d1ba1b8a4f86452cf3547` completed analysis,
+60 focused and 1047 whole-app tests with one intentional live skip:
+https://github.com/MaisySen/sanjaal/actions/runs/44607169655 . The four retained
+SDK timer failures above came from undrained native SDK stream continuations in
+the offline widget clock. Finite clock advances plus bounded real async draining
+let the actual setup/disconnect/dispose chain complete. Pending timer/resource
+invariants remain enabled, and all four previously failing tests now pass.
+This settles that fixture defect, not microphone/camera hardware behavior.
+Temporary trace removal and a login-invalidation negative control are the next
+exact-candidate check. Native compilation and physical acceptance remain separate.

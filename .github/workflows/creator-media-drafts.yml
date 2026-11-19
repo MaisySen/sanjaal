@@ -22,6 +22,25 @@ jobs:
       - run: dart format lib/session_bound_state.dart lib/call_page.dart lib/calls_page.dart lib/rooms_page.dart lib/gifts.dart test/realtime_session_test.dart
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
       - run: timeout --kill-after=15s 180 flutter test test/realtime_session_test.dart test/call_lifecycle_test.dart test/room_lifecycle_test.dart test/room_microphone_test.dart --reporter expanded > media-draft.log 2>&1
+      - name: Login invalidation negative control
+        run: |
+          cp lib/api.dart /tmp/api-session-protected.dart
+          trap 'cp /tmp/api-session-protected.dart lib/api.dart' EXIT
+          python3 - <<'PYCONTROL'
+          import pathlib
+          p=pathlib.Path('lib/api.dart');s=p.read_text();start=s.index('  Future<void> login(String id, String password)')
+          before=s[:start];after=s[start:];target='    notifyListeners();'
+          assert target in after
+          after=after.replace(target,'',1);p.write_text(before+after)
+          PYCONTROL
+          set +e
+          timeout --kill-after=10s 90 flutter test test/realtime_session_test.dart --plain-name 'pending failed replacement login immediately retires capture ownership' --reporter expanded > realtime-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'close' realtime-negative.log
+          cp /tmp/api-session-protected.dart lib/api.dart
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()

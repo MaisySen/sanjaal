@@ -189,6 +189,13 @@ void main(){
     Directory('test/renders').createSync(recursive:true);
     File('test/renders/story_saved_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
    });
+   await t.scrollUntilVisible(find.byType(TextField),120,scrollable:find.byType(Scrollable).first);await t.pumpAndSettle();
+   expect(find.byType(TextField).hitTestable(),findsOneWidget);
+   await t.runAsync(()async{
+    final image=await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio:2);
+    final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
+    File('test/renders/story_caption_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+   });
    await t.pumpWidget(const SizedBox());
   });
  }

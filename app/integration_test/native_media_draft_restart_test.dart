@@ -94,7 +94,10 @@ void main(){
    final files=(await t.runAsync(()=>store.open(_owner,current)))!;
    expect(sha256.convert(await files.single.readAsBytes()).toString(),row['sha256']);
    expect(files.single.name,current.names.single);
-   await expectLater(t.runAsync(()=>store.open('other-media-owner',current)),throwsStateError);
+   final rejected=await t.runAsync(()async{
+    try{await store.open('other-media-owner',current);return false;}on StateError{return true;}
+   });
+   expect(rejected,isTrue,reason:'other-owner media must be rejected inside real async boundary');
   }
   await t.pumpWidget(MaterialApp(home:CreatorDraftsPage(session:session)));
   await _until(t,()=>find.text(caption).evaluate().isNotEmpty);

@@ -576,7 +576,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
     appBar: AppBar(title: Text(t_('Your story')),actions:[IconButton(tooltip:t_('Save media draft'),onPressed:busy || _saving || handedOff || _saved?.attempted==true?null:_save,icon:const PhIcon('bookmark-simple'))]),
     body: SafeArea(top: false, child: Column(children: [
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
-      if(_saved?.attempted==true)UploadNotice(message:'This saved draft may already be posted. Check your profile before preparing a separate upload.',prepareNew:busy || _saving?null:_separate,newLabel:'Prepare a separate upload'),
+      if(_saved?.attempted==true)Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(t_('This saved draft may already be posted. Check your profile before preparing a separate upload.')),TextButton(onPressed:busy || _saving?null:_separate,child:Text(t_('Prepare a separate upload')))]),
         if(_saved!=null && !_saved!.attempted)Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.')),
         Text(t_('Preview'), style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),

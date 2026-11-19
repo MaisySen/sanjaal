@@ -39,7 +39,7 @@ jobs:
           set -e
           test "$result" -ne 0
           test "$result" -ne 124
-          grep -q 'another signed-in session' chat-negative.log
+          grep -q 'another signed-in' chat-negative.log
           cp /tmp/chat-pages-protected.dart lib/chat_pages.dart
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4

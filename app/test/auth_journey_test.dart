@@ -15,11 +15,15 @@ import 'package:sanjaal/auth_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:shared_preferences/shared_preferences.dart';
+class FormOnlySession extends Session {
+ bool fail=false;int submissions=0;
+ @override Future<void> login(String id,String password) async {submissions++;if(fail)throw ApiError('Fixture rejected');user={'public_id':'synthetic-auth-owner'};}
+}
 Future<void> flush(WidgetTester t)async{await t.pump();await t.pump(const Duration(milliseconds:400));await t.pump();}
-Future<void> setup(WidgetTester t,Future<void> Function() body,{Future<http.Response> Function(http.Request)? response,bool register=false,String lang='en',Brightness mode=Brightness.light,double scale=1,double keyboard=0})async{
+Future<void> setup(WidgetTester t,Future<void> Function() body,{Future<http.Response> Function(http.Request)? response,bool register=false,String lang='en',Brightness mode=Brightness.light,double scale=1,double keyboard=0,Session? session})async{
  SharedPreferences.setMockInitialValues({});prefs.lang=lang;addTearDown(()=>prefs.lang='en');
  await http.runWithClient(()async{
-  await t.pumpWidget(RepaintBoundary(key:const ValueKey('auth-shot'),child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(mode,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:TextScaler.linear(scale),viewInsets:EdgeInsets.only(bottom:keyboard)),child:w!),home:AuthPage(session:Session(),initialRegister:register))));await flush(t);await body();await t.pumpWidget(const SizedBox());await flush(t);
+  await t.pumpWidget(RepaintBoundary(key:const ValueKey('auth-shot'),child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(mode,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:TextScaler.linear(scale),viewInsets:EdgeInsets.only(bottom:keyboard)),child:w!),home:AuthPage(session:session??Session(),initialRegister:register))));await flush(t);await body();await t.pumpWidget(const SizedBox());await flush(t);
  },()=>MockClient(response??(_){throw StateError('No request expected');}));
 }
 Future<void> tap(WidgetTester t,Finder f)async{await t.ensureVisible(f);await t.pumpAndSettle();await t.tap(f);await flush(t);}
@@ -45,6 +49,26 @@ void main(){
    expect(t.widget<EditableText>(fields.last).focusNode.hasFocus,isTrue);
    expect(t.takeException(),isNull);
   },register:register);
+ });
+ }
+ for(final fail in [false,true]) {
+ testWidgets('autofill offers save only after successful credentials fail=$fail',(t)async{
+  final session=FormOnlySession()..fail=fail;
+  await setup(t,()async{
+   await t.enterText(find.byType(TextFormField).first,'fixture-owner');
+   await t.enterText(find.byType(TextFormField).last,'not-a-real-password');
+   t.testTextInput.log.clear();
+   await tap(t,find.byType(FilledButton));
+   expect(session.submissions,1);
+   final saves=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext'&&c.arguments['shouldSave']==true);
+   expect(saves.length,fail?0:1);
+   if(fail)expect(find.text('Fixture rejected'),findsOneWidget);
+   t.testTextInput.log.clear();
+   await t.pumpWidget(const SizedBox());await flush(t);
+   final finishes=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext');
+   expect(finishes,isNotEmpty);
+   expect(finishes.every((c)=>c.arguments['shouldSave']==false),isTrue);
+  },session:session);
  });
  }
  testWidgets('invalid registration does not call the network and labels are localized',(t)async{

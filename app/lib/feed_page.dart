@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'video_poster.dart';
 import 'dart:convert' show jsonEncode;
 import 'creator_draft_store.dart';
+import 'creator_media_draft_store.dart';
 import 'media_library_page.dart';
 import 'settings_page.dart';
 import 'upload_center.dart';
@@ -811,11 +812,13 @@ class HashtagPage extends StatelessWidget {
 }
 
 class ComposePage extends StatefulWidget {
-  const ComposePage({super.key, required this.session, this.startWithVideo = false, this.backgroundUpload = false, this.initialLocalDraft});
+  const ComposePage({super.key, required this.session, this.startWithVideo = false, this.backgroundUpload = false, this.initialLocalDraft, this.initialMediaDraft, this.savedMediaFiles});
   final Session session;
   final bool startWithVideo;
   final bool backgroundUpload;
   final CreatorDraft? initialLocalDraft;
+  final CreatorMediaDraft? initialMediaDraft;
+  final List<XFile>? savedMediaFiles;
   @override
   State<ComposePage> createState() => _ComposePageState();
 }
@@ -833,15 +836,30 @@ class _ComposePageState extends State<ComposePage> {
   List<TextEditingController>? pollOptions;
   String? _draftOwner, _localDraftId, _localDraftRevision, _savedFingerprint;
   bool _savingDraft = false;
-  bool get _draftAccountChanged => _draftOwner != null && widget.session.user?['public_id'] != _draftOwner;
+  CreatorMediaDraft? _mediaDraft;
+  late final int _draftGeneration;
+  bool get _draftAccountChanged => _draftOwner != null && (widget.session.user?['public_id'] != _draftOwner || widget.session.generation!=_draftGeneration);
   void _draftSessionChanged() { if (mounted) setState(() {}); }
-  String get _fingerprint => jsonEncode([text.text, pollOptions?.map((c) => c.text).toList()]);
-  bool get _unsaved => images.isNotEmpty || video != null || (_savedFingerprint != _fingerprint && (text.text.trim().isNotEmpty || pollOptions != null));
+  String get _fingerprint => jsonEncode([text.text, pollOptions?.map((c) => c.text).toList(),images.map((f)=>f.path+f.name).toList(),video?.path,video?.name]);
+  bool get _unsaved => _savedFingerprint != _fingerprint && (images.isNotEmpty || video != null || text.text.trim().isNotEmpty || pollOptions != null);
   Future<void> _saveDraft() async {
     if (_savingDraft || busy || handedOff) return;
     final owner = _draftOwner;
-    if (owner == null || widget.session.user?['public_id'] != owner) { showError(context, t_('Sign in to save drafts on this device.')); return; }
-    if (images.isNotEmpty || video != null) { showError(context, t_('Only text and poll options can be saved for now. Photos and videos are not saved.')); return; }
+    if (owner == null || _draftAccountChanged) { showError(context, t_('Sign in to save drafts on this device.')); return; }
+    if (images.isNotEmpty || video != null) {
+      final generation=widget.session.generation;
+      final caption=text.text;final picked=List<XFile>.from(video==null?images:[video!]);final isVideo=video!=null;
+      final snapshot=_fingerprint;
+      setState(()=>_savingDraft=true);
+      try{
+        final saved=await const CreatorMediaDraftStore().save(owner,text:caption,video:isVideo,files:picked,id:_mediaDraft?.id,expectedRevision:_mediaDraft?.revision);
+        if(!mounted || generation!=widget.session.generation || widget.session.user?['public_id']!=owner)return;
+        setState((){_mediaDraft=saved;_savedFingerprint=snapshot;});
+        showInfo(context,t_('Media draft saved on this device. Nothing was posted.'));
+      }catch(e){if(mounted && generation==widget.session.generation)showError(context,e);}
+      finally{if(mounted)setState(()=>_savingDraft=false);}
+      return;
+    }
     final snapshot = _fingerprint;
     setState(() => _savingDraft = true);
     try {
@@ -878,8 +896,16 @@ class _ComposePageState extends State<ComposePage> {
   @override
   void initState() {
     super.initState();
+    _draftGeneration=widget.session.generation;
     _draftOwner = widget.session.user?['public_id'] as String?;
     widget.session.addListener(_draftSessionChanged);
+    _mediaDraft=widget.initialMediaDraft;
+    if(_mediaDraft!=null){
+      text.text=_mediaDraft!.text;
+      final files=widget.savedMediaFiles??<XFile>[];
+      if(_mediaDraft!.video){video=files.single;}else{images=List.from(files);}
+      _savedFingerprint=_fingerprint;
+    }
     final draft = widget.initialLocalDraft;
     if (draft != null) {
       text.text = draft.text; _localDraftId = draft.id; _localDraftRevision = draft.revision;
@@ -887,7 +913,7 @@ class _ComposePageState extends State<ComposePage> {
       _savedFingerprint = _fingerprint;
     }
     if (widget.backgroundUpload) UploadCenter.of(widget.session);
-    if (widget.startWithVideo) WidgetsBinding.instance.addPostFrameCallback((_) => _pickVideo());
+    if (widget.startWithVideo && _mediaDraft==null) WidgetsBinding.instance.addPostFrameCallback((_) => _pickVideo());
   }
 
   Future<void> _pick() async {
@@ -927,6 +953,24 @@ class _ComposePageState extends State<ComposePage> {
     if (body.isEmpty && images.isEmpty && video == null) {
       showError(context, 'Write something or add a photo or video.');
       return;
+    }
+    final saved=_mediaDraft;
+    if(saved!=null){
+      if(_savedFingerprint!=_fingerprint){showError(context,t_('Save media changes before posting this draft.'));return;}
+      if(saved.attempted){showError(context,t_('This saved draft may already be posted. Check your profile before preparing a separate upload.'));return;}
+      final center=UploadCenter.of(widget.session);
+      if(center.occupied){showInfo(context,t_('Check the current upload before starting another.'));return;}
+      final generation=widget.session.generation;final owner=_draftOwner;
+      if(owner==null)return;
+      setState(()=>_savingDraft=true);
+      try{
+        final marked=await const CreatorMediaDraftStore().attempted(owner,saved,value:true);
+        if(!mounted || generation!=widget.session.generation || widget.session.user?['public_id']!=owner)return;
+        _mediaDraft=marked;
+      }catch(e){if(mounted)showError(context,e);return;}
+      finally{if(mounted)setState(()=>_savingDraft=false);}
+      // Mark BEFORE handing work off. A crash here pauses recovery even when
+      // no request began, never assumes an unconfirmed upload is safe to resend.
     }
     if (widget.backgroundUpload) {
       final center = UploadCenter.of(widget.session);
@@ -986,14 +1030,25 @@ class _ComposePageState extends State<ComposePage> {
       busy: busy || _savingDraft,
       child: Scaffold(
       appBar: AppBar(title: Text(t_('New post')), actions: [
-        IconButton(tooltip: t_('Save text draft'), onPressed: busy || _savingDraft || handedOff ? null : _saveDraft, icon: const PhIcon('bookmark-simple')),
+        IconButton(tooltip: t_(images.isNotEmpty || video!=null?'Save media draft':'Save text draft'), onPressed: busy || _savingDraft || handedOff ? null : _saveDraft, icon: const PhIcon('bookmark-simple')),
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton(onPressed: busy || _savingDraft || handedOff || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
+          child: FilledButton(onPressed: busy || _savingDraft || handedOff || _mediaDraft?.attempted==true || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
         ),
       ]),
       body: Column(children: [
-        if (widget.initialLocalDraft != null) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
+        if (widget.initialLocalDraft != null || _mediaDraft!=null) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
+        if(_mediaDraft?.attempted==true) Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+          Text(t_('This saved draft may already be posted. Check your profile before preparing a separate upload.')),
+          TextButton(onPressed:busy||_savingDraft?null:()async{
+            final draft=_mediaDraft!;final generation=widget.session.generation;final owner=_draftOwner;
+            if(!await confirmNewUpload(context) || !mounted || owner==null || generation!=widget.session.generation || _mediaDraft!=draft)return;
+            try{
+              final reset=await const CreatorMediaDraftStore().attempted(owner,draft,value:false);
+              if(mounted && generation==widget.session.generation)setState((){_mediaDraft=reset;intent=newUploadIntent();});
+            }catch(e){if(mounted)showError(context,e);}
+          },child:Text(t_('Prepare a separate upload'))),
+        ])),
         if (uploadError != null) UploadNotice(
           message: uploadError!.message,
           openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),

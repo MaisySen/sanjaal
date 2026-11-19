@@ -90,8 +90,23 @@ jobs:
                 subprocess.run(['xcrun','simctl','spawn',os.environ['IOS_DEVICE'],'launchctl','list'])
                 raise SystemExit(125)
               time.sleep(1)
+          import threading
+          stop=threading.Event()
+          def native_evidence():
+            seen=set()
+            while not stop.wait(0.4):
+              result=subprocess.run(['xcrun','simctl','get_app_container',os.environ['IOS_DEVICE'],'au.fintex.sanjaal','data'],capture_output=True,text=True)
+              if result.returncode:continue
+              container=pathlib.Path(result.stdout.strip())
+              for pending in container.rglob('*.native-pending'):
+                if str(pending) in seen:continue
+                seen.add(str(pending))
+                name=pending.stem
+                subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/native_'+name+'.png'],check=True)
+                pending.with_suffix('.native-done').write_text('captured')
+          monitor=threading.Thread(target=native_evidence,daemon=True);monitor.start()
           args=['flutter','drive','-d',os.environ['IOS_DEVICE'],'--driver=test_driver/integration_test.dart','--use-existing-app='+endpoint,'--no-pub']
-          with open('ios-simulator.log','w') as log:
+          with open('ios-driver-output.log','w') as log:
             child=subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
             try:code=child.wait(timeout=600)
             except subprocess.TimeoutExpired:
@@ -101,12 +116,14 @@ jobs:
               try:child.wait(timeout=15)
               except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL)
               code=124
+          stop.set();monitor.join(timeout=5)
+          pathlib.Path('ios-driver-exit.txt').write_text(str(code))
           raise SystemExit(code)
           PYDRIVE
           RC=$?
           kill -INT "$REC";wait "$REC"
           xcrun simctl io "$IOS_DEVICE" screenshot build/screenshots/ios-final-native.png
-          tail -50 ios-simulator.log
+          tail -80 ios-driver-output.log
           exit "$RC"
       - name: Preserve native diagnostic state even after a drive failure
         if: always()
@@ -126,10 +143,12 @@ jobs:
         with:
           name: ios-simulator-local-evidence
           path: |
+            app/ios-driver-output.log
             app/ios-simulator.log
             app/ios-build.log
             app/ios-native-console.log
             app/ios-vm-probe.json
+            app/ios-driver-exit.txt
             app/build/screenshots/*
             /tmp/ios-api.log
             /tmp/ios-devices.json

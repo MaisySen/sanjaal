@@ -35,6 +35,17 @@ void main(){
   final dir=await getTemporaryDirectory();
   final evidence=Directory('${dir.path}/ios-evidence');await evidence.create(recursive:true);
   await File('${evidence.path}/$name.png').writeAsBytes(bytes,flush:true);
+  // Stop at each visual boundary until the host captures actual OS pixels.
+  await binding.runAsync(() async {
+  final pending=File('${evidence.path}/$name.native-pending');
+  final done=File('${evidence.path}/$name.native-done');
+  await pending.writeAsString('waiting',flush:true);
+  final deadline=DateTime.now().add(const Duration(seconds:20));
+  while(!await done.exists()){
+    if(DateTime.now().isAfter(deadline))throw TestFailure('Native display capture did not acknowledge $name');
+    await Future<void>.delayed(const Duration(milliseconds:100));
+  }
+  });
  }
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
   addTearDown(() async {try {await capture('ios_test_teardown');}catch(_) {}});

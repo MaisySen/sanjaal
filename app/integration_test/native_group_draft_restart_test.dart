@@ -89,7 +89,7 @@ void main(){
   if(phase=='seed'){
    expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNotNull);
    await t.ensureVisible(find.byType(FilledButton));await t.tap(find.byType(FilledButton));
-   await _until(t,()=>find.text('This group may already exist. Check Chats before starting it again.').evaluate().isNotEmpty);
+   await _until(t,()=>find.text('The chat may already exist. Check Chats before starting it again.').evaluate().isNotEmpty);
    final marked=(await t.runAsync(()=>store.read(_owner)))!;
    expect(marked.attempted,true);expect(marked.title,title);expect(marked.people,[_person]);
    await t.runAsync(()=>identity.writeAsString(jsonEncode(marked.toJson()),flush:true));

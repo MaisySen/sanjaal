@@ -276,7 +276,21 @@ class Session extends ChangeNotifier {
       if (msg.toLowerCase().contains('wrong email or password')) msg = 'Wrong email or password.';
       throw ApiError(msg, r.statusCode);
     }
-    final j = jsonDecode(r.body) as Map<String, dynamic>;
+    // Validate the whole grant before touching Keychain/Keystore. A malformed
+    // HTTP 200 must not clear or replace a previously saved credential.
+    final Map<String, dynamic> j;
+    final DateTime expires;
+    try {
+      j = jsonDecode(r.body) as Map<String, dynamic>;
+      if (j['access_token'] is! String || (j['access_token'] as String).trim().isEmpty ||
+          (j['refresh_token'] != null && (j['refresh_token'] is! String || (j['refresh_token'] as String).trim().isEmpty)) ||
+          (j['expires_in'] != null && (j['expires_in'] is! num || !(j['expires_in'] as num).isFinite || (j['expires_in'] as num) < 0))) {
+        throw const FormatException('Malformed credential response');
+      }
+      expires = DateTime.now().add(Duration(seconds: (j['expires_in'] as num?)?.toInt() ?? 3600));
+    } catch (_) {
+      throw ApiError('Sign in failed. Try again.');
+    }
     final rt = j['refresh_token'] as String?;
     try {
       await _writeCredentials(() async {
@@ -297,7 +311,7 @@ class Session extends ChangeNotifier {
     }
     _checkSession(epoch);
     _access = j['access_token'] as String;
-    _expires = DateTime.now().add(Duration(seconds: (j['expires_in'] as num?)?.toInt() ?? 3600));
+    _expires = expires;
   }
 
   Future<void> login(String id, String password) async {

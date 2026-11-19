@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'room_microphone.dart';
+import 'room_lifecycle.dart';
 import 'ph.dart';
 import 'dart:convert';
 import 'package:livekit_client/livekit_client.dart' hide Session;
@@ -190,6 +191,7 @@ class _RoomPageState extends State<RoomPage> {
   bool handUp = false;
   bool failed = false;
   bool ended = false;
+  late final Future<void> _joining;
 
   @override
   void initState() {
@@ -203,7 +205,7 @@ class _RoomPageState extends State<RoomPage> {
         setState(() => status = 'Disconnected');
       }
     });
-    _join();
+    _joining = _join();
   }
 
   void _changed() {
@@ -265,16 +267,22 @@ class _RoomPageState extends State<RoomPage> {
 
   Future<void> _join() async {
     try {
-      final j = widget.joined ?? await widget.session.call('POST', '/rooms/${widget.roomId}/join') as Map<String, dynamic>;
-      title = (j['title'] ?? title).toString();
-      isHost = j['is_host'] == true;
-      myId = j['identity']?.toString();
-      hostName = (j['host_name'] ?? hostName).toString();
-      hostIdentity = j['host_identity']?.toString();
-      await room.connect(j['url'] as String, j['token'] as String);
-      if (!mounted || leaving) return;
-      if (isHost) await microphone.startHost();
-      if (mounted) setState(() => status = 'Live');
+      late Map<String, dynamic> j;
+      final connected = await connectRoomWhileActive(
+        isActive: () => mounted && !leaving,
+        requestToken: () async {
+          j = widget.joined ?? await widget.session.call('POST', '/rooms/${widget.roomId}/join') as Map<String, dynamic>;
+          if (!mounted || leaving) return;
+          title = (j['title'] ?? title).toString();
+          isHost = j['is_host'] == true;
+          myId = j['identity']?.toString();
+          hostName = (j['host_name'] ?? hostName).toString();
+          hostIdentity = j['host_identity']?.toString();
+        },
+        connect: () => room.connect(j['url'] as String, j['token'] as String),
+        prepareMicrophone: () async { if (isHost) await microphone.startHost(); },
+      );
+      if (connected && mounted && !leaving) setState(() => status = 'Live');
     } on ApiError catch (e) {
       if (mounted) {
         setState(() {
@@ -355,13 +363,13 @@ class _RoomPageState extends State<RoomPage> {
     leaving = true;
     microphone.removeListener(_changed);
     room.removeListener(_changed);
-    unawaited(() async {
-      try { await microphone.close(); } catch (_) {}
-      try { await room.disconnect(); } finally {
-        microphone.dispose();
-        await room.dispose();
-      }
-    }());
+    unawaited(releaseRoomAfterJoin(
+      joining: _joining,
+      closeMicrophone: microphone.close,
+      disconnect: room.disconnect,
+      disposeMicrophone: microphone.dispose,
+      disposeRoom: room.dispose,
+    ));
     super.dispose();
   }
 

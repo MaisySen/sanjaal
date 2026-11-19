@@ -1,0 +1,38 @@
+name: Live room lifecycle checks
+on:
+  push:
+    branches: [room-join-lifecycle]
+permissions:
+  contents: read
+jobs:
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/room_lifecycle.dart lib/rooms_page.dart test/room_lifecycle_test.dart
+      - run: flutter test test/room_lifecycle_test.dart test/room_microphone_test.dart test/call_lifecycle_test.dart test/call_presentation_test.dart --reporter expanded
+  ios-compile:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1

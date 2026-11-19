@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     tags: ['v*']
-    branches: ['**', '!ios-platform-readiness', '!ios-auth-inputs', '!ios-session-response', '!ios-social-callback', '!capture-permission-recovery']
+    branches: ['**', '!ios-platform-readiness', '!ios-auth-inputs', '!ios-session-response', '!ios-social-callback', '!capture-permission-recovery', '!room-join-lifecycle']
   pull_request:
 
 jobs:

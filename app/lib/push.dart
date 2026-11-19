@@ -88,6 +88,6 @@ class Push {
   }
   static Future<void> unregister(Session session) async {
     if (_ios) {status.value=iosUnavailable;return;}
-    await _registration.unregister(_account(session));
+    await _registration.unregister(_account(session), removeForSignedOutAccount: session.capturePushRemoval());
   }
 }

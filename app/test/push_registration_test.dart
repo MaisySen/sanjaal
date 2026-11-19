@@ -64,6 +64,24 @@ void main() {
     await push.dispose();
     await device.changes.close();
   });
+  test('detached removal survives immediate local owner clearing', () async {
+    await push.register(account);
+    final removed = <String>[];
+    final cleanup = push.unregister(account, removeForSignedOutAccount: (token) async { removed.add(token); });
+    account.owner = null;
+    await cleanup;
+    expect(removed, ['fixture-token']);
+    expect(device.invalidations, 1);
+    expect(account.removed, isEmpty);
+  });
+  test('detached removal failure still invalidates the local token', () async {
+    await push.register(account);
+    final cleanup = push.unregister(account, removeForSignedOutAccount: (_) async { throw StateError('offline'); });
+    account.owner = null;
+    await cleanup;
+    expect(device.invalidations, 1);
+    expect(push.status.value, 'Local notification token removed');
+  });
   test(
     'registration says unverified delivery and never includes token',
     () async {

@@ -116,7 +116,9 @@ class PushRegistration {
     }
   }
 
-  Future<void> unregister(PushAccount account) {
+  Future<void> unregister(PushAccount account, {
+    Future<void> Function(String)? removeForSignedOutAccount,
+  }) {
     // A late sign-out for another Session must not remove the current binding.
     if (_closed || !identical(_active, account)) return Future.value();
     ++_epoch;
@@ -127,12 +129,12 @@ class PushRegistration {
     _refresh = null;
     status.value = 'Signing out of notifications...';
     return _serial(() async {
-      await oldRefresh?.cancel();
+      try { await oldRefresh?.cancel(); } catch (_) {}
       final token = _token;
       _token = null;
-      if (token != null && account.owner == owner) {
+      if (token != null && (removeForSignedOutAccount != null || account.owner == owner)) {
         try {
-          await account.removeToken(token).timeout(const Duration(seconds: 10));
+          await (removeForSignedOutAccount ?? account.removeToken)(token).timeout(const Duration(seconds: 10));
         } catch (_) {}
       }
       // Remove the local FCM token as well: server removal alone can fail offline.

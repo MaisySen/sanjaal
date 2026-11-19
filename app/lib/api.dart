@@ -145,6 +145,9 @@ class _ProgressMultipart extends http.MultipartRequest {
 }
 
 class Session extends ChangeNotifier {
+  Session({Future<void> Function(Session)? unregisterPush})
+      : _unregisterPush = unregisterPush ?? Push.unregister;
+  final Future<void> Function(Session) _unregisterPush;
   final uploadProgress = ValueNotifier<double?>(null);
   int _uploadRequest = 0;
   http.MultipartRequest _trackedUpload(String path) {
@@ -436,10 +439,34 @@ class Session extends ChangeNotifier {
     unawaited(Push.register(this));
   }
 
+  /// Capture only the fixed device-removal request before local sign-out. The
+  /// callback never refreshes credentials, reads a replacement session, follows
+  /// redirects or updates local identity. Local FCM invalidation still runs if
+  /// this old access token is expired or removal fails offline.
+  Future<void> Function(String) capturePushRemoval() {
+    final access = _access;
+    final owner = user?['public_id'];
+    return (String token) async {
+      if (owner == null || access == null) throw ApiError('Please sign in again.', 401);
+      final request = http.Request('POST', Uri.parse('$apiBase/devices/remove'))
+        ..followRedirects = false
+        ..headers.addAll({'Authorization': 'Bearer $access', 'Content-Type': 'application/json'})
+        ..body = jsonEncode({'token': token});
+      final result = await http.Response.fromStream(await request.send().timeout(const Duration(seconds: 10)))
+          .timeout(const Duration(seconds: 10));
+      if (result.statusCode < 200 || result.statusCode >= 300) {
+        throw ApiError('Notification token cleanup could not be confirmed.', result.statusCode);
+      }
+    };
+  }
+
   Future<void> logout() async {
-    await Push.unregister(this);
-    await _clear();
+    // Stop push registration synchronously, then invalidate local work before
+    // waiting for network/device cleanup. No late cleanup may clear a new login.
+    final cleanup = _unregisterPush(this);
+    final clearing = _clear();
     notifyListeners();
+    await Future.wait([clearing, cleanup]);
   }
 
   Future<void> _clear() async {

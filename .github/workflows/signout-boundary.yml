@@ -1,0 +1,59 @@
+name: Local sign-out boundary regression
+on:
+  push:
+    branches: [signout-local-boundary]
+permissions:
+  contents: read
+concurrency:
+  group: signout-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - name: Prove local sign-out happens before pending notification cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/api.dart /tmp/signout-api.original
+          trap 'cp /tmp/signout-api.original lib/api.dart' EXIT
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path('lib/api.dart')
+          s = p.read_text()
+          before = "    final cleanup = _unregisterPush(this);\n    final clearing = _clear();"
+          assert s.count(before) == 1
+          p.write_text(s.replace(before, "    final cleanup = _unregisterPush(this);\n    await cleanup;\n    final clearing = _clear();", 1))
+          PYCODE
+          if flutter test test/signout_boundary_test.dart --plain-name 'signout clears identity before pending cleanup completes' --reporter expanded > /tmp/signout-negative.log 2>&1; then
+            cat /tmp/signout-negative.log
+            echo 'Sign-out incorrectly passed while local clear waits for notification cleanup'
+            exit 1
+          fi
+          cat /tmp/signout-negative.log
+          grep -F 'Expected: null' /tmp/signout-negative.log
+          cp /tmp/signout-api.original lib/api.dart
+          flutter test test/signout_boundary_test.dart test/push_registration_test.dart --reporter expanded
+      - name: Preserve test and render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signout-boundary-tests
+          path: |
+            app/analyze.log
+            app/test.log
+            app/test/renders/saved_drafts_conflict_*.png
+          retention-days: 7

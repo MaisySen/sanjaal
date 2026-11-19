@@ -30,7 +30,7 @@ for phase in ['seed','recover']:
   try:
    while not stop.wait(0.3):
     for pending in before.rglob('*.native-pending'):
-     if str(pending) in seen:continue
+     if str(pending) in seen or pending.with_suffix('.native-done').exists():continue
      seen.add(str(pending));run('xcrun','simctl','io',device,'screenshot',str(root/(pending.stem+'.native.png')))
      pending.with_suffix('.native-done').write_text('captured')
   except Exception as e:errors.append(str(e))

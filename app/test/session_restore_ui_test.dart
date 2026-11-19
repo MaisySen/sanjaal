@@ -22,6 +22,7 @@ Future<void> flush(WidgetTester t) async {
 }
 void main() {
   setUpAll(() async {
+    Directory('test/renders').createSync(recursive:true);
     for (final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]) {
       final loader = FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(File(f.$2).readAsBytesSync())));
       await loader.load();

@@ -46,7 +46,7 @@ void main(){
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('livekit_client'),(call)async=>null);
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('FlutterWebRTC.Method'),(call)async=>null);
  });
- setUpAll((){Logger.root.level=Level.WARNING;Logger.root.onRecord.listen((r){print('REALTIME_DISPOSE ${r.message} ${r.error??''}');});});
+ setUpAll((){Logger.root.level=Level.FINER;Logger.root.onRecord.listen((r){if(r.message.contains('dispose') || r.message.contains('cleanUp') || r.level>=Level.WARNING)print('REALTIME_DISPOSE ${r.message} ${r.error??''}');});});
  Future<void> setup(Future<void> Function(FixtureSession) work)async{
   await http.runWithClient(()async{final s=FixtureSession();await s.login('fixture','not-a-password');await work(s);},()=>MockClient((_)async=>http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200)));
  }

@@ -134,10 +134,12 @@ void main(){
    final session=Session();await session.login('fixture','not-a-password');
    await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(dark?Brightness.dark:Brightness.light,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:const TextScaler.linear(2)),child:child!),home:RepaintBoundary(key:key,child:GroupInfoPage(session:session,convo:{'public_id':'old','title':'Private group','members':[]}))));
    await session.login('replacement','not-a-password');await flush(t);
-   final image=await (key.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage(pixelRatio:1);
-   final bytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();
-   await t.runAsync(()async{final file=File('test/renders/chat_session_${lang}_${dark?'dark':'light'}.png');await file.parent.create(recursive:true);await file.writeAsBytes(bytes);});
-   image.dispose();expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+   await t.runAsync(()async{
+    final image=await (key.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage(pixelRatio:1);
+    final bytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();
+    final file=File('test/renders/chat_session_${lang}_${dark?'dark':'light'}.png');await file.parent.create(recursive:true);await file.writeAsBytes(bytes);image.dispose();
+   });
+   expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
   },()=>MockClient((r)async=>r.url.path.endsWith('/oauth/token')?reply({'access_token':'fixture','expires_in':3600}):reply({'user':{'public_id':'a','username':'a'}})));
  });}
  testWidgets('old failed text retry and newer unsent composer disappear on account change',(t)async{

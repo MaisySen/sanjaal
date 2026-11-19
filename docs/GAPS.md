@@ -1,5 +1,13 @@
 # Functional gaps and reconciliation
 
+November 20 addendum: the draft-only-in-memory statements in this historical
+checkpoint are superseded by the encrypted creator-media and text/poll work in
+[LIFECYCLE_DRAFT_CORRECTIONS.md](LIFECYCLE_DRAFT_CORRECTIONS.md). Explicit local
+photo/video/story saves now exist in candidate source, with scoped native
+process-restart evidence. They are not an automatic outbox, background resume,
+cloud sync, production upload acceptance or an installed physical-phone update.
+Other historical statuses also require their later exact verification records.
+
 Updated November 17, 2026. The table below contains historical checkpoints. Read the current checkpoint at the top of VERIFICATION_STATUS.md before relying on a status such as not device-tested or candidate-only. Source, deployed API, published APK, fixture tests and genuine device tests are different states. See [VERIFICATION_STATUS.md](VERIFICATION_STATUS.md) for current evidence. The full app is not complete.
 
 | Area | Built | Remaining gap |

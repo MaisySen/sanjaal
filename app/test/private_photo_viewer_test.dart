@@ -25,7 +25,7 @@ Future<void> scene(WidgetTester t,Future<void> Function(Session,Completer<http.R
  SharedPreferences.setMockInitialValues({});FlutterSecureStorage.setMockInitialValues({});
  final media=Completer<http.Response>(),replacement=Completer<http.Response>();final requests=<String>[];var owner='first',grants=0;
  await http.runWithClient(()async{
-  final s=Session();await s.login('synthetic','synthetic');
+  final s=Session(unregisterPush:(_)async{});await s.login('synthetic','synthetic');
   await run(s,media,(v)=>owner=v,replacement,requests);
   await t.pumpWidget(const SizedBox());await flush(t);
  },()=>MockClient((r)async{
@@ -55,7 +55,7 @@ void main(){
      if(!delayed)expect(hasPixels(t),isTrue);
      final old=PrivateMediaImage(s,url);
      Future<void>? login;
-     if(mode=='logout'){await s.logout();}else{if(mode=='other login')owner('second');login=s.login('replacement','synthetic');}
+     if(mode=='logout'){await t.runAsync(s.logout);}else{if(mode=='other login')owner('second');login=s.login('replacement','synthetic');}
      await t.pump();expect(find.byType(Image),findsNothing);expect(hasPixels(t),isFalse);
      expect(find.textContaining('another signed-in session'),findsOneWidget);
      final next=PrivateMediaImage(s,url);expect(next==old,isFalse);
@@ -67,6 +67,15 @@ void main(){
    });
   }
  }
+ testWidgets('replacing the Session object retires an already decoded private photo',(t)async{
+  await scene(t,(s,media,owner,replacement,requests)async{
+   media.complete(await imageReply(t));await t.pumpWidget(view(s));await flush(t);expect(hasPixels(t),isTrue);
+   final other=Session(unregisterPush:(_)async{})..user={'public_id':'first','username':'first'};
+   await t.pumpWidget(view(other));await flush(t);
+   expect(find.byType(Image),findsNothing);expect(hasPixels(t),isFalse);expect(find.textContaining('another signed-in session'),findsOneWidget);
+   expect(requests.length,1);expect(t.takeException(),isNull);
+  });
+ });
  testWidgets('new login cannot reuse old private image cache key even for same member',(t)async{
   await scene(t,(s,media,owner,replacement,requests)async{
    media.complete(await imageReply(t));final old=PrivateMediaImage(s,url);
@@ -85,7 +94,7 @@ void main(){
    await scene(t,(s,media,owner,replacement,requests)async{
     media.complete(await imageReply(t));
     await t.pumpWidget(view(s,brightness:dark?Brightness.dark:Brightness.light));await flush(t);
-    await s.logout();await flush(t);expect(find.byType(Image),findsNothing);expect(t.takeException(),isNull);
+    await t.runAsync(s.logout);await flush(t);expect(find.byType(Image),findsNothing);expect(t.takeException(),isNull);
     await t.runAsync(()async{final image=await t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('private-photo-shot'))).toImage(pixelRatio:2);final data=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/private_photo_${lang}_${dark?'dark':'light'}.png').writeAsBytesSync(data!.buffer.asUint8List());image.dispose();});
    });
   });

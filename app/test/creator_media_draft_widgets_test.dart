@@ -120,7 +120,7 @@ void main(){
     Directory('test/renders').createSync(recursive:true);
     File('test/renders/media_attempted_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
    });
-   await t.ensureVisible(find.byType(TextField));await t.pumpAndSettle();
+   await t.scrollUntilVisible(find.byType(TextField),100,scrollable:find.byType(Scrollable).first);await t.pumpAndSettle();
    final field=t.getRect(find.byType(TextField));
    final toolbar=t.getRect(find.text('Remove media').evaluate().isNotEmpty?find.text('Remove media'):find.text(t_('Remove media')));
    expect(field.top,greaterThanOrEqualTo(56));expect(field.top,lessThan(toolbar.top));

@@ -54,6 +54,27 @@ class _RejectedRefresh extends ApiError {
   _RejectedRefresh(super.message, super.status);
 }
 
+/// Validate the native browser result before exchanging an authorization code.
+/// State and PKCE remain required; an unexpected redirect shape is not a login.
+@visibleForTesting
+String socialCallbackCode(String result, String expectedState) {
+  final Uri back;
+  try { back = Uri.parse(result); } catch (_) { throw ApiError('Sign in failed. Try again.'); }
+  final redirect = Uri.parse(socialRedirect);
+  final fields = back.queryParametersAll;
+  if (back.scheme != redirect.scheme || back.host != redirect.host ||
+      back.path != redirect.path || back.hasPort || back.userInfo.isNotEmpty ||
+      back.hasFragment || fields.values.any((v)=>v.length != 1) ||
+      expectedState.isEmpty || fields['state']?.single != expectedState) {
+    throw ApiError('Sign in failed. Try again.');
+  }
+  final error = back.queryParameters['error_description'] ?? back.queryParameters['error'];
+  if (error != null) throw ApiError(error);
+  final code = back.queryParameters['code'];
+  if (code == null || code.trim().isEmpty) throw ApiError('Sign in failed. Try again.');
+  return code;
+}
+
 /// Stable per-draft key, never an account credential.
 String newUploadIntent() => List.generate(24, (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0')).join();
 
@@ -357,12 +378,7 @@ class Session extends ChangeNotifier {
       throw ApiError('Sign in was cancelled.');
     }
     _checkSession(epoch);
-    final back = Uri.parse(result);
-    if (back.queryParameters['state'] != state) throw ApiError('Sign in failed. Try again.');
-    final err = back.queryParameters['error_description'] ?? back.queryParameters['error'];
-    if (err != null) throw ApiError(err);
-    final code = back.queryParameters['code'];
-    if (code == null) throw ApiError('Sign in failed. Try again.');
+    final code = socialCallbackCode(result,state);
     await _grant({
       'grant_type': 'authorization_code',
       'code': code,

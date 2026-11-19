@@ -96,6 +96,21 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Open saved group draft': 'सुरक्षित समूह मस्यौदा खोल्नुहोस्',
+  'Save group draft': 'समूह मस्यौदा सुरक्षित गर्नुहोस्',
+  'Delete saved group draft': 'सुरक्षित समूह मस्यौदा हटाउनुहोस्',
+  'Delete saved group draft?': 'सुरक्षित समूह मस्यौदा हटाउने?',
+  'Group draft saved on this device. No group was created.': 'समूह मस्यौदा यस उपकरणमा सुरक्षित भयो। कुनै समूह बनाइएको छैन।',
+  'Save or clear this group before opening the saved copy.': 'सुरक्षित प्रति खोल्नुअघि यो समूह सुरक्षित वा खाली गर्नुहोस्।',
+  'No saved group draft.': 'सुरक्षित समूह मस्यौदा छैन।',
+  'This group may already exist. Check Chats before starting it again.': 'यो समूह पहिले नै बनेको हुन सक्छ। फेरि सुरु गर्नुअघि च्याट हेर्नुहोस्।',
+  'This removes only the local plan, not a group that may already exist. Check Chats before starting it again.': 'यसले यस उपकरणको योजना मात्र हटाउँछ, पहिले नै बनेको समूह होइन। फेरि सुरु गर्नुअघि च्याट हेर्नुहोस्।',
+  'Local group plan. People are checked again before creation. Nothing starts automatically.': 'यस उपकरणको समूह योजना। समूह बनाउनुअघि सदस्य फेरि जाँचिन्छन्। केही पनि आफैँ सुरु हुँदैन।',
+  'Save group changes before creating it.': 'समूह बनाउनुअघि परिवर्तन सुरक्षित गर्नुहोस्।',
+  'A selected person changed or is unavailable. Remove and find them again before creating this group.': 'छानिएको व्यक्तिको विवरण फेरिएको छ वा उपलब्ध छैन। समूह बनाउनुअघि हटाएर फेरि खोज्नुहोस्।',
+  'Could not verify the saved group. Nothing was created. Try again.': 'सुरक्षित समूह जाँच्न सकिएन। केही बनाइएको छैन। फेरि प्रयास गर्नुहोस्।',
+  'Saved groups need the member-check server update. Your draft is still here.': 'सुरक्षित समूहका लागि सदस्य जाँच्ने सर्भर अद्यावधिक चाहिन्छ। तपाईंको मस्यौदा यहीँ छ।',
+
   'This chat belongs to another signed-in session. Close it and sign in again to continue.': 'यो च्याट अर्को साइन-इन सत्रको हो। अगाडि बढ्न यसलाई बन्द गरेर फेरि साइन इन गर्नुहोस्।',
   'This private media link is not supported.': 'यो निजी मिडिया लिङ्क चल्दैन।',
   'This photo is unavailable.': 'यो तस्बिर उपलब्ध छैन।',

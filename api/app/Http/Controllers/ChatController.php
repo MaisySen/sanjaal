@@ -91,6 +91,9 @@ class ChatController extends Controller
             'title' => ['required_if:type,group', 'nullable', 'string', 'max:80'],
             'usernames' => ['required_if:type,group', 'array', 'min:1', 'max:49'],
             'usernames.*' => ['string'],
+            'member_refs' => ['sometimes', 'array', 'min:1', 'max:49'],
+            'member_refs.*.public_id' => ['required_with:member_refs', 'string', 'max:256', 'distinct'],
+            'member_refs.*.username' => ['required_with:member_refs', 'string', 'max:80', 'distinct'],
         ]);
         $me = $request->user();
 
@@ -118,9 +121,23 @@ class ChatController extends Controller
             return response()->json(['conversation' => $this->present($convo->load('members'), $me)], 201);
         }
 
-        $others = User::whereIn('username', $data['usernames'])->where('id', '!=', $me->id)->get();
-        if ($others->count() !== collect($data['usernames'])->unique()->reject(fn ($u) => $u === $me->username)->count()) {
-            return response()->json(['message' => 'One or more users were not found.', 'errors' => ['usernames' => ['One or more users were not found.']]], 422);
+        if (isset($data['member_refs'])) {
+            // Saved selections bind stable IDs, not whoever owns an old username
+            // at creation time. No fallback to username-only resolution.
+            $refs = collect($data['member_refs']);
+            $names = collect($data['usernames']);
+            if ($names->count() !== $names->unique()->count() || $refs->pluck('username')->sort()->values()->all() !== $names->sort()->values()->all()) {
+                return response()->json(['message' => 'Selected people changed. Find them again.'], 422);
+            }
+            $others = User::whereIn('public_id', $refs->pluck('public_id'))->where('id', '!=', $me->id)->get();
+            if ($others->count() !== $refs->count() || $refs->contains(fn ($ref) => ! $others->contains(fn ($u) => $u->public_id === $ref['public_id'] && $u->username === $ref['username']))) {
+                return response()->json(['message' => 'Selected people changed. Find them again.'], 422);
+            }
+        } else {
+            $others = User::whereIn('username', $data['usernames'])->where('id', '!=', $me->id)->get();
+            if ($others->count() !== collect($data['usernames'])->unique()->reject(fn ($u) => $u === $me->username)->count()) {
+                return response()->json(['message' => 'One or more users were not found.', 'errors' => ['usernames' => ['One or more users were not found.']]], 422);
+            }
         }
         abort_if($others->contains(fn ($u) => $this->cannotContact($me, $u->id)), 404);
         $convo = DB::transaction(function () use ($me, $others, $data) {

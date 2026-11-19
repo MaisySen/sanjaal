@@ -96,6 +96,7 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'This chat belongs to another signed-in session. Close it and sign in again to continue.': 'यो च्याट अर्को साइन-इन सत्रको हो। अगाडि बढ्न यसलाई बन्द गरेर फेरि साइन इन गर्नुहोस्।',
   'This private media link is not supported.': 'यो निजी मिडिया लिङ्क चल्दैन।',
   'This photo is unavailable.': 'यो तस्बिर उपलब्ध छैन।',
   'Could not read stories. Try again.': 'स्टोरी पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।',

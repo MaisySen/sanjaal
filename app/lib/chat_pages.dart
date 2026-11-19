@@ -238,10 +238,23 @@ class _NewChatPageState extends State<NewChatPage> {
   bool _completed = false, _uncertain = false;
   String? searchError, startError;
   int _seq = 0;
-  bool get _locked => busy || _uncertain;
+  late final String? _owner;
+  late final int _sessionGeneration;
+  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _locked => !_active || busy || _uncertain;
+  @override void initState(){
+    super.initState();_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
+    widget.session.addListener(_accountChanged);
+  }
+  void _accountChanged(){
+    if(_active || !mounted)return;
+    ++_seq;_debounce?.cancel();
+    setState((){results=[];picked.clear();q.clear();title.clear();searching=false;busy=false;startError=null;searchError=null;});
+  }
 
   @override
   void dispose() {
+    widget.session.removeListener(_accountChanged);
     ++_seq;
     _debounce?.cancel();
     q.dispose();
@@ -250,6 +263,7 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   void _changed(String value) {
+    if(!_active)return;
     final seq = ++_seq; // Invalidate immediately, not when the debounce fires.
     _debounce?.cancel();
     final query = value.trim();
@@ -264,14 +278,15 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   Future<void> _search(String query, int seq) async {
+    if(!_active)return;
     try {
       final response = await widget.session.call('GET', '/users/search', query: {'q': query});
       final users = ((response as Map)['users'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
       if(users.any((u)=>u['username'] is! String || (u['username'] as String).trim().isEmpty)) throw const FormatException('Invalid member identity');
-      if (!mounted || seq != _seq) return;
+      if (!mounted || !_active || seq != _seq) return;
       setState(() { results = users; searched = true; searching = false; searchError = null; });
     } catch (e) {
-      if (!mounted || seq != _seq) return;
+      if (!mounted || !_active || seq != _seq) return;
       setState(() {
         searching = false;
         searchError = e is ApiError ? e.message : t_('Could not load members. Try again.');
@@ -280,10 +295,10 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   Future<void> _leave([Map<String, dynamic>? conversation]) async {
-    if (!mounted) return;
+    if (!mounted || !_active) return;
     setState(() { _completed = true; busy = false; });
     await WidgetsBinding.instance.endOfFrame;
-    if (mounted) Navigator.of(context).pop(conversation);
+    if (mounted && _active) Navigator.of(context).pop(conversation);
   }
 
   Future<void> _start(Map<String, dynamic> body) async {
@@ -296,9 +311,9 @@ class _NewChatPageState extends State<NewChatPage> {
       final response = await widget.session.call('POST', '/conversations', body: body);
       final conversation = ((response as Map)['conversation'] as Map).cast<String, dynamic>();
       if (conversation['public_id'] is! String || (conversation['public_id'] as String).isEmpty) throw const FormatException();
-      if (mounted) await _leave(conversation);
+      if (mounted && _active) await _leave(conversation);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_active) return;
       // Groups have no server replay key. A lost/malformed success is not a
       // rejected creation, so do not offer another POST as ordinary retry.
       final rejected = e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500;
@@ -330,13 +345,15 @@ class _NewChatPageState extends State<NewChatPage> {
         content: Text(t_('The name and selected people will be cleared.')),
         actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Keep editing'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Discard')))],
       ));
-      if (discard != true || !mounted) return;
+      if (discard != true || !mounted || !_active) return;
     }
     setState(() { group = !group; picked.clear(); title.clear(); startError = null; });
   }
 
   @override
-  Widget build(BuildContext context) => DraftExitGuard(
+  Widget build(BuildContext context) {
+   if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('New chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+   return DraftExitGuard(
     hasChanges: !_completed && (picked.isNotEmpty || title.text.trim().isNotEmpty),
     busy: busy && !_completed,
     busyMessage: 'Starting the conversation. Please wait.',
@@ -371,6 +388,7 @@ class _NewChatPageState extends State<NewChatPage> {
       )))) : null,
     ),
   );
+  }
 }
 
 class ChatPage extends StatefulWidget {
@@ -382,6 +400,14 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  late final String? _owner;
+  late final int _sessionGeneration;
+  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  void _accountChanged(){
+    if(_active || !mounted)return;
+    _closed=true;timer?.cancel();
+    setState((){msgs.clear();input.clear();replyTo=null;typing=[];recording=false;pickingMedia=false;});
+  }
   final msgs = <Map<String, dynamic>>[];
   final input = TextEditingController();
   final scroll = ScrollController();
@@ -410,6 +436,8 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
+    _owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
+    widget.session.addListener(_accountChanged);
     scroll.addListener(() { if (unseen > 0 && nearEnd && mounted) setState(() => unseen = 0); });
     _loop();
   }
@@ -436,6 +464,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     _closed = true;
+    widget.session.removeListener(_accountChanged);
     timer?.cancel();
     scroll.dispose();
     input.dispose();
@@ -463,14 +492,14 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _older() async {
-    if (loadingOlder || !hasOlder || historyBoundary == null) return;
+    if (!_active || loadingOlder || !hasOlder || historyBoundary == null) return;
     final before = firstSeq;
     setState(() { loadingOlder = true; olderError = null; });
     try {
       final j = await widget.session.call('GET', '/conversations/$id/messages', query: {'before_seq': '$before'}) as Map<String, dynamic>;
       final page = (j['data'] as List).cast<Map<String, dynamic>>();
       if (page.any((m) => m['seq'] is! num || (m['seq'] as num) >= before)) throw const FormatException('Invalid history cursor');
-      if (!mounted) return;
+      if (!mounted || !_active) return;
       setState(() {
         final known = msgs.map((m) => m['public_id']).toSet();
         msgs.addAll(page.where((m) => known.add(m['public_id'])));
@@ -480,20 +509,20 @@ class _ChatPageState extends State<ChatPage> {
       // Older rows grow in the sliver before the center. Its offset stays fixed
       // without guessing text/image heights or moving a user reading history.
     } catch (e) {
-      if (mounted) setState(() => olderError = e is ApiError ? e.message : t_('Earlier messages could not be loaded.'));
-    } finally { if (mounted) setState(() => loadingOlder = false); }
+      if (mounted && _active) setState(() => olderError = e is ApiError ? e.message : t_('Earlier messages could not be loaded.'));
+    } finally { if (mounted && _active) setState(() => loadingOlder = false); }
   }
 
   Future<void> _fetch({bool wait = false}) async {
-    if (fetching) return;
+    if (!_active || fetching) return;
     fetching = true;
     try {
       final first = historyBoundary == null;
       final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20', 'typing': typing.join(',')}) as Map<String, dynamic>;
       final nowTyping = ((j['typing'] as List?) ?? const []).map((e) => e.toString()).toList();
-      if (mounted && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
+      if (mounted && _active && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
-      if (!mounted) return;
+      if (!mounted || !_active) return;
       final follow = nearEnd;
       if (first) {
         final seqs = items.map((m) => (m['seq'] as num?)?.toInt()).whereType<int>();
@@ -520,16 +549,16 @@ class _ChatPageState extends State<ChatPage> {
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
     } catch (e) {
-      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Messages could not be loaded.'));
+      if (mounted && _active) setState(() => error = e is ApiError ? e.message : t_('Messages could not be loaded.'));
     } finally {
       fetching = false;
-      if (mounted && loading) setState(() => loading = false);
+      if (mounted && _active && loading) setState(() => loading = false);
     }
   }
 
   Future<void> _send() async {
     final t = input.text.trim();
-    if (t.isEmpty) return;
+    if (!_active || t.isEmpty) return;
     input.clear();
     final cid = newUploadIntent();
     final me = widget.session.user!;
@@ -550,7 +579,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _deliver(Map<String, dynamic> local) async {
-    if (local['pending'] != true) return;
+    if (!_active || local['pending'] != true) return;
     final cid = local['client_id'];
     final replyId = (local['reply_to'] as Map?)?['public_id'];
     try {
@@ -560,7 +589,7 @@ class _ChatPageState extends State<ChatPage> {
           : await widget.session.upload('/conversations/$id/messages', fields: {'client_id': '$cid', if (replyId != null) 'reply_to': '$replyId'}, file: file);
       final server = (j['message'] as Map).cast<String, dynamic>();
       if (server['public_id'] is! String || server['sender'] is! Map || server['body'] is! String) throw const FormatException('Incomplete message response');
-      if (!mounted) return;
+      if (!mounted || !_active) return;
       final follow = nearEnd;
       setState(() {
         msgs.removeWhere((m) => m['client_id'] == cid && (m['sender'] as Map?)?['public_id'] == widget.session.user?['public_id']);
@@ -569,7 +598,7 @@ class _ChatPageState extends State<ChatPage> {
       });
       if (follow) _toEnd();
     } catch (e) {
-      if (!mounted || !msgs.contains(local)) return;
+      if (!mounted || !_active || !msgs.contains(local)) return;
       setState(() {
         local['pending'] = false;
         local['failed'] = true;
@@ -580,22 +609,22 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _attach() async {
-    if (hasLocalMedia || pickingMedia) return;
+    if (!_active || hasLocalMedia || pickingMedia) return;
     setState(() => pickingMedia = true);
     try {
       final x = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78));
-      if (x == null || !mounted) return;
+      if (x == null || !mounted || !_active) return;
       final bytes = await x.readAsBytes();
-      if (mounted) {
+      if (mounted && _active) {
         setState(() => pickingMedia = false);
         await _sendFile(UploadFile(bytes, mimeFor(x.name), x.name));
       }
-    } catch (e) { if (mounted) showError(context, e); }
-    finally { if (mounted) setState(() => pickingMedia = false); }
+    } catch (e) { if (mounted && _active) showError(context, e); }
+    finally { if (mounted && _active) setState(() => pickingMedia = false); }
   }
 
   Future<void> _sendVoice(List<int> bytes) async {
-    if (!mounted) return;
+    if (!mounted || !_active) return;
     setState(() => recording = false);
     await _sendFile(UploadFile(bytes, 'audio/mp4', 'voice.m4a'));
   }
@@ -603,7 +632,7 @@ class _ChatPageState extends State<ChatPage> {
   bool get hasLocalMedia => msgs.any((m) => m['_file'] is UploadFile);
 
   Future<void> _sendFile(UploadFile file) async {
-    if (!mounted || hasLocalMedia) return;
+    if (!mounted || !_active || hasLocalMedia) return;
     final cid = newUploadIntent();
     final me = widget.session.user!;
     final local = <String, dynamic>{
@@ -626,10 +655,11 @@ class _ChatPageState extends State<ChatPage> {
       content: Text(t_('This removes only the attachment kept on this screen. It does not delete a message that may already be delivered.')),
       actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Remove retry copy')))],
     ));
-    if (yes == true && mounted && local['failed'] == true) setState(() => msgs.remove(local));
+    if (yes == true && mounted && _active && local['failed'] == true) setState(() => msgs.remove(local));
   }
 
   void _typingPing() {
+    if(!_active)return;
     final now = DateTime.now();
     if (now.difference(_lastTypingPing) < const Duration(seconds: 4)) return;
     _lastTypingPing = now;
@@ -637,7 +667,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _messageMenu(Map<String, dynamic> m) async {
-    if (m['pending'] == true || m['failed'] == true) return;
+    if (!_active || m['pending'] == true || m['failed'] == true) return;
     await showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -647,7 +677,7 @@ class _ChatPageState extends State<ChatPage> {
             title: Text(t_('Reply')),
             onTap: () {
               Navigator.pop(ctx);
-              setState(() => replyTo = m);
+              if(mounted && _active)setState(() => replyTo = m);
             },
           ),
           if ((m['body'] ?? '').toString().isNotEmpty)
@@ -656,6 +686,7 @@ class _ChatPageState extends State<ChatPage> {
               title: Text(t_('Copy')),
               onTap: () {
                 Navigator.pop(ctx);
+                if(!mounted || !_active)return;
                 Clipboard.setData(ClipboardData(text: m['body'].toString()));
                 showInfo(context, 'Copied');
               },
@@ -666,13 +697,14 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _retry(Map<String, dynamic> m) async {
-    if (!mounted || !msgs.contains(m) || m['failed'] != true || m['pending'] == true || m['unavailable'] == true) return;
+    if (!mounted || !_active || !msgs.contains(m) || m['failed'] != true || m['pending'] == true || m['unavailable'] == true) return;
     // Retry the immutable original, never the newer composer or its reply.
     setState(() { m['failed'] = false; m['pending'] = true; });
     await _deliver(m);
   }
 
   void _call(bool video) {
+    if(!_active)return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CallPage(session: widget.session, conversationId: id, title: (widget.convo['title'] ?? 'Call').toString(), video: video),
     ));
@@ -734,6 +766,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
     return DraftExitGuard(
@@ -811,10 +844,10 @@ class _ChatPageState extends State<ChatPage> {
                 VoiceRecorderBar(
                   onDone: _sendVoice,
                   onCancel: () {
-                    if (mounted) setState(() => recording = false);
+                    if (mounted && _active) setState(() => recording = false);
                   },
                   onError: (msg) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                    if (mounted && _active) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
                   },
                 )
               else

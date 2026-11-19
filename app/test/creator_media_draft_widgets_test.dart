@@ -120,6 +120,15 @@ void main(){
     Directory('test/renders').createSync(recursive:true);
     File('test/renders/media_attempted_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
    });
+   await t.ensureVisible(find.byType(TextField));await t.pumpAndSettle();
+   final field=t.getRect(find.byType(TextField));
+   final toolbar=t.getRect(find.text('Remove media').evaluate().isNotEmpty?find.text('Remove media'):find.text(t_('Remove media')));
+   expect(field.top,greaterThanOrEqualTo(56));expect(field.top,lessThan(toolbar.top));
+   await t.runAsync(()async{
+    final image=await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio:2);
+    final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
+    File('test/renders/media_caption_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+   });
    await t.pumpWidget(const SizedBox());
   });
  }

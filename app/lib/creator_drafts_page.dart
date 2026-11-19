@@ -157,7 +157,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
                 'No saved drafts yet. Use the bookmark while writing a post or story.',
               ),
             ),
-          )
+          ),
         if(active)
           for (final draft in drafts??<CreatorDraft>[])
             ListTile(

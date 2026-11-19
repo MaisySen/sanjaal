@@ -2,6 +2,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
@@ -39,7 +41,12 @@ class _OwnedSetupState extends State<OwnedSetup> with SessionBoundState<OwnedSet
  @override Widget build(BuildContext c)=>sessionActive?const SizedBox():retiredSessionView();
 }
 void main(){
- setUp(()=>SharedPreferences.setMockInitialValues({}));
+ setUp((){
+  SharedPreferences.setMockInitialValues({});
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('livekit_client'),(call)async=>null);
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('FlutterWebRTC.Method'),(call)async=>null);
+ });
+ setUpAll((){Logger.root.level=Level.WARNING;Logger.root.onRecord.listen((r){print('REALTIME_DISPOSE ${r.message} ${r.error??''}');});});
  Future<void> setup(Future<void> Function(FixtureSession) work)async{
   await http.runWithClient(()async{final s=FixtureSession();await s.login('fixture','not-a-password');await work(s);},()=>MockClient((_)async=>http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200)));
  }

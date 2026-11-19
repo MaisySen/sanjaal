@@ -32,10 +32,17 @@ class ChatsPage extends StatefulWidget {
 }
 
 class _ChatsPageState extends State<ChatsPage> {
+  late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
-  void _accountChanged(){if(!_active && mounted){++_loadVersion;timer?.cancel();setState(()=>convos=[]);}}
+  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  BuildContext? _menuContext;
+  void _accountChanged(){if(!_active && mounted){
+    ++_loadVersion;timer?.cancel();
+    final menu=_menuContext;
+    if(menu!=null && menu.mounted && ModalRoute.of(menu)?.isCurrent==true)Navigator.of(menu).pop();
+    setState(()=>convos=[]);
+  }}
   List<Map<String, dynamic>> convos = [];
   bool loading = true;
   String? error;
@@ -47,7 +54,7 @@ class _ChatsPageState extends State<ChatsPage> {
   @override
   void initState() {
     super.initState();
-    _owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
+    _session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
     _load();
     timer = Timer.periodic(const Duration(seconds: 12), (_) { if (widget.active) _load(quiet: true); });
@@ -61,7 +68,7 @@ class _ChatsPageState extends State<ChatsPage> {
 
   @override
   void dispose() {
-    widget.session.removeListener(_accountChanged);
+    _session.removeListener(_accountChanged);
     timer?.cancel();
     super.dispose();
   }
@@ -101,20 +108,21 @@ class _ChatsPageState extends State<ChatsPage> {
         await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
         await _load(quiet: true,force:true);
       } catch (e) {
-        if (mounted) showError(context, e);
+        if (mounted && _active) showError(context, e);
       }
     }
 
     await showModalBottomSheet<void>(
       context: context,
-      builder: (ctx) => SafeArea(
+      builder: (ctx) { _menuContext=ctx; return SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(t_(c['pinned'] == true ? 'Unpin' : 'Pin to top')), onTap: () => set({'pinned': c['pinned'] != true})),
           ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(t_(c['muted'] == true ? 'Unmute' : 'Mute')), onTap: () => set({'muted': c['muted'] != true})),
           ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(t_(c['archived'] == true ? 'Unarchive' : 'Archive')), onTap: () => set({'archived': c['archived'] != true})),
         ]),
-      ),
+      );},
     );
+    _menuContext=null;
   }
 
   Future<void> _open(Map<String, dynamic> c) async {
@@ -143,6 +151,7 @@ class _ChatsPageState extends State<ChatsPage> {
           PopupMenuButton<String>(
             tooltip: t_('More'),
             onSelected: (_) {
+              if(!_active)return;
               setState(() {
                 showArchived = !showArchived;
                 convos = [];
@@ -250,12 +259,13 @@ class _NewChatPageState extends State<NewChatPage> {
   bool _completed = false, _uncertain = false;
   String? searchError, startError;
   int _seq = 0;
+  late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   bool get _locked => !_active || busy || _uncertain;
   @override void initState(){
-    super.initState();_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
+    super.initState();_session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
   }
   void _accountChanged(){
@@ -266,7 +276,7 @@ class _NewChatPageState extends State<NewChatPage> {
 
   @override
   void dispose() {
-    widget.session.removeListener(_accountChanged);
+    _session.removeListener(_accountChanged);
     ++_seq;
     _debounce?.cancel();
     q.dispose();
@@ -412,9 +422,10 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
+  late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   void _accountChanged(){
     if(_active || !mounted)return;
     _closed=true;timer?.cancel();
@@ -448,7 +459,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void initState() {
     super.initState();
-    _owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
+    _session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
     scroll.addListener(() { if (unseen > 0 && nearEnd && mounted) setState(() => unseen = 0); });
     _loop();
@@ -476,7 +487,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     _closed = true;
-    widget.session.removeListener(_accountChanged);
+    _session.removeListener(_accountChanged);
     timer?.cancel();
     scroll.dispose();
     input.dispose();
@@ -662,6 +673,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _removeMediaCopy(Map<String, dynamic> local) async {
+    if(!_active)return;
     final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
       scrollable: true, title: Text(t_('Remove retry copy?')),
       content: Text(t_('This removes only the attachment kept on this screen. It does not delete a message that may already be delivered.')),
@@ -887,18 +899,19 @@ class GroupInfoPage extends StatefulWidget {
 }
 
 class _GroupInfoPageState extends State<GroupInfoPage> {
+  late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   BuildContext? _dialog;
-  @override void initState(){super.initState();_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;widget.session.addListener(_accountChanged);}
+  @override void initState(){super.initState();_session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;widget.session.addListener(_accountChanged);}
   void _accountChanged(){
     if(_active || !mounted)return;
     final dialog=_dialog;
     if(dialog!=null && dialog.mounted && ModalRoute.of(dialog)?.isCurrent==true)Navigator.of(dialog).pop();
     setState((){members=[];title='';busy=false;});
   }
-  @override void dispose(){widget.session.removeListener(_accountChanged);super.dispose();}
+  @override void dispose(){_session.removeListener(_accountChanged);super.dispose();}
   late List<Map<String, dynamic>> members = ((widget.convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
   bool busy = false;
   late String title = (widget.convo['title'] ?? 'Group').toString();
@@ -1028,7 +1041,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             leading: Avatar(user: m, radius: 22),
             title: Text((m['name'] ?? '').toString().isEmpty ? '@${m['username']}' : m['name'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text('@${m['username']}'),
-            onTap: m['public_id'] == session.user?['public_id'] ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: session, username: m['username'].toString()))),
+            onTap: m['public_id'] == session.user?['public_id'] ? null : () {if(!_active)return;Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: session, username: m['username'].toString())));},
           ),
         const SizedBox(height: 8),
         ListTile(

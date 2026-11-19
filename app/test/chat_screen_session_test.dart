@@ -1,5 +1,10 @@
 // Synthetic HTTP only. Account replacement must retire old chat screens.
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:sanjaal/ui.dart' show prefs;
+import 'package:sanjaal/main.dart' show buildTheme;
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -38,14 +43,14 @@ void main(){
    }));
   });
  }
- for(final action in ['Rename group','Add people','Leave group']){
-  testWidgets('account replacement closes stale $action dialog without group mutation',(t)async{
+ for(final same in [true,false])for(final action in ['Rename group','Add people','Leave group']){
+  testWidgets('${same?'same-member':'other-member'} replacement closes stale $action dialog without group mutation',(t)async{
    String owner='a';var writes=0;
    await http.runWithClient(()async{
     final session=Session();await session.login('fixture','not-a-password');
     await t.pumpWidget(MaterialApp(home:GroupInfoPage(session:session,convo:{'public_id':'old-group','type':'group','title':'Private group title','my_role':'owner','members':[{'public_id':'a','username':'a'},{'public_id':'private-person','username':'private-person'}]})));
     await flush(t);await t.tap(find.text(action));await flush(t);expect(find.byType(AlertDialog),findsOneWidget);
-    owner='b';await session.login('replacement','not-a-password');await flush(t);
+    if(!same)owner='b';await session.login('replacement','not-a-password');await flush(t);
     expect(find.byType(AlertDialog),findsNothing);expect(find.text('Private group title'),findsNothing);expect(find.text('@private-person'),findsNothing);
     expect(find.textContaining('another signed-in session'),findsOneWidget);expect(writes,0);expect(t.takeException(),isNull);
     await t.pumpWidget(const SizedBox());
@@ -72,6 +77,39 @@ void main(){
    inboxReads++;return reply({'data':[{'public_id':'private-chat','type':'direct','title':'Private title','last_message':{'body':'Private preview','kind':'text','created_at':'2026-11-20T00:00:00Z'},'unread':0}]});
   }));
  });
+ for(final same in [false,true]){
+ testWidgets('inbox stale settings menu closes on ${same?'same':'other'} member login',(t)async{
+  String owner='a';var writes=0;
+  await http.runWithClient(()async{
+   final session=Session();await session.login('fixture','not-a-password');
+   await t.pumpWidget(MaterialApp(home:ChatsPage(session:session)));await flush(t);
+   await t.longPress(find.text('Private title'));await flush(t);expect(find.text('Pin to top'),findsOneWidget);
+   if(!same)owner='b';await session.login('replacement','not-a-password');await flush(t);
+   expect(find.text('Pin to top'),findsNothing);expect(find.text('Private title'),findsNothing);expect(writes,0);expect(t.takeException(),isNull);
+   await t.pumpWidget(const SizedBox());
+  },()=>MockClient((r)async{
+   if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});
+   if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':owner,'username':owner}});
+   if(r.method!='GET')writes++;
+   return reply({'data':[{'public_id':'old','type':'direct','title':'Private title','unread':0}]});
+  }));
+ });}
+ for(final lang in ['en','ne'])for(final dark in [false,true]){
+ testWidgets('retired chat readable $lang dark=$dark large text',(t)async{
+  prefs.lang=lang;
+  final key=GlobalKey();
+  t.view.physicalSize=const Size(390,844);t.view.devicePixelRatio=1;
+  addTearDown((){t.view.resetPhysicalSize();t.view.resetDevicePixelRatio();prefs.lang='en';});
+  await http.runWithClient(()async{
+   final session=Session();await session.login('fixture','not-a-password');
+   await t.pumpWidget(MaterialApp(theme:buildTheme(dark?Brightness.dark:Brightness.light),builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:const TextScaler.linear(2)),child:child!),home:RepaintBoundary(key:key,child:GroupInfoPage(session:session,convo:{'public_id':'old','title':'Private group','members':[]}))));
+   await session.login('replacement','not-a-password');await flush(t);
+   final image=await (key.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage(pixelRatio:1);
+   final bytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();
+   await t.runAsync(()async{final file=File('test/renders/chat_session_${lang}_${dark?'dark':'light'}.png');await file.parent.create(recursive:true);await file.writeAsBytes(bytes);});
+   image.dispose();expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+  },()=>MockClient((r)async=>r.url.path.endsWith('/oauth/token')?reply({'access_token':'fixture','expires_in':3600}):reply({'user':{'public_id':'a','username':'a'}})));
+ });}
  testWidgets('old failed text retry and newer unsent composer disappear on account change',(t)async{
   final held=Completer<http.Response>();var reads=0,writes=0;String owner='a';
   await http.runWithClient(()async{

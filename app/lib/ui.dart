@@ -550,6 +550,7 @@ const _ne = <String, String>{
   'A photo, a thought, a little of your day.': 'एउटा फोटो, एउटा विचार, तपाईंको दिनको सानो अंश।',
   'Home': 'गृह',
   'Reels': 'रिल्स',
+  'Chat': 'च्याट',
   'Chats': 'च्याट',
   'Wallet': 'वालेट',
   'Me': 'म',

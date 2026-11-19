@@ -12,6 +12,15 @@ import 'package:sanjaal/feed_page.dart';
 import 'package:sanjaal/ui.dart' show prefs,t_;
 import 'package:sanjaal/main.dart' show buildTheme;
 
+class CapturedMediaSession extends Session {
+ List<UploadFile>? sent;
+ bool guarded=false;
+ @override Future<Map<String,dynamic>> createPost(String body,{List<UploadFile> files=const [],bool reel=false,List<String>? pollOptions,String? intent})async{
+  guarded=(await const CreatorMediaDraftStore().read('a')).single.attempted;
+  sent=files;
+  return {'public_id':'synthetic-confirmed','author':{'public_id':'a','username':'synthetic'},'media':[],'kind':reel?'reel':'post'};
+ }
+}
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
  late Directory root;
@@ -44,6 +53,24 @@ void main(){
   expect((await const CreatorMediaDraftStore().read('a')).single.attempted,isFalse);
   await t.pumpWidget(const SizedBox());
  });
+ testWidgets('manual send uses encrypted saved bytes, not changed picker bytes',(t)async{
+  final data=(await t.runAsync(()=>seed()))!;
+  final original=await data.$2.single.readAsBytes();
+  final source=File('${root.path}/picker.png');await t.runAsync(()=>source.writeAsBytes(original));
+  final session=CapturedMediaSession()..user={'public_id':'a'};
+  await t.pumpWidget(MaterialApp(home:ComposePage(session:session,backgroundUpload:true,initialMediaDraft:data.$1,savedMediaFiles:[XFile(source.path)])));
+  await t.pumpAndSettle();
+  await t.runAsync(()=>source.writeAsString('picker changed after saving'));
+  await t.runAsync(()async{
+   await t.tap(find.widgetWithText(FilledButton,'Post'));
+   for(var i=0;i<100 && session.sent==null;i++){await Future<void>.delayed(const Duration(milliseconds:20));}
+  });
+  await t.pumpAndSettle();
+  expect(session.sent,isNotNull);expect(session.guarded,isTrue);
+  expect(session.sent!.single.bytes,original);
+  expect(session.sent!.single.name,'media.png');
+  await t.pumpWidget(const SizedBox());
+ });
  testWidgets('restored attempted video cannot post or reset without confirmation',(t)async{
   final data=(await t.runAsync(()=>seed(attempted:true,video:true)))!;
   final session=Session()..user={'public_id':'a'};
@@ -66,7 +93,7 @@ void main(){
    t.view.physicalSize=const Size(960,1920);t.view.devicePixelRatio=3;addTearDown(t.view.reset);
    final key=GlobalKey();
    final session=Session()..user={'public_id':'a'};
-   await t.pumpWidget(RepaintBoundary(key:key,child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(brightness,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:const TextScaler.linear(1.6)),child:w!),home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2))));
+   await t.pumpWidget(RepaintBoundary(key:key,child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(brightness,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:const TextScaler.linear(1.6),viewInsets:const EdgeInsets.only(bottom:240)),child:w!),home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2))));
    await t.pumpAndSettle();
    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,t_('Post'))).onPressed,isNull);
    expect(t.takeException(),isNull);

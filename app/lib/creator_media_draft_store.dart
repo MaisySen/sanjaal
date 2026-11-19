@@ -21,6 +21,7 @@ class CreatorMediaDraft {
     if(value is! Map || !CreatorMediaDraftStore.nonceValid(value['id']) || !CreatorMediaDraftStore.nonceValid(value['revision']) || !CreatorMediaDraftStore.nonceValid(value['stamp']) || value['text'] is! String || (value['text'] as String).length>2000 || value['video'] is! bool || value['attempted'] is! bool || value['names'] is! List || value['sizes'] is! List)throw const FormatException('Unrecognized media draft');
     final names=value['names'] as List;final sizes=value['sizes'] as List;
     if(names.isEmpty || names.length>(value['video']==true?1:4) || sizes.length!=names.length || names.any((n)=>n is! String || !RegExp(r'^media\.(jpg|jpeg|png|webp|heic|mp4|mov)$').hasMatch(n)) || sizes.any((n)=>n is! int || n<1 || n>CreatorMediaDraftStore.fileLimit))throw const FormatException('Unrecognized media draft files');
+    if(names.any((n)=>value['video']==true?!RegExp(r'^media\.(mp4|mov)$').hasMatch(n):!RegExp(r'^media\.(jpg|jpeg|png|webp|heic)$').hasMatch(n)))throw const FormatException('Media type does not match draft');
     return CreatorMediaDraft(value['id'],value['revision'],value['text'],value['video'],value['attempted'],List.unmodifiable(names.cast<String>()),List.unmodifiable(sizes.cast<int>()),stamp:value['stamp']);
   }
 }
@@ -60,6 +61,7 @@ class CreatorMediaDraftStore {
     final value=jsonDecode(raw);
     if(value is! Map || value['version']!=1 || value['drafts'] is! List || (value['drafts'] as List).length>8)throw const FormatException('Unrecognized media draft index');
     final list=(value['drafts'] as List).map(CreatorMediaDraft.decode).toList();
+    if(list.expand((d)=>d.sizes).fold<int>(0,(a,b)=>a+b)>accountLimit)throw const FormatException('Media draft index exceeds account limit');
     if(list.map((d)=>d.id).toSet().length!=list.length)throw const FormatException('Duplicate media draft');
     return list;
   }
@@ -95,6 +97,16 @@ class CreatorMediaDraftStore {
       }
     }
   }
+  Future<Uint8List> _boundedBytes(XFile file,int expected)async{
+    final bytes=BytesBuilder(copy:false);var count=0;
+    await for(final chunk in file.openRead()){
+      count+=chunk.length;
+      if(count>expected || count>fileLimit)throw StateError('The selected file changed while saving');
+      bytes.add(chunk);
+    }
+    if(count!=expected)throw StateError('The selected file changed while saving');
+    return bytes.takeBytes();
+  }
   Future<int> _usage()async{
     var bytes=0;
     await for(final entity in (await _root()).list(recursive:true,followLinks:false)){
@@ -125,7 +137,7 @@ class CreatorMediaDraftStore {
     // Unique immutable revision files are complete before the index can refer
     // to them. An interrupted copy leaves old metadata intact, never sends.
     for(var i=0;i<files.length;i++){
-      final data=await files[i].readAsBytes();if(data.length!=sizes[i])throw StateError('The selected file changed while saving');
+      final data=await _boundedBytes(files[i],sizes[i]);
       final box=await _cipher.encrypt(data,secretKey:key,aad:utf8.encode('${_owner(owner)}:${draft.id}:${draft.revision}:$i'));
       final output=File('${dir.path}/$i.bin');await output.writeAsBytes(box.concatenation(),flush:true);
       final read=await output.readAsBytes();if(!const ListEqualityBytes().equals(read,box.concatenation()))throw StateError('Saved media could not be verified');

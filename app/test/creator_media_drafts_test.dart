@@ -9,7 +9,12 @@ import 'package:sanjaal/creator_media_draft_store.dart';
 class FailingMedia extends XFile {
   FailingMedia():super('/not-a-file/media.jpg');
   @override Future<int> length()async=>4;
-  @override Future<Uint8List> readAsBytes()async=>throw StateError('picker file disappeared');
+  @override Stream<Uint8List> openRead([int? start,int? end])async*{throw StateError('picker file disappeared');}
+}
+class GrowingMedia extends XFile {
+ GrowingMedia():super('growing.jpg');
+ @override Future<int> length()async=>4;
+ @override Stream<Uint8List> openRead([int? start,int? end])async*{yield Uint8List(5);throw StateError('must stop before second chunk');}
 }
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +31,10 @@ void main(){
   final reopened=CreatorMediaDraftStore(testRoot:root);final list=await reopened.read('a');expect(list.single.toJson(),d.toJson());
   final files=await reopened.open('a',list.single);expect(await files[0].readAsBytes(),payload);expect(await files[1].readAsBytes(),payload);
   expect(await reopened.read('b'),isEmpty);await expectLater(reopened.open('b',d),throwsStateError);
+ });
+ test('changed file stream is bounded before encryption and does not commit',()async{
+  await expectLater(store.save('a',text:'Changed',video:false,files:[GrowingMedia()]),throwsStateError);
+  expect(await store.read('a'),isEmpty);
  });
  test('video and photo limits reject incompatible selections',()async{
   await expectLater(store.save('a',text:'',video:true,files:[file()]),throwsStateError);
@@ -85,6 +94,7 @@ void main(){
    final protected=File('${outside.path}/protected');await protected.writeAsString('keep');
    final revision=disk.parent;await revision.delete(recursive:true);await Link(revision.path).create(outside.path);
    await expectLater(store.open('a',d),throwsStateError);expect(await protected.readAsString(),'keep');
+   await store.remove('a',d);expect(await protected.readAsString(),'keep');
   }finally{await outside.delete(recursive:true);}
  });
  test('delete removes only current account draft encrypted files',()async{

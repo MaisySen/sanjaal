@@ -912,14 +912,14 @@ class _ComposePageState extends State<ComposePage> {
       pollOptions = draft.options?.map((v) => TextEditingController(text: v)).toList();
       _savedFingerprint = _fingerprint;
     }
-    if (widget.backgroundUpload) UploadCenter.of(widget.session);
+    if (widget.backgroundUpload || _mediaDraft!=null) UploadCenter.of(widget.session);
     if (widget.startWithVideo && _mediaDraft==null) WidgetsBinding.instance.addPostFrameCallback((_) => _pickVideo());
   }
 
   Future<void> _pick() async {
     final chosen = await chooseCreatorMedia(context, CreatorKind.post);
     final fs = chosen?.map((m) => m.file).toList() ?? <XFile>[];
-    if (fs.isEmpty || !mounted) return;
+    if (fs.isEmpty || !mounted || _savingDraft || _draftAccountChanged) return;
     setState(() {
       images = fs.take(4).toList();
       video = null;
@@ -929,12 +929,12 @@ class _ComposePageState extends State<ComposePage> {
   Future<void> _pickVideo() async {
     final chosen = await chooseCreatorMedia(context, CreatorKind.reel);
     final f = chosen == null || chosen.isEmpty ? null : chosen.first.file;
-    if (f == null || !mounted) return;
+    if (f == null || !mounted || _savingDraft || _draftAccountChanged) return;
     if (await f.length() > 25 * 1024 * 1024) {
       if (mounted) showError(context, 'That video is over 25 MB. Pick a shorter one.');
       return;
     }
-    if (!mounted) return;
+    if (!mounted || _savingDraft || _draftAccountChanged) return;
     setState(() {
       video = f;
       images = [];
@@ -966,7 +966,10 @@ class _ComposePageState extends State<ComposePage> {
       try{
         final marked=await const CreatorMediaDraftStore().attempted(owner,saved,value:true);
         if(!mounted || generation!=widget.session.generation || widget.session.user?['public_id']!=owner)return;
-        _mediaDraft=marked;
+        setState(()=>_mediaDraft=marked);
+        final frozen=await const CreatorMediaDraftStore().open(owner,marked);
+        if(!mounted || generation!=widget.session.generation || widget.session.user?['public_id']!=owner)return;
+        setState((){_mediaDraft=marked;if(marked.video){video=frozen.single;images=[];}else{images=List.from(frozen);video=null;}_savedFingerprint=_fingerprint;});
       }catch(e){if(mounted)showError(context,e);return;}
       finally{if(mounted)setState(()=>_savingDraft=false);}
       // Mark BEFORE handing work off. A crash here pauses recovery even when
@@ -1037,10 +1040,10 @@ class _ComposePageState extends State<ComposePage> {
         ),
       ]),
       body: Column(children: [
-        if (widget.initialLocalDraft != null || _mediaDraft!=null) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
-        if(_mediaDraft?.attempted==true) Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-          Text(t_('This saved draft may already be posted. Check your profile before preparing a separate upload.')),
-          TextButton(onPressed:busy||_savingDraft?null:()async{
+        if(_mediaDraft?.attempted==true) UploadNotice(
+          message:'This saved draft may already be posted. Check your profile before preparing a separate upload.',
+          newLabel:'Prepare a separate upload',
+          prepareNew:busy||_savingDraft?null:()async{
             final draft=_mediaDraft!;final generation=widget.session.generation;final owner=_draftOwner;
             if(!await confirmNewUpload(context) || !mounted || owner==null || generation!=widget.session.generation || _mediaDraft!=draft)return;
             setState(()=>_savingDraft=true);
@@ -1049,8 +1052,8 @@ class _ComposePageState extends State<ComposePage> {
               if(mounted && generation==widget.session.generation)setState((){_mediaDraft=reset;intent=newUploadIntent();});
             }catch(e){if(mounted && !_draftAccountChanged)showError(context,e);}
             finally{if(mounted)setState(()=>_savingDraft=false);}
-          },child:Text(t_('Prepare a separate upload'))),
-        ])),
+          },
+        ),
         if (uploadError != null) UploadNotice(
           message: uploadError!.message,
           openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),
@@ -1062,6 +1065,7 @@ class _ComposePageState extends State<ComposePage> {
         Expanded(child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+        if (widget.initialLocalDraft != null || _mediaDraft!=null) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Avatar(user: widget.session.user),
             const SizedBox(width: 12),

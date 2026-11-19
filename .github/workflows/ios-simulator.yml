@@ -105,4 +105,5 @@ jobs:
             app/build/screenshots/*
             /tmp/ios-api.log
             /tmp/ios-devices.json
+            /tmp/ios-capture.log
           retention-days: 7

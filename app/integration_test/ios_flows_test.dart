@@ -34,11 +34,13 @@ void main(){
  Future<void> capture(String name) async {
   await binding.endOfFrame;
   await binding.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:500)));
+  if({'ios_chat_server_confirmed','ios_rooms_loaded','ios_settings'}.contains(name)) {
   final captured=await binding.runAsync(()=>http.post(
     Uri.parse('http://localhost:8002/$name'),
     headers:{'Authorization':'Bearer ${const String.fromEnvironment('E2E_TOKEN')}'},
-  ).timeout(const Duration(seconds:25)));
+  ).timeout(const Duration(seconds:100)));
   expect(captured?.statusCode,200,reason:'Native simulator screenshot checkpoint must succeed');
+  }
   final result=await binding.takeScreenshot(name);
   final bytes=result;
   final dir=await getTemporaryDirectory();

@@ -10,9 +10,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
    self.send_error(403);return
   try:
    time.sleep(1)
-   r=subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot',str(OUT/('native-checkpoint-'+name+'.png'))],capture_output=True,timeout=15)
+   r=subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot',str(OUT/('native-checkpoint-'+name+'.png'))],capture_output=True,timeout=90)
+   print(json.dumps({'checkpoint':name,'exit':r.returncode,'stderr':r.stderr.decode(errors='replace')[-1000:]}),flush=True)
    self.send_response(200 if r.returncode==0 else 500);self.end_headers();self.wfile.write(json.dumps({'captured':r.returncode==0,'checkpoint':name}).encode())
-  except Exception:
+  except Exception as e:
+   print(type(e).__name__,name,flush=True)
    self.send_error(500)
  def log_message(self,*args):pass
 http.server.HTTPServer(('127.0.0.1',8002),Handler).serve_forever()

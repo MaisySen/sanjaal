@@ -42,4 +42,10 @@ Source `de35f056177d3967f3e9fd4aa9913904864e63b7` checks session generation when
 
 Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/44502888171 . The missing after-response generation guard makes the same-account delayed-byte regression fail; restoring source passes all seven focused cases. Whole-app: 952 pass with one intentional opt-in live skip. Analyzer: zero errors/warnings and 87 informational notices. Results are preserved in the run artifact. Native compilation of this newest runtime is a separate required checkpoint, not inferred from the earlier ca37 run.
 
+## Immediate local sign-out boundary
+
+Source `82bf84f5855901fd7e9305db6a4d90ecafb125f1` clears local identity and advances the session generation before waiting for notification server/device cleanup. Delayed private bytes are rejected during that cleanup. Late cleanup cannot clear a replacement login. The fixed old-token device-removal callback does not refresh credentials, follow redirects or read the new session's credentials. Local device invalidation is attempted even if server removal fails.
+
+Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/44504302962 . 961 tests pass with one intentional opt-in live skip. Analyzer has zero errors/warnings and 87 informational notices. A negative control awaiting notification cleanup before local clear fails with the identity still present. Restoring source passes all 27 sign-out and push-registration cases. These are synthetic HTTP/storage/device callbacks, not FCM delivery or hardware sign-out proof. Native compilation of this runtime is a separate checkpoint.
+
 The Samsung remains on the separately installed exact `0.5.6 (2011)` candidate. Neither correction has been installed there or accepted on a device. No API deployment, production room, real user-draft mutation, paid service, wallet activation, store upload or public release is part of this source batch.

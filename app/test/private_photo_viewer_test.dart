@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
@@ -21,7 +22,7 @@ Future<void> flush(WidgetTester t)async{
 }
 bool hasPixels(WidgetTester t)=>t.widgetList<RawImage>(find.byType(RawImage)).any((w)=>w.image!=null);
 Future<void> scene(WidgetTester t,Future<void> Function(Session,Completer<http.Response>,void Function(String),Completer<http.Response>,List<String>) run)async{
- SharedPreferences.setMockInitialValues({});
+ SharedPreferences.setMockInitialValues({});FlutterSecureStorage.setMockInitialValues({});
  final media=Completer<http.Response>(),replacement=Completer<http.Response>();final requests=<String>[];var owner='first',grants=0;
  await http.runWithClient(()async{
   final s=Session();await s.login('synthetic','synthetic');
@@ -29,6 +30,7 @@ Future<void> scene(WidgetTester t,Future<void> Function(Session,Completer<http.R
   await t.pumpWidget(const SizedBox());await flush(t);
  },()=>MockClient((r)async{
   if(r.url.path.endsWith('/oauth/token')){if(++grants>1)return replacement.future;return http.Response(jsonEncode({'access_token':'synthetic','expires_in':3600}),200);}
+  if(r.url.path.endsWith('/devices/remove'))return http.Response('{}',200);
   if(r.url.path.endsWith('/auth/me'))return http.Response(jsonEncode({'user':{'public_id':owner,'username':owner}}),200);
   requests.add(r.url.toString());return media.future;
  }));

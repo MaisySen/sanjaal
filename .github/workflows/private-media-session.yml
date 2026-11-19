@@ -23,7 +23,7 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
-      - run: flutter test test/private_chat_media_test.dart test/private_photo_viewer_test.dart test/chat_screen_session_test.dart --reporter expanded > focused.log 2>&1
+      - run: timeout --kill-after=15s 240 flutter test test/private_chat_media_test.dart test/private_photo_viewer_test.dart test/chat_screen_session_test.dart --reporter expanded > focused.log 2>&1
       - run: flutter test --reporter expanded > test.log 2>&1
       - name: Prove same-account media regression catches a missing epoch check
         shell: bash

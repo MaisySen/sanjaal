@@ -22,6 +22,22 @@ jobs:
       - run: dart format lib/group_draft_store.dart test/group_drafts_test.dart
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
       - run: timeout --kill-after=15s 180 flutter test test/group_drafts_test.dart test/new_chat_journey_test.dart test/chat_screen_session_test.dart --reporter expanded > media-draft.log 2>&1
+      - name: Saved member capability negative control
+        run: |
+          cp lib/chat_pages.dart /tmp/group-plan-protected.dart
+          trap 'cp /tmp/group-plan-protected.dart lib/chat_pages.dart' EXIT
+          python3 - <<'PYGROUP'
+          from pathlib import Path
+          p=Path('lib/chat_pages.dart');s=p.read_text();needle='if(!widget.session.groupMemberRefsEnabled)throw const _GroupDraftServerNotReady();';assert needle in s;s=s.replace(needle,'',1);p.write_text(s)
+          PYGROUP
+          set +e
+          timeout --kill-after=10s 90 flutter test test/group_drafts_test.dart --plain-name 'capability-off refuses saved group creation without any POST' --reporter expanded > group-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' group-negative.log
+          cp /tmp/group-plan-protected.dart lib/chat_pages.dart
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
@@ -41,6 +57,8 @@ jobs:
 
   api-regression:
     runs-on: ubuntu-latest
+    env:
+      APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
     defaults:
       run:
         working-directory: api
@@ -52,10 +70,28 @@ jobs:
           extensions: mbstring, pdo_sqlite, sqlite3, bcmath, gd
           coverage: none
       - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Stable identity negative control
+        run: |
+          touch .env
+          cp app/Http/Controllers/ChatController.php /tmp/group-api-protected.php
+          trap 'cp /tmp/group-api-protected.php app/Http/Controllers/ChatController.php' EXIT
+          python3 - <<'PYAPI'
+          from pathlib import Path
+          p=Path('app/Http/Controllers/ChatController.php');s=p.read_text();needle="if (isset($data['member_refs']))";assert needle in s;s=s.replace(needle,"if (false && isset($data['member_refs']))",1);p.write_text(s)
+          PYAPI
+          set +e
+          timeout 45 php artisan test --filter=test_reassigned_username_cannot_substitute_a_different_person > api-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q '422' api-negative.log
+          grep -q '201' api-negative.log
+          cp /tmp/group-api-protected.php app/Http/Controllers/ChatController.php
       - run: touch .env && php artisan test > api-tests.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: group-draft-api-evidence
-          path: api/api-tests.log
+          path: api/*.log
           retention-days: 7

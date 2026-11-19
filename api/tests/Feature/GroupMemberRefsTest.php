@@ -33,7 +33,8 @@ class GroupMemberRefsTest extends TestCase
         [, $headers] = $this->member('owner');
         [$picked] = $this->member('friend');
         $picked->update(['username' => 'newname']);
-        $this->member('friend');
+        [$replacement] = $this->member('replacement');
+        $replacement->update(['username' => 'friend']);
         $this->postJson('/api/v1/conversations', [
             'type' => 'group', 'title' => 'Saved plan', 'usernames' => ['friend'],
             'member_refs' => [['public_id' => $picked->public_id, 'username' => 'friend']],

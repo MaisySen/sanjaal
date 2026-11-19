@@ -165,3 +165,32 @@ limitation, not proof that the video is lost. Reboot, reinstall/backup, cloud sy
 real account uploads, production durability and physical Samsung/iPhone acceptance
 remain unproved. Production QA hold, disabled money paths and release restrictions
 are unchanged. No production API deployment or new phone installation followed.
+
+
+## Open conversation screen session ownership
+
+Chat source `22ef8e4f31541d21c1670a9a0597e18a34b1b76b` binds the inbox,
+conversation, new-chat/group draft and group-info pages to their original account,
+Session object and login generation. Replacement login, including the same
+member, hides private history and retry/composer data, cancels polling/debounce,
+invalidates delayed responses and closes stale group dialogs/settings sheets.
+Future actions cannot borrow the replacement account. This does not add durable
+chat storage or automatic replay and does not prove production messaging.
+
+Exact run: https://github.com/MaisySen/sanjaal/actions/runs/44603967341 . Analysis
+passes, all 103 focused cases pass and whole-app 1028 pass with one intentional
+live skip. Removing the chat ownership predicate fails the same-member delayed
+private-content test as expected; restored source passes. Four 2x-text
+English/Nepali light/dark retired-session captures were inspected. Prior failures
+include a missing translation, image encoding inside the synthetic widget clock,
+and a wrapped negative-control log check. They were corrected, not reclassified
+as passing runs. Native compilation/device acceptance of this changed runtime
+remains separate from af8 media persistence evidence.
+
+The subsequent calls/rooms/gift-sheet session batch is not yet accepted. Its
+source closes account-bound media ownership before replacement authentication
+waits, guards delayed callbacks and forbids cleanup with replacement credentials.
+Offline SDK object cleanup still retains a periodic timer in four fixtures;
+resource-leak assertions remain enabled while the wait boundary is investigated.
+No real calls, rooms, gifts or payments were started. Hardware capture teardown,
+real push/two-device delivery and physical exact-candidate acceptance remain open.

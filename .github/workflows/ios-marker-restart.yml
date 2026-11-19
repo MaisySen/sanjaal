@@ -1,0 +1,42 @@
+name: iOS marker process restart
+on:
+  push:
+    branches: [ios-marker-process-restart]
+permissions:
+  contents: read
+jobs:
+  ios-marker-restart:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - name: Select simulator
+        run: |
+          xcrun simctl list devices available --json > /tmp/devices.json
+          python3 - <<'PYCODE'
+          import json,os
+          devices=json.load(open('/tmp/devices.json'))['devices']
+          chosen=next(d for runtime,rows in devices.items() if 'iOS' in runtime for d in rows if d['isAvailable'] and 'iPhone' in d['name'])
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('IOS_DEVICE='+chosen['udid']+'\n')
+          PYCODE
+      - name: Build once and test same installed binary in two processes
+        working-directory: app
+        run: |
+          flutter pub get
+          mkdir -p build/screenshots
+          xcrun simctl boot "$IOS_DEVICE" || true
+          xcrun simctl bootstatus "$IOS_DEVICE" -b
+          MARKER_ID=$(python3 -c 'import secrets;print(secrets.token_hex(24))')
+          flutter build ios --simulator --debug --target=integration_test/ios_marker_restart_test.dart --dart-define=MARKER_ID="$MARKER_ID" --no-pub > build/screenshots/build.log 2>&1
+          python3 ../.github/ci/ios-marker-restart.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-marker-process-restart-evidence
+          path: app/build/screenshots/*
+          retention-days: 7

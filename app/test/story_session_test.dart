@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -19,6 +20,7 @@ import 'package:sanjaal/ui.dart' show prefs;
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 class StorySession extends Session {
+  StorySession():super(unregisterPush:(_)async{});
   String owner='a';
   final requests=<String>[];
   Future<dynamic> Function(String,String)? response;
@@ -30,6 +32,7 @@ class StorySession extends Session {
     requests.add('$method $path');
     return response==null?{}:response!(method,path);
   }
+  @override Future<Map<String,dynamic>> upload(String path,{Map<String,String> fields=const {},String field='media',UploadFile? file,String? intent})async{requests.add('UPLOAD $path');return {'story':{'public_id':'unexpected'}};}
   @override Future<dynamic> takeHome(String key)async=>null;
   @override Future<Map<String,String>> privateMediaHeaders(String url)async=>headers==null?{}:headers!;
   @override Future<Uint8List> fetchProtectedBytes(String url)async {
@@ -41,7 +44,7 @@ Map<String,dynamic> group({bool video=false,bool protected=true})=>{
  'items':[{'public_id':'private-story','type':video?'video':'image','protected_media':protected,
  'url':'https://fixture.invalid/story','caption':'Private story caption','created_at':'2026-11-20T00:00:00Z'}]
 };
-Future<void> flush(WidgetTester t)async {await t.pump();await t.pump(const Duration(milliseconds:400));await t.pump();}
+Future<void> flush(WidgetTester t)async {await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:20)));await t.pump();await t.pump(const Duration(milliseconds:400));await t.pump();}
 Future<void> fixture(Future<void> Function(StorySession) run)async {
  await http.runWithClient(()async{final s=StorySession();await s.login('first','not-a-password');await run(s);},()=>MockClient((_)async=>http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200)));
 }
@@ -67,9 +70,10 @@ void main(){
      await t.pumpWidget(MaterialApp(home:StoryViewer(session:s,group:group())));await flush(t);
      if(!same)s.owner='b';await s.login('replacement','not-a-password');await flush(t);
      headers.complete({});bytes.complete(Uint8List.fromList([0]));await flush(t);
-     expect(find.text('Private story caption'),findsNothing);expect(find.textContaining('another signed-in session'),findsOneWidget);
-     expect(s.photoReads,boundary=='headers'?0:1);expect(s.requests,isEmpty);
-     await t.pumpWidget(const SizedBox());expect(t.takeException(),isNull);
+     final privateCount=find.text('Private story caption').evaluate().length;final retiredCount=find.textContaining('another signed-in session').evaluate().length;
+     final readCount=s.photoReads,requests=List<String>.of(s.requests);
+     await t.pumpWidget(const SizedBox());await flush(t);
+     expect(privateCount,0);expect(retiredCount,1);expect(readCount,boundary=='headers'?0:1);expect(requests,isEmpty);expect(t.takeException(),isNull);
     });
    });
   }
@@ -95,7 +99,7 @@ void main(){
  testWidgets('replacing Session object retires loaded story despite same owner and epoch',(t)async{
   await fixture((s)async{
    final key=GlobalKey();await t.pumpWidget(MaterialApp(home:StoryViewer(key:key,session:s,group:group())));await flush(t);
-   final other=StorySession()..user={'public_id':'a','username':'a'};
+   final other=StorySession();await other.login('separate','not-a-password');expect(other.generation,s.generation);
    await t.pumpWidget(MaterialApp(home:StoryViewer(key:key,session:other,group:group())));await flush(t);
    expect(find.text('Private story caption'),findsNothing);expect(find.textContaining('another signed-in session'),findsOneWidget);expect(other.requests,isEmpty);
    await t.pumpWidget(const SizedBox());expect(t.takeException(),isNull);
@@ -114,6 +118,30 @@ void main(){
     t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);await flush(t);
     expect(v.playing[0],false);expect(v.calls.where((a)=>a=='play:0').length,plays);expect(v.calls.where((a)=>a=='dispose:0').length,1);
     expect(find.textContaining('another signed-in session'),findsOneWidget);await t.pumpWidget(const SizedBox());await flush(t);expect(t.takeException(),isNull);
+   });
+  });
+ }
+ testWidgets('logout clears story content and closes viewers without another view or mutation',(t)async{
+  await fixture((s)async{
+   s.response=(m,p)=>Future.value(p.endsWith('/viewers')?{'data':[{'username':'Private viewer'}]}:{});
+   await t.pumpWidget(MaterialApp(home:StoryViewer(session:s,group:group())));await flush(t);
+   await t.tap(find.byTooltip('Story viewers'));await flush(t);expect(find.text('@Private viewer'),findsOneWidget);
+   await s.logout();await flush(t);expect(find.text('@Private viewer'),findsNothing);expect(find.text('Private story caption'),findsNothing);
+   expect(find.textContaining('another signed-in session'),findsOneWidget);expect(s.requests.length,2);
+   await t.pumpWidget(const SizedBox());expect(t.takeException(),isNull);
+  });
+ });
+ for(final same in [false,true]){
+  testWidgets('foreground story share never hands delayed bytes to ${same?'same':'other'} replacement login',(t)async{
+   final bytes=Completer<Uint8List>();
+   await fixture((s)async{
+    s.protectedStoriesEnabled=true;
+    await t.pumpWidget(MaterialApp(home:StoryComposePage(session:s,file:HeldStoryFile(bytes.future),isVideo:false)));await flush(t);
+    await t.ensureVisible(find.widgetWithText(FilledButton,'Share story'));await t.tap(find.widgetWithText(FilledButton,'Share story'));await flush(t);
+    if(!same)s.owner='b';await s.login('replacement','not-a-password');await flush(t);
+    bytes.complete(Uint8List.fromList([0]));await flush(t);
+    expect(find.textContaining('another signed-in session'),findsOneWidget);expect(s.requests,isEmpty);
+    await t.pumpWidget(const SizedBox());expect(t.takeException(),isNull);
    });
   });
  }
@@ -173,4 +201,10 @@ class StoryVideo extends VideoPlayerPlatform {
   Future<void> seekTo(int playerId, Duration position) async {}
   @override
   Widget buildViewWithOptions(VideoViewOptions options) => const ColoredBox(color: Colors.black);
+}
+
+class HeldStoryFile extends XFile {
+ HeldStoryFile(this.pending):super('/fixture.png');
+ final Future<Uint8List> pending;
+ @override Future<Uint8List> readAsBytes()=>pending;
 }

@@ -22,6 +22,23 @@ jobs:
       - run: dart format lib/stories_page.dart test/story_session_test.dart test/media_visibility_test.dart
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
       - run: timeout --kill-after=15s 180 flutter test test/story_session_test.dart test/media_visibility_test.dart test/story_audience_test.dart test/nonblocking_story_handoff_test.dart test/creator_media_draft_widgets_test.dart --reporter expanded > media-draft.log 2>&1
+      - name: Story ownership negative control
+        run: |
+          cp lib/session_bound_state.dart /tmp/story-session-protected.dart
+          trap 'cp /tmp/story-session-protected.dart lib/session_bound_state.dart' EXIT
+          python3 - <<'PYSTORY'
+          from pathlib import Path
+          p=Path('lib/session_bound_state.dart');s=p.read_text();start=s.index('  bool get sessionActive =>');end=s.index('  @override',start)
+          s=s[:start]+'  bool get sessionActive => true;\n'+s[end:];p.write_text(s)
+          PYSTORY
+          set +e
+          timeout --kill-after=10s 90 flutter test test/story_session_test.dart --plain-name 'viewer stops at delayed headers on other login' --reporter expanded > story-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' story-negative.log
+          cp /tmp/story-session-protected.dart lib/session_bound_state.dart
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
@@ -30,6 +47,8 @@ jobs:
           path: |
             app/*.log
             app/pubspec.lock
+            app/lib/stories_page.dart
+            app/test/story_session_test.dart
             app/lib/session_bound_state.dart
             app/lib/call_page.dart
             app/lib/calls_page.dart

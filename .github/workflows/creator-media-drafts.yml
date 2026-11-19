@@ -1,7 +1,7 @@
-name: Group draft preservation
+name: Group draft native recovery
 on:
   push:
-    branches: [group-draft-preservation]
+    branches: [group-draft-native-restart]
 permissions:
   contents: read
 jobs:
@@ -94,4 +94,83 @@ jobs:
         with:
           name: group-draft-api-evidence
           path: api/*.log
+          retention-days: 7
+
+  android-media-restart:
+    needs: app-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - run: python3 ../.github/ci/media-draft-assets.py
+        working-directory: app
+      - run: flutter pub get
+        working-directory: app
+      - run: flutter analyze --no-fatal-infos lib/group_draft_store.dart integration_test/native_group_draft_restart_test.dart
+        working-directory: app
+      - name: Seed, force-stop, relaunch without clearing package data
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          script: sh .github/ci/android-group-draft-restart.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-android-media-restart
+          path: |
+            app/build/screenshots/media_restart_*.png
+            app/build/screenshots/process_death_*.log
+          retention-days: 7
+  ios-media-restart:
+    needs: app-regression
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - name: Select simulator
+        run: |
+          xcrun simctl list devices available --json > /tmp/devices.json
+          python3 - <<'PYCODE'
+          import json,os
+          devices=json.load(open('/tmp/devices.json'))['devices']
+          chosen=next(d for runtime,rows in devices.items() if 'iOS' in runtime for d in rows if d['isAvailable'] and 'iPhone' in d['name'])
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('IOS_DEVICE='+chosen['udid']+'\n')
+          PYCODE
+      - name: Build once and test same installed binary in two processes
+        working-directory: app
+        run: |
+          python3 ../.github/ci/media-draft-assets.py
+          flutter pub get
+          mkdir -p build/screenshots
+          xcrun simctl boot "$IOS_DEVICE" || true
+          xcrun simctl bootstatus "$IOS_DEVICE" -b
+          MARKER_ID=$(python3 -c 'import secrets;print(secrets.token_hex(24))')
+          flutter build ios --simulator --debug --target=integration_test/native_group_draft_restart_test.dart --dart-define=MARKER_ID="$MARKER_ID" --no-pub > build/screenshots/build.log 2>&1
+          python3 ../.github/ci/ios-group-draft-restart.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ios-media-restart
+          path: app/build/screenshots/*
           retention-days: 7

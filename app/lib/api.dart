@@ -403,7 +403,10 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  int _registrationAttempt = 0;
   Future<void> register(String email, String username, String password) async {
+    final epoch = _sessionEpoch;
+    final attempt = ++_registrationAttempt;
     final http.Response r;
     try {
       r = await http
@@ -420,6 +423,10 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw ApiError('No connection. Check your internet and try again.');
     }
+    // Account creation can finish remotely after this view is superseded.
+    // Its automatic login must never replace a newer login or registration.
+    _checkSession(epoch);
+    if (attempt != _registrationAttempt) throw ApiError('Please sign in again.', 401);
     if (r.statusCode != 200) {
       var msg = _errorText(r);
       if (msg.contains('user already exists') || msg.contains('already exists')) {

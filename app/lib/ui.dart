@@ -113,6 +113,7 @@ const _ne = <String, String>{
   'Camera or microphone access is restricted on this device. You may need help from the person who manages it. You can still choose media from your library.': 'यस फोनमा क्यामेरा वा माइक्रोफोनको प्रयोग प्रतिबन्धित छ। फोन व्यवस्थापन गर्ने व्यक्तिको सहयोग चाहिन सक्छ। ग्यालरीबाट मिडिया भने छान्न सक्नुहुन्छ।',
   'Photo permissions could not be opened. Try again.': 'तस्बिरका अनुमति खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
   "Sign in again to view this account's local drafts.": 'यो खाताका स्थानीय मस्यौदा हेर्न फेरि साइन इन गर्नुहोस्।',
+  'This draft changed. Reopen the saved copy before deleting it.': 'यो मस्यौदा बदलिएको छ। मेटाउनुअघि सुरक्षित मस्यौदा फेरि खोल्नुहोस्।',
   'Sign in to view saved drafts.': 'सुरक्षित मस्यौदा हेर्न साइन इन गर्नुहोस्।',
   'Could not read saved drafts. Nothing was replaced.': 'सुरक्षित मस्यौदा पढ्न सकिएन। केही पनि बदलिएको छैन।',
   'Untitled poll': 'शीर्षक नभएको मतदान',

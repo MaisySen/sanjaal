@@ -1,0 +1,55 @@
+name: Saved draft deletion checks
+on:
+  push:
+    branches: [creator-draft-delete-guard]
+permissions:
+  contents: read
+concurrency:
+  group: draft-deletion-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/creator_draft_store.dart lib/creator_drafts_page.dart lib/ui.dart test/creator_drafts_test.dart
+      - run: flutter test test/creator_drafts_test.dart --reporter expanded
+      - name: Reject deletion when the revision guard is removed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/creator_draft_store.dart /tmp/creator_draft_store.original
+          trap 'cp /tmp/creator_draft_store.original lib/creator_draft_store.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/creator_draft_store.dart')
+          s = p.read_text()
+          before = "if (matching.single.revision != expectedRevision) {"
+          assert s.count(before) == 1
+          p.write_text(s.replace(before, 'if (false) {'))
+          PY
+          if flutter test test/creator_drafts_test.dart --plain-name 'stale delete cannot erase a newer revision' --reporter expanded > /tmp/draft-negative.log 2>&1; then
+            cat /tmp/draft-negative.log
+            echo 'Stale deletion unexpectedly passed without revision check'
+            exit 1
+          fi
+          cat /tmp/draft-negative.log
+          grep -F 'Expected: throws' /tmp/draft-negative.log
+          cp /tmp/creator_draft_store.original lib/creator_draft_store.dart
+          flutter test test/creator_drafts_test.dart --reporter expanded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: saved-drafts-renders
+          path: app/test/renders/saved_drafts_*.png
+          retention-days: 7

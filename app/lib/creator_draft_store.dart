@@ -149,8 +149,13 @@ class CreatorDraftStore {
     await _write(owner, [draft, ...existing.where((d) => d.id != draft.id)]);
     return draft;
   });
-  Future<void> remove(String owner, String id) => _serial(owner, () async {
+  Future<void> remove(String owner, String id, {required String expectedRevision}) => _serial(owner, () async {
     final existing = await read(owner);
+    final matching = existing.where((d) => d.id == id);
+    if (matching.isEmpty) return;
+    if (matching.single.revision != expectedRevision) {
+      throw StateError('This draft changed. Reopen the saved copy before deleting it.');
+    }
     await _write(owner, existing.where((d) => d.id != id).toList());
   });
 }

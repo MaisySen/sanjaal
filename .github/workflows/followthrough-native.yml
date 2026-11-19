@@ -1,0 +1,22 @@
+name: Follow-through native compilation
+on:
+  push:
+    branches: [app-followthrough-native-compile]
+permissions:
+  contents: read
+jobs:
+  ios-compile:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1

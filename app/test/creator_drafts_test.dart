@@ -14,7 +14,7 @@ import 'package:sanjaal/creator_draft_store.dart';
 import 'package:sanjaal/creator_drafts_page.dart';
 import 'package:sanjaal/feed_page.dart';
 import 'package:sanjaal/api.dart';
-import 'package:sanjaal/ui.dart' show prefs;
+import 'package:sanjaal/ui.dart' show prefs, t_;
 import 'package:sanjaal/main.dart' show buildTheme;
 
 void main() {
@@ -204,6 +204,8 @@ void main() {
     await t.pumpAndSettle();
     expect((await store.read('a')).single.toJson(), newer.toJson());
     expect(find.textContaining('Reopen the saved copy before deleting it.'), findsOneWidget);
+    expect(find.text('Important newer idea'), findsOneWidget);
+    expect(find.text('Original idea'), findsNothing);
   });
   testWidgets('account change hides old local drafts immediately', (t) async {
     final session = Session()..user = {'public_id': 'a'};
@@ -333,6 +335,22 @@ void main() {
           Directory('test/renders').createSync(recursive: true);
           File('test/renders/saved_drafts_${brightness.name}_$language.png')
               .writeAsBytesSync(bytes!.buffer.asUint8List());
+        });
+        final original = (await store.read('a')).single;
+        await t.tap(find.byTooltip(t_('Delete draft')));
+        await t.pumpAndSettle();
+        await store.save('a', id: original.id, expectedRevision: original.revision,
+          text: 'Newer saved thought', options: ['Saturday', 'Sunday']);
+        await t.tap(find.text(t_('Delete')));
+        await t.pumpAndSettle();
+        expect(t.takeException(), isNull);
+        expect(find.text('Newer saved thought'), findsOneWidget);
+        await t.runAsync(() async {
+          final image = await (key.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary).toImage(pixelRatio: 2);
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          File('test/renders/saved_drafts_conflict_${brightness.name}_$language.png')
+            .writeAsBytesSync(bytes!.buffer.asUint8List());
         });
       });
     }

@@ -83,6 +83,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
       await store.remove(owner!, draft.id, expectedRevision: draft.revision);
       if (active) await _load();
     } catch (e) {
+      if (e is StateError && mounted && active) await _load();
       if (mounted && active) {
         showError(context, e is StateError ? t_(e.message.toString()) : e);
       }

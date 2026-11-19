@@ -15,6 +15,31 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({'refresh_token': 'saved-fixture'});
   });
+  for(final bad in <Object>[
+    {}, {'refresh_token':'replacement-fixture'},
+    {'access_token':''}, {'access_token':42},
+    {'access_token':'valid-fixture','refresh_token':''},
+    {'access_token':'valid-fixture','refresh_token':42},
+    {'access_token':'valid-fixture','expires_in':'3600'},
+    {'access_token':'valid-fixture','expires_in':-1},
+    ['not-a-grant'],
+  ]) {
+    test('malformed HTTP200 grant leaves saved credential unchanged $bad',()async{
+      var accountReads=0;
+      final session=Session();
+      await http.runWithClient(()async{
+        await expectLater(session.login('fixture','not-a-password'),throwsA(isA<ApiError>()));
+      },()=>MockClient((r)async{
+        if(r.url.path.endsWith('/oauth/token'))return reply(bad);
+        accountReads++;return reply({'user':{'public_id':'unexpected'}});
+      }));
+      expect(accountReads,0);expect(session.user,isNull);
+      expect(await RefreshStore.read(),'saved-fixture');
+      await http.runWithClient(session.restore,()=>MockClient((_)async=>reply(bad)));
+      expect(session.restoreError,isNotNull);expect(session.user,isNull);
+      expect(await RefreshStore.read(),'saved-fixture');
+    });
+  }
   test('no saved grant opens ordinary authentication without a restore error', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final s = Session();

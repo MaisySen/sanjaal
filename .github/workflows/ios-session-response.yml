@@ -1,0 +1,23 @@
+name: Secure session response checks
+on:
+  push:
+    branches: [ios-session-response]
+permissions:
+  contents: read
+jobs:
+  session-response:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/api.dart test/session_restore_test.dart
+      - run: flutter test test/session_restore_test.dart test/refresh_store_test.dart test/auth_journey_test.dart test/session_restore_ui_test.dart --reporter expanded

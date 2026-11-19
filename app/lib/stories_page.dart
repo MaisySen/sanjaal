@@ -1,3 +1,4 @@
+import 'session_bound_state.dart';
 import 'media_library_page.dart';
 import 'creator_media_draft_store.dart';
 import 'dart:convert' show jsonEncode;
@@ -26,7 +27,9 @@ class StoriesBar extends StatefulWidget {
   State<StoriesBar> createState() => _StoriesBarState();
 }
 
-class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMixin {
+class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMixin, SessionBoundState<StoriesBar> {
+  @override Session get viewSession=>widget.session;
+  @override void sessionRetired(){++_loadVersion;groups=[];loaded=false;}
   @override
   bool get wantKeepAlive => true;
   List<Map<String, dynamic>> groups = [];
@@ -45,7 +48,7 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
     groups.insert(0, {'author': widget.session.user, 'all_viewed': false, 'items': items.where((p) => ids.add(p['public_id'])).toList()});
   }
   void _published() {
-    if (!mounted || uploads.revision == _uploadRevision) return;
+    if (!mounted || !sessionActive || uploads.revision == _uploadRevision) return;
     _uploadRevision = uploads.revision;
     setState(_mergeLocal);
   }
@@ -66,11 +69,13 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
   }
 
   Future<void> _load() async {
+    if(!sessionActive)return;
     final version = ++_loadVersion;
     try {
       final bundled = version == 1 ? await widget.session.takeHome('stories') : null;
+      if(!mounted || !sessionActive || version!=_loadVersion)return;
       final j = (bundled is Map ? bundled.cast<String, dynamic>() : null) ?? await widget.session.call('GET', '/stories') as Map<String, dynamic>;
-      if (mounted && version == _loadVersion) {
+      if (mounted && sessionActive && version == _loadVersion) {
         setState(() {
           groups = (j['data'] as List).cast<Map<String, dynamic>>();
           _mergeLocal();
@@ -78,17 +83,19 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
         });
       }
     } catch (_) {
-      if (mounted && version == _loadVersion) setState(() => loaded = true);
+      if (mounted && sessionActive && version == _loadVersion) setState(() => loaded = true);
     }
   }
 
   Future<void> _add() async {
-    if (await addStory(context, widget.session)) await _load();
+    if (!sessionActive)return;
+    if (await addStory(context, widget.session) && mounted && sessionActive) await _load();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if(!sessionActive)return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     final me = widget.session.user?['username'];
     final mine = groups.where((g) => (g['author'] as Map)['username'] == me).toList();
@@ -139,8 +146,9 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
   }
 
   Future<void> _open(Map<String, dynamic> group) async {
+    if(!sessionActive)return;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewer(session: widget.session, group: group)));
-    _load();
+    if(mounted && sessionActive)_load();
   }
 }
 
@@ -153,7 +161,21 @@ class StoryViewer extends StatefulWidget {
   State<StoryViewer> createState() => _StoryViewerState();
 }
 
-class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryViewer> {
+class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryViewer>, SessionBoundState<StoryViewer> {
+  @override Session get viewSession=>widget.session;
+  BuildContext? _overlay;
+  void _clearMedia(){
+    ++_startVersion;timer?.cancel();timer=null;
+    final bytes=storyBytes;storyBytes=null;storyHeaders=const {};
+    if(bytes!=null)unawaited(MemoryImage(bytes).evict());
+    final ctl=video;video=null;
+    if(ctl!=null){unawaited(ctl.pause().catchError((_){}));unawaited(ctl.dispose());}
+  }
+  @override void sessionRetired(){
+    _clearMedia();
+    final overlay=_overlay;_overlay=null;
+    if(overlay!=null && overlay.mounted && ModalRoute.of(overlay)?.isCurrent==true)Navigator.of(overlay).pop();
+  }
   late final List<Map<String, dynamic>> items = (widget.group['items'] as List).cast<Map<String, dynamic>>();
   int index = 0;
   Timer? timer;
@@ -176,20 +198,15 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
   }
 
   @override
-  void dispose() {
-    _startVersion++;
-    timer?.cancel();
-    final bytes = storyBytes;
-    if (bytes != null) unawaited(MemoryImage(bytes).evict());
-    video?.dispose();
-    super.dispose();
-  }
+  void dispose() { _clearMedia(); super.dispose(); }
 
   Future<void> _start() async {
+    if(!sessionActive)return;
     final version = ++_startVersion;
     timer?.cancel();
-    await video?.dispose();
-    if (!mounted || version != _startVersion) return;
+    final previous=video;video=null;
+    await previous?.dispose();
+    if (!mounted || !sessionActive || version != _startVersion) return;
     video = null;
     progress = 0;
     final previousBytes = storyBytes;
@@ -204,15 +221,17 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
       try {
         final url = item['url'] as String;
         final headers = await widget.session.privateMediaHeaders(url);
+        if(!mounted || !sessionActive || version!=_startVersion)return;
         final bytes = item['type'] == 'video' ? null : await widget.session.fetchProtectedBytes(url);
-        if (!mounted || version != _startVersion) return;
+        if (!mounted || !sessionActive || version != _startVersion) return;
         storyHeaders = headers;
         storyBytes = bytes;
       } catch (_) {
-        if (mounted && version == _startVersion) setState(() { mediaLoading = false; mediaError = t_('This story is unavailable. It may have expired or its audience changed.'); });
+        if (mounted && sessionActive && version == _startVersion) setState(() { mediaLoading = false; mediaError = t_('This story is unavailable. It may have expired or its audience changed.'); });
         return;
       }
     }
+    if(!mounted || !sessionActive || version!=_startVersion)return;
     widget.session.call('POST', '/stories/${item['public_id']}/view').catchError((_) => null);
     var total = const Duration(seconds: 6);
     if (item['type'] == 'video') {
@@ -220,19 +239,19 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
       video = c;
       try {
         await c.initialize();
-        if (!mounted || version != _startVersion) return;
+        if (!mounted || !sessionActive || version != _startVersion) return;
         if (mediaVisible && !paused) await c.play();
         total = c.value.duration > Duration.zero ? c.value.duration : total;
       } catch (_) {
-        if (mounted && version == _startVersion) setState(() { mediaLoading = false; mediaError = t_('This story is unavailable. It may have expired or its audience changed.'); });
+        if (mounted && sessionActive && version == _startVersion) setState(() { mediaLoading = false; mediaError = t_('This story is unavailable. It may have expired or its audience changed.'); });
         return;
       }
     }
-    if (!mounted || version != _startVersion) return;
+    if (!mounted || !sessionActive || version != _startVersion) return;
     setState(() => mediaLoading = false);
     const tick = Duration(milliseconds: 50);
     timer = Timer.periodic(tick, (t) {
-      if (paused || !mediaVisible) return;
+      if (!sessionActive || paused || !mediaVisible) return;
       progress += tick.inMilliseconds / total.inMilliseconds;
       if (progress >= 1) {
         t.cancel();
@@ -246,19 +265,20 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
   @override
   void mediaVisibilityChanged(bool visible) {
     final ctl = video;
-    if (ctl == null || !ctl.value.isInitialized) return;
+    if (!sessionActive || ctl == null || !ctl.value.isInitialized) return;
     visible && !paused ? ctl.play() : ctl.pause();
   }
 
   void _pause(bool value) {
-    if (!mounted) return;
+    if (!mounted || !sessionActive) return;
     paused = value;
     final ctl = video;
-    if (ctl == null || !ctl.value.isInitialized) return;
+    if (!sessionActive || ctl == null || !ctl.value.isInitialized) return;
     !value && mediaVisible ? ctl.play() : ctl.pause();
   }
 
   void _next() {
+    if(!sessionActive)return;
     if (index < items.length - 1) {
       index += 1;
       _start();
@@ -268,60 +288,71 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
   }
 
   void _prev() {
+    if(!sessionActive)return;
     if (index > 0) index -= 1;
     _start();
   }
 
   Future<void> _delete() async {
+    if(!sessionActive)return;
+    final version=_startVersion;
+    final storyId=items[index]['public_id'];
     _pause(true);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) { _overlay=ctx; return AlertDialog(
         title: Text(t_('Delete this story?')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t_('Cancel'))),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t_('Delete'))),
         ],
-      ),
+      ); },
     );
-    if (!mounted) return;
+    _overlay=null;
+    if (!mounted || !sessionActive || version!=_startVersion) return;
     if (ok != true) {
       _pause(false);
       return;
     }
     try {
-      await widget.session.call('DELETE', '/stories/${items[index]['public_id']}');
-      if (mounted) Navigator.of(context).pop();
+      await widget.session.call('DELETE', '/stories/$storyId');
+      if (mounted && sessionActive && version==_startVersion) Navigator.of(context).pop();
     } catch (e) {
       _pause(false);
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive && version==_startVersion) showError(context, e);
     }
   }
 
   Future<void> _viewers() async {
+    if(!sessionActive)return;
+    final version=_startVersion;
+    final storyId=items[index]['public_id'];
     _pause(true);
     try {
-      final j = await widget.session.call('GET', '/stories/${items[index]['public_id']}/viewers') as Map<String, dynamic>;
+      final j = await widget.session.call('GET', '/stories/$storyId/viewers') as Map<String, dynamic>;
+      if(!mounted || !sessionActive || version!=_startVersion)return;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
       await showModalBottomSheet<void>(
         context: context,
-        builder: (ctx) => SafeArea(
+        builder: (ctx) { _overlay=ctx; return SafeArea(
           child: list.isEmpty
               ? Padding(padding: const EdgeInsets.all(32), child: Text(t_('No views yet')))
               : ListView(shrinkWrap: true, children: [
                   for (final u in list) ListTile(leading: Avatar(user: u), title: Text('${u['name'] ?? u['username']}'), subtitle: Text('@${u['username']}')),
                 ]),
-        ),
+        ); },
       );
+      _overlay=null;
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive && version==_startVersion) showError(context, e);
     }
     _pause(false);
   }
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     final item = items[index];
     final caption = (item['caption'] as String?) ?? '';
     Widget media;
@@ -408,9 +439,12 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
 
 /// Picks a photo or video, opens review, and returns true only after explicit sharing.
 Future<bool> addStory(BuildContext context, Session session) async {
+    final owner=session.user?['public_id'];final generation=session.generation;
+    bool active()=>owner!=null && session.user?['public_id']==owner && session.generation==generation;
+    if(!active())return false;
     UploadCenter.of(session);
     final chosen = await chooseCreatorMedia(context, CreatorKind.story);
-    if (chosen == null || chosen.isEmpty || !context.mounted) return false;
+    if (chosen == null || chosen.isEmpty || !context.mounted || !active()) return false;
     final x = chosen.first.file;
     final isVideo = chosen.first.isVideo;
     final result = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => StoryComposePage(session: session, file: x, isVideo: isVideo, backgroundUpload: true)));
@@ -443,14 +477,15 @@ class _StoryComposePageState extends State<StoryComposePage> {
   CreatorMediaDraft? _saved;
   bool _saving=false;
   late final String? _owner;
+  late final Session _boundSession;
   late final int _generation;
   String? _savedFingerprint;
-  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_generation;
+  bool get _active=>identical(widget.session,_boundSession) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_generation;
   String get _fingerprint=>jsonEncode([caption.text,audience,widget.isVideo]);
   void _changed(){if(mounted)setState((){});}
   @override void initState(){
     super.initState();
-    _owner=widget.session.user?['public_id'] as String?;_generation=widget.session.generation;
+    _boundSession=widget.session;_owner=widget.session.user?['public_id'] as String?;_generation=widget.session.generation;
     widget.session.addListener(_changed);caption.addListener(_changed);
     _saved=widget.initialMediaDraft;
     if(_saved!=null){
@@ -484,7 +519,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
     finally{if(mounted)setState(()=>_saving=false);}
   }
   @override
-  void dispose() { widget.session.removeListener(_changed);caption.removeListener(_changed);caption.dispose(); super.dispose(); }
+  void dispose() { _boundSession.removeListener(_changed);caption.removeListener(_changed);caption.dispose(); super.dispose(); }
 
   Future<void> share() async {
     if (!_active || busy || _saving || uploadError?.terminal == true) return;
@@ -528,15 +563,16 @@ class _StoryComposePageState extends State<StoryComposePage> {
       if (!started) { showInfo(context, 'Check the current upload before starting another.'); return; }
       setState(() => handedOff = true);
       await WidgetsBinding.instance.endOfFrame;
-      if (mounted) Navigator.of(context).pop(false);
+      if (mounted && _active) Navigator.of(context).pop(false);
       return;
     }
     setState(() { busy = true; error = null; uploadError = null; });
     try {
       final data = await bytes;
       if (data.length > 25 * 1024 * 1024) throw ApiError(t_('That file is over 25 MB. Choose a smaller one.'));
+      if(!mounted || !_active)return;
       await widget.session.upload('/stories', fields: {'caption': caption.text.trim(), 'protected_media':'1', 'audience':audience}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name), intent: intent);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted && _active) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) setState(() { busy = false; error = e.toString(); uploadError = e is UploadError ? e : null; });
     }
@@ -553,6 +589,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
   }
 
   Future<void> openOriginal() async {
+    if(!_active)return;
     final id = uploadError?.resourceId;
     if (id == null) return;
     try {
@@ -560,12 +597,12 @@ class _StoryComposePageState extends State<StoryComposePage> {
       for (final value in result['data'] as List) {
         final group = (value as Map).cast<String, dynamic>();
         final original = (group['items'] as List).where((item) => item['public_id'] == id).toList();
-        if (original.isNotEmpty && mounted) {
+        if (original.isNotEmpty && mounted && _active) {
           await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryViewer(session: widget.session, group: {'author': group['author'], 'items': original})));
           return;
         }
       }
-      if (mounted) showInfo(context, t_('The original story was removed or expired.'));
+      if (mounted && _active) showInfo(context, t_('The original story was removed or expired.'));
     } catch (e) { if (mounted) showError(context, e); }
   }
 
@@ -599,7 +636,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
         message: error!,
         openOriginal: uploadError?.resourceId == null ? null : openOriginal,
         prepareNew: uploadError?.terminal == true ? () async {
-          if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); audienceLocked = false; error = null; uploadError = null; });
+          if (await confirmNewUpload(context) && mounted && _active) setState(() { intent = newUploadIntent(); audienceLocked = false; error = null; uploadError = null; });
         } : null,
         newLabel: 'Prepare a new story',
       ),

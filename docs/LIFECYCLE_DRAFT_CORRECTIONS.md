@@ -244,3 +244,41 @@ are synthetic and no live account was created. The registration change is now
 being integrated; the earlier combined run does not prove this newer runtime.
 Two-platform same-install media restart checks on the45 byte-identical runtime
 remain separate and in progress in run44612540189.
+
+
+## Story account lifetime checkpoint
+
+Story source d885a02 completed analysis,89 focused and1076 full-app tests with
+one intentional live skip. Disabling the account predicate makes the delayed
+header test fail immediately; restored source passes:
+https://github.com/MaisySen/sanjaal/actions/runs/44615633752 . The story bar and
+viewer bind the exact Session object, original owner and generation. Retirement
+hides private rings/captions, clears image/header state, cancels progress, pauses
+and disposes video, closes viewer/delete overlays and blocks late actions. The
+picker-to-review and foreground delayed-byte share continuations also check the
+originating ownership. This does not retract a request already sent remotely.
+Four2x English/Nepali light/dark retired-story renders were visually inspected.
+The first run's two platform-dispose count failures were resolved by draining
+fake stream cancellation on a bounded real async tick, as the existing player
+fixtures do. Actual video-controller disposal remains asserted, not bypassed.
+No native hardware, live story read/upload/delete or two-account-device proof.
+
+Combined45 byte-identical runtime on workflow55f4f0d completed both platform
+same-install media checks:
+https://github.com/MaisySen/sanjaal/actions/runs/44612540189 . Android seed5726
+was force-stopped and absent before recovery5874, sameUID10192 and package path.
+iOS seed33391 was terminated/absent before recovery34448. Both platform drivers
+pass, exact bytes/metadata recovered after picker originals were removed,
+other-owner access refused and manual attempted-upload guards preserved.
+Five Android app and five synchronized iOS OS images were inspected. Initial
+Android story caption is below the scroll viewport. iOS caption is visible;
+privacy text extends below the viewport. Full-paragraph reachability has the
+separate scrolled-layout evidence above. This older runtime proof is not proof
+of the registration/story changes now being integrated. No phone install,
+production change, distribution or money activation followed.
+
+Combined51 exact registration/realtime focused run passed101 cases and1054
+full-app cases with one live skip and both negative controls:
+https://github.com/MaisySen/sanjaal/actions/runs/44614683806 . Main CI emulator
+is still pending at this writing. The next combined head adds story retirement
+and must get its own exact-head checks. Earlier checkpoint wording is historical.

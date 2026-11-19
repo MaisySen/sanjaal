@@ -66,7 +66,7 @@ Future<void> flush(WidgetTester t) async {
 }
 Widget app(Widget child, {GlobalKey<NavigatorState>? nav}) => MaterialApp(navigatorKey: nav, navigatorObservers: [mediaRoutes], home: Scaffold(body: child));
 Widget reel({bool active = true}) => ReelItem(session: Session(), reel: {'public_id': 'reel', 'body': 'Fixture', 'media': [{'type': 'video', 'url': 'https://fixture.invalid/video.mp4'}], 'author': {'username': 'fixture'}}, playing: active, muted: false, onToggleMute: () {});
-Widget story() => StoryViewer(session: Session(), group: {'author': {'username': 'fixture'}, 'items': [{'public_id': 'story', 'type': 'video', 'url': 'https://fixture.invalid/story.mp4', 'created_at': '2026-11-16T14:00:00Z'}]});
+Widget story() => StoryViewer(session: Session()..user={'public_id':'fixture','username':'fixture'}, group: {'author': {'username': 'fixture'}, 'items': [{'public_id': 'story', 'type': 'video', 'url': 'https://fixture.invalid/story.mp4', 'created_at': '2026-11-16T14:00:00Z'}]});
 void background(WidgetTester t) {
   for (final state in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
     t.binding.handleAppLifecycleStateChanged(state);

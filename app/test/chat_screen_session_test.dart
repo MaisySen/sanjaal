@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'dart:convert';
@@ -17,6 +18,11 @@ import 'package:sanjaal/chat_pages.dart';
 http.Response reply(Object data)=>http.Response(jsonEncode(data),200);
 Future<void> flush(WidgetTester t)async{await t.pump();await t.pump(const Duration(milliseconds:450));await t.pump();}
 void main(){
+ setUpAll(()async{
+  for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){
+   final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(File(f.$2).readAsBytesSync())));await loader.load();
+  }
+ });
  setUp(()=>SharedPreferences.setMockInitialValues({}));
  for(final same in [false,true])for(final screen in ['chat','new']){
   testWidgets('$screen rejects late private content after ${same?'same-member login':'other-member login'}',(t)async{
@@ -94,6 +100,30 @@ void main(){
    return reply({'data':[{'public_id':'old','type':'direct','title':'Private title','unread':0}]});
   }));
  });}
+ for(final same in [false,true])for(final pendingCreate in [false,true]){
+ testWidgets('selected group details retired on ${same?'same':'other'} login pending=$pendingCreate',(t)async{
+  String owner='a';var posts=0;final pending=Completer<http.Response>();
+  await http.runWithClient(()async{
+   final session=Session();await session.login('fixture','not-a-password');
+   final nav=GlobalKey<NavigatorState>();
+   await t.pumpWidget(MaterialApp(navigatorKey:nav,home:const Scaffold(body:Text('Inbox fixture'))));
+   nav.currentState!.push(MaterialPageRoute(builder:(_)=>NewChatPage(session:session)));await flush(t);
+   await t.tap(find.byTooltip('New group'));await flush(t);
+   await t.enterText(find.byType(TextField).first,'Private group name');await t.enterText(find.byType(TextField).last,'private');await flush(t);
+   await t.tap(find.text('Private person'));await flush(t);expect(find.byType(InputChip),findsOneWidget);
+   if(pendingCreate){await t.tap(find.text('Create group (1)'));await flush(t);expect(posts,1);}
+   if(!same)owner='b';await session.login('replacement','not-a-password');await flush(t);
+   expect(find.text('Private group name'),findsNothing);expect(find.byType(InputChip),findsNothing);expect(find.byType(TextField),findsNothing);
+   if(pendingCreate){pending.complete(reply({'conversation':{'public_id':'old-result'}}));await flush(t);}
+   expect(find.byType(NewChatPage),findsOneWidget);expect(find.textContaining('another signed-in session'),findsOneWidget);expect(posts,pendingCreate?1:0);expect(t.takeException(),isNull);
+   await t.pumpWidget(const SizedBox());
+  },()=>MockClient((r)async{
+   if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});
+   if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':owner,'username':owner}});
+   if(r.method=='POST'){posts++;return pending.future;}
+   return reply({'users':[{'public_id':'private-person','username':'private-person','name':'Private person'}]});
+  }));
+ });}
  for(final lang in ['en','ne'])for(final dark in [false,true]){
  testWidgets('retired chat readable $lang dark=$dark large text',(t)async{
   prefs.lang=lang;
@@ -102,7 +132,7 @@ void main(){
   addTearDown((){t.view.resetPhysicalSize();t.view.resetDevicePixelRatio();prefs.lang='en';});
   await http.runWithClient(()async{
    final session=Session();await session.login('fixture','not-a-password');
-   await t.pumpWidget(MaterialApp(theme:buildTheme(dark?Brightness.dark:Brightness.light),builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:const TextScaler.linear(2)),child:child!),home:RepaintBoundary(key:key,child:GroupInfoPage(session:session,convo:{'public_id':'old','title':'Private group','members':[]}))));
+   await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(dark?Brightness.dark:Brightness.light,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:const TextScaler.linear(2)),child:child!),home:RepaintBoundary(key:key,child:GroupInfoPage(session:session,convo:{'public_id':'old','title':'Private group','members':[]}))));
    await session.login('replacement','not-a-password');await flush(t);
    final image=await (key.currentContext!.findRenderObject() as RenderRepaintBoundary).toImage(pixelRatio:1);
    final bytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();

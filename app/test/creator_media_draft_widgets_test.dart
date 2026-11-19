@@ -217,6 +217,18 @@ void main(){
     final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
     File('test/renders/story_caption_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
    });
+   final privacy=find.text(t_('Hidden people and blocked people cannot view it. People can save what they see.'));
+   await t.drag(find.byType(ListView).first,const Offset(0,-1500));await t.pumpAndSettle();
+   final paragraph=t.getRect(privacy);final viewport=t.getRect(find.byType(ListView).first);
+   final audienceButton=t.getRect(find.widgetWithText(TextButton,'Only me').evaluate().isNotEmpty?find.widgetWithText(TextButton,'Only me'):find.widgetWithText(TextButton,t_('Only me')));
+   expect(paragraph.top,greaterThanOrEqualTo(viewport.top));
+   expect(paragraph.bottom,lessThanOrEqualTo(viewport.bottom));
+   expect(paragraph.bottom,lessThanOrEqualTo(audienceButton.top));
+   await t.runAsync(()async{
+    final image=await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio:2);
+    final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
+    File('test/renders/story_privacy_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());image.dispose();
+   });
    await t.pumpWidget(const SizedBox());
   });
  }

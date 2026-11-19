@@ -29,7 +29,11 @@ Future<void> stage(String value) async {
 }
 void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+ // Keep native vsync advancing while real asynchronous I/O runs.
+ binding.framePolicy=LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
  Future<void> capture(String name) async {
+  await binding.endOfFrame;
+  await Future<void>.delayed(const Duration(milliseconds:500));
   final result=await binding.takeScreenshot(name);
   final bytes=result;
   final dir=await getTemporaryDirectory();

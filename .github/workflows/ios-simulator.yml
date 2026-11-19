@@ -1,7 +1,7 @@
 name: iOS simulator local flows
 on:
   push:
-    branches: [app-integrated-preparation]
+    branches: [app-integrated-preparation, ios-native-presentation]
   workflow_dispatch:
 permissions:
   contents: read

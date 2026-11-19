@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     tags: ['v*']
-    branches: ['**']
+    branches: ['**', '!ios-native-presentation']
   pull_request:
 
 jobs:

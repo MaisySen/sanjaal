@@ -21,3 +21,9 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos lib/push.dart test/ios_push_readiness_test.dart
       - run: flutter test test/ios_push_readiness_test.dart test/push_registration_test.dart test/push_settings_render_test.dart --reporter expanded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-push-status-renders
+          path: app/test/renders/push_status_*.png
+          retention-days: 7

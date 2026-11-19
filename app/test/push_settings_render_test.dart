@@ -33,14 +33,15 @@ void main() {
             .load();
     }
   });
+  for (final ios in [false, true]) {
   for (final language in ['en', 'ne']) {
-    testWidgets('notification settings status readable $language', (t) async {
+    testWidgets('notification settings status readable $language ios=$ios', (t) async {
       prefs.lang = language;
       addTearDown(() => prefs.lang = 'en');
       t.view.physicalSize = const Size(960, 1920);
       t.view.devicePixelRatio = 3;
       addTearDown(t.view.reset);
-      Push.status.value =
+      Push.status.value = ios ? Push.iosUnavailable :
           'Signed out. Notification token cleanup could not be confirmed';
       addTearDown(() => Push.status.value = 'Not set up yet');
       final key = GlobalKey();
@@ -94,10 +95,11 @@ void main() {
                 .toImage(pixelRatio: 2);
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         Directory('test/renders').createSync(recursive: true);
-        File('test/renders/push_status_$language.png')
+        File('test/renders/push_status_${ios ? 'ios' : 'cleanup'}_$language.png')
             .writeAsBytesSync(bytes!.buffer.asUint8List());
       });
       await t.pumpWidget(const SizedBox());
     });
+  }
   }
 }

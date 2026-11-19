@@ -284,14 +284,16 @@ class _RoomPageState extends State<RoomPage> {
       );
       if (connected && mounted && !leaving) setState(() => status = 'Live');
     } on ApiError catch (e) {
-      if (mounted) {
+      await _stopFailedJoin();
+      if (mounted && !leaving) {
         setState(() {
           failed = true;
           status = e.status == 410 ? 'This room has ended.' : e.message;
         });
       }
     } catch (_) {
-      if (mounted) {
+      await _stopFailedJoin();
+      if (mounted && !leaving) {
         setState(() {
           failed = true;
           status = 'Could not join. Check your connection${isHost ? ' and microphone permission' : ''}.';
@@ -299,6 +301,11 @@ class _RoomPageState extends State<RoomPage> {
       }
     }
   }
+
+  Future<void> _stopFailedJoin() => stopRoomAfterJoinFailure(
+    stopMicrophone: microphone.revoke,
+    disconnect: room.disconnect,
+  );
 
   Future<void> _toggleMic() async {
     if (leaving || room.connectionState != ConnectionState.connected) return;

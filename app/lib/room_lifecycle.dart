@@ -33,3 +33,14 @@ Future<void> releaseRoomAfterJoin({
   await attempt(disconnect);
   try { disposeMicrophone(); } finally { await attempt(disposeRoom); }
 }
+
+/// A failed permission/setup step must not leave an otherwise-connected room
+/// capturing or listening behind the error screen. Disconnect even if native
+/// microphone teardown itself fails.
+Future<void> stopRoomAfterJoinFailure({
+  required Future<void> Function() stopMicrophone,
+  required Future<void> Function() disconnect,
+}) async {
+  try { await stopMicrophone(); } catch (_) {}
+  try { await disconnect(); } catch (_) {}
+}

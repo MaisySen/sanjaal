@@ -106,4 +106,18 @@ void main() {
     );
     expect(steps, ['stop', 'disconnect', 'disconnect', 'dispose mic', 'dispose room']);
   });
+  for (final stopFails in [false, true]) {
+    test('failed room setup disconnects even when mic stop fails=$stopFails', () async {
+      final steps = <String>[];
+      await stopRoomAfterJoinFailure(
+        stopMicrophone: () async {
+          steps.add('stop');
+          if (stopFails) throw StateError('fake native failure');
+        },
+        disconnect: () async => steps.add('disconnect'),
+      );
+      expect(steps, ['stop', 'disconnect']);
+    });
+  }
+
 }

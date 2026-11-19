@@ -238,6 +238,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Live rooms'));
       await _until(tester,find.text('No rooms live right now'));
       expect(find.byType(CircularProgressIndicator),findsNothing);
+      await tester.pump(const Duration(milliseconds:500));
       await binding.takeScreenshot('flow8_rooms_list');
       await tester.pageBack();
       await _settle(tester, 3);

@@ -63,11 +63,15 @@ void main(){
   await binding.takeScreenshot('ios_native_avfoundation_poster');
   app.main();
   await until(t,()=>find.textContaining('Sunrise over Phewa').evaluate().isNotEmpty);
+  await t.pump(const Duration(milliseconds:600));
   await binding.takeScreenshot('ios_home');
   for(final tab in ['Reels','Chats','Wallet','Me','Home']) {
    await t.tap(find.text(tab).last);
    await until(t,()=>find.byType(CircularProgressIndicator).evaluate().isEmpty);
    expect(find.text('Could not load this page.'),findsNothing);
+   // A predicate can observe rebuilt widgets before the native frame/route
+   // transition is presented. Settle that presentation before capturing.
+   await t.pump(const Duration(milliseconds:600));
    await binding.takeScreenshot('ios_tab_${tab.toLowerCase()}');
   }
   final session=Session();await t.runAsync(()=>session.restore());
@@ -80,7 +84,7 @@ void main(){
   await until(t,()=>find.byType(TextField).evaluate().isNotEmpty);
   final caption='iOS simulator local post ${DateTime.now().millisecondsSinceEpoch}';
   await t.tap(find.byType(TextField).first);await t.enterText(find.byType(TextField).first,caption);
-  await t.pump(const Duration(milliseconds:400));await binding.takeScreenshot('ios_post_keyboard');
+  await t.pump(const Duration(milliseconds:400));await binding.takeScreenshot('ios_post_test_text_input');
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   await until(t,()=>find.text(caption).evaluate().isNotEmpty&&find.text('Your post is up.').evaluate().isNotEmpty);
   await binding.takeScreenshot('ios_post_confirmed');

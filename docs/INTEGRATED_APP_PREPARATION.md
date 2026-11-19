@@ -44,3 +44,32 @@ The story-review privacy text was scrolled fully into view, and caption and Shar
 A read-only live Wallet response at 2026-11-19 10:30 AEDT reported transfer replay and transfer availability false, eSewa/Khalti false, and cash-out unavailable. Its non-private capability shape is retained as a fixture with a synthetic zero balance and no history; its held-screen test permits GET only. In a network-disabled container using exact image `29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66`, transfer, top-up and withdrawal creation each returned 503 with all paths configured off, before database or provider work. No production mutation was attempted. Fixture-enabled Send screens elsewhere are capability-testing states, never evidence that money is enabled live.
 
 The focused follow-up at `5c48a228d94aec18951615a0eb1e1ace2a2a22a7` passed all 127 media/auth/story/Wallet/creator tests plus the separate exact-image money-refusal job. The remaining lazy-caption finder was corrected without weakening geometry assertions. Full CI for this reconciled tree is separate; its final status, native behavior and artifacts must be checked independently.
+
+
+## Acceptance-candidate version preparation, November 19 at 18:41 AEDT
+
+A read-only current Play Console check found exactly one uploaded app version,
+0.5.3/code2008, active on internal testing. Its app-signing and upload-key
+SHA256 fingerprints both match the retained stable certificate recorded in
+PHONE_PREVIEW_RELEASE.md. The actual Samsung About screen separately showed
+0.5.5/code2010 today. That is baseline evidence, not new-candidate acceptance;
+the currently installed certificate and installer were not independently read.
+
+All fetched repository version history was checked through2010. This branch
+therefore selects0.5.6/code2011 for a newly built private acceptance candidate.
+It preserves the integrated runtime frombd0e5a8 and changes its version rather
+than relabeling the existing engineering APK. Exact source CI, actual binary
+readback and stable-key finalization are still required. No upload, release,
+installation or distribution is performed by this version change.
+
+The separatebd iOS simulator run44474124451 failed after Xcode compilation
+because its debug-log/startup handshake did not finish. No app-flow acceptance
+is borrowed from it and no further timeout rerun is started on this branch.
+Ordinary exact-source unsigned iOS compilation remains part of wholeCI.
+
+Current source-of-truth check locations:
+- https://play.google.com/console/u/0/developers/9209766728787222073/app/4972125330749565200/bundle-explorer-selector
+- https://play.google.com/console/u/0/developers/9209766728787222073/app/4972125330749565200/keymanagement
+
+Do not distribute before exact-candidate Samsung acceptance. Preserve app data
+and the existing signing identity. Wallet money paths remain unavailable.

@@ -1,6 +1,7 @@
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
 import 'dart:io';
+import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -131,6 +132,40 @@ void main(){
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   await until(t,()=>find.text(caption).evaluate().isNotEmpty&&find.text('Your post is up.').evaluate().isNotEmpty);
   await capture('ios_post_confirmed');
+  await stage('manual lost-reply journey');
+  const base=String.fromEnvironment('E2E_TOKEN_BASE');
+  const token=String.fromEnvironment('E2E_TOKEN');
+  final headers={'Authorization':'Bearer $token','Accept':'application/json'};
+  Future<int> copies(String marker) async {
+   final response=await t.runAsync(()=>http.get(Uri.parse('$base/api/v1/posts?kind=post'),headers:headers).timeout(const Duration(seconds:30)));
+   expect(response!.statusCode,200);
+   final data=jsonDecode(utf8.decode(response.bodyBytes)) as Map;
+   return (data['data'] as List).where((p)=>p['body']==marker).length;
+  }
+  final armed=await t.runAsync(()=>http.post(Uri.parse('$base/e2e/fault-arm'),headers:headers).timeout(const Duration(seconds:20)));
+  expect(armed!.statusCode,200);
+  await t.tap(find.byTooltip('Post'));await until(t,()=>find.text('Continue').evaluate().isNotEmpty);
+  await t.tap(find.text('Post').last);await t.pump();
+  await t.tap(find.widgetWithText(FilledButton,'Continue'));
+  await until(t,()=>find.byType(TextField).evaluate().isNotEmpty);
+  final retryMarker='iOS manual retry ${DateTime.now().millisecondsSinceEpoch}';
+  await t.enterText(find.byType(TextField).first,retryMarker);
+  await t.pump(const Duration(milliseconds:600));
+  expect(t.widget<TextField>(find.byType(TextField).first).controller!.text,retryMarker);
+  await t.tap(find.widgetWithText(FilledButton,'Post'));
+  await until(t,()=>find.text('Try again').evaluate().isNotEmpty);
+  expect(find.text('Your post is up.'),findsNothing);
+  expect(find.textContaining('Service temporarily unavailable'),findsOneWidget);
+  await t.pump(const Duration(milliseconds:600));await capture('ios_upload_reply_lost_retry_offered');
+  expect(await copies(retryMarker),1,reason:'server committed before its response was lost');
+  final faults=await t.runAsync(()=>http.get(Uri.parse('$base/e2e/fault-count'),headers:headers).timeout(const Duration(seconds:20)));
+  expect(jsonDecode(faults!.body)['fired'],1);
+  await t.tap(find.text('Try again'));
+  await until(t,()=>find.text('Your post is up.').evaluate().isNotEmpty);
+  await t.pump(const Duration(milliseconds:600));await capture('ios_upload_manual_retry_confirmed');
+  expect(await copies(retryMarker),1,reason:'manual retry reuses original and cannot create duplicate');
+  expect(find.text('Try again'),findsNothing);
+  await stage('manual retry exactly one post before and after');
   await stage('chat navigation');
   await t.tap(find.text('Chats').last);
   await until(t,()=>find.byTooltip('New chat').evaluate().isNotEmpty);

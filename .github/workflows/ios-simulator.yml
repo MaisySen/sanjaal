@@ -1,7 +1,7 @@
 name: iOS simulator local flows
 on:
   push:
-    branches: [ios-direct-vm-attach]
+    branches: [ios-manual-retry-native]
   workflow_dispatch:
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
           php tests/E2E/prepare.php /tmp/ios-e2e
           cp ../app/test/fixtures/ios_synthetic_video.mp4 public/ios-native-fixture.mp4
           echo "::add-mask::$(cat /tmp/ios-e2e/token.txt)"
-          E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public tests/E2E/server.php > /tmp/ios-api.log 2>&1 &
+          E2E_FAULT_AFTER_COMMIT=1 UPLOAD_INTENTS_ENABLED=true E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public tests/E2E/server.php > /tmp/ios-api.log 2>&1 &
           curl --retry 5 --retry-connrefused --retry-delay 1 -s http://localhost:8000/api/v1/auth/me -H 'Accept: application/json'
       - name: Select and boot available iPhone simulator
         run: |

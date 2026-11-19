@@ -60,14 +60,14 @@ void main(){
    t.testTextInput.log.clear();
    await tap(t,find.byType(FilledButton));
    expect(session.submissions,1);
-   final saves=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext'&&c.arguments['shouldSave']==true);
+   final saves=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext'&&c.arguments==true);
    expect(saves.length,fail?0:1);
    if(fail)expect(find.text('Fixture rejected'),findsOneWidget);
    t.testTextInput.log.clear();
    await t.pumpWidget(const SizedBox());await flush(t);
    final finishes=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext');
    expect(finishes,isNotEmpty);
-   expect(finishes.every((c)=>c.arguments['shouldSave']==false),isTrue);
+   expect(finishes.every((c)=>c.arguments==false),isTrue);
   },session:session);
  });
  }

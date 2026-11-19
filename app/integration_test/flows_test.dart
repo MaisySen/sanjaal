@@ -200,6 +200,11 @@ void main() {
       await _until(tester, find.byType(TextField));
       await _type(tester, find.byType(TextField), 'Posted from the emulator run #sanjaal');
       await tester.pump();
+      final publish = find.widgetWithText(FilledButton, 'Post');
+      expect(tester.widget<FilledButton>(publish).onPressed, isNotNull);
+      // Include the enabled label transition, not only the just-typed widget.
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       await binding.takeScreenshot('flow3_compose');
       await tester.tap(find.widgetWithText(FilledButton, 'Post'));
       await _settle(tester, 8);
@@ -250,6 +255,10 @@ void main() {
       expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton,'Add coins')).onPressed,isNull);
       expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Send')).onPressed,isNull);
       expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Cash out')).onPressed,isNull);
+      // The widget assertion can precede the raster frame used by the native
+      // screenshot extension. Flush rendering before collecting visual evidence.
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       await binding.takeScreenshot('flow9_wallet');
     });
     expect(failed, isEmpty, reason: 'failed steps: $failed');

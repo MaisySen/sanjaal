@@ -91,6 +91,10 @@ void main() {
     expect(find.text('Your post is up.'), findsNothing);
     // ignore: avoid_print
     print('Upload-retry after lost reply: offered Try again = $offeredRetry');
+    // The widget assertion can precede the raster frame used by the native
+    // screenshot extension. Flush rendering before collecting visual evidence.
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
     await binding.takeScreenshot('upload_retry_1_lost_reply');
     final fired = await tester.runAsync(() => http.get(Uri.parse('$_base/e2e/fault-count'), headers: {'Authorization': 'Bearer $_token'}).timeout(const Duration(seconds: 20)));
     // ignore: avoid_print

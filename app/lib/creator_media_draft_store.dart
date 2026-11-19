@@ -12,18 +12,21 @@ import 'package:path_provider/path_provider.dart';
 
 /// Explicit local copies only. Never holds a token, upload intent or send job.
 class CreatorMediaDraft {
-  CreatorMediaDraft(this.id,this.revision,this.text,this.video,this.attempted,this.names,this.sizes,{String? stamp}):stamp=stamp??revision;
+  CreatorMediaDraft(this.id,this.revision,this.text,this.video,this.attempted,this.names,this.sizes,{String? stamp,this.story=false,this.audience}):stamp=stamp??revision;
   final String id,revision,text,stamp;
-  final bool video,attempted;
+  final bool video,attempted,story;
+  final String? audience;
   final List<String> names;
   final List<int> sizes;
-  Map<String,dynamic> toJson()=>{'id':id,'revision':revision,'stamp':stamp,'text':text,'video':video,'attempted':attempted,'names':names,'sizes':sizes};
+  Map<String,dynamic> toJson()=>{'id':id,'revision':revision,'stamp':stamp,'story':story,'audience':audience,'text':text,'video':video,'attempted':attempted,'names':names,'sizes':sizes};
   static CreatorMediaDraft decode(dynamic value){
     if(value is! Map || !CreatorMediaDraftStore.nonceValid(value['id']) || !CreatorMediaDraftStore.nonceValid(value['revision']) || !CreatorMediaDraftStore.nonceValid(value['stamp']) || value['text'] is! String || (value['text'] as String).length>2000 || value['video'] is! bool || value['attempted'] is! bool || value['names'] is! List || value['sizes'] is! List)throw const FormatException('Unrecognized media draft');
+    final story=value['story']??false;final audience=value['audience'];
+    if(story is! bool || (story && (!['followers','close_friends','only_me'].contains(audience) || (value['text'] as String).length>200)) || (!story && audience!=null))throw const FormatException('Unrecognized story draft audience');
     final names=value['names'] as List;final sizes=value['sizes'] as List;
-    if(names.isEmpty || names.length>(value['video']==true?1:4) || sizes.length!=names.length || names.any((n)=>n is! String || !RegExp(r'^media\.(jpg|jpeg|png|webp|heic|mp4|mov)$').hasMatch(n)) || sizes.any((n)=>n is! int || n<1 || n>CreatorMediaDraftStore.fileLimit))throw const FormatException('Unrecognized media draft files');
+    if(names.isEmpty || names.length>(value['video']==true || story?1:4) || sizes.length!=names.length || names.any((n)=>n is! String || !RegExp(r'^media\.(jpg|jpeg|png|webp|heic|mp4|mov)$').hasMatch(n)) || sizes.any((n)=>n is! int || n<1 || n>CreatorMediaDraftStore.fileLimit))throw const FormatException('Unrecognized media draft files');
     if(names.any((n)=>value['video']==true?!RegExp(r'^media\.(mp4|mov)$').hasMatch(n):!RegExp(r'^media\.(jpg|jpeg|png|webp|heic)$').hasMatch(n)))throw const FormatException('Media type does not match draft');
-    return CreatorMediaDraft(value['id'],value['revision'],value['text'],value['video'],value['attempted'],List.unmodifiable(names.cast<String>()),List.unmodifiable(sizes.cast<int>()),stamp:value['stamp']);
+    return CreatorMediaDraft(value['id'],value['revision'],value['text'],value['video'],value['attempted'],List.unmodifiable(names.cast<String>()),List.unmodifiable(sizes.cast<int>()),stamp:value['stamp'],story:story,audience:audience);
   }
 }
 
@@ -33,13 +36,15 @@ class CreatorMediaDraftStore {
   static const fileLimit=25*1024*1024, accountLimit=100*1024*1024, deviceLimit=256*1024*1024;
   static const _storage=FlutterSecureStorage();
   static final _cipher=AesGcm.with256bits();
-  static Future<void> _tail=Future<void>.value();
+  static Future<void>? _tail;
   static bool nonceValid(dynamic v)=>v is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(v);
   static String _nonce()=>List.generate(16,(_)=>Random.secure().nextInt(256).toRadixString(16).padLeft(2,'0')).join();
   static String _owner(String owner){if(owner.isEmpty || owner.length>256)throw ArgumentError('Account required');return sha256.convert(utf8.encode(owner)).toString();}
   Future<T> _serial<T>(Future<T> Function() action) async {
-    final before=_tail;final done=(()async{await before;return action();})();
-    _tail=done.then<void>((_) {},onError:(Object _,StackTrace __){});return done;
+    final before=_tail;final done=(()async{if(before!=null)await before;return action();})();
+    final tail=done.then<void>((_) {},onError:(Object _,StackTrace __){});_tail=tail;
+    try{return await done;}
+    finally{if(identical(_tail,tail))_tail=null;}
   }
   Future<Directory> _root()async{
     final root=testRoot??Directory('${(await getApplicationSupportDirectory()).path}/creator_media_drafts_v1');
@@ -127,10 +132,11 @@ class CreatorMediaDraftStore {
     }
     return bytes;
   }
-  Future<CreatorMediaDraft> save(String owner,{required String text,required bool video,required List<XFile> files,String? id,String? expectedRevision,String? expectedStamp})=>_serial(()async{
-    if(text.length>2000 || files.isEmpty || files.length>(video?1:4))throw ArgumentError('Choose up to four photos or one video');
+  Future<CreatorMediaDraft> save(String owner,{required String text,required bool video,required List<XFile> files,String? id,String? expectedRevision,String? expectedStamp,bool story=false,String? audience})=>_serial(()async{
+    if(story && (!['followers','close_friends','only_me'].contains(audience) || text.length>200) || !story && audience!=null)throw ArgumentError('Choose a story audience before saving');
+    if(text.length>2000 || files.isEmpty || files.length>(video || story?1:4))throw ArgumentError('Choose up to four photos or one video');
     final list=await _read(owner);final found=list.where((d)=>d.id==id).toList();
-    if(id!=null && (found.length!=1 || found.single.revision!=expectedRevision || found.single.stamp!=expectedStamp))throw StateError('This media draft changed. Reopen the saved copy.');
+    if(id!=null && (found.length!=1 || found.single.revision!=expectedRevision || found.single.stamp!=expectedStamp || found.single.story!=story))throw StateError('This media draft changed. Reopen the saved copy.');
     if(found.isNotEmpty && found.single.attempted)throw StateError('Check the earlier upload before changing this saved draft.');
     if(id==null && list.length>=8)throw StateError('Eight media drafts are saved. Delete one before saving another.');
     final sizes=<int>[];final names=<String>[];
@@ -144,7 +150,7 @@ class CreatorMediaDraftStore {
     final total=sizes.fold<int>(0,(a,b)=>a+b);
     final existing=list.where((d)=>d.id!=id).expand((d)=>d.sizes).fold<int>(0,(a,b)=>a+b);
     if(existing+total>accountLimit || await _usage()+total+4096>deviceLimit)throw StateError('Local media draft storage is full. Delete a saved draft first.');
-    final key=await (await _key(owner,create:list.isEmpty)).extractBytes();final draft=CreatorMediaDraft(id??_nonce(),_nonce(),text,video,false,List.unmodifiable(names),List.unmodifiable(sizes));
+    final key=await (await _key(owner,create:list.isEmpty)).extractBytes();final draft=CreatorMediaDraft(id??_nonce(),_nonce(),text,video,false,List.unmodifiable(names),List.unmodifiable(sizes),story:story,audience:audience);
     final dir=await _directory(owner,id:draft.id,revision:draft.revision);await dir.create(recursive:true);
     // Unique immutable revision files are complete before the index can refer
     // to them. An interrupted copy leaves old metadata intact, never sends.
@@ -175,7 +181,7 @@ class CreatorMediaDraftStore {
     final list=await _read(owner);final current=list.where((d)=>d.id==draft.id).toList();
     if(current.length!=1 || jsonEncode(current.single.toJson())!=jsonEncode(draft.toJson()))throw StateError('This media draft changed. Reopen the saved copy.');
     // Preserve file revision/AAD while changing the fail-closed send guard.
-    final next=CreatorMediaDraft(draft.id,draft.revision,draft.text,draft.video,value,draft.names,draft.sizes,stamp:_nonce());
+    final next=CreatorMediaDraft(draft.id,draft.revision,draft.text,draft.video,value,draft.names,draft.sizes,stamp:_nonce(),story:draft.story,audience:draft.audience);
     await _commit(owner,[for(final d in list)if(d.id==draft.id)next else d]);return next;
   });
   Future<void> remove(String owner,CreatorMediaDraft draft)=>_serial(()async{

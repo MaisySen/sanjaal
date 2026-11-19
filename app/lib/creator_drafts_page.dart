@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'stories_page.dart' show StoryComposePage;
 import 'creator_draft_store.dart';
 import 'creator_media_draft_store.dart';
 import 'feed_page.dart' show ComposePage;
@@ -104,7 +105,9 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     try{
       final files=await mediaStore.open(owner!,draft);
       if(!mounted || !active)return;
-      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>ComposePage(session:widget.session,backgroundUpload:true,initialMediaDraft:draft,savedMediaFiles:files)));
+      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>draft.story
+        ? StoryComposePage(session:widget.session,file:files.single,isVideo:draft.video,backgroundUpload:true,initialMediaDraft:draft)
+        : ComposePage(session:widget.session,backgroundUpload:true,initialMediaDraft:draft,savedMediaFiles:files)));
       if(mounted && active)await _load();
     }catch(e){if(mounted && active)showError(context,e);}
     finally{if(mounted)setState(()=>busy=false);}
@@ -149,7 +152,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
             padding: EdgeInsets.symmetric(vertical: 32),
             child: Text(
               t_(
-                'No saved drafts yet. Use Save text draft while writing a post.',
+                'No saved drafts yet. Use the bookmark while writing a post or story.',
               ),
             ),
           )
@@ -187,8 +190,8 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
                     },
             ),
         if(active) for(final draft in mediaDrafts) ListTile(
-          title:Text(draft.text.isEmpty?t_(draft.video?'Video draft':'Photo draft'):draft.text,maxLines:2,overflow:TextOverflow.ellipsis),
-          subtitle:Text(t_(draft.attempted?'Check earlier upload before posting again':draft.video?'Video draft':'Photo draft')),
+          title:Text(draft.text.isEmpty?t_(draft.story?'Story draft':draft.video?'Video draft':'Photo draft'):draft.text,maxLines:2,overflow:TextOverflow.ellipsis),
+          subtitle:Text(t_(draft.attempted?'Check earlier upload before posting again':draft.story?'Story draft':draft.video?'Video draft':'Photo draft')),
           onTap:busy?null:()=>_openMedia(draft),
           trailing:IconButton(tooltip:t_('Delete draft'),onPressed:busy?null:()=>_deleteMedia(draft),icon:const PhIcon('trash')),
         ),

@@ -901,6 +901,7 @@ class _ComposePageState extends State<ComposePage> {
     widget.session.addListener(_draftSessionChanged);
     _mediaDraft=widget.initialMediaDraft;
     if(_mediaDraft!=null){
+      if(_mediaDraft!.story)throw StateError('Open story drafts in the story editor');
       text.text=_mediaDraft!.text;
       final files=widget.savedMediaFiles??<XFile>[];
       if(_mediaDraft!.video){video=files.single;}else{images=List.from(files);}
@@ -1040,6 +1041,17 @@ class _ComposePageState extends State<ComposePage> {
         ),
       ]),
       body: Column(children: [
+        if (uploadError != null) UploadNotice(
+          message: uploadError!.message,
+          openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),
+          prepareNew: uploadError!.terminal ? () async {
+            if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); uploadError = null; });
+          } : null,
+          retry: !busy && !uploadError!.terminal ? _post : null,
+        ),
+        Expanded(child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
         if(_mediaDraft?.attempted==true) UploadNotice(
           message:'This saved draft may already be posted. Check your profile before preparing a separate upload.',
           newLabel:'Prepare a separate upload',
@@ -1054,22 +1066,11 @@ class _ComposePageState extends State<ComposePage> {
             finally{if(mounted)setState(()=>_savingDraft=false);}
           },
         ),
-        if (uploadError != null) UploadNotice(
-          message: uploadError!.message,
-          openOriginal: uploadError!.resourceId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: uploadError!.resourceId!))),
-          prepareNew: uploadError!.terminal ? () async {
-            if (await confirmNewUpload(context) && mounted) setState(() { intent = newUploadIntent(); uploadError = null; });
-          } : null,
-          retry: !busy && !uploadError!.terminal ? _post : null,
-        ),
-        Expanded(child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-        if (widget.initialLocalDraft != null || _mediaDraft!=null) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
+        if (_mediaDraft?.attempted!=true && (widget.initialLocalDraft != null || _mediaDraft!=null)) Padding(padding: const EdgeInsets.all(12), child: Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.'))),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Avatar(user: widget.session.user),
             const SizedBox(width: 12),
-            Expanded(child: TextField(controller: text, enabled: !busy && !_savingDraft, onChanged: (_) => setState(() {}), autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
+            Expanded(child: TextField(controller: text, enabled: !busy && !_savingDraft, onChanged: (_) => setState(() {}), autofocus: _mediaDraft==null && widget.initialLocalDraft==null, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
           ]),
           if (pollOptions != null) ...[
             for (var i = 0; i < pollOptions!.length; i++) Padding(

@@ -36,6 +36,25 @@ void main(){
   await expectLater(store.save('a',text:'Changed',video:false,files:[GrowingMedia()]),throwsStateError);
   expect(await store.read('a'),isEmpty);
  });
+ for(final audience in ['followers','close_friends','only_me']){
+  test('story caption media and $audience audience survive reopening and attempted reset',()async{
+   final d=await store.save('a',text:'Story',video:false,files:[file()],story:true,audience:audience);
+   final restored=(await CreatorMediaDraftStore(testRoot:root).read('a')).single;
+   expect(restored.story,isTrue);expect(restored.audience,audience);expect(restored.text,'Story');
+   final marked=await store.attempted('a',restored,value:true);
+   final reset=await store.attempted('a',marked,value:false);
+   expect(reset.audience,audience);expect(reset.story,isTrue);
+   expect(await (await store.open('a',reset)).single.readAsBytes(),payload);
+   await expectLater(store.save('a',text:'Wrong editor',video:false,files:[file()],id:d.id,expectedRevision:reset.revision,expectedStamp:reset.stamp),throwsStateError);
+  });
+ }
+ test('story storage rejects unknown audience or multiple photos instead of widening visibility',()async{
+  await expectLater(store.save('a',text:'Story',video:false,files:[file()],story:true),throwsArgumentError);
+  await expectLater(store.save('a',text:'Story',video:false,files:[file()],story:true,audience:'everyone'),throwsArgumentError);
+  await expectLater(store.save('a',text:'x'*201,video:false,files:[file()],story:true,audience:'only_me'),throwsArgumentError);
+  await expectLater(store.save('a',text:'Story',video:false,files:[file(),file()],story:true,audience:'only_me'),throwsArgumentError);
+  expect(await store.read('a'),isEmpty);
+ });
  test('video and photo limits reject incompatible selections',()async{
   await expectLater(store.save('a',text:'',video:true,files:[file()]),throwsStateError);
   await expectLater(store.save('a',text:'',video:false,files:List.generate(5,(_)=>file())),throwsArgumentError);

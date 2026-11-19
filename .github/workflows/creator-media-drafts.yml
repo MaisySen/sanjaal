@@ -1,7 +1,7 @@
 name: Creator media draft implementation
 on:
   push:
-    branches: [creator-media-draft-preservation]
+    branches: [creator-story-draft-preservation]
 permissions:
   contents: read
 jobs:

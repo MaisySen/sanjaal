@@ -195,6 +195,8 @@ const _ne = <String, String>{
   'Local notification token removed': 'फोनबाट सूचनाको टोकन हटाइयो',
   'Signed out. Notification token cleanup could not be confirmed': 'साइन आउट भयो। सूचनाको टोकन हटेको पुष्टि हुन सकेन',
   'Saved drafts': 'सुरक्षित मस्यौदाहरू',
+  'Story draft': 'स्टोरीको मस्यौदा',
+  'No saved drafts yet. Use the bookmark while writing a post or story.': 'सुरक्षित मस्यौदा छैनन्। पोस्ट वा स्टोरी लेख्दा मस्यौदा सुरक्षित गर्ने बटन प्रयोग गर्नुहोस्।',
   'Save media draft': 'मिडियाको मस्यौदा सुरक्षित गर्नुहोस्',
   'Photo draft': 'तस्बिरको मस्यौदा',
   'Video draft': 'भिडियोको मस्यौदा',

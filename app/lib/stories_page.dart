@@ -1,4 +1,6 @@
 import 'media_library_page.dart';
+import 'creator_media_draft_store.dart';
+import 'dart:convert' show jsonEncode;
 import 'upload_center.dart';
 import 'ph.dart';
 import 'draft_exit_guard.dart';
@@ -418,7 +420,8 @@ Future<bool> addStory(BuildContext context, Session session) async {
 /// Picking is not publication. Keep the selected file and caption until the
 /// member explicitly shares or discards, including after an upload error.
 class StoryComposePage extends StatefulWidget {
-  const StoryComposePage({super.key, required this.session, required this.file, required this.isVideo, this.backgroundUpload = false});
+  const StoryComposePage({super.key, required this.session, required this.file, required this.isVideo, this.backgroundUpload = false,this.initialMediaDraft});
+  final CreatorMediaDraft? initialMediaDraft;
   final Session session;
   final XFile file;
   final bool isVideo;
@@ -429,7 +432,7 @@ class StoryComposePage extends StatefulWidget {
 
 class _StoryComposePageState extends State<StoryComposePage> {
   final caption = TextEditingController();
-  late final Future<Uint8List> bytes = widget.file.readAsBytes();
+  late Future<Uint8List> bytes = widget.file.readAsBytes();
   bool busy = false;
   bool handedOff = false;
   String? error;
@@ -437,12 +440,71 @@ class _StoryComposePageState extends State<StoryComposePage> {
   String audience = 'followers';
   bool audienceLocked = false;
   UploadError? uploadError;
+  CreatorMediaDraft? _saved;
+  bool _saving=false;
+  late final String? _owner;
+  late final int _generation;
+  String? _savedFingerprint;
+  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_generation;
+  String get _fingerprint=>jsonEncode([caption.text,audience,widget.isVideo]);
+  void _changed(){if(mounted)setState((){});}
+  @override void initState(){
+    super.initState();
+    _owner=widget.session.user?['public_id'] as String?;_generation=widget.session.generation;
+    widget.session.addListener(_changed);caption.addListener(_changed);
+    _saved=widget.initialMediaDraft;
+    if(_saved!=null){
+      if(!_saved!.story || _saved!.video!=widget.isVideo || _saved!.audience==null)throw StateError('This is not a matching story draft');
+      caption.text=_saved!.text;audience=_saved!.audience!;audienceLocked=_saved!.attempted;
+      _savedFingerprint=_fingerprint;
+    }
+    if(widget.backgroundUpload || _saved!=null)UploadCenter.of(widget.session);
+  }
+  Future<void> _save()async{
+    if(!_active || busy || _saving || handedOff)return;
+    final snapshot=_fingerprint;final text=caption.text;final selectedAudience=audience;
+    setState(()=>_saving=true);
+    try{
+      final data=await bytes;
+      if(!_active)return;
+      final draft=await const CreatorMediaDraftStore().save(_owner!,text:text,video:widget.isVideo,files:[XFile.fromData(data,path:widget.file.path,name:widget.file.name)],story:true,audience:selectedAudience,id:_saved?.id,expectedRevision:_saved?.revision,expectedStamp:_saved?.stamp);
+      if(mounted && _active){setState((){_saved=draft;_savedFingerprint=snapshot;});showInfo(context,t_('Media draft saved on this device. Nothing was posted.'));}
+    }catch(e){if(mounted && _active)showError(context,e);}
+    finally{if(mounted)setState(()=>_saving=false);}
+  }
+  Future<void> _separate()async{
+    final draft=_saved;
+    if(draft==null || !_active || busy || _saving)return;
+    if(!await confirmNewUpload(context) || !mounted || !_active || _saved!=draft)return;
+    setState(()=>_saving=true);
+    try{
+      final next=await const CreatorMediaDraftStore().attempted(_owner!,draft,value:false);
+      if(mounted && _active)setState((){_saved=next;intent=newUploadIntent();audienceLocked=false;error=null;uploadError=null;});
+    }catch(e){if(mounted && _active)showError(context,e);}
+    finally{if(mounted)setState(()=>_saving=false);}
+  }
   @override
-  void dispose() { caption.dispose(); super.dispose(); }
+  void dispose() { widget.session.removeListener(_changed);caption.removeListener(_changed);caption.dispose(); super.dispose(); }
 
   Future<void> share() async {
-    if (busy || uploadError?.terminal == true) return;
+    if (!_active || busy || _saving || uploadError?.terminal == true) return;
     if (!widget.session.protectedStoriesEnabled) { showInfo(context, t_('Story sharing needs the protected-story server update. Your draft is still here.')); return; }
+    final saved=_saved;
+    if(saved!=null){
+      if(saved.attempted){showInfo(context,t_('This saved draft may already be posted. Check your profile before preparing a separate upload.'));return;}
+      if(_savedFingerprint!=_fingerprint){showInfo(context,t_('Save media changes before posting this draft.'));return;}
+      if(UploadCenter.of(widget.session).occupied){showInfo(context,t_('Check the current upload before starting another.'));return;}
+      setState(()=>_saving=true);
+      try{
+        final marked=await const CreatorMediaDraftStore().attempted(_owner!,saved,value:true);
+        if(!mounted || !_active)return;
+        setState(()=>_saved=marked);
+        final recovered=await const CreatorMediaDraftStore().open(_owner!,marked);
+        if(!mounted || !_active)return;
+        bytes=recovered.single.readAsBytes();
+      }catch(e){if(mounted && _active)showError(context,e);return;}
+      finally{if(mounted)setState(()=>_saving=false);}
+    }
     setState(() => audienceLocked = true);
     if (widget.backgroundUpload) {
       final session = widget.session;
@@ -481,13 +543,13 @@ class _StoryComposePageState extends State<StoryComposePage> {
   }
 
   Future<void> chooseAudience() async {
-    if(busy || audienceLocked)return;
+    if(!_active || busy || _saving || audienceLocked)return;
     final choice=await showModalBottomSheet<String>(context:context,isScrollControlled:true,builder:(c)=>SafeArea(child:SingleChildScrollView(child:Padding(padding:const EdgeInsets.all(16),child:Column(mainAxisSize:MainAxisSize.min,children:[
       Text(t_('Who can see this story'),style:Theme.of(c).textTheme.titleMedium),
       for(final option in [('followers','Followers'),('close_friends','Close friends'),('only_me','Only me')])ListTile(title:Text(t_(option.$2)),trailing:PhIcon(audience==option.$1?'check-circle-fill':'circle',size:24),onTap:()=>Navigator.of(c).pop(option.$1)),
       Text(t_('Close friends can view it even if they do not follow you. Hide my stories and blocking take priority.')),
     ])))));
-    if(choice!=null && mounted)setState(()=>audience=choice);
+    if(choice!=null && mounted && _active && !_saving)setState(()=>audience=choice);
   }
 
   Future<void> openOriginal() async {
@@ -508,27 +570,31 @@ class _StoryComposePageState extends State<StoryComposePage> {
   }
 
   @override
-  Widget build(BuildContext context) => DraftExitGuard(hasChanges: !handedOff, busy: busy, child: Scaffold(
-    appBar: AppBar(title: Text(t_('Your story'))),
+  Widget build(BuildContext context) {
+   if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Local draft'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This editor belongs to another signed-in session. Close it and sign in again to continue.'))));
+   return DraftExitGuard(hasChanges: !handedOff && _savedFingerprint!=_fingerprint, busy: busy || _saving, child: Scaffold(
+    appBar: AppBar(title: Text(t_('Your story')),actions:[IconButton(tooltip:t_('Save media draft'),onPressed:busy || _saving || handedOff || _saved?.attempted==true?null:_save,icon:const PhIcon('bookmark-simple'))]),
     body: SafeArea(top: false, child: Column(children: [
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
+      if (widget.session.protectedStoriesEnabled) Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Tooltip(message:t_('Who can see this story'),child:TextButton.icon(onPressed:busy || _saving || audienceLocked?null:chooseAudience,icon:const PhIcon('users',size:20),label:Row(mainAxisSize:MainAxisSize.min,children:[Flexible(child:Text(t_(audience=='close_friends'?'Close friends':audience=='only_me'?'Only me':'Followers'),maxLines:2)),const SizedBox(width:8),const PhIcon('caret-down',size:16)])))),
+      if(_saved?.attempted==true)UploadNotice(message:'This saved draft may already be posted. Check your profile before preparing a separate upload.',prepareNew:busy || _saving?null:_separate,newLabel:'Prepare a separate upload'),
+        if(_saved!=null && !_saved!.attempted)Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.')),
         Text(t_('Preview'), style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Text(t_('Disappears after 24 hours'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 16),
         ClipRRect(borderRadius: BorderRadius.circular(16), child: ColoredBox(color: Colors.black, child: SizedBox(height: 280, child: widget.isVideo
-          ? _StoryVideoPreview(file: widget.file)
+          ? widget.file.path.contains('://')?Center(child:Text(t_('Video preview unavailable. Your video is still selected.'),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white))):_StoryVideoPreview(file: widget.file)
           : FutureBuilder<Uint8List>(future: bytes, builder: (_, value) => value.hasData
             ? Image.memory(value.data!, fit: BoxFit.contain, errorBuilder: (_, error, stack) => Center(child: Text(t_('Photo preview unavailable'), style: const TextStyle(color: Colors.white))))
             : value.hasError ? Center(child: Text(t_('File could not be read'), style: const TextStyle(color: Colors.white))) : const Center(child: CircularProgressIndicator()))))),
         const SizedBox(height: 16),
-        TextField(controller: caption, enabled: !busy, maxLength: 200, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: t_('Caption (optional)'))),
+        TextField(controller: caption, enabled: !busy && !_saving, maxLength: 200, minLines: 2, maxLines: 4, decoration: InputDecoration(labelText: t_('Caption (optional)'))),
         if (widget.session.protectedStoriesEnabled) ...[
           Text(t_('Hidden people and blocked people cannot view it. People can save what they see.')),
           const SizedBox(height:16),
         ] else Padding(padding:const EdgeInsets.only(bottom:16),child:Text(t_('Story sharing needs the protected-story server update. Your draft is still here.'))),
       ])),
-      if (widget.session.protectedStoriesEnabled) Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Tooltip(message:t_('Who can see this story'),child:TextButton.icon(onPressed:busy || audienceLocked?null:chooseAudience,icon:const PhIcon('users',size:20),label:Row(mainAxisSize:MainAxisSize.min,children:[Flexible(child:Text(t_(audience=='close_friends'?'Close friends':audience=='only_me'?'Only me':'Followers'),maxLines:2)),const SizedBox(width:8),const PhIcon('caret-down',size:16)])))),
       if (error != null) UploadNotice(
         message: error!,
         openOriginal: uploadError?.resourceId == null ? null : openOriginal,
@@ -537,11 +603,12 @@ class _StoryComposePageState extends State<StoryComposePage> {
         } : null,
         newLabel: 'Prepare a new story',
       ),
-      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: !widget.session.protectedStoriesEnabled || busy || handedOff || uploadError?.terminal == true ? null : share,
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: !widget.session.protectedStoriesEnabled || busy || _saving || _saved?.attempted==true || handedOff || uploadError?.terminal == true ? null : share,
         icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt', size: 20),
         label: Text(t_(busy ? 'Sharing...' : error != null && uploadError?.terminal != true ? 'Try again' : 'Share story'))))),
     ])),
   ));
+  }
 }
 
 class _StoryVideoPreview extends StatefulWidget {

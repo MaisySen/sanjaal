@@ -21,6 +21,29 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos lib/room_lifecycle.dart lib/rooms_page.dart test/room_lifecycle_test.dart
       - run: flutter test test/room_lifecycle_test.dart test/room_microphone_test.dart test/call_lifecycle_test.dart test/call_presentation_test.dart --reporter expanded
+      - name: Prove late-token regression catches the removed guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/room_lifecycle.dart /tmp/room_lifecycle.original
+          trap 'cp /tmp/room_lifecycle.original lib/room_lifecycle.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/room_lifecycle.dart')
+          s = p.read_text()
+          before = 'await requestToken();\n  if (!isActive()) return false;'
+          assert s.count(before) == 1
+          p.write_text(s.replace(before, 'await requestToken();'))
+          PY
+          if flutter test test/room_lifecycle_test.dart --plain-name 'closing during delayed token never opens a native connection' --reporter expanded > /tmp/room-negative.log 2>&1; then
+            cat /tmp/room-negative.log
+            echo 'Regression unexpectedly passed with ownership guard removed'
+            exit 1
+          fi
+          cat /tmp/room-negative.log
+          grep -E 'Actual:.*connect' /tmp/room-negative.log
+          cp /tmp/room_lifecycle.original lib/room_lifecycle.dart
+          flutter test test/room_lifecycle_test.dart --reporter expanded
   ios-compile:
     runs-on: macos-latest
     timeout-minutes: 25

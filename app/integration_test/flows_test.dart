@@ -221,7 +221,13 @@ void main() {
       await _type(tester, find.byType(TextField), 'Hello from the emulator run');
       await tester.pump();
       await tester.tap(find.byTooltip('Send message'));
-      await _settle(tester, 6);
+      await _until(tester, find.text('Hello from the emulator run'));
+      for(var i=0;i<48 && find.text('Sending').evaluate().isNotEmpty;i++){
+        await tester.pump(const Duration(milliseconds:250));
+        await tester.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+      }
+      expect(find.text('Sending'), findsNothing, reason:'A local outgoing bubble is not server-confirmed delivery.');
+      expect(find.text('Delivery unconfirmed. Tap to retry.'), findsNothing);
       expect(find.text('Hello from the emulator run'), findsWidgets);
       await binding.takeScreenshot('flow6_chat_sent');
       await tester.pageBack();
@@ -230,14 +236,19 @@ void main() {
     });
     await step('s3', () async {
       await tester.tap(find.widgetWithText(TextButton, 'Live rooms'));
-      await _settle(tester, 6);
+      await _until(tester,find.text('No rooms live right now'));
+      expect(find.byType(CircularProgressIndicator),findsNothing);
       await binding.takeScreenshot('flow8_rooms_list');
       await tester.pageBack();
       await _settle(tester, 3);
     });
     await step('s4', () async {
       await tester.tap(find.text('Wallet'));
-      await _settle(tester, 8);
+      await _until(tester,find.text('Coins'));
+      expect(find.byType(CircularProgressIndicator),findsNothing);
+      expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton,'Add coins')).onPressed,isNull);
+      expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Send')).onPressed,isNull);
+      expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Cash out')).onPressed,isNull);
       await binding.takeScreenshot('flow9_wallet');
     });
     expect(failed, isEmpty, reason: 'failed steps: $failed');

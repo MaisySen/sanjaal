@@ -206,3 +206,41 @@ invariants remain enabled, and all four previously failing tests now pass.
 This settles that fixture defect, not microphone/camera hardware behavior.
 Temporary trace removal and a login-invalidation negative control are the next
 exact-candidate check. Native compilation and physical acceptance remain separate.
+
+
+## Combined checkpoint and registration continuation
+
+The final realtime source f029147 removes temporary traces. Its login-invalidation
+negative control now fails on the intended missing-close assertion and terminates
+cleanly after releasing fixture futures. Restored source passes analysis, 60
+focused tests and 1047 whole-app tests with one intentional live skip:
+https://github.com/MaisySen/sanjaal/actions/runs/44610529190 . This supersedes the
+unfinished negative-control status above, not hardware capture acceptance.
+
+Combined45d6133 completed all seven required CI jobs, including local API and
+PostgreSQL concurrency checks, Android APK/AAB, unsigned iOS compilation,
+fail-closed money refusal and five Android driver journeys:
+https://github.com/MaisySen/sanjaal/actions/runs/44610555992 . The separate exact
+focused/negative-control run also passed:
+https://github.com/MaisySen/sanjaal/actions/runs/44610556277 . Inspected 27 journey
+images show feed/profile, local post/poll/chat, camera/gallery/story, wallet
+unavailable controls and lost-reply/manual-retry recovery. This corrects the
+pre-inspection expectation of 28 images. These are synthetic/local-service
+journeys, not production performance or physical Samsung acceptance. The poll
+native-input driver passed; its final capture has the keyboard dismissed and is
+not itself a screenshot of the visible OS keyboard. No release or preview
+publication ran.
+
+Registration source0f6a2a5 binds the automatic signup-to-login continuation to its
+starting session epoch and latest registration attempt. Late success or failure
+cannot replace a newer same-member/other-member login or reopen logout. An older
+concurrent signup cannot sign in while a newer signup is pending. This is local
+continuation invalidation, not cancellation or rollback of remote account creation.
+Exact analysis, 41 focused and 1054 whole-app tests with one intentional live skip
+passed; removing the epoch check makes the delayed-success replacement test fail
+immediately and restored source passes:
+https://github.com/MaisySen/sanjaal/actions/runs/44612746932 . Provider responses
+are synthetic and no live account was created. The registration change is now
+being integrated; the earlier combined run does not prove this newer runtime.
+Two-platform same-install media restart checks on the45 byte-identical runtime
+remain separate and in progress in run44612540189.

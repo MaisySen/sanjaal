@@ -59,6 +59,7 @@ jobs:
           mkdir -p build/screenshots
           xcrun simctl boot "$IOS_DEVICE" || true
           xcrun simctl bootstatus "$IOS_DEVICE" -b
+          python3 ../.github/ci/ios_capture.py > /tmp/ios-capture.log 2>&1 &
           xcrun simctl io "$IOS_DEVICE" recordVideo build/screenshots/ios-flows.mp4 > /tmp/ios-record.log 2>&1 &
           REC=$!
           set +e
@@ -71,9 +72,9 @@ jobs:
             except subprocess.TimeoutExpired:
               print('iOS drive exceeded15-minute diagnostic bound',flush=True)
               subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/ios-timeout-native.png'])
-              os.killpg(child.pid,signal.SIGTERM)
+              child.terminate()
               try:child.wait(timeout=15)
-              except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL)
+              except subprocess.TimeoutExpired:child.kill()
               code=124
           raise SystemExit(code)
           PYDRIVE

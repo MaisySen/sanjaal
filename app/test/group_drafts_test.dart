@@ -64,6 +64,11 @@ void main(){
   await expectLater(store.save('a',title:'Changed',people:people,expectedRevision:marked.revision),throwsStateError);
   final reset=await store.markAttempt('a',marked,attempted:false);expect(reset.attempted,false);await store.remove('a',reset);expect(await store.read('a'),isNull);
  });
+ test('attempt marking cannot substitute caller-supplied title or people with a known revision',()async{
+  final saved=await store.save('a',title:'Original plan',people:people);
+  final forged=GroupDraft.decode({...saved.toJson(),'title':'Unreviewed plan','people':[{'public_id':'different-id','username':'other','name':'Other'}]});
+  final marked=await store.markAttempt('a',forged);expect(marked.title,'Original plan');expect(marked.people,people);expect(marked.attempted,true);
+ });
  test('malformed index is preserved instead of overwritten or deleted',()async{
   final key='group_draft_v1_${sha256.convert(utf8.encode('a'))}';const secure=FlutterSecureStorage();
   await secure.write(key:key,value:'broken');await expectLater(store.read('a'),throwsFormatException);
@@ -130,13 +135,32 @@ void main(){
    await t.tap(find.byTooltip('Delete saved group draft'));await flush(t);await t.tap(find.text('Delete'));await flush(t);expect(await store.read('a'),isNull);expect(s.posts,0);expect(s.reads,0);expect(t.takeException(),isNull);
   });
  });
+ testWidgets('archive icon for saved group action exists in bundled assets',(t)async{
+  final asset=await rootBundle.loadString('assets/icons/archive.svg');expect(asset,contains('<svg'));
+ });
+ testWidgets('replacement closes a stale saved-group delete dialog without touching storage',(t)async{
+  final saved=await store.save('a',title:'Private group plan',people:people);
+  await fixture(t,(s,reopen)async{
+   await open(t);await t.ensureVisible(find.byTooltip('Delete saved group draft'));await t.tap(find.byTooltip('Delete saved group draft'));await flush(t);expect(find.byType(AlertDialog),findsOneWidget);
+   s.owner='b';await s.login('replacement','not-a-password');await flush(t);
+   expect(find.byType(AlertDialog),findsNothing);expect(find.text('Private group plan'),findsNothing);expect((await store.read('a'))!.revision,saved.revision);expect(s.posts,0);expect(t.takeException(),isNull);
+  });
+ });
  for(final lang in ['en','ne'])for(final mode in [Brightness.light,Brightness.dark]){
   testWidgets('saved group plan large text $lang ${mode.name}',(t)async{
    for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final l=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(File(f.$2).readAsBytesSync())));await l.load();}
    t.view.physicalSize=const Size(320,720);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
    final first=await store.save('a',title:'Weekend meetup',people:people);await store.markAttempt('a',first);
    await fixture(t,(s,reopen)async{
-    await open(t);await t.ensureVisible(find.text(t_('Back to Chats')));await flush(t);expect(s.posts,0);expect(t.takeException(),isNull);
+    await open(t);
+    await t.drag(find.byType(CustomScrollView),const Offset(0,3000));await flush(t);
+    final openButton=find.byTooltip(t_('Open saved group draft'));expect(t.getRect(openButton).left,greaterThanOrEqualTo(0));expect(t.getRect(openButton).right,lessThanOrEqualTo(320));
+    await t.ensureVisible(find.byTooltip(t_('Delete saved group draft')));await flush(t);
+    expect(t.getRect(find.byTooltip(t_('Delete saved group draft'))).bottom,lessThan(650));
+    expect(t.takeException(),isNull);
+    await t.runAsync(()async{final image=await t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('group-draft-shot'))).toImage(pixelRatio:2);final data=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/group_draft_top_${lang}_${mode.name}.png').writeAsBytesSync(data!.buffer.asUint8List());});
+    await t.tap(find.byTooltip(t_('Delete saved group draft')));await flush(t);expect(find.byType(AlertDialog),findsOneWidget);await t.tap(find.text(t_('Keep')));await flush(t);expect(await store.read('a'),isNotNull);
+    await t.ensureVisible(find.text(t_('Back to Chats')));await flush(t);expect(s.posts,0);expect(t.takeException(),isNull);
     await t.runAsync(()async{final image=await t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('group-draft-shot'))).toImage(pixelRatio:2);final data=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/group_draft_${lang}_${mode.name}.png').writeAsBytesSync(data!.buffer.asUint8List());});
    },lang:lang,mode:mode,large:true);
   });

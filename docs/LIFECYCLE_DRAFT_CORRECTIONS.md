@@ -354,3 +354,47 @@ runtime/vendor layer only after composer.lock equality, removes old source trees
 and verifies every tracked API file byte-for-byte in the new image. It then runs
 money refusal and malformed-group-ID controller rejection with networking off.
 This is not a deployed image and does not replace PostgreSQL acceptance.
+
+
+8fffe536e876a9fd5566e482adbc89b6b02033f9 settled all seven required jobs,
+with release skipped. The current-source API passed184 tests/2 environment
+skips twice on SQLite,186 tests twice on PostgreSQL18 including cached routes,
+and21 separate concurrent invariants. Its locally built, unpublished current
+image passed exact tracked-file integrity, dependency-lock equality, three
+networkless money refusals and four malformed-group-ID controller refusals.
+Historical timing image parity remains explicitly the older dcbb image/source
+comparison, not the new API's runtime acceptance. The focused app suite passed
+251 cases, all1104 restored full-suite tests/1 live skip, and four deliberate
+guard-removal controls. All28 native journey PNGs were visually inspected,
+including synchronized OS poll keyboard, camera/recording/gallery/story,
+wallet-off and manual lost-reply retry captures. This is synthetic local API
+and emulator evidence, not production, physical Samsung or release permission.
+
+4338be1 group's Android same-install recovery passed and all three PNGs were
+inspected. UID10192 and package path survived force-stop; the archive Open icon
+is visible, uncertain Create disabled, and explicit local delete clears the
+plan. It seeds the native store directly; user Save UI continuity is separate.
+Its first iOS attempt was still running at this checkpoint. New UI-Save plus
+simulated-lost-creation-reply native coverage is prepared, not yet executed.
+
+4338be1 iOS first attempt also passed: seedPID28839 was verified absent before
+recoveryPID30646, one installation with unchanged app/data containers. All three
+synchronized OS PNGs were inspected. Archive icon, entire uncertain warning,
+Back to Chats and disabled Create are visible; deletion clears the local plan.
+The delete-state image includes the OS keyboard onboarding panel, so it is not
+full-screen layout acceptance. This remains direct-store-seed native recovery,
+not the end-user Save-to-process-death path or physical Samsung acceptance.
+
+
+Private photo route/cache retirement81ee53f passed49 focused cases and1118
+full-suite tests/1 live-only skip. Same/other login, pending failed login, logout,
+Session-object replacement and delayed bytes are covered. Old provider cache
+keys include opening generation and stale obtainKey cannot use decoded cache.
+Decode completion also checks generation before returning. Private chat pushes
+a SessionBoundState viewer rather than the generic public photo route. All four
+2x large English/Nepali light/dark retired-view PNGs were visually inspected;
+no private image pixels remained and full notice fits. Removing the private
+route boundary fails the loaded-photo same-login test; restored14 tests pass.
+Existing downloader epoch control fails as intended. These are synthetic HTTP,
+widget/cache tests, not native decoder, screenshots erasure or physical proof.
+This new source is being combined with8ff and requires fresh combined checks.

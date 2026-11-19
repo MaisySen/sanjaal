@@ -51,9 +51,9 @@ void main(){
    await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('auth-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/auth_top_${register?'register':'signin'}_${lang}_${mode.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
    final fields=find.byType(TextFormField);
    for(var i=0;i<fields.evaluate().length;i++){
-     final field=fields.at(i);await t.ensureVisible(field,alignment:0.25);await t.pumpAndSettle();
+     final field=fields.at(i);await Scrollable.ensureVisible(t.element(field),alignment:0.25);await t.pumpAndSettle();
      await t.tap(field);await t.pumpAndSettle();
-     await t.ensureVisible(field,alignment:0.25);await t.pumpAndSettle();
+     await Scrollable.ensureVisible(t.element(field),alignment:0.25);await t.pumpAndSettle();
      expect(field.hitTestable(),findsOneWidget);
      expect(t.getRect(field).top,greaterThanOrEqualTo(16),reason:'floating field label must have room above the input');
      expect(t.getRect(field).bottom,lessThanOrEqualTo(400),reason:'field must remain above keyboard');

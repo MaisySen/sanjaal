@@ -93,7 +93,7 @@ void main(){
   expect(find.text(t_('Open device settings')),findsNothing);expect(find.text(t_('Try again')),findsNothing);
   expect(find.text(t_('Camera or microphone access is restricted on this device. You may need help from the person who manages it. You can still choose media from your library.')),findsOneWidget);
   expect(t.takeException(),isNull);await shot(t,'restricted_${code}_$language');
-  await t.tap(find.widgetWithText(TextButton,t_('Close camera')));await flush(t);expect(find.byType(CapturePage),findsNothing);
+  await t.tap(find.widgetWithText(TextButton,t_('Close camera')));await flush(t);await t.pumpAndSettle();expect(find.byType(CapturePage),findsNothing);
  });
  }}
  testWidgets('failed settings launch keeps camera recovery available',(t)async{

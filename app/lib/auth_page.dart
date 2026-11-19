@@ -73,6 +73,7 @@ class _AuthPageState extends State<AuthPage> {
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
+              child: AutofillGroup(
               child: Form(
                 key: _form,
                 child: Column(
@@ -91,7 +92,9 @@ class _AuthPageState extends State<AuthPage> {
                       autocorrect: false,
                       textInputAction: TextInputAction.next,
                       keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
+                      autofillHints: [register ? AutofillHints.email : AutofillHints.username],
+                      textCapitalization: TextCapitalization.none,
+                      enableSuggestions: false,
                       decoration: InputDecoration(labelText: t_(register ? 'Email' : 'Email or username'), floatingLabelBehavior: FloatingLabelBehavior.always, errorMaxLines: 4, border: const OutlineInputBorder()),
                       validator: (v) {
                         final t = (v ?? '').trim();
@@ -104,6 +107,9 @@ class _AuthPageState extends State<AuthPage> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _username,
+                        autofillHints: const [AutofillHints.newUsername],
+                        textCapitalization: TextCapitalization.none,
+                        enableSuggestions: false,
                         enabled: !busy,
                         autocorrect: false,
                         textInputAction: TextInputAction.next,
@@ -114,6 +120,9 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _password,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textCapitalization: TextCapitalization.none,
                       enabled: !busy,
                       textInputAction: TextInputAction.done,
                       obscureText: !showPassword,
@@ -154,6 +163,7 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
           ),

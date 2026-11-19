@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     tags: ['v*']
-    branches: ['**', '!ios-platform-readiness']
+    branches: ['**', '!ios-platform-readiness', '!ios-auth-inputs']
   pull_request:
 
 jobs:

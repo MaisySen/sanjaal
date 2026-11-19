@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -24,6 +25,27 @@ Future<void> setup(WidgetTester t,Future<void> Function() body,{Future<http.Resp
 Future<void> tap(WidgetTester t,Finder f)async{await t.ensureVisible(f);await t.pumpAndSettle();await t.tap(f);await flush(t);}
 void main(){
  setUpAll(()async{for(final x in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final l=FontLoader(x.$1)..addFont(Future.value(ByteData.sublistView(File(x.$2).readAsBytesSync())));await l.load();}});
+ for(final register in [false,true]) {
+ testWidgets('iOS autofill groups credentials and keyboard next reaches password register=$register',(t)async{
+  debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
+  addTearDown(()=>debugDefaultTargetPlatformOverride=null);
+  await setup(t,()async{
+   expect(find.byType(AutofillGroup),findsOneWidget);
+   final fields=find.byType(EditableText);
+   expect(t.widget<EditableText>(fields.first).autofillHints,contains(register?AutofillHints.email:AutofillHints.username));
+   if(register)expect(t.widget<EditableText>(fields.at(1)).autofillHints,contains(AutofillHints.newUsername));
+   final password=t.widget<EditableText>(fields.last);
+   expect(password.autocorrect,isFalse);expect(password.enableSuggestions,isFalse);
+   expect(password.autofillHints,contains(register?AutofillHints.newPassword:AutofillHints.password));
+   await t.tap(find.byType(TextFormField).first);await flush(t);
+   for(var i=0;i<(register?2:1);i++){
+    await t.testTextInput.receiveAction(TextInputAction.next);await flush(t);
+   }
+   expect(t.widget<EditableText>(fields.last).focusNode.hasFocus,isTrue);
+   expect(t.takeException(),isNull);
+  },register:register);
+ });
+ }
  testWidgets('invalid registration does not call the network and labels are localized',(t)async{
   await setup(t,()async{await tap(t,find.widgetWithText(FilledButton,'खाता बनाउनुहोस्'));expect(find.text('आवश्यक छ'),findsOneWidget);expect(find.text('कम्तीमा ८ अक्षर'),findsOneWidget);expect(find.text('इमेल'),findsWidgets);expect(t.takeException(),isNull);},register:true,lang:'ne');
  });

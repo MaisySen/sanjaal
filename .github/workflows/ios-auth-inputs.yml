@@ -1,0 +1,29 @@
+name: iOS auth input checks
+on:
+  push:
+    branches: [ios-auth-inputs]
+permissions:
+  contents: read
+jobs:
+  auth-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/auth_page.dart test/auth_journey_test.dart
+      - run: flutter test test/auth_journey_test.dart --reporter expanded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-auth-input-renders
+          path: app/test/renders/auth_*.png
+          retention-days: 7

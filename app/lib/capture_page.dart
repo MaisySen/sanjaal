@@ -446,7 +446,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                     if (error != null)
                       Center(
                         child: Padding(
-                          padding: const EdgeInsets.all(28),
+                          padding: const EdgeInsets.fromLTRB(28, 76, 28, 24),
                           child: SingleChildScrollView(child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -584,7 +584,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                    if (recovered == null)
+                    if (recovered == null && error == null)
                       Positioned(
                         left: 0,
                         right: 0,

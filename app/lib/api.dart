@@ -348,6 +348,8 @@ class Session extends ChangeNotifier {
 
   Future<void> login(String id, String password) async {
     _sessionEpoch++;
+    // Retire account-bound views/capture before waiting for replacement auth.
+    notifyListeners();
     _home = null;
     _homeData = null;
     _refreshingAccess = null;
@@ -366,6 +368,7 @@ class Session extends ChangeNotifier {
   /// for example google-oauth2 or facebook. Uses Auth0 development keys until we have our own.
   Future<void> loginSocial(String connection) async {
     final epoch = ++_sessionEpoch;
+    notifyListeners();
     _refreshingAccess = null;
     final rnd = Random.secure();
     final verifier = base64UrlEncode(List<int>.generate(48, (_) => rnd.nextInt(256))).replaceAll('=', '');

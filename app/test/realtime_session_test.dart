@@ -43,6 +43,19 @@ void main(){
  Future<void> setup(Future<void> Function(FixtureSession) work)async{
   await http.runWithClient(()async{final s=FixtureSession();await s.login('fixture','not-a-password');await work(s);},()=>MockClient((_)async=>http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200)));
  }
+ testWidgets('pending failed replacement login immediately retires capture ownership',(t)async{
+  var grants=0;final auth=Completer<http.Response>();final gate=Completer<void>();final steps=<String>[];
+  await http.runWithClient(()async{
+   final s=FixtureSession();await s.login('first','not-a-password');
+   await t.pumpWidget(MaterialApp(home:OwnedSetup(session:s,gate:gate,steps:steps,room:false)));await flush(t);
+   final replacement=s.login('replacement','not-a-password');
+   final rejected=expectLater(replacement,throwsA(isA<ApiError>()));await flush(t);
+   expect(steps,['token','connect','close']);expect(find.textContaining('another signed-in session'),findsOneWidget);
+   gate.complete();auth.complete(http.Response(jsonEncode({'error_description':'Synthetic rejection'}),403));await rejected;await flush(t);
+   expect(steps,['token','connect','close']);expect(find.textContaining('another signed-in session'),findsOneWidget);expect(t.takeException(),isNull);
+   await t.pumpWidget(const SizedBox());
+  },()=>MockClient((_)async=>++grants==1?http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200):auth.future));
+ });
  for(final same in [false,true])for(final page in ['calls','rooms','incoming','call','room']){
  testWidgets('$page drops late account data on ${same?'same':'other'} member replacement',(t)async{
   final pending=Completer<dynamic>();

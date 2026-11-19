@@ -25,7 +25,7 @@ class UploadCenter extends ChangeNotifier {
   String? _owner;
   late int _sessionGeneration;
   int _epoch = 0;
-  int get generation => _epoch;
+  int get generation => _epoch + session.generation;
   int revision = 0;
   final confirmedPosts = <Map<String, dynamic>>[];
   final confirmedStories = <Map<String, dynamic>>[];
@@ -55,18 +55,18 @@ class UploadCenter extends ChangeNotifier {
     unawaited(_recover());
   }
   Future<void> _recover() async {
-    final account = owner; final epoch = _epoch;
+    final account = owner; final epoch = generation;
     _localId = null;
     try {
       final saved = account == null ? null : await store.read(account);
-      if (epoch != _epoch) return;
+      if (epoch != generation) return;
       if (saved != null) {
         _localId = saved['id'] as String; kind = saved['kind'] as String;
         error = UploadError('An earlier upload may already be posted. Check your profile before starting another.', uncertain: true);
       }
     } catch (_) {
-      if (epoch == _epoch) error = UploadError('Earlier upload safety info could not be read. Uploading is paused.', uncertain: true);
-    } finally { if (epoch == _epoch) { restoring = false; notifyListeners(); } }
+      if (epoch == generation) error = UploadError('Earlier upload safety info could not be read. Uploading is paused.', uncertain: true);
+    } finally { if (epoch == generation) { restoring = false; notifyListeners(); } }
   }
   bool start(String type, Future<Map<String, dynamic>> Function() original) {
     if (occupied || owner == null || !['post','reel','story'].contains(type)) return false;
@@ -76,7 +76,7 @@ class UploadCenter extends ChangeNotifier {
   }
   Future<void> _run() async {
     if (busy || restoring || _original == null) return;
-    final epoch = _epoch;
+    final epoch = generation;
     final original = _original!;
     final markerId = _localId!;
     final markerKind = kind!;
@@ -89,9 +89,9 @@ class UploadCenter extends ChangeNotifier {
       // Persist before even file preparation can hand work to the network.
       try { await store.write(account, markerId, markerKind); }
       catch (_) { throw ApiError('Upload safety info could not be saved. Nothing was sent.'); }
-      if (epoch != _epoch) return;
+      if (epoch != generation) return;
       final value = await original();
-      if (epoch != _epoch) return;
+      if (epoch != generation) return;
       bool text(Object? v) => v is String && v.trim().isNotEmpty;
       final author = value['author'];
       final valid = text(value['public_id']) && (kind == 'story'
@@ -108,9 +108,9 @@ class UploadCenter extends ChangeNotifier {
       try { await store.clear(account, expectedId: markerId); }
       catch (_) { throw UploadError('Your upload was confirmed, but its safety info could not be cleared. Open the original before starting another.', resourceId: value['public_id'] as String, uncertain: true); }
     } catch (e) {
-      if (epoch == _epoch) error = e;
+      if (epoch == generation) error = e;
     } finally {
-      if (epoch == _epoch) { busy = false; preparing = false; notifyListeners(); }
+      if (epoch == generation) { busy = false; preparing = false; notifyListeners(); }
     }
   }
   void sending() { preparing = false; notifyListeners(); }
@@ -118,27 +118,27 @@ class UploadCenter extends ChangeNotifier {
   /// Explicit dismissal discards the in-memory failed draft, never resends it.
   Future<void> dismiss() async {
     if (busy || restoring) return;
-    final account = owner; final epoch = _epoch;
+    final account = owner; final epoch = generation;
     final markerId = _localId;
     restoring = true; notifyListeners();
     try { if (account != null) await store.clear(account, expectedId: markerId); }
     catch (_) {
-      if (epoch == _epoch) { restoring = false; error = UploadError('Upload safety info could not be cleared. Uploading is paused.', uncertain: true); notifyListeners(); }
+      if (epoch == generation) { restoring = false; error = UploadError('Upload safety info could not be cleared. Uploading is paused.', uncertain: true); notifyListeners(); }
       return;
     }
-    if (epoch != _epoch) return;
+    if (epoch != generation) return;
     restoring = false; error = null; result = null; _original = null; kind = null; _localId = null;
     notifyListeners();
   }
   Future<void> openOriginal(BuildContext context) async {
     final id = (error is UploadError ? (error as UploadError).resourceId : null) ?? result?['public_id'];
     if (id == null || openingOriginal) return;
-    final epoch = _epoch;
+    final epoch = generation;
     openingOriginal = true; notifyListeners();
     try {
       if (kind != 'story') { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: session, postId: id))); return; }
       final value = await session.call('GET', '/stories');
-      if (epoch != _epoch || !context.mounted) return;
+      if (epoch != generation || !context.mounted) return;
       if (value is! Map || value['data'] is! List) throw ApiError('Could not read stories. Try again.');
       Map<String,dynamic>? matching;
       for (final item in value['data'] as List) {
@@ -155,8 +155,8 @@ class UploadCenter extends ChangeNotifier {
         return;
       }
       if (context.mounted) showInfo(context, t_('The original story was removed or expired.'));
-    } catch (e) { if (epoch == _epoch && context.mounted) showError(context, e); }
-    finally { if (epoch == _epoch) { openingOriginal = false; notifyListeners(); } }
+    } catch (e) { if (epoch == generation && context.mounted) showError(context, e); }
+    finally { if (epoch == generation) { openingOriginal = false; notifyListeners(); } }
   }
 }
 

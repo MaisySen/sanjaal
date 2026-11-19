@@ -175,6 +175,27 @@ void main(){
    expect(c.error,isA<UploadError>(),reason:'existing uncertainty marker remains until explicitly checked');
   });
  });
+ testWidgets('upload preparation is invalidated as soon as a replacement login starts',(t)async{
+  final response=Completer<http.Response>();final prepared=Completer<void>();var tokenReads=0,sends=0;
+  SharedPreferences.setMockInitialValues({});
+  await http.runWithClient(()async{
+   final s=Session();await s.login('fixture','not-a-password');final c=UploadCenter.of(s);await flush(t);
+   final generation=c.generation;
+   c.start('post',()async{
+    await prepared.future;
+    if(c.generation!=generation)throw ApiError('Please sign in again.',401);
+    sends++;return post('must-not-send');
+   });await flush(t);
+   final login=s.login('replacement','not-a-password');
+   prepared.complete();await flush(t);
+   expect(sends,0);expect(c.result,isNull);expect(c.confirmedPosts,isEmpty);
+   response.complete(json({'access_token':'replacement','expires_in':3600}));await login;await flush(t);
+   expect(c.canRetry,isFalse);expect(c.error,isA<UploadError>());
+  },()=>MockClient((r)async{
+   if(r.url.path.endsWith('/oauth/token')){if(++tokenReads>1)return response.future;return json({'access_token':'fixture','expires_in':3600});}
+   return json({'user':{'public_id':'me','username':'fixture'}});
+  }));
+ });
  testWidgets('same-account new login ignores an earlier success callback',(t)async{
   final reply=Completer<Map<String,dynamic>>();
   await fixture(t,(s,c)async{

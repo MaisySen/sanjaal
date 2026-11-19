@@ -1,7 +1,7 @@
-name: Follow-through native compilation
+name: Creator and chat native compilation
 on:
   push:
-    branches: [signout-native-compile]
+    branches: [creator-chat-native-compile]
 permissions:
   contents: read
 jobs:
@@ -31,7 +31,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable

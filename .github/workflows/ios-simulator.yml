@@ -42,6 +42,7 @@ jobs:
           curl --retry 5 --retry-connrefused --retry-delay 1 -s http://localhost:8000/api/v1/auth/me -H 'Accept: application/json'
       - name: Select and boot available iPhone simulator
         run: |
+          defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
           xcrun simctl list devices available --json > /tmp/ios-devices.json
           python3 - <<'PY'
           import json,os

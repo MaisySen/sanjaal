@@ -96,6 +96,16 @@ void main(){
   await t.tap(find.widgetWithText(TextButton,t_('Close camera')));await flush(t);await t.pumpAndSettle();expect(find.byType(CapturePage),findsNothing);
  });
  }}
+ for(final language in ['en','ne']) {
+ testWidgets('denied permission settings action stays readable $language',(t)async{
+  final device=FakeCamera()..failure=camera.CameraException('CameraAccessDeniedWithoutPrompt','fixture');
+  await start(t,CapturePage(deviceFactory:(_,_)=>device,openSettings:()async{}),scale:1.8,language:language);
+  expect(find.bySemanticsLabel(t_('Take a photo')),findsNothing);
+  final action=find.widgetWithText(FilledButton,t_('Open device settings'));
+  await t.ensureVisible(action);await t.pumpAndSettle();expect(action.hitTestable(),findsOneWidget);expect(t.takeException(),isNull);
+  await shot(t,'denied_settings_$language');
+ });
+ }
  testWidgets('failed settings launch keeps camera recovery available',(t)async{
   final device=FakeCamera()..failure=camera.CameraException('CameraAccessDeniedWithoutPrompt','fixture');
   await start(t,CapturePage(deviceFactory:(_,_)=>device,openSettings:()async{throw StateError('fixture');}));

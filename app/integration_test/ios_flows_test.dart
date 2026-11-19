@@ -29,8 +29,15 @@ Future<void> stage(String value) async {
 }
 void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+ Future<void> capture(String name) async {
+  final result=await binding.takeScreenshot(name);
+  final bytes=(result['data'] as List).cast<int>();
+  final dir=await getTemporaryDirectory();
+  final evidence=Directory('${dir.path}/ios-evidence');await evidence.create(recursive:true);
+  await File('${evidence.path}/$name.png').writeAsBytes(bytes,flush:true);
+ }
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
-  addTearDown(() async {try {await binding.takeScreenshot('ios_test_teardown');}catch(_) {}});
+  addTearDown(() async {try {await capture('ios_test_teardown');}catch(_) {}});
   await stage('start');
   expect(Platform.isIOS,isTrue);
   final p=await SharedPreferences.getInstance();await p.clear();
@@ -67,12 +74,12 @@ void main(){
   expect(nativePoster,isNotNull);
   await t.pumpWidget(MaterialApp(home:Scaffold(appBar:AppBar(title:const Text('iOS native video poster')),body:Center(child:Image.memory(nativePoster!)))));
   await until(t,()=>t.widgetList<RawImage>(find.byType(RawImage)).any((image)=>image.image!=null));
-  await binding.takeScreenshot('ios_native_avfoundation_poster');
+  await capture('ios_native_avfoundation_poster');
   await stage('app start');
   app.main();
   await until(t,()=>find.textContaining('Sunrise over Phewa').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
-  await binding.takeScreenshot('ios_home');
+  await capture('ios_home');
   await stage('five tabs');
   for(final tab in ['Reels','Chats','Wallet','Me','Home']) {
    await t.tap(find.text(tab).last);
@@ -81,7 +88,7 @@ void main(){
    // A predicate can observe rebuilt widgets before the native frame/route
    // transition is presented. Settle that presentation before capturing.
    await t.pump(const Duration(milliseconds:600));
-   await binding.takeScreenshot('ios_tab_${tab.toLowerCase()}');
+   await capture('ios_tab_${tab.toLowerCase()}');
   }
   await stage('session restore');
   final session=Session();await t.runAsync(()=>session.restore());
@@ -95,10 +102,10 @@ void main(){
   await until(t,()=>find.byType(TextField).evaluate().isNotEmpty);
   final caption='iOS simulator local post ${DateTime.now().millisecondsSinceEpoch}';
   await t.tap(find.byType(TextField).first);await t.enterText(find.byType(TextField).first,caption);
-  await t.pump(const Duration(milliseconds:400));await binding.takeScreenshot('ios_post_test_text_input');
+  await t.pump(const Duration(milliseconds:400));await capture('ios_post_test_text_input');
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   await until(t,()=>find.text(caption).evaluate().isNotEmpty&&find.text('Your post is up.').evaluate().isNotEmpty);
-  await binding.takeScreenshot('ios_post_confirmed');
+  await capture('ios_post_confirmed');
   await stage('chat navigation');
   await t.tap(find.text('Chats').last);
   await until(t,()=>find.byTooltip('New chat').evaluate().isNotEmpty);
@@ -116,7 +123,7 @@ void main(){
   await t.tap(messageField);await t.pump(const Duration(milliseconds:300));
   await t.enterText(messageField,message);await t.pump(const Duration(milliseconds:400));
   expect(t.widget<TextField>(messageField).controller!.text,message);
-  await binding.takeScreenshot('ios_chat_before_send');
+  await capture('ios_chat_before_send');
   expect(find.byTooltip('Send message').hitTestable(),findsOneWidget);
   await stage('send tap');
   await t.tap(find.byTooltip('Send message'));
@@ -125,21 +132,21 @@ void main(){
   await until(t,()=>find.text(message).evaluate().isNotEmpty && find.text('Sending').evaluate().isEmpty);
   expect(find.text('Delivery unconfirmed. Tap to retry.'),findsNothing);
   await t.pump(const Duration(milliseconds:600));
-  await binding.takeScreenshot('ios_chat_server_confirmed');
+  await capture('ios_chat_server_confirmed');
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
   await stage('rooms navigation');
   await t.tap(find.widgetWithText(TextButton,'Live rooms'));
   await until(t,()=>find.text('No rooms live right now').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
-  await binding.takeScreenshot('ios_rooms_loaded');
+  await capture('ios_rooms_loaded');
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
   await t.tap(find.text('Me').last);
   await until(t,()=>find.byTooltip('Settings').evaluate().isNotEmpty);
   await stage('settings navigation');
   await t.tap(find.byTooltip('Settings'));
-  await until(t,()=>find.text('Settings').evaluate().isNotEmpty);
+  await until(t,()=>find.text('Settings and activity').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
-  await binding.takeScreenshot('ios_settings');
+  await capture('ios_settings');
   await stage('logout');
   await t.runAsync(()=>session.logout());expect(await RefreshStore.read(),isNull);
   expect(p.getString('refresh_token'),isNull);

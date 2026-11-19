@@ -92,6 +92,7 @@ jobs:
             CONTAINER=$(xcrun simctl get_app_container "$IOS_DEVICE" au.fintex.sanjaal data 2>/dev/null || true)
             if [ -n "$CONTAINER" ]; then
               find "$CONTAINER" -name ios-stages.log -exec cp {} build/screenshots/ios-stages.log \; || true
+              find "$CONTAINER" -type d -name ios-evidence -exec cp -R {} build/screenshots/ \; || true
             fi
           fi
       - uses: actions/upload-artifact@v4

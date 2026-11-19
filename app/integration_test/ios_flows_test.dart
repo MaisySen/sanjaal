@@ -33,7 +33,7 @@ void main(){
  binding.framePolicy=LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
  Future<void> capture(String name) async {
   await binding.endOfFrame;
-  await Future<void>.delayed(const Duration(milliseconds:500));
+  await binding.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:500)));
   final result=await binding.takeScreenshot(name);
   final bytes=result;
   final dir=await getTemporaryDirectory();

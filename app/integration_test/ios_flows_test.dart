@@ -23,9 +23,15 @@ Future<void> until(WidgetTester t, bool Function() ready) async {
   }
   throw TestFailure('iOS local flow did not settle. Visible: ${t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().take(35).toList()}');
 }
+Future<void> stage(String value) async {
+ final dir=await getTemporaryDirectory();
+ await File('${dir.path}/ios-stages.log').writeAsString('${DateTime.now().toIso8601String()} $value\n',mode:FileMode.append,flush:true);
+}
 void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
+  addTearDown(() async {try {await binding.takeScreenshot('ios_test_teardown');}catch(_) {}});
+  await stage('start');
   expect(Platform.isIOS,isTrue);
   final p=await SharedPreferences.getInstance();await p.clear();
   await RefreshStore.clear();
@@ -38,6 +44,7 @@ void main(){
   await drafts.remove('ios-synthetic-owner',draft.id);
   // Actual iOS video plugin and native AVFoundation poster method. The clip
   // is generated synthetic test media served by this job's local API only.
+  await stage('native video start');
   final nativePoster=await t.runAsync(() async {
     final r=await http.get(Uri.parse('${const String.fromEnvironment('E2E_TOKEN_BASE')}/ios-native-fixture.mp4'));
     expect(r.statusCode,200);
@@ -61,10 +68,12 @@ void main(){
   await t.pumpWidget(MaterialApp(home:Scaffold(appBar:AppBar(title:const Text('iOS native video poster')),body:Center(child:Image.memory(nativePoster!)))));
   await until(t,()=>t.widgetList<RawImage>(find.byType(RawImage)).any((image)=>image.image!=null));
   await binding.takeScreenshot('ios_native_avfoundation_poster');
+  await stage('app start');
   app.main();
   await until(t,()=>find.textContaining('Sunrise over Phewa').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
   await binding.takeScreenshot('ios_home');
+  await stage('five tabs');
   for(final tab in ['Reels','Chats','Wallet','Me','Home']) {
    await t.tap(find.text(tab).last);
    await until(t,()=>find.byType(CircularProgressIndicator).evaluate().isEmpty);
@@ -74,8 +83,10 @@ void main(){
    await t.pump(const Duration(milliseconds:600));
    await binding.takeScreenshot('ios_tab_${tab.toLowerCase()}');
   }
+  await stage('session restore');
   final session=Session();await t.runAsync(()=>session.restore());
   expect(session.user?['name'],'Synthetic Member');
+  await stage('post composer');
   await t.tap(find.byTooltip('Post'));
   await until(t,()=>find.text('Post').evaluate().isNotEmpty);
   await until(t,()=>find.text('Continue').evaluate().isNotEmpty);
@@ -88,29 +99,35 @@ void main(){
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   await until(t,()=>find.text(caption).evaluate().isNotEmpty&&find.text('Your post is up.').evaluate().isNotEmpty);
   await binding.takeScreenshot('ios_post_confirmed');
+  await stage('chat navigation');
   await t.tap(find.text('Chats').last);
   await until(t,()=>find.byTooltip('New chat').evaluate().isNotEmpty);
   await t.tap(find.byTooltip('New chat'));
   await until(t,()=>find.byType(TextField).evaluate().isNotEmpty);
   await t.enterText(find.byType(TextField).first,'asha');
   await until(t,()=>find.text('Asha Gurung').evaluate().isNotEmpty);
+  await stage('member selected');
   await t.tap(find.text('Asha Gurung').first);
   await until(t,()=>find.byTooltip('Send message').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
   const message='iOS simulator server-confirmed local message';
+  await stage('message input');
   final messageField=find.widgetWithText(TextField,'Message');
   await t.tap(messageField);await t.pump(const Duration(milliseconds:300));
   await t.enterText(messageField,message);await t.pump(const Duration(milliseconds:400));
   expect(t.widget<TextField>(messageField).controller!.text,message);
   await binding.takeScreenshot('ios_chat_before_send');
   expect(find.byTooltip('Send message').hitTestable(),findsOneWidget);
+  await stage('send tap');
   await t.tap(find.byTooltip('Send message'));
   await t.pump(const Duration(milliseconds:400));
+  await stage('await confirmed message');
   await until(t,()=>find.text(message).evaluate().isNotEmpty && find.text('Sending').evaluate().isEmpty);
   expect(find.text('Delivery unconfirmed. Tap to retry.'),findsNothing);
   await t.pump(const Duration(milliseconds:600));
   await binding.takeScreenshot('ios_chat_server_confirmed');
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
+  await stage('rooms navigation');
   await t.tap(find.widgetWithText(TextButton,'Live rooms'));
   await until(t,()=>find.text('No rooms live right now').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
@@ -118,12 +135,15 @@ void main(){
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
   await t.tap(find.text('Me').last);
   await until(t,()=>find.byTooltip('Settings').evaluate().isNotEmpty);
+  await stage('settings navigation');
   await t.tap(find.byTooltip('Settings'));
   await until(t,()=>find.text('Settings').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
   await binding.takeScreenshot('ios_settings');
+  await stage('logout');
   await t.runAsync(()=>session.logout());expect(await RefreshStore.read(),isNull);
   expect(p.getString('refresh_token'),isNull);
+  await stage('complete');
   await t.pumpWidget(const SizedBox());
   print('iOS simulator local keychain/draft/restore/five-tab/post checks passed; no live service or physical iPhone proof.');
  });

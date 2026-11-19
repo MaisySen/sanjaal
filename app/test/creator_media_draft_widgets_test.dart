@@ -24,30 +24,35 @@ class CapturedMediaSession extends Session {
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
  late Directory root;
- setUp(()async{
+ setUp((){
   prefs.lang='en';
-  root=await Directory.systemTemp.createTemp('media-ui-test-');
+  root=Directory.systemTemp.createTempSync('media-ui-test-');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('plugins.flutter.io/path_provider'),(call)async=>root.path);
  });
- tearDown(()async{
+ tearDown((){
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('plugins.flutter.io/path_provider'),null);
-  await root.delete(recursive:true);
+  root.deleteSync(recursive:true);
  });
  Future<(CreatorMediaDraft,List<XFile>)> seed({bool attempted=false,bool video=false})async{
+  print('MEDIA_UI seed start');
   final source=File(video?'test/fixtures/ios_synthetic_video.mp4':'test/fixtures/ridge.png');
   const store=CreatorMediaDraftStore();
   var draft=await store.save('a',text:'A saved community moment',video:video,files:[XFile(source.path)]);
+  print('MEDIA_UI encrypted seed saved');
   if(attempted)draft=await store.attempted('a',draft,value:true);
+  print('MEDIA_UI seed opening');
   return (draft,await store.open('a',draft));
  }
  testWidgets('restored media edit must be saved before manual Post',(t)async{
   final data=(await t.runAsync(()=>seed()))!;
   final session=Session()..user={'public_id':'a'};
   await t.pumpWidget(MaterialApp(home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2)));
+  print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
   expect(find.byType(Image),findsWidgets);
   await t.enterText(find.byType(TextField),'Changed caption');
   await t.tap(find.widgetWithText(FilledButton,'Post'));
+  print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
   expect(find.textContaining('Save media changes before posting'),findsOneWidget);
   expect((await const CreatorMediaDraftStore().read('a')).single.attempted,isFalse);
@@ -59,12 +64,14 @@ void main(){
   final source=File('${root.path}/picker.png');await t.runAsync(()=>source.writeAsBytes(original));
   final session=CapturedMediaSession()..user={'public_id':'a'};
   await t.pumpWidget(MaterialApp(home:ComposePage(session:session,backgroundUpload:true,initialMediaDraft:data.$1,savedMediaFiles:[XFile(source.path)])));
+  print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
   await t.runAsync(()=>source.writeAsString('picker changed after saving'));
   await t.runAsync(()async{
    await t.tap(find.widgetWithText(FilledButton,'Post'));
    for(var i=0;i<100 && session.sent==null;i++){await Future<void>.delayed(const Duration(milliseconds:20));}
   });
+  print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
   expect(session.sent,isNotNull);expect(session.guarded,isTrue);
   expect(session.sent!.single.bytes,original);
@@ -75,10 +82,12 @@ void main(){
   final data=(await t.runAsync(()=>seed(attempted:true,video:true)))!;
   final session=Session()..user={'public_id':'a'};
   await t.pumpWidget(MaterialApp(home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2)));
+  print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
   expect(find.text('media.mp4'),findsOneWidget);
   expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
   await t.tap(find.text('Prepare a separate upload'));
+  print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
   expect((await const CreatorMediaDraftStore().read('a')).single.toJson(),data.$1.toJson());
   await t.pumpWidget(const SizedBox());
@@ -94,7 +103,8 @@ void main(){
    final key=GlobalKey();
    final session=Session()..user={'public_id':'a'};
    await t.pumpWidget(RepaintBoundary(key:key,child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(brightness,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:const TextScaler.linear(1.6),viewInsets:const EdgeInsets.only(bottom:240)),child:w!),home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2))));
-   await t.pumpAndSettle();
+   print('MEDIA_UI pump settle');
+  await t.pumpAndSettle();
    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,t_('Post'))).onPressed,isNull);
    expect(t.takeException(),isNull);
    await t.runAsync(()async{

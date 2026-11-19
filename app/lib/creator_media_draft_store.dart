@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
@@ -97,6 +98,17 @@ class CreatorMediaDraftStore {
       }
     }
   }
+  // Pure-Dart AES does synchronous work internally, despite its Future API.
+  // Keep bounded large-file crypto and verification off the editor isolate.
+  static Future<Uint8List> _encrypt(Uint8List bytes,List<int> key,List<int> aad)=>Isolate.run(()async{
+    final box=await AesGcm.with256bits().encrypt(bytes,secretKey:SecretKey(key),aad:aad);
+    return box.concatenation();
+  });
+  static Future<Uint8List> _decrypt(Uint8List bytes,List<int> key,List<int> aad)=>Isolate.run(()async{
+    final box=SecretBox.fromConcatenation(bytes,nonceLength:12,macLength:16);
+    return Uint8List.fromList(await AesGcm.with256bits().decrypt(box,secretKey:SecretKey(key),aad:aad));
+  });
+  static Future<bool> _sameBytes(Uint8List a,Uint8List b)=>Isolate.run(()=>const ListEqualityBytes().equals(a,b));
   Future<Uint8List> _boundedBytes(XFile file,int expected)async{
     final bytes=BytesBuilder(copy:false);var count=0;
     await for(final chunk in file.openRead()){
@@ -132,15 +144,15 @@ class CreatorMediaDraftStore {
     final total=sizes.fold<int>(0,(a,b)=>a+b);
     final existing=list.where((d)=>d.id!=id).expand((d)=>d.sizes).fold<int>(0,(a,b)=>a+b);
     if(existing+total>accountLimit || await _usage()+total+4096>deviceLimit)throw StateError('Local media draft storage is full. Delete a saved draft first.');
-    final key=await _key(owner,create:list.isEmpty);final draft=CreatorMediaDraft(id??_nonce(),_nonce(),text,video,false,List.unmodifiable(names),List.unmodifiable(sizes));
+    final key=await (await _key(owner,create:list.isEmpty)).extractBytes();final draft=CreatorMediaDraft(id??_nonce(),_nonce(),text,video,false,List.unmodifiable(names),List.unmodifiable(sizes));
     final dir=await _directory(owner,id:draft.id,revision:draft.revision);await dir.create(recursive:true);
     // Unique immutable revision files are complete before the index can refer
     // to them. An interrupted copy leaves old metadata intact, never sends.
     for(var i=0;i<files.length;i++){
       final data=await _boundedBytes(files[i],sizes[i]);
-      final box=await _cipher.encrypt(data,secretKey:key,aad:utf8.encode('${_owner(owner)}:${draft.id}:${draft.revision}:$i'));
-      final output=File('${dir.path}/$i.bin');await output.writeAsBytes(box.concatenation(),flush:true);
-      final read=await output.readAsBytes();if(!const ListEqualityBytes().equals(read,box.concatenation()))throw StateError('Saved media could not be verified');
+      final encrypted=await _encrypt(data,key,utf8.encode('${_owner(owner)}:${draft.id}:${draft.revision}:$i'));
+      final output=File('${dir.path}/$i.bin');await output.writeAsBytes(encrypted,flush:true);
+      final read=await output.readAsBytes();if(!await _sameBytes(read,encrypted))throw StateError('Saved media could not be verified');
     }
     await _commit(owner,[draft,...list.where((d)=>d.id!=draft.id)]);
     // A future save can collect only unreferenced revisions for this owner.
@@ -150,13 +162,12 @@ class CreatorMediaDraftStore {
   Future<List<XFile>> open(String owner,CreatorMediaDraft draft)=>_serial(()async{
     final current=(await _read(owner)).where((d)=>d.id==draft.id).toList();
     if(current.length!=1 || jsonEncode(current.single.toJson())!=jsonEncode(draft.toJson()))throw StateError('This media draft changed. Reopen the saved copy.');
-    final key=await _key(owner);final dir=await _directory(owner,id:draft.id,revision:draft.revision);final result=<XFile>[];
+    final key=await (await _key(owner)).extractBytes();final dir=await _directory(owner,id:draft.id,revision:draft.revision);final result=<XFile>[];
     for(var i=0;i<draft.names.length;i++){
       final file=File('${dir.path}/$i.bin');
       if(await FileSystemEntity.type(file.path,followLinks:false)!=FileSystemEntityType.file || await file.length()!=draft.sizes[i]+28)throw StateError('Saved media is missing or changed. Nothing was posted.');
-      final box=SecretBox.fromConcatenation(await file.readAsBytes(),nonceLength:12,macLength:16);
-      final data=await _cipher.decrypt(box,secretKey:key,aad:utf8.encode('${_owner(owner)}:${draft.id}:${draft.revision}:$i'));
-      result.add(XFile.fromData(Uint8List.fromList(data),path:'draft-memory://${draft.id}/${draft.revision}/$i/${draft.names[i]}',name:draft.names[i]));
+      final data=await _decrypt(await file.readAsBytes(),key,utf8.encode('${_owner(owner)}:${draft.id}:${draft.revision}:$i'));
+      result.add(XFile.fromData(data,path:'draft-memory://${draft.id}/${draft.revision}/$i/${draft.names[i]}',name:draft.names[i]));
     }
     return List.unmodifiable(result);
   });

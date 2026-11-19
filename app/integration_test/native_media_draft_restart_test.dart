@@ -80,6 +80,8 @@ void main(){
    await capture('media_restart_1_saved_picker_deleted');
    return;
   }
+  expect(File('${dir.path}/temporary-picker.png').existsSync(),isFalse);
+  expect(File('${dir.path}/temporary-picker.mp4').existsSync(),isFalse);
   final expected=jsonDecode(await identity.readAsString()) as List;
   final drafts=(await t.runAsync(()=>store.read(_owner)))!;
   expect(drafts.length,2);

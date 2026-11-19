@@ -57,18 +57,19 @@ void main(){
   const store=CreatorMediaDraftStore();
   final session=Session()..user={'public_id':_owner,'username':'synthetic'};
   final identity=File('${dir.path}/saved-media-identity.json');
-  final caption='Saved photo $_id';final videoCaption='Guarded video $_id';
+  final caption='Saved photo $_id';final videoCaption='Guarded video $_id';final storyCaption='Private story $_id';
   print('MEDIA_STAGE phase=$phase');
   if(phase=='seed'){
    expect(await t.runAsync(()=>store.read(_owner)),isEmpty);
    final rows=<Map<String,dynamic>>[];
-   for(final video in [false,true]){
+   for(final selection in [(false,false),(true,false),(false,true)]){
+    final video=selection.$1;final story=selection.$2;
     final asset=video?'test/fixtures/ios_synthetic_video.mp4':'test/fixtures/ridge.png';
     final bytes=(await rootBundle.load(asset)).buffer.asUint8List();
     final source=File('${dir.path}/temporary-picker.${video?'mp4':'png'}');
     await t.runAsync(()=>source.writeAsBytes(bytes,flush:true));
-    var draft=(await t.runAsync(()=>store.save(_owner,text:video?videoCaption:caption,video:video,files:[XFile(source.path)])))!;
-    if(video)draft=(await t.runAsync(()=>store.attempted(_owner,draft,value:true)))!;
+    var draft=(await t.runAsync(()=>store.save(_owner,text:story?storyCaption:video?videoCaption:caption,video:video,files:[XFile(source.path)],story:story,audience:story?'only_me':null)))!;
+    if(video || story)draft=(await t.runAsync(()=>store.attempted(_owner,draft,value:true)))!;
     rows.add({'draft':draft.toJson(),'sha256':sha256.convert(bytes).toString()});
     await t.runAsync(source.delete);
     expect(source.existsSync(),isFalse);
@@ -84,7 +85,7 @@ void main(){
   expect(File('${dir.path}/temporary-picker.mp4').existsSync(),isFalse);
   final expected=jsonDecode(await identity.readAsString()) as List;
   final drafts=(await t.runAsync(()=>store.read(_owner)))!;
-  expect(drafts.length,2);
+  expect(drafts.length,3);
   expect(await t.runAsync(()=>store.read('other-media-owner')),isEmpty);
   for(final row in expected){
    final prior=CreatorMediaDraft.decode(row['draft']);
@@ -111,19 +112,30 @@ void main(){
   expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
   await capture('media_restart_3_video_guarded');
   await t.pageBack();await t.pumpAndSettle();
-  for(var i=0;i<2;i++){
+  session.protectedStoriesEnabled=true;
+  await t.tap(find.text(storyCaption));
+  await _until(t,()=>find.text('Prepare a separate upload').evaluate().isNotEmpty);
+  await t.pumpAndSettle();
+  expect(find.text('Only me'),findsOneWidget);
+  await t.scrollUntilVisible(find.byType(TextField),150,scrollable:find.byType(Scrollable).first);
+  expect(t.widget<TextField>(find.byType(TextField)).controller!.text,storyCaption);
+  await t.drag(find.byType(ListView).first,const Offset(0,700));await t.pumpAndSettle();
+  expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Share story')).onPressed,isNull);
+  await capture('media_restart_4_story_only_me_guarded');
+  await t.pageBack();await t.pumpAndSettle();
+  for(var i=0;i<3;i++){
    await t.tap(find.byTooltip('Delete draft').first);await t.pumpAndSettle();
    await t.tap(find.text('Keep'));await t.pumpAndSettle();
-   expect((await t.runAsync(()=>store.read(_owner)))!.length,2-i);
+   expect((await t.runAsync(()=>store.read(_owner)))!.length,3-i);
    await t.tap(find.byTooltip('Delete draft').first);await t.pumpAndSettle();
    await t.tap(find.widgetWithText(TextButton,'Delete'));await t.pumpAndSettle();
-   await _until(t,()=>find.byTooltip('Delete draft').evaluate().length==1-i);
+   await _until(t,()=>find.byTooltip('Delete draft').evaluate().length==2-i);
   }
   expect(await t.runAsync(()=>store.read(_owner)),isEmpty);
   expect(UploadCenter.of(session).result,isNull);
   expect(UploadCenter.of(session).confirmedPosts,isEmpty);
   expect(UploadCenter.of(session).occupied,isFalse);
-  await capture('media_restart_4_explicit_delete');
+  await capture('media_restart_5_explicit_delete');
   print('MEDIA_STAGE exact bytes photo/video restored; picker absent; other owner isolated; attempted guard retained; no send; explicit deletes');
  });
 }

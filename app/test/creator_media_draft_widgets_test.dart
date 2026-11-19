@@ -60,6 +60,7 @@ void main(){
   await t.pumpAndSettle();
   await t.tap(find.text('Followers'));await t.pumpAndSettle();
   await t.tap(find.text('Only me'));await t.pumpAndSettle();
+  await t.scrollUntilVisible(find.byType(TextField),150,scrollable:find.byType(Scrollable).first);
   await t.enterText(find.byType(TextField),'Private story draft');
   await t.runAsync(()async{
    await t.tap(find.byTooltip('Save media draft'));
@@ -81,6 +82,7 @@ void main(){
    await t.pumpWidget(MaterialApp(home:StoryComposePage(session:session,file:data.$2.single,isVideo:false,initialMediaDraft:data.$1)));
    await t.pumpAndSettle();
    expect(find.text(audience.$2),findsOneWidget);
+   await t.scrollUntilVisible(find.byType(TextField),150,scrollable:find.byType(Scrollable).first);
    expect(t.widget<TextField>(find.byType(TextField)).controller!.text,data.$1.text);
    session.user={'public_id':'b'};session.setOffline(true);await t.pump();
    expect(find.textContaining('another signed-in session'),findsOneWidget);
@@ -212,7 +214,7 @@ void main(){
     Directory('test/renders').createSync(recursive:true);
     File('test/renders/media_attempted_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
    });
-   await t.ensureVisible(find.byType(TextField));await t.pumpAndSettle();
+   await t.scrollUntilVisible(find.byType(TextField),100,scrollable:find.byType(Scrollable).first);await t.pumpAndSettle();
    final field=t.getRect(find.byType(TextField));
    final toolbar=t.getRect(find.text('Remove media').evaluate().isNotEmpty?find.text('Remove media'):find.text(t_('Remove media')));
    expect(field.top,greaterThanOrEqualTo(56));expect(field.top,lessThan(toolbar.top));

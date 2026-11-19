@@ -499,7 +499,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
         final marked=await const CreatorMediaDraftStore().attempted(_owner!,saved,value:true);
         if(!mounted || !_active)return;
         setState(()=>_saved=marked);
-        final recovered=await const CreatorMediaDraftStore().open(_owner!,marked);
+        final recovered=await const CreatorMediaDraftStore().open(_owner,marked);
         if(!mounted || !_active)return;
         bytes=recovered.single.readAsBytes();
       }catch(e){if(mounted && _active)showError(context,e);return;}

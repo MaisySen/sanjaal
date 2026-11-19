@@ -25,9 +25,10 @@ Future<void> _until(WidgetTester tester, bool Function() ready) async {
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  var converted=false;
   Future<void> capture(String name) async {
     print('DRAFT_STAGE capture conversion $name');
-    await binding.convertFlutterSurfaceToImage();
+    if(!converted){await binding.convertFlutterSurfaceToImage();converted=true;}
     await binding.pump();
     print('DRAFT_STAGE capture screenshot $name');
     await binding.takeScreenshot(name);

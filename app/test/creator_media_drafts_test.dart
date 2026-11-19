@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sanjaal/creator_media_draft_store.dart';
 
 class FailingMedia extends XFile {
-  FailingMedia():super('/not-a-file',name:'media.jpg');
+  FailingMedia():super('/not-a-file/media.jpg');
   @override Future<int> length()async=>4;
   @override Future<Uint8List> readAsBytes()async=>throw StateError('picker file disappeared');
 }
@@ -15,7 +15,7 @@ void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
  late Directory root;late CreatorMediaDraftStore store;
  final payload=Uint8List.fromList(utf8.encode('private synthetic media bytes'));
- XFile file({String name='original.jpg'})=>XFile.fromData(payload,name:name);
+ XFile file({String name='original.jpg'})=>XFile.fromData(payload,path:name,name:name);
  setUp(()async{FlutterSecureStorage.setMockInitialValues({});root=await Directory.systemTemp.createTemp('media-drafts-test-');store=CreatorMediaDraftStore(testRoot:root);});
  tearDown(()async{await root.delete(recursive:true);});
  test('encrypted immutable media copy survives picker loss and store reconstruction',()async{
@@ -34,14 +34,14 @@ void main(){
  });
  test('interrupted replacement keeps previous complete revision readable',()async{
   final d=await store.save('a',text:'Old caption',video:false,files:[file()]);
-  await expectLater(store.save('a',text:'New caption',video:false,files:[file(),FailingMedia()],id:d.id,expectedRevision:d.revision),throwsStateError);
+  await expectLater(store.save('a',text:'New caption',video:false,files:[file(),FailingMedia()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp),throwsStateError);
   expect((await store.read('a')).single.toJson(),d.toJson());expect(await (await store.open('a',d)).single.readAsBytes(),payload);
  });
  test('stale delete and stale save cannot erase newer saved revision',()async{
   final d=await store.save('a',text:'Old',video:false,files:[file()]);
-  final newer=await store.save('a',text:'New',video:false,files:[file()],id:d.id,expectedRevision:d.revision);
+  final newer=await store.save('a',text:'New',video:false,files:[file()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp);
   await expectLater(store.remove('a',d),throwsStateError);
-  await expectLater(store.save('a',text:'Stale',video:false,files:[file()],id:d.id,expectedRevision:d.revision),throwsStateError);
+  await expectLater(store.save('a',text:'Stale',video:false,files:[file()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp),throwsStateError);
   expect((await store.read('a')).single.toJson(),newer.toJson());
  });
  test('attempted media stays guarded across a new instance until explicit separate upload',()async{
@@ -50,9 +50,24 @@ void main(){
   expect((await CreatorMediaDraftStore(testRoot:root).read('a')).single.attempted,isTrue);
   await expectLater(store.attempted('a',d,value:false),throwsStateError);
   await expectLater(store.remove('a',d),throwsStateError);
-  await expectLater(store.save('a',text:'Changed',video:false,files:[file()],id:d.id,expectedRevision:d.revision),throwsStateError);
+  await expectLater(store.save('a',text:'Changed',video:false,files:[file()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp),throwsStateError);
   final reset=await store.attempted('a',attempted,value:false);expect(reset.attempted,isFalse);
   expect(await (await store.open('a',reset)).single.readAsBytes(),payload);
+ });
+ test('old confirmation stays stale even after attempted guard resets',()async{
+  final d=await store.save('a',text:'Caption',video:false,files:[file()]);
+  final attempted=await store.attempted('a',d,value:true);
+  final reset=await store.attempted('a',attempted,value:false);
+  expect(reset.stamp,isNot(d.stamp));
+  await expectLater(store.remove('a',d),throwsStateError);
+  await expectLater(store.attempted('a',d,value:true),throwsStateError);
+  await expectLater(store.save('a',text:'Old',video:false,files:[file()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp),throwsStateError);
+ });
+ test('next save collects interrupted revisions but not a live saved copy',()async{
+  final d=await store.save('a',text:'Old',video:false,files:[file()]);
+  await expectLater(store.save('a',text:'Fail',video:false,files:[file(),FailingMedia()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp),throwsStateError);
+  final next=await store.save('a',text:'New',video:false,files:[file()],id:d.id,expectedRevision:d.revision,expectedStamp:d.stamp);
+  expect(await (await store.open('a',next)).single.readAsBytes(),payload);
  });
  test('missing or tampered encrypted file never returns partial media',()async{
   final d=await store.save('a',text:'Caption',video:false,files:[file(),file()]);

@@ -19,9 +19,9 @@ jobs:
           flutter-version: '3.50.0'
           cache: true
       - run: flutter pub get
-      - run: dart format lib/creator_media_draft_store.dart test/creator_media_drafts_test.dart
+      - run: dart format lib/creator_media_draft_store.dart test/creator_media_drafts_test.dart test/creator_media_draft_widgets_test.dart
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
-      - run: flutter test test/creator_media_drafts_test.dart --reporter expanded > media-draft.log 2>&1
+      - run: flutter test test/creator_media_drafts_test.dart test/creator_media_draft_widgets_test.dart --reporter expanded > media-draft.log 2>&1
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()

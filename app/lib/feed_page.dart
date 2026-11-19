@@ -852,7 +852,7 @@ class _ComposePageState extends State<ComposePage> {
       final snapshot=_fingerprint;
       setState(()=>_savingDraft=true);
       try{
-        final saved=await const CreatorMediaDraftStore().save(owner,text:caption,video:isVideo,files:picked,id:_mediaDraft?.id,expectedRevision:_mediaDraft?.revision);
+        final saved=await const CreatorMediaDraftStore().save(owner,text:caption,video:isVideo,files:picked,id:_mediaDraft?.id,expectedRevision:_mediaDraft?.revision,expectedStamp:_mediaDraft?.stamp);
         if(!mounted || generation!=widget.session.generation || widget.session.user?['public_id']!=owner)return;
         setState((){_mediaDraft=saved;_savedFingerprint=snapshot;});
         showInfo(context,t_('Media draft saved on this device. Nothing was posted.'));
@@ -864,8 +864,8 @@ class _ComposePageState extends State<ComposePage> {
     setState(() => _savingDraft = true);
     try {
       final saved = await const CreatorDraftStore().save(owner, id: _localDraftId, expectedRevision: _localDraftRevision, text: text.text, options: pollOptions?.map((c) => c.text).toList());
-      if (!mounted || widget.session.user?['public_id'] != owner) return;
-      setState(() { _localDraftId = saved.id; _localDraftRevision = saved.revision; _savedFingerprint = snapshot; });
+      if (!mounted || _draftAccountChanged || widget.session.user?['public_id'] != owner) return;
+      setState(() { _mediaDraft=null; _localDraftId = saved.id; _localDraftRevision = saved.revision; _savedFingerprint = snapshot; });
       showInfo(context, t_('Draft saved on this device. Find it in Settings > Saved drafts. Nothing was posted.'));
     } catch (error) { if (mounted && widget.session.user?['public_id'] == owner) showError(context, error); }
     finally { if (mounted) setState(() => _savingDraft = false); }
@@ -1043,10 +1043,12 @@ class _ComposePageState extends State<ComposePage> {
           TextButton(onPressed:busy||_savingDraft?null:()async{
             final draft=_mediaDraft!;final generation=widget.session.generation;final owner=_draftOwner;
             if(!await confirmNewUpload(context) || !mounted || owner==null || generation!=widget.session.generation || _mediaDraft!=draft)return;
+            setState(()=>_savingDraft=true);
             try{
               final reset=await const CreatorMediaDraftStore().attempted(owner,draft,value:false);
               if(mounted && generation==widget.session.generation)setState((){_mediaDraft=reset;intent=newUploadIntent();});
-            }catch(e){if(mounted)showError(context,e);}
+            }catch(e){if(mounted && !_draftAccountChanged)showError(context,e);}
+            finally{if(mounted)setState(()=>_savingDraft=false);}
           },child:Text(t_('Prepare a separate upload'))),
         ])),
         if (uploadError != null) UploadNotice(
@@ -1063,15 +1065,15 @@ class _ComposePageState extends State<ComposePage> {
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Avatar(user: widget.session.user),
             const SizedBox(width: 12),
-            Expanded(child: TextField(controller: text, enabled: !busy, onChanged: (_) => setState(() {}), autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
+            Expanded(child: TextField(controller: text, enabled: !busy && !_savingDraft, onChanged: (_) => setState(() {}), autofocus: true, minLines: 4, maxLines: 10, maxLength: 2000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => currentLength > 1800 ? Text('$currentLength / $maxLength') : null, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18), decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none, filled: false))),
           ]),
           if (pollOptions != null) ...[
             for (var i = 0; i < pollOptions!.length; i++) Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: TextField(controller: pollOptions![i], enabled: !busy, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: '${t_('Option')} ${i + 1}')),
+              child: TextField(controller: pollOptions![i], enabled: !busy && !_savingDraft, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: '${t_('Option')} ${i + 1}')),
             ),
             Wrap(spacing: 8, children: [
-              if (pollOptions!.length < 4) TextButton(onPressed: busy ? null : () => setState(() => pollOptions!.add(TextEditingController())), child: Text(t_('Add option'))),
+              if (pollOptions!.length < 4) TextButton(onPressed: busy || _savingDraft ? null : () => setState(() => pollOptions!.add(TextEditingController())), child: Text(t_('Add option'))),
 
             ]),
             Text(t_('One choice per person. Results show counts, not names.')),
@@ -1100,11 +1102,11 @@ class _ComposePageState extends State<ComposePage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Wrap(alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              if (pollOptions != null) TextButton(onPressed: busy ? null : _removePoll, child: Text(t_('Remove poll'))),
-              if (pollOptions == null) TextButton.icon(onPressed: busy ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
-              if (pollOptions == null) TextButton.icon(onPressed: busy ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
-              if (widget.session.pollsEnabled && pollOptions == null) TextButton.icon(onPressed: busy ? null : _poll, icon: const PhIcon('check', size: 20), label: Text(t_('Poll'))),
-              if (images.isNotEmpty || video != null) TextButton(onPressed: busy ? null : () => setState(() { images = []; video = null; }), child: Text(t_('Remove media'))),
+              if (pollOptions != null) TextButton(onPressed: busy || _savingDraft ? null : _removePoll, child: Text(t_('Remove poll'))),
+              if (pollOptions == null) TextButton.icon(onPressed: busy || _savingDraft ? null : _pick, icon: const PhIcon('image', size: 20), label: Text(images.isEmpty ? 'Photos' : 'Change photos')),
+              if (pollOptions == null) TextButton.icon(onPressed: busy || _savingDraft ? null : _pickVideo, icon: const PhIcon('video-camera', size: 20), label: Text(video == null ? 'Reel' : 'Change video')),
+              if (widget.session.pollsEnabled && pollOptions == null) TextButton.icon(onPressed: busy || _savingDraft ? null : _poll, icon: const PhIcon('check', size: 20), label: Text(t_('Poll'))),
+              if (images.isNotEmpty || video != null) TextButton(onPressed: busy || _savingDraft ? null : () => setState(() { images = []; video = null; }), child: Text(t_('Remove media'))),
             ]),
           ),
         ),

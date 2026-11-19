@@ -11,17 +11,17 @@ import 'package:path_provider/path_provider.dart';
 
 /// Explicit local copies only. Never holds a token, upload intent or send job.
 class CreatorMediaDraft {
-  CreatorMediaDraft(this.id,this.revision,this.text,this.video,this.attempted,this.names,this.sizes);
-  final String id,revision,text;
+  CreatorMediaDraft(this.id,this.revision,this.text,this.video,this.attempted,this.names,this.sizes,{String? stamp}):stamp=stamp??revision;
+  final String id,revision,text,stamp;
   final bool video,attempted;
   final List<String> names;
   final List<int> sizes;
-  Map<String,dynamic> toJson()=>{'id':id,'revision':revision,'text':text,'video':video,'attempted':attempted,'names':names,'sizes':sizes};
+  Map<String,dynamic> toJson()=>{'id':id,'revision':revision,'stamp':stamp,'text':text,'video':video,'attempted':attempted,'names':names,'sizes':sizes};
   static CreatorMediaDraft decode(dynamic value){
-    if(value is! Map || !CreatorMediaDraftStore.nonceValid(value['id']) || !CreatorMediaDraftStore.nonceValid(value['revision']) || value['text'] is! String || (value['text'] as String).length>2000 || value['video'] is! bool || value['attempted'] is! bool || value['names'] is! List || value['sizes'] is! List)throw const FormatException('Unrecognized media draft');
+    if(value is! Map || !CreatorMediaDraftStore.nonceValid(value['id']) || !CreatorMediaDraftStore.nonceValid(value['revision']) || !CreatorMediaDraftStore.nonceValid(value['stamp']) || value['text'] is! String || (value['text'] as String).length>2000 || value['video'] is! bool || value['attempted'] is! bool || value['names'] is! List || value['sizes'] is! List)throw const FormatException('Unrecognized media draft');
     final names=value['names'] as List;final sizes=value['sizes'] as List;
     if(names.isEmpty || names.length>(value['video']==true?1:4) || sizes.length!=names.length || names.any((n)=>n is! String || !RegExp(r'^media\.(jpg|jpeg|png|webp|heic|mp4|mov)$').hasMatch(n)) || sizes.any((n)=>n is! int || n<1 || n>CreatorMediaDraftStore.fileLimit))throw const FormatException('Unrecognized media draft files');
-    return CreatorMediaDraft(value['id'],value['revision'],value['text'],value['video'],value['attempted'],List.unmodifiable(names.cast<String>()),List.unmodifiable(sizes.cast<int>()));
+    return CreatorMediaDraft(value['id'],value['revision'],value['text'],value['video'],value['attempted'],List.unmodifiable(names.cast<String>()),List.unmodifiable(sizes.cast<int>()),stamp:value['stamp']);
   }
 }
 
@@ -79,6 +79,22 @@ class CreatorMediaDraftStore {
     }
     final bytes=base64Decode(raw);if(bytes.length!=32)throw const FormatException('Invalid media draft key');return SecretKey(bytes);
   }
+  Future<void> _cleanupOwner(String owner,List<CreatorMediaDraft> live)async{
+    final dir=await _directory(owner);
+    if(!await dir.exists())return;
+    final revisions={for(final d in live)d.id:d.revision};
+    await for(final item in dir.list(followLinks:false)){
+      final id=item.uri.pathSegments.where((s)=>s.isNotEmpty).last;
+      if(item is! Directory || !nonceValid(id))throw StateError('Unsafe media storage');
+      final keep=revisions[id];
+      if(keep==null){await item.delete(recursive:true);continue;}
+      await for(final revision in item.list(followLinks:false)){
+        final name=revision.uri.pathSegments.where((s)=>s.isNotEmpty).last;
+        if(revision is! Directory || !nonceValid(name))throw StateError('Unsafe media storage');
+        if(name!=keep)await revision.delete(recursive:true);
+      }
+    }
+  }
   Future<int> _usage()async{
     var bytes=0;
     await for(final entity in (await _root()).list(recursive:true,followLinks:false)){
@@ -87,10 +103,10 @@ class CreatorMediaDraftStore {
     }
     return bytes;
   }
-  Future<CreatorMediaDraft> save(String owner,{required String text,required bool video,required List<XFile> files,String? id,String? expectedRevision})=>_serial(()async{
+  Future<CreatorMediaDraft> save(String owner,{required String text,required bool video,required List<XFile> files,String? id,String? expectedRevision,String? expectedStamp})=>_serial(()async{
     if(text.length>2000 || files.isEmpty || files.length>(video?1:4))throw ArgumentError('Choose up to four photos or one video');
     final list=await _read(owner);final found=list.where((d)=>d.id==id).toList();
-    if(id!=null && (found.length!=1 || found.single.revision!=expectedRevision))throw StateError('This media draft changed. Reopen the saved copy.');
+    if(id!=null && (found.length!=1 || found.single.revision!=expectedRevision || found.single.stamp!=expectedStamp))throw StateError('This media draft changed. Reopen the saved copy.');
     if(found.isNotEmpty && found.single.attempted)throw StateError('Check the earlier upload before changing this saved draft.');
     if(id==null && list.length>=8)throw StateError('Eight media drafts are saved. Delete one before saving another.');
     final sizes=<int>[];final names=<String>[];
@@ -100,6 +116,7 @@ class CreatorMediaDraftStore {
       final allowed=video?['mp4','mov']:['jpg','jpeg','png','webp','heic'];
       if(!allowed.contains(extension))throw StateError('This file type cannot be saved as a draft');names.add('media.$extension');
     }
+    await _cleanupOwner(owner,list);
     final total=sizes.fold<int>(0,(a,b)=>a+b);
     final existing=list.where((d)=>d.id!=id).expand((d)=>d.sizes).fold<int>(0,(a,b)=>a+b);
     if(existing+total>accountLimit || await _usage()+total+4096>deviceLimit)throw StateError('Local media draft storage is full. Delete a saved draft first.');
@@ -114,8 +131,8 @@ class CreatorMediaDraftStore {
       final read=await output.readAsBytes();if(!const ListEqualityBytes().equals(read,box.concatenation()))throw StateError('Saved media could not be verified');
     }
     await _commit(owner,[draft,...list.where((d)=>d.id!=draft.id)]);
-    // Orphan revision bytes deliberately remain bounded by the device quota.
-    // Deleting a draft removes only its own directory, never arbitrary paths.
+    // A future save can collect only unreferenced revisions for this owner.
+    // Never delete revision files if the index commit could not be verified.
     return draft;
   });
   Future<List<XFile>> open(String owner,CreatorMediaDraft draft)=>_serial(()async{
@@ -127,7 +144,7 @@ class CreatorMediaDraftStore {
       if(await FileSystemEntity.type(file.path,followLinks:false)!=FileSystemEntityType.file || await file.length()!=draft.sizes[i]+28)throw StateError('Saved media is missing or changed. Nothing was posted.');
       final box=SecretBox.fromConcatenation(await file.readAsBytes(),nonceLength:12,macLength:16);
       final data=await _cipher.decrypt(box,secretKey:key,aad:utf8.encode('${_owner(owner)}:${draft.id}:${draft.revision}:$i'));
-      result.add(XFile.fromData(Uint8List.fromList(data),name:draft.names[i]));
+      result.add(XFile.fromData(Uint8List.fromList(data),path:'draft-memory://${draft.id}/${draft.revision}/$i/${draft.names[i]}',name:draft.names[i]));
     }
     return List.unmodifiable(result);
   });
@@ -135,7 +152,7 @@ class CreatorMediaDraftStore {
     final list=await _read(owner);final current=list.where((d)=>d.id==draft.id).toList();
     if(current.length!=1 || jsonEncode(current.single.toJson())!=jsonEncode(draft.toJson()))throw StateError('This media draft changed. Reopen the saved copy.');
     // Preserve file revision/AAD while changing the fail-closed send guard.
-    final next=CreatorMediaDraft(draft.id,draft.revision,draft.text,draft.video,value,draft.names,draft.sizes);
+    final next=CreatorMediaDraft(draft.id,draft.revision,draft.text,draft.video,value,draft.names,draft.sizes,stamp:_nonce());
     await _commit(owner,[for(final d in list)if(d.id==draft.id)next else d]);return next;
   });
   Future<void> remove(String owner,CreatorMediaDraft draft)=>_serial(()async{

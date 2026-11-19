@@ -1,6 +1,6 @@
 #!/bin/sh
 # One install only. Recover by attaching to a relaunched same binary, no rebuild.
-set -eu
+set -eux
 cd app
 mkdir -p build/screenshots
 marker=$(openssl rand -hex 24)
@@ -10,7 +10,9 @@ timeout 600 flutter drive --driver=test_driver/integration_test.dart \
     tail -100 build/screenshots/process_death_seed.log; exit 1;
   }
 tail -6 build/screenshots/process_death_seed.log
-adb shell dumpsys package au.fintex.sanjaal | grep 'userId=' > build/screenshots/process_death_uid_before.log
+adb shell cmd package list packages -U au.fintex.sanjaal > build/screenshots/process_death_uid_before.log
+cat build/screenshots/process_death_uid_before.log
+grep -F 'package:au.fintex.sanjaal uid:' build/screenshots/process_death_uid_before.log
 adb shell pm path au.fintex.sanjaal > build/screenshots/process_death_package_before.log
 # A native app-private sentinel proves the second phase retains ordinary files too.
 adb shell run-as au.fintex.sanjaal touch files/synthetic-marker-recover
@@ -35,7 +37,9 @@ remote_port=$(printf '%s' "$uri" | sed -n 's|http://127.0.0.1:\([0-9]*\)/.*|\1|p
 [ -n "$remote_port" ]
 adb forward tcp:8181 "tcp:$remote_port"
 local_uri=$(printf '%s' "$uri" | sed "s/:$remote_port\//:8181\//")
-adb shell dumpsys package au.fintex.sanjaal | grep 'userId=' > build/screenshots/process_death_uid_after.log
+adb shell cmd package list packages -U au.fintex.sanjaal > build/screenshots/process_death_uid_after.log
+cat build/screenshots/process_death_uid_after.log
+grep -F 'package:au.fintex.sanjaal uid:' build/screenshots/process_death_uid_after.log
 adb shell pm path au.fintex.sanjaal > build/screenshots/process_death_package_after.log
 diff build/screenshots/process_death_uid_before.log build/screenshots/process_death_uid_after.log
 diff build/screenshots/process_death_package_before.log build/screenshots/process_death_package_after.log

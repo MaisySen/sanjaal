@@ -50,4 +50,16 @@ Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/4450430296
 
 A separate whole-pipeline validation branch runs existing local API/Postgres concurrency fixtures, app/finalizer contracts, Android release and bundle compile, Android emulator fixture drivers and unsigned iOS compile. A pass on that branch must be recorded from its exact run, not inferred here. No stable-key signing or distribution is requested.
 
+## Upload uncertainty marker ownership and native persistence
+
+Source `07c8f13b3293018bc31adea4e204fdba43952f4f` binds marker deletion to an expected ID and serializes writes/clears per account across store instances. A new marker cannot overwrite an unresolved different one. Exact run: https://github.com/MaisySen/sanjaal/actions/runs/44511720206 . Whole app 966 pass, one opt-in live skip; analyzer zero errors/warnings, 88 info. Removing expected-ID checking fails the stale-clear regression; restored 34 focused upload/store tests pass.
+
+Source `9c9fef1562eda39ac8e4066139d74d1d57720ee4` binds UploadCenter generation to the Session generation as well as account identity. Pending preparation cannot use a replacement same-member login. Exact run: https://github.com/MaisySen/sanjaal/actions/runs/44513221500 . Whole app 969 pass, one opt-in live skip; analyzer zero errors/warnings, 88 info. Negative control fails; restored 37 focused upload/store tests pass.
+
+Native Android emulator evidence `fffe8d60ffdf81c332875ba655816c7d5e839130`: https://github.com/MaisySen/sanjaal/actions/runs/44516747249 . The actual secure-storage plugin wrote and read a random run-specific synthetic marker. A force-stop left no app PID. The same installed binary was relaunched without uninstall, rebuild or clear, with identical UID/package path; the new process retained the exact marker. Recovery paused uploads and exposed no retry. Cancel preserved the marker, explicit Discard cleared it, zero request closures ran. Three native screenshots were inspected. This is durable uncertainty-marker proof, not persisted media jobs, automatic resume, Samsung acceptance or iOS persistence.
+
+The first native experiment rebuilt/reinstalled between phases and returned null, so it is not valid same-installed-binary process-death evidence. The next harness stopped on a brittle UID parser before restart. Neither failed harness is counted as native recovery proof or a confirmed app-storage defect.
+
+The preceding full integrated pipeline at `5d0cebd09801d67265e2fc47ef0936685541514b` passed all seven required jobs, including five Android emulator drivers and 28 inspected native PNGs: https://github.com/MaisySen/sanjaal/actions/runs/44507020036 . It predates these marker/generation changes. A new whole-pipeline run must independently validate this runtime before combining that earlier evidence with it.
+
 The Samsung remains on the separately installed exact `0.5.6 (2011)` candidate. Neither correction has been installed there or accepted on a device. No API deployment, production room, real user-draft mutation, paid service, wallet activation, store upload or public release is part of this source batch.

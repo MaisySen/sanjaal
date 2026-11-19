@@ -9,6 +9,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/creator_media_draft_store.dart';
 import 'package:sanjaal/feed_page.dart';
+import 'package:sanjaal/creator_drafts_page.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sanjaal/stories_page.dart';
 import 'package:sanjaal/ui.dart' show prefs,t_;
 import 'package:sanjaal/main.dart' show buildTheme;
@@ -53,6 +57,22 @@ void main(){
   print('MEDIA_UI seed opening');
   return (draft,await store.open('a',draft));
  }
+ testWidgets('unreadable text index leaves encrypted media accessible and unchanged',(t)async{
+  final data=(await t.runAsync(()=>seed()))!;
+  final key='creator_text_drafts_v1_${sha256.convert(utf8.encode('a'))}';
+  await const FlutterSecureStorage().write(key:key,value:'unrecognized text metadata');
+  final session=Session()..user={'public_id':'a'};
+  await t.pumpWidget(MaterialApp(home:CreatorDraftsPage(session:session)));
+  await t.runAsync(()async{await Future<void>.delayed(const Duration(milliseconds:100));});
+  await t.pumpAndSettle();
+  expect(find.text(data.$1.text),findsOneWidget);
+  expect(find.text('Text drafts could not be read. Nothing was replaced.'),findsOneWidget);
+  expect(await const FlutterSecureStorage().read(key:key),'unrecognized text metadata');
+  await t.runAsync(()async{await t.tap(find.text(data.$1.text));await Future<void>.delayed(const Duration(milliseconds:150));});
+  await t.pumpAndSettle();
+  expect(find.widgetWithText(TextField,data.$1.text),findsOneWidget);
+  await t.pumpWidget(const SizedBox());
+ });
  testWidgets('explicit story save keeps selected only-me audience without sharing',(t)async{
   final session=CapturedStorySession()..user={'public_id':'a'};session.protectedStoriesEnabled=true;
   final data=File('test/fixtures/ridge.png').readAsBytesSync();
@@ -189,7 +209,8 @@ void main(){
     Directory('test/renders').createSync(recursive:true);
     File('test/renders/story_saved_${brightness.name}_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
    });
-   await t.scrollUntilVisible(find.byType(TextField),120,scrollable:find.byType(Scrollable).first);await t.pumpAndSettle();
+   await t.scrollUntilVisible(find.byType(TextField),120,scrollable:find.byType(Scrollable).first);
+   await t.drag(find.byType(ListView).first,const Offset(0,32));await t.pumpAndSettle();
    expect(find.byType(TextField).hitTestable(),findsOneWidget);
    await t.runAsync(()async{
     final image=await (key.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio:2);

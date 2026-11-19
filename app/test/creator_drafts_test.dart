@@ -156,6 +156,20 @@ void main() {
     expect((await store.read('a')).single.text, 'Two');
     expect((await store.read('b')).single.text, 'Three');
   });
+  testWidgets('unreadable media does not hide readable text or pretend drafts are empty',(t)async{
+    await store.save('a',text:'Recoverable text');
+    final key='media_drafts_v1_${sha256.convert(utf8.encode('a'))}';
+    await const FlutterSecureStorage().write(key:key,value:'unrecognized media metadata');
+    final session=Session()..user={'public_id':'a'};
+    await t.pumpWidget(MaterialApp(home:CreatorDraftsPage(session:session)));
+    await t.pumpAndSettle();
+    expect(find.text('Recoverable text'),findsOneWidget);
+    expect(find.text('Media drafts could not be read. Nothing was replaced.'),findsOneWidget);
+    expect(find.textContaining('No saved drafts yet'),findsNothing);
+    expect(await const FlutterSecureStorage().read(key:key),'unrecognized media metadata');
+    await t.tap(find.text('Recoverable text'));await t.pumpAndSettle();
+    expect(find.widgetWithText(TextField,'Recoverable text'),findsOneWidget);
+  });
   testWidgets('explicit save and reopen preserve text without publishing', (
     t,
   ) async {

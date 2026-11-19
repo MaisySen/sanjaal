@@ -17,7 +17,7 @@ class CreatorDraftsPage extends StatefulWidget {
 
 class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
   final store = const CreatorDraftStore();
-  String? owner, error;
+  String? owner, error, textError, mediaError;
   List<CreatorDraft>? drafts;
   List<CreatorMediaDraft> mediaDrafts=[];
   final mediaStore=const CreatorMediaDraftStore();
@@ -47,20 +47,16 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
       if (mounted) setState(() => error = t_('Sign in to view saved drafts.'));
       return;
     }
-    try {
-      final list = await store.read(owner!);
-      final media=await mediaStore.read(owner!);
-      if (mounted && active)
-        setState(() {
-          drafts = list;mediaDrafts=media;
-          error = null;
-        });
-    } catch (_) {
-      if (mounted && active)
-        setState(
-          () => error = t_('Could not read saved drafts. Nothing was replaced.'),
-        );
-    }
+    List<CreatorDraft> list=[];
+    List<CreatorMediaDraft> media=[];
+    String? textProblem,mediaProblem;
+    try{list=await store.read(owner!);}
+    catch(_){textProblem=t_('Text drafts could not be read. Nothing was replaced.');}
+    try{media=await mediaStore.read(owner!);}
+    catch(_){mediaProblem=t_('Media drafts could not be read. Nothing was replaced.');}
+    if(mounted && active)setState((){
+      drafts=list;mediaDrafts=media;textError=textProblem;mediaError=mediaProblem;error=null;
+    });
   }
 
   Future<void> _delete(CreatorDraft draft) async {
@@ -145,9 +141,15 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
             onPressed: active ? _load : null,
             child: Text(t_('Try again')),
           ),
-        ] else if (drafts == null)
+        ],
+        if(active && (textError!=null || mediaError!=null))...[
+          if(textError!=null)Text(textError!),
+          if(mediaError!=null)Text(mediaError!),
+          TextButton(onPressed:busy?null:_load,child:Text(t_('Try again'))),
+        ],
+        if(error==null && drafts == null)
           const Center(child: CircularProgressIndicator())
-        else if (drafts!.isEmpty && mediaDrafts.isEmpty)
+        else if (error==null && textError==null && mediaError==null && drafts!.isEmpty && mediaDrafts.isEmpty)
           Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
             child: Text(
@@ -156,8 +158,8 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
               ),
             ),
           )
-        else
-          for (final draft in drafts!)
+        if(active)
+          for (final draft in drafts??<CreatorDraft>[])
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(

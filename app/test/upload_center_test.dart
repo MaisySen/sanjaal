@@ -32,6 +32,9 @@ Future<void> fixture(WidgetTester t, Future<void> Function(Session,UploadCenter)
 }
 void main(){
  setUpAll(()async{
+    // This file must run first or alone from a clean checkout. Never rely on
+    // another concurrently running test to create our screenshot directory.
+    Directory('test/renders').createSync(recursive:true);
     for(final p in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]){final f=File(p.$2);if(f.existsSync()){final l=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await l.load();}}
  });
 

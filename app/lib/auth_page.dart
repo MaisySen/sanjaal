@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'api.dart';
 import 'ui.dart';
 
@@ -42,6 +43,9 @@ class _AuthPageState extends State<AuthPage> {
       } else {
         await widget.session.login(email, password);
       }
+      // Only a completed credential sign-in may offer to save credentials.
+      // Leaving a failed or abandoned form must cancel its autofill context.
+      TextInput.finishAutofillContext(shouldSave: true);
     } catch (e) {
       if (mounted) setState(() => error = e is ApiError ? e.message : t_('Sign in failed. Try again.'));
     } finally {
@@ -74,6 +78,7 @@ class _AuthPageState extends State<AuthPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: AutofillGroup(
+              onDisposeAction: AutofillContextAction.cancel,
               child: Form(
                 key: _form,
                 child: Column(

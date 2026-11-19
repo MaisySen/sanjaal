@@ -31,6 +31,7 @@ void main(){
   addTearDown(()=>debugDefaultTargetPlatformOverride=null);
   await setup(t,()async{
    expect(find.byType(AutofillGroup),findsOneWidget);
+   expect(t.widget<AutofillGroup>(find.byType(AutofillGroup)).onDisposeAction,AutofillContextAction.cancel);
    final fields=find.byType(EditableText);
    expect(t.widget<EditableText>(fields.first).autofillHints,contains(register?AutofillHints.email:AutofillHints.username));
    if(register)expect(t.widget<EditableText>(fields.at(1)).autofillHints,contains(AutofillHints.newUsername));

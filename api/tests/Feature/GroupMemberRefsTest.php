@@ -53,6 +53,7 @@ class GroupMemberRefsTest extends TestCase
             [],
             [['public_id' => $other->public_id, 'username' => 'friend']],
             [['public_id' => 'missing-id', 'username' => 'friend']],
+            [['public_id' => '00000000-0000-4000-8000-000000000099', 'username' => 'friend']],
             [['public_id' => $owner->public_id, 'username' => 'friend']],
             [$ref, $ref],
             [['public_id' => $friend->public_id]],

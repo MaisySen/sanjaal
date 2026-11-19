@@ -60,6 +60,7 @@ jobs:
           DB_PASSWORD: local-fixture-only
 
   timing-image-check:
+    name: historical timing image parity (dcbb source)
     # The live v40 image and the timing candidate image (live image + one layer, 2 files), both run against the SAME throwaway
     # database migrated by v40 source (the live schema). Compares status and body for each request and shows the timing headers.
     runs-on: ubuntu-latest
@@ -104,10 +105,16 @@ jobs:
           docker run --rm --network host -e PGPASSWORD=local-fixture-only postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015 psql -h 127.0.0.1 -U sanjaal -d sanjaal_test -tAc "select count(*) from migrations; select count(*) from information_schema.columns where table_name='conversations' and column_name='add_policy';" | tr '\n' ' ' | tee /tmp/schema_before.txt; echo
       - name: Run each image in turn against that database and compare
         run: |
+          # This pinned image predates the group-member-ref API contract. Keep
+          # its byte-integrity assertion against the exact verified source it
+          # represents, not a claim that it is the current source/API image.
+          git fetch --no-tags --depth=1 origin dcbb6fe58416ef6b979155b5da287aa7d7bb25fd
+          test "$(git rev-parse FETCH_HEAD)" = dcbb6fe58416ef6b979155b5da287aa7d7bb25fd
           docker create --name inspect-candidate "$CAND_IMAGE" >/dev/null
           for p in app/Http/Controllers/PostController.php app/Http/Controllers/ChatController.php app/Http/Controllers/EngagementController.php app/Http/Resources/Present.php; do
             docker cp "inspect-candidate:/app/$p" /tmp/image-file
-            cmp "api/$p" /tmp/image-file
+            git show "FETCH_HEAD:api/$p" > /tmp/pinned-image-source
+            cmp /tmp/pinned-image-source /tmp/image-file
           done
           docker rm inspect-candidate >/dev/null
           # One at a time: with host networking both would share php-fpm's fixed local port, and the second would silently be served by the first.
@@ -464,12 +471,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Refusal before DB or payment-provider work in exact current image
+      - name: Build unpublished exact-current-source image and verify integrity
         run: |
-          IMAGE=sanjaalapp/sanjaal-api@sha256:29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66
-          docker pull "$IMAGE"
+          BASE=sanjaalapp/sanjaal-api@sha256:29858723492076017fac63d273423243eb48f53cc3410dbe03a927b38c78eb66
+          docker pull "$BASE"
+          docker create --name baseline "$BASE" >/dev/null
+          docker cp baseline:/app/composer.lock /tmp/runtime-composer.lock
+          cmp api/composer.lock /tmp/runtime-composer.lock
+          docker rm baseline
+          # Preserve the pinned vendor/runtime; replace all tracked source trees.
+          printf 'FROM %s\nUSER root\nRUN rm -rf /app/app /app/bootstrap /app/config /app/database /app/public /app/resources /app/routes /app/tests\nCOPY api/ /app/\n' "$BASE" > /tmp/ExactCurrent.Dockerfile
+          docker build --pull=false -f /tmp/ExactCurrent.Dockerfile -t sanjaal-current:${{ github.sha }} .
+          docker create --name integrity sanjaal-current:${{ github.sha }} >/dev/null
+          docker cp integrity:/app /tmp/exact-current-api
+          git ls-files -z api | while IFS= read -r -d '' p; do cmp "$p" "/tmp/exact-current-api/${p#api/}"; done
+          docker rm integrity
+      - name: Current source refuses money and malformed group IDs without network or DB
+        run: |
+          IMAGE=sanjaal-current:${{ github.sha }}
           docker create --name hold --network none --entrypoint sh "$IMAGE" -c 'sleep 120'
           docker start hold
           docker cp api/tests/Compat/wallet_hold_runtime.php hold:/tmp/wallet_hold_runtime.php
           docker exec hold php /tmp/wallet_hold_runtime.php
+          docker exec hold php /app/tests/Compat/group_ref_validation_runtime.php
           docker rm -f hold

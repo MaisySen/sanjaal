@@ -334,3 +334,23 @@ Combined predecessor dcbb6fe completed all seven required jobs including emulato
 https://github.com/MaisySen/sanjaal/actions/runs/44617576615 . All27 journey images
 were visually inspected. This settles the pending main-run status above.
 Publication/release stayed disabled. It predates the group implementation.
+
+
+Combined45969c3 exposed an actual PostgreSQL validation gap: malformed member
+public_id reached a UUID-typed column and produced500, while SQLite returned the
+intended422. The next source validates UUID syntax before lookup and tests both
+malformed and valid-but-missing IDs. Current PostgreSQL acceptance is pending.
+The historical timing-image job also stopped on its exact-byte integrity check
+because the new ChatController differs from its pinned older image. Its source
+comparison is now explicitly anchored to verified dcbb6fe, retaining all four
+exact byte checks and the old image digests. This job is historical image parity,
+not acceptance of the new group API. Current-source API acceptance is the SQLite,
+cached-route, PostgreSQL and concurrent invariant suite. No check was removed,
+no pinned image was relabelled current, and no production mutation followed.
+
+The wallet hold job previously mislabeled the pinned older image current. It now
+builds an unpublished image from exact current tracked API source, on the pinned
+runtime/vendor layer only after composer.lock equality, removes old source trees,
+and verifies every tracked API file byte-for-byte in the new image. It then runs
+money refusal and malformed-group-ID controller rejection with networking off.
+This is not a deployed image and does not replace PostgreSQL acceptance.

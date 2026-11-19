@@ -92,7 +92,7 @@ class ChatController extends Controller
             'usernames' => ['required_if:type,group', 'array', 'min:1', 'max:49'],
             'usernames.*' => ['string'],
             'member_refs' => ['sometimes', 'array', 'min:1', 'max:49'],
-            'member_refs.*.public_id' => ['required_with:member_refs', 'string', 'max:256', 'distinct'],
+            'member_refs.*.public_id' => ['required_with:member_refs', 'uuid', 'distinct'],
             'member_refs.*.username' => ['required_with:member_refs', 'string', 'max:80', 'distinct'],
         ]);
         $me = $request->user();

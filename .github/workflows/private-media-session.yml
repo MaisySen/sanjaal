@@ -1,7 +1,7 @@
 name: Private media session ownership regression
 on:
   push:
-    branches: [private-media-session-ownership]
+    branches: [private-media-session-ownership, private-photo-viewer-retirement]
 permissions:
   contents: read
 concurrency:
@@ -23,6 +23,7 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/private_chat_media_test.dart test/private_photo_viewer_test.dart test/chat_screen_session_test.dart --reporter expanded > focused.log 2>&1
       - run: flutter test --reporter expanded > test.log 2>&1
       - name: Prove same-account media regression catches a missing epoch check
         shell: bash
@@ -47,6 +48,23 @@ jobs:
           grep -F 'Expected: throws' /tmp/media-negative.log
           cp /tmp/private-media-api.original lib/api.dart
           flutter test test/private_media_session_test.dart --reporter expanded
+      - name: Private photo route ownership negative control
+        run: |
+          cp lib/private_media_image.dart /tmp/private-photo.original
+          trap 'cp /tmp/private-photo.original lib/private_media_image.dart' EXIT
+          python3 - <<'PYCONTROL'
+          from pathlib import Path
+          p=Path('lib/private_media_image.dart');s=p.read_text();needle='!sessionActive?retiredSessionView():';assert needle in s;s=s.replace(needle,'',1);p.write_text(s)
+          PYCONTROL
+          set +e
+          timeout --kill-after=10s 90 flutter test test/private_photo_viewer_test.dart --plain-name 'private viewer retires decoded photo on same login' --reporter expanded > photo-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' photo-negative.log
+          cp /tmp/private-photo.original lib/private_media_image.dart
+          flutter test test/private_photo_viewer_test.dart --reporter expanded > photo-restored.log 2>&1
       - name: Preserve test and render evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,6 +72,10 @@ jobs:
           name: private-media-session-tests
           path: |
             app/analyze.log
+            app/focused.log
+            app/photo-negative.log
+            app/photo-restored.log
+            app/test/renders/private_photo_*.png
             app/test.log
             app/test/renders/saved_drafts_conflict_*.png
           retention-days: 7

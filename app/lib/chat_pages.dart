@@ -32,6 +32,10 @@ class ChatsPage extends StatefulWidget {
 }
 
 class _ChatsPageState extends State<ChatsPage> {
+  late final String? _owner;
+  late final int _sessionGeneration;
+  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  void _accountChanged(){if(!_active && mounted){++_loadVersion;timer?.cancel();setState(()=>convos=[]);}}
   List<Map<String, dynamic>> convos = [];
   bool loading = true;
   String? error;
@@ -43,6 +47,8 @@ class _ChatsPageState extends State<ChatsPage> {
   @override
   void initState() {
     super.initState();
+    _owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
+    widget.session.addListener(_accountChanged);
     _load();
     timer = Timer.periodic(const Duration(seconds: 12), (_) { if (widget.active) _load(quiet: true); });
   }
@@ -55,26 +61,27 @@ class _ChatsPageState extends State<ChatsPage> {
 
   @override
   void dispose() {
+    widget.session.removeListener(_accountChanged);
     timer?.cancel();
     super.dispose();
   }
 
   Future<void> _load({bool quiet = false, bool force = false}) async {
-    if(!mounted || (!force && _readingArchive==showArchived)) return;
+    if(!mounted || !_active || (!force && _readingArchive==showArchived)) return;
     final archived=showArchived;
     _readingArchive=archived;
     final version = ++_loadVersion;
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
-      if (!mounted || version != _loadVersion) return;
+      if (!mounted || !_active || version != _loadVersion) return;
       final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
       if(rows.any((c)=>c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty || (c['last_message']!=null && c['last_message'] is! Map) || (c['unread']!=null && c['unread'] is! num))) throw const FormatException('Invalid inbox');
       setState(() { convos=rows; error=null; });
     } catch (e) {
-      if (mounted && version == _loadVersion && !quiet) setState(() => error=e is ApiError?t_(e.message):t_('Chats could not be loaded.'));
+      if (mounted && _active && version == _loadVersion && !quiet) setState(() => error=e is ApiError?t_(e.message):t_('Chats could not be loaded.'));
     } finally {
       if(version==_loadVersion) _readingArchive=null;
-      if (mounted && version == _loadVersion && loading) setState(() => loading = false);
+      if (mounted && _active && version == _loadVersion && loading) setState(() => loading = false);
     }
   }
 
@@ -85,8 +92,10 @@ class _ChatsPageState extends State<ChatsPage> {
   }
 
   Future<void> _menu(Map<String, dynamic> c) async {
+    if(!_active)return;
     final id = c['public_id'];
     Future<void> set(Map<String, dynamic> body) async {
+      if(!mounted || !_active)return;
       Navigator.pop(context);
       try {
         await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
@@ -109,20 +118,23 @@ class _ChatsPageState extends State<ChatsPage> {
   }
 
   Future<void> _open(Map<String, dynamic> c) async {
+    if(!_active)return;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: c)));
     _load(quiet: true,force:true);
   }
 
   Future<void> _new() async {
+    if(!_active)return;
     final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session)));
-    if (c != null) {
+    if (mounted && _active && c != null) {
       await _load(quiet: true,force:true);
-      if (mounted) _open(c);
+      if (mounted && _active) _open(c);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Chats'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     return Scaffold(
       appBar: AppBar(
         title: Text(t_(showArchived ? 'Archived' : 'Chats')),
@@ -875,6 +887,18 @@ class GroupInfoPage extends StatefulWidget {
 }
 
 class _GroupInfoPageState extends State<GroupInfoPage> {
+  late final String? _owner;
+  late final int _sessionGeneration;
+  bool get _active=>_owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  BuildContext? _dialog;
+  @override void initState(){super.initState();_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;widget.session.addListener(_accountChanged);}
+  void _accountChanged(){
+    if(_active || !mounted)return;
+    final dialog=_dialog;
+    if(dialog!=null && dialog.mounted && ModalRoute.of(dialog)?.isCurrent==true)Navigator.of(dialog).pop();
+    setState((){members=[];title='';busy=false;});
+  }
+  @override void dispose(){widget.session.removeListener(_accountChanged);super.dispose();}
   late List<Map<String, dynamic>> members = ((widget.convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
   bool busy = false;
   late String title = (widget.convo['title'] ?? 'Group').toString();
@@ -883,10 +907,11 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   Future<void> _add() async {
+    if(!_active || busy)return;
     final ctrl = TextEditingController();
     final names = await showDialog<List<String>>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) {_dialog=c;return AlertDialog(
         title: Text(t_('Add people')),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           TextField(controller: ctrl, autofocus: true, decoration: InputDecoration(hintText: t_('Usernames, separated by commas'))),
@@ -900,66 +925,74 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             child: Text(t_('Add')),
           ),
         ],
-      ),
+      );},
     );
+    _dialog=null;
+    if (!mounted || !_active)return;
     if (names == null || names.isEmpty) return;
     setState(() => busy = true);
     try {
       final j = await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/members', body: {'usernames': names}) as Map<String, dynamic>;
       final c = j['conversation'] as Map<String, dynamic>;
-      if (mounted) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
+      if (mounted && _active) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
     } on ApiError catch (e) {
-      if (mounted) _say(e.message);
+      if (mounted && _active) _say(e.message);
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted && _active) setState(() => busy = false);
     }
   }
 
   Future<void> _rename() async {
+    if(!_active || busy)return;
     final ctrl = TextEditingController(text: title);
     final name = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) {_dialog=c;return AlertDialog(
         title: Text(t_('Rename group')),
         content: TextField(controller: ctrl, autofocus: true, maxLength: 80, decoration: InputDecoration(hintText: t_('Group name'))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: Text(t_('Cancel'))),
           FilledButton(onPressed: () => Navigator.pop(c, ctrl.text.trim()), child: Text(t_('Save'))),
         ],
-      ),
+      );},
     );
+    _dialog=null;
+    if (!mounted || !_active)return;
     if (name == null || name.isEmpty || name == title) return;
     setState(() => busy = true);
     try {
       final j = await widget.session.call('PATCH', '/conversations/${widget.convo['public_id']}', body: {'title': name}) as Map<String, dynamic>;
       final c = j['conversation'] as Map<String, dynamic>;
-      if (mounted) setState(() => title = (c['title'] ?? name).toString());
+      if (mounted && _active) setState(() => title = (c['title'] ?? name).toString());
     } on ApiError catch (e) {
-      if (mounted) _say(e.message);
+      if (mounted && _active) _say(e.message);
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted && _active) setState(() => busy = false);
     }
   }
 
   Future<void> _leave() async {
+    if(!_active || busy)return;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) {_dialog=c;return AlertDialog(
         title: Text(t_('Leave this group?')),
         content: Text(t_('You will stop getting its messages. Someone has to add you again to rejoin.')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Leave'))),
         ],
-      ),
+      );},
     );
+    _dialog=null;
+    if (!mounted || !_active)return;
     if (ok != true) return;
     setState(() => busy = true);
     try {
       await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/leave');
-      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      if (mounted && _active) Navigator.of(context).popUntil((r) => r.isFirst);
     } on ApiError catch (e) {
-      if (mounted) {
+      if (mounted && _active) {
         setState(() => busy = false);
         _say(e.message);
       }
@@ -968,6 +1001,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Group info'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final scheme = Theme.of(context).colorScheme;
     final session = widget.session;
     return Scaffold(

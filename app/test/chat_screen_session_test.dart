@@ -38,6 +38,40 @@ void main(){
    }));
   });
  }
+ for(final action in ['Rename group','Add people','Leave group']){
+  testWidgets('account replacement closes stale $action dialog without group mutation',(t)async{
+   String owner='a';var writes=0;
+   await http.runWithClient(()async{
+    final session=Session();await session.login('fixture','not-a-password');
+    await t.pumpWidget(MaterialApp(home:GroupInfoPage(session:session,convo:{'public_id':'old-group','type':'group','title':'Private group title','my_role':'owner','members':[{'public_id':'a','username':'a'},{'public_id':'private-person','username':'private-person'}]})));
+    await flush(t);await t.tap(find.text(action));await flush(t);expect(find.byType(AlertDialog),findsOneWidget);
+    owner='b';await session.login('replacement','not-a-password');await flush(t);
+    expect(find.byType(AlertDialog),findsNothing);expect(find.text('Private group title'),findsNothing);expect(find.text('@private-person'),findsNothing);
+    expect(find.textContaining('another signed-in session'),findsOneWidget);expect(writes,0);expect(t.takeException(),isNull);
+    await t.pumpWidget(const SizedBox());
+   },()=>MockClient((r)async{
+    if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});
+    if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':owner,'username':owner}});
+    writes++;return reply({});
+   }));
+  });
+ }
+ testWidgets('inbox immediately hides old conversation previews after account replacement',(t)async{
+  String owner='a';var inboxReads=0;
+  await http.runWithClient(()async{
+   final session=Session();await session.login('fixture','not-a-password');
+   await t.pumpWidget(MaterialApp(home:ChatsPage(session:session)));
+   await flush(t);expect(find.text('Private preview'),findsOneWidget);
+   owner='b';await session.login('replacement','not-a-password');await flush(t);
+   expect(find.text('Private preview'),findsNothing);expect(find.byTooltip('New chat'),findsNothing);
+   await t.pump(const Duration(seconds:15));expect(inboxReads,1);expect(t.takeException(),isNull);
+   await t.pumpWidget(const SizedBox());
+  },()=>MockClient((r)async{
+   if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});
+   if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':owner,'username':owner}});
+   inboxReads++;return reply({'data':[{'public_id':'private-chat','type':'direct','title':'Private title','last_message':{'body':'Private preview','kind':'text','created_at':'2026-11-20T00:00:00Z'},'unread':0}]});
+  }));
+ });
  testWidgets('old failed text retry and newer unsent composer disappear on account change',(t)async{
   final held=Completer<http.Response>();var reads=0,writes=0;String owner='a';
   await http.runWithClient(()async{

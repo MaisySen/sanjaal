@@ -26,10 +26,14 @@ Future<void> _until(WidgetTester tester, bool Function() ready) async {
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   Future<void> capture(String name) async {
+    print('DRAFT_STAGE capture conversion $name');
     await binding.convertFlutterSurfaceToImage();
+    await binding.pump();
+    print('DRAFT_STAGE capture screenshot $name');
     await binding.takeScreenshot(name);
   }
   testWidgets('saved text poll survives process restart without posting', (tester) async {
+    print('DRAFT_STAGE support directory');
     final dir=await tester.runAsync(getApplicationSupportDirectory);
     final recover=File('/data/user/0/au.fintex.sanjaal/files/synthetic-marker-recover');
     final phase=recover.existsSync()?'recover':'seed';
@@ -37,12 +41,17 @@ void main() {
     final body='Saved native poll $_id';
     const options=['Saturday after work','Sunday morning'];
     final session=Session()..user={'public_id':_owner,'username':'synthetic'};
+    print('DRAFT_STAGE phase=$phase');
     if(phase=='seed'){
       expect(await tester.runAsync(()=>drafts.read(_owner)),isEmpty);
+      print('DRAFT_STAGE initial read complete');
       final draft=await tester.runAsync(()=>drafts.save(_owner,text:body,options:options));
+      print('DRAFT_STAGE saved native draft');
       await tester.runAsync(()=>File('${dir!.path}/saved-draft-identity.json').writeAsString(jsonEncode(draft!.toJson()),flush:true));
       await tester.pumpWidget(MaterialApp(home:CreatorDraftsPage(session:session)));
+      print('DRAFT_STAGE list mounted');
       await _until(tester,()=>find.text(body).evaluate().isNotEmpty);
+      print('DRAFT_STAGE list loaded');
       expect(find.text('Poll draft'),findsOneWidget);
       await tester.pump(const Duration(milliseconds:500));
       await capture('draft_restart_1_saved_poll');

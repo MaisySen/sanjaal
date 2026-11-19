@@ -1,0 +1,60 @@
+name: Multipart session ownership regression
+on:
+  push:
+    branches: [upload-session-ownership]
+permissions:
+  contents: read
+concurrency:
+  group: upload-session-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - name: Prove stale avatar test fails without response ownership check
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/api.dart /tmp/upload-api.original
+          trap 'cp /tmp/upload-api.original lib/api.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/api.dart')
+          s = p.read_text()
+          start = s.index('Future<void> uploadAvatar(')
+          before = '    _checkSession(epoch);\n    if (r.statusCode != 200)'
+          assert s[start:].count(before) == 1
+          p.write_text(s[:start] + s[start:].replace(before, '    if (r.statusCode != 200)', 1))
+          PY
+          if flutter test test/upload_session_test.dart --plain-name 'avatar rejects late response after other account' --reporter expanded > /tmp/upload-session-negative.log 2>&1; then
+            cat /tmp/upload-session-negative.log
+            echo 'Stale avatar test unexpectedly passed without response guard'
+            exit 1
+          fi
+          cat /tmp/upload-session-negative.log
+          grep -F 'Expected: throws' /tmp/upload-session-negative.log
+          cp /tmp/upload-api.original lib/api.dart
+          flutter test test/upload_session_test.dart --reporter expanded
+      - name: Preserve test and render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-session-tests
+          path: |
+            app/analyze.log
+            app/test.log
+            app/test/renders/saved_drafts_conflict_*.png
+          retention-days: 7

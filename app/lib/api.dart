@@ -150,8 +150,9 @@ class Session extends ChangeNotifier {
   http.MultipartRequest _trackedUpload(String path) {
     final request = ++_uploadRequest;
     final account = user?['public_id'];
+    final epoch = _sessionEpoch;
     return _ProgressMultipart('POST', Uri.parse('$apiBase$path'), (value) {
-      if (request == _uploadRequest && account == user?['public_id']) uploadProgress.value = value;
+      if (request == _uploadRequest && epoch == _sessionEpoch && account == user?['public_id']) uploadProgress.value = value;
     });
   }
   String? _access;
@@ -570,9 +571,11 @@ class Session extends ChangeNotifier {
 
   /// Posts text and up to 4 files. [files] are (bytes, mime, filename).
   Future<Map<String, dynamic>> createPost(String body, {List<UploadFile> files = const [], bool reel = false, List<String>? pollOptions, String? intent}) async {
+    final epoch = _sessionEpoch;
     final replaySafe = uploadIntentsEnabled && intent != null;
     final account = user?['public_id'];
     final token = await _token();
+    _checkSession(epoch);
     if (account == null || account != user?['public_id']) throw ApiError('Please sign in again.', 401);
     final req = _trackedUpload('/posts')
       ..headers['Authorization'] = 'Bearer $token'
@@ -596,6 +599,7 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw _interruptedUpload(replaySafe);
     }
+    _checkSession(epoch);
     if (r.statusCode != 201 && r.statusCode != 200) throw _uploadFailure(r, replaySafe: replaySafe);
     final j = _uploadResult(r, 'post', replaySafe);
     return (j['post'] as Map).cast<String, dynamic>();
@@ -603,9 +607,11 @@ class Session extends ChangeNotifier {
 
   /// Multipart POST with one optional file. Returns the decoded JSON object.
   Future<Map<String, dynamic>> upload(String path, {Map<String, String> fields = const {}, String field = 'media', UploadFile? file, String? intent}) async {
+    final epoch = _sessionEpoch;
     final replaySafe = uploadIntentsEnabled && intent != null;
     final account = user?['public_id'];
     final token = await _token();
+    _checkSession(epoch);
     if (account == null || account != user?['public_id']) throw ApiError('Please sign in again.', 401);
     final req = (path == '/stories' ? _trackedUpload(path) : http.MultipartRequest('POST', Uri.parse('$apiBase$path')))
       ..headers['Authorization'] = 'Bearer $token'
@@ -622,12 +628,15 @@ class Session extends ChangeNotifier {
       if (path != '/stories') throw ApiError('Upload failed. Check your connection and try again.');
       throw _interruptedUpload(replaySafe);
     }
+    _checkSession(epoch);
     if (r.statusCode != 200 && r.statusCode != 201) throw path == '/stories' ? _uploadFailure(r, replaySafe: replaySafe) : ApiError(_errorText(r), r.statusCode);
     return path == '/stories' ? _uploadResult(r, 'story', replaySafe) : jsonDecode(r.body) as Map<String, dynamic>;
   }
 
   Future<void> uploadAvatar(UploadFile f) async {
+    final epoch = _sessionEpoch;
     final token = await _token();
+    _checkSession(epoch);
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/auth/me/avatar'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
@@ -638,6 +647,7 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw ApiError('Upload failed. Check your connection and try again.');
     }
+    _checkSession(epoch);
     if (r.statusCode != 200) throw ApiError(_errorText(r), r.statusCode);
     user = {...?user, ...((jsonDecode(r.body) as Map)['user'] as Map).cast<String, dynamic>()};
     notifyListeners();

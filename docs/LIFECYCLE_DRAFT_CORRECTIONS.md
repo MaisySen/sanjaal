@@ -26,6 +26,20 @@ Exact focused verification: https://github.com/MaisySen/sanjaal/actions/runs/444
 
 ## Combined source validation
 
-The integration branch combines only these corrections above `7d1107629a7d912c8fb8edf2d1e9065a8ee42583`. Whole-app Flutter regression is required after combination. Focused counts must not be added to whole-suite totals.
+Combined source `810b7c97db9187d8fbd5a8f6c2d082d3b4ad5350` fixes the two native fixture cleanup callers to pass their saved revision. Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/44499154832 . 932 tests pass with one intentional opt-in live skip. Analyzer has zero errors/warnings and 87 informational notices. The earlier combined run found those fixture omissions and was corrected before this run. Focused counts must not be added to whole-suite totals.
+
+## Multipart session ownership
+
+Source `7bc0664e9b2a30923fef4f11bc926d868fe0f8f9` checks the session generation before token/send and after response for post, upload and avatar mutations. Progress from a superseded session is ignored. A delayed old avatar response cannot replace the next session's user.
+
+Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/44500230484 . 945 tests pass with one intentional opt-in live skip, zero analyzer errors/warnings and 87 informational notices. A negative control removing the avatar response generation guard fails as expected; restoring it passes all 13 focused cases.
+
+Workflow-only source `ca37a02c043d0aaf549242126871ef037f7f3654` has byte-identical app runtime and passes unsigned iOS release compilation: https://github.com/MaisySen/sanjaal/actions/runs/44501123048 . This is not signing, installation or device behavior proof.
+
+## Private media session ownership
+
+Source `de35f056177d3967f3e9fd4aa9913904864e63b7` checks session generation when acquiring private media headers and returning downloaded chat bytes. Checking account ID alone did not reject a delayed response after signing into the same account again. Seven focused cases cover chat/protected-story bytes after logout, another account, same-account new login, and a superseded token/header wait.
+
+Exact whole-app run: https://github.com/MaisySen/sanjaal/actions/runs/44502888171 . The missing after-response generation guard makes the same-account delayed-byte regression fail; restoring source passes all seven focused cases. Whole-app: 952 pass with one intentional opt-in live skip. Analyzer: zero errors/warnings and 87 informational notices. Results are preserved in the run artifact. Native compilation of this newest runtime is a separate required checkpoint, not inferred from the earlier ca37 run.
 
 The Samsung remains on the separately installed exact `0.5.6 (2011)` candidate. Neither correction has been installed there or accepted on a device. No API deployment, production room, real user-draft mutation, paid service, wallet activation, store upload or public release is part of this source batch.

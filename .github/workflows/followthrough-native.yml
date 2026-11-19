@@ -1,7 +1,7 @@
 name: Follow-through native compilation
 on:
   push:
-    branches: [app-followthrough-native-compile]
+    branches: [private-media-native-compile]
 permissions:
   contents: read
 jobs:

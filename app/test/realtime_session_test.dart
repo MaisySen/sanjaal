@@ -55,10 +55,13 @@ void main(){
    await t.pumpWidget(MaterialApp(home:OwnedSetup(session:s,gate:gate,steps:steps,room:false)));await flush(t);
    final replacement=s.login('replacement','not-a-password');
    final rejected=expectLater(replacement,throwsA(isA<ApiError>()));await flush(t);
-   expect(steps,['token','connect','close']);expect(find.textContaining('another signed-in session'),findsOneWidget);
+   final beforeAuth=List<String>.of(steps);
+   final retiredBeforeAuth=find.textContaining('another signed-in session').evaluate().length;
+   // Always release held futures before assertions, including negative control.
    gate.complete();auth.complete(http.Response(jsonEncode({'error_description':'Synthetic rejection'}),403));await rejected;await flush(t);
-   expect(steps,['token','connect','close']);expect(find.textContaining('another signed-in session'),findsOneWidget);expect(t.takeException(),isNull);
    await t.pumpWidget(const SizedBox());
+   expect(beforeAuth,['token','connect','close']);expect(retiredBeforeAuth,1);
+   expect(steps,['token','connect','close']);expect(t.takeException(),isNull);
   },()=>MockClient((_)async=>++grants==1?http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200):auth.future));
  });
  for(final same in [false,true])for(final page in ['calls','rooms','incoming','call','room']){

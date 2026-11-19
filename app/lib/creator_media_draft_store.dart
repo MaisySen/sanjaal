@@ -33,13 +33,15 @@ class CreatorMediaDraftStore {
   static const fileLimit=25*1024*1024, accountLimit=100*1024*1024, deviceLimit=256*1024*1024;
   static const _storage=FlutterSecureStorage();
   static final _cipher=AesGcm.with256bits();
-  static Future<void> _tail=Future<void>.value();
+  static Future<void>? _tail;
   static bool nonceValid(dynamic v)=>v is String && RegExp(r'^[0-9a-f]{32}$').hasMatch(v);
   static String _nonce()=>List.generate(16,(_)=>Random.secure().nextInt(256).toRadixString(16).padLeft(2,'0')).join();
   static String _owner(String owner){if(owner.isEmpty || owner.length>256)throw ArgumentError('Account required');return sha256.convert(utf8.encode(owner)).toString();}
   Future<T> _serial<T>(Future<T> Function() action) async {
-    final before=_tail;final done=(()async{await before;return action();})();
-    _tail=done.then<void>((_) {},onError:(Object _,StackTrace __){});return done;
+    final before=_tail;final done=(()async{if(before!=null)await before;return action();})();
+    final tail=done.then<void>((_) {},onError:(Object _,StackTrace __){});_tail=tail;
+    try{return await done;}
+    finally{if(identical(_tail,tail))_tail=null;}
   }
   Future<Directory> _root()async{
     final root=testRoot??Directory('${(await getApplicationSupportDirectory()).path}/creator_media_drafts_v1');

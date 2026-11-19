@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sanjaal/video_poster.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/semantics.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/main.dart' as app;
@@ -29,6 +30,19 @@ Future<void> stage(String value) async {
 }
 void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+ SemanticsHandle? suiteSemantics;
+ setUpAll(() async {
+  // Own the suite's accessibility interest before WidgetTester records its
+  // per-test baseline. iOS may answer this asynchronously with a platform
+  // handle, which otherwise appears to be a test leak during first focus.
+  suiteSemantics=binding.ensureSemantics();
+  final deadline=DateTime.now().add(const Duration(seconds:10));
+  while(!ui.PlatformDispatcher.instance.semanticsEnabled && DateTime.now().isBefore(deadline)){
+   await Future<void>.delayed(const Duration(milliseconds:100));
+  }
+  await stage('semantics baseline handles=${binding.debugOutstandingSemanticsHandles} platform=${ui.PlatformDispatcher.instance.semanticsEnabled}');
+ });
+ tearDownAll(() {suiteSemantics?.dispose();});
  Future<void> capture(String name) async {
   final result=await binding.takeScreenshot(name);
   final bytes=result;
@@ -173,6 +187,7 @@ void main(){
   await stage('logout');
   await t.runAsync(()=>session.logout());expect(await RefreshStore.read(),isNull);
   expect(p.getString('refresh_token'),isNull);
+  await stage('semantics end handles=${binding.debugOutstandingSemanticsHandles} platform=${ui.PlatformDispatcher.instance.semanticsEnabled}');
   await stage('complete');
   await t.pumpWidget(const SizedBox());
   print('iOS simulator local keychain/draft/restore/five-tab/post checks passed; no live service or physical iPhone proof.');

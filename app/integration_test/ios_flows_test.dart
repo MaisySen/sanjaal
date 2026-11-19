@@ -96,9 +96,16 @@ void main(){
   await until(t,()=>find.text('Asha Gurung').evaluate().isNotEmpty);
   await t.tap(find.text('Asha Gurung').first);
   await until(t,()=>find.byTooltip('Send message').evaluate().isNotEmpty);
+  await t.pump(const Duration(milliseconds:600));
   const message='iOS simulator server-confirmed local message';
-  await t.enterText(find.byType(TextField).first,message);
+  final messageField=find.widgetWithText(TextField,'Message');
+  await t.tap(messageField);await t.pump(const Duration(milliseconds:300));
+  await t.enterText(messageField,message);await t.pump(const Duration(milliseconds:400));
+  expect(t.widget<TextField>(messageField).controller!.text,message);
+  await binding.takeScreenshot('ios_chat_before_send');
+  expect(find.byTooltip('Send message').hitTestable(),findsOneWidget);
   await t.tap(find.byTooltip('Send message'));
+  await t.pump(const Duration(milliseconds:400));
   await until(t,()=>find.text(message).evaluate().isNotEmpty && find.text('Sending').evaluate().isEmpty);
   expect(find.text('Delivery unconfirmed. Tap to retry.'),findsNothing);
   await t.pump(const Duration(milliseconds:600));

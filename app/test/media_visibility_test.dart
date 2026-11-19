@@ -145,7 +145,7 @@ void main() {
     pool.dispose();await flush(t);
   });
   testWidgets('local story preview waits for play, pauses in background and stays paused on resume', (t) async {
-    await t.pumpWidget(app(StoryComposePage(session: Session(), file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true)));
+    await t.pumpWidget(app(StoryComposePage(session: Session()..user={'public_id':'fixture-owner'}, file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true)));
     await flush(t); expect(video.playing[0], isFalse);
     await t.tap(find.byTooltip('Play')); await flush(t); expect(video.playing[0], isTrue);
     background(t); await flush(t); expect(video.playing[0], isFalse);
@@ -154,7 +154,7 @@ void main() {
   });
   testWidgets('local story preview pauses when another route covers it', (t) async {
     final nav = GlobalKey<NavigatorState>();
-    await t.pumpWidget(app(StoryComposePage(session: Session(), file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true), nav: nav));
+    await t.pumpWidget(app(StoryComposePage(session: Session()..user={'public_id':'fixture-owner'}, file: XFile.fromData(Uint8List.fromList([1,2,3]), path: '/fixture.mp4', name: 'fixture.mp4'), isVideo: true), nav: nav));
     await flush(t); await t.tap(find.byTooltip('Play')); await flush(t); expect(video.playing[0], isTrue);
     nav.currentState!.push(MaterialPageRoute<void>(builder: (_) => const Scaffold(body: Text('Cover'))));
     await flush(t); expect(video.playing[0], isFalse);

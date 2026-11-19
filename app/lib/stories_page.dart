@@ -576,7 +576,6 @@ class _StoryComposePageState extends State<StoryComposePage> {
     appBar: AppBar(title: Text(t_('Your story')),actions:[IconButton(tooltip:t_('Save media draft'),onPressed:busy || _saving || handedOff || _saved?.attempted==true?null:_save,icon:const PhIcon('bookmark-simple'))]),
     body: SafeArea(top: false, child: Column(children: [
       Expanded(child: ListView(padding: const EdgeInsets.all(16), children: [
-      if (widget.session.protectedStoriesEnabled) Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Tooltip(message:t_('Who can see this story'),child:TextButton.icon(onPressed:busy || _saving || audienceLocked?null:chooseAudience,icon:const PhIcon('users',size:20),label:Row(mainAxisSize:MainAxisSize.min,children:[Flexible(child:Text(t_(audience=='close_friends'?'Close friends':audience=='only_me'?'Only me':'Followers'),maxLines:2)),const SizedBox(width:8),const PhIcon('caret-down',size:16)])))),
       if(_saved?.attempted==true)UploadNotice(message:'This saved draft may already be posted. Check your profile before preparing a separate upload.',prepareNew:busy || _saving?null:_separate,newLabel:'Prepare a separate upload'),
         if(_saved!=null && !_saved!.attempted)Text(t_('Local draft. Posting is manual. The saved copy stays in Drafts until you delete it.')),
         Text(t_('Preview'), style: Theme.of(context).textTheme.titleMedium),
@@ -595,6 +594,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
           const SizedBox(height:16),
         ] else Padding(padding:const EdgeInsets.only(bottom:16),child:Text(t_('Story sharing needs the protected-story server update. Your draft is still here.'))),
       ])),
+      if (widget.session.protectedStoriesEnabled) Padding(padding:const EdgeInsets.symmetric(horizontal:16),child:Tooltip(message:t_('Who can see this story'),child:TextButton.icon(onPressed:busy || _saving || audienceLocked?null:chooseAudience,icon:const PhIcon('users',size:20),label:Row(mainAxisSize:MainAxisSize.min,children:[Flexible(child:Text(t_(audience=='close_friends'?'Close friends':audience=='only_me'?'Only me':'Followers'),maxLines:2)),const SizedBox(width:8),const PhIcon('caret-down',size:16)])))),
       if (error != null) UploadNotice(
         message: error!,
         openOriginal: uploadError?.resourceId == null ? null : openOriginal,

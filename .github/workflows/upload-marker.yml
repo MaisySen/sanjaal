@@ -1,0 +1,59 @@
+name: Upload marker ownership regression
+on:
+  push:
+    branches: [upload-marker-ownership]
+permissions:
+  contents: read
+concurrency:
+  group: upload-marker-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - name: Prove stale cleanup cannot erase a replacement marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/upload_pending_store.dart /tmp/marker.original
+          trap 'cp /tmp/marker.original lib/upload_pending_store.dart' EXIT
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path('lib/upload_pending_store.dart')
+          s = p.read_text()
+          before = "if (existing['id'] != expectedId)"
+          assert s.count(before) == 1
+          p.write_text(s.replace(before, "if (false)", 1))
+          PYCODE
+          if flutter test test/upload_pending_store_test.dart --plain-name 'stale cleanup cannot erase a newer marker for the same member' --reporter expanded > /tmp/marker-negative.log 2>&1; then
+            cat /tmp/marker-negative.log
+            echo 'Stale cleanup unexpectedly passed without marker ownership check'
+            exit 1
+          fi
+          cat /tmp/marker-negative.log
+          grep -F 'Expected: throws' /tmp/marker-negative.log
+          cp /tmp/marker.original lib/upload_pending_store.dart
+          flutter test test/upload_pending_store_test.dart test/upload_center_test.dart --reporter expanded
+      - name: Preserve test and render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-marker-tests
+          path: |
+            app/analyze.log
+            app/test.log
+            app/test/renders/saved_drafts_conflict_*.png
+          retention-days: 7

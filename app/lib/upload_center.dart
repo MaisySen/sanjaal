@@ -45,7 +45,7 @@ class UploadCenter extends ChangeNotifier {
     _owner = owner;
     _epoch++;
     busy = false; preparing = false; openingOriginal = false; error = null; result = null;
-    _original = null; kind = null;
+    _original = null; kind = null; _localId = null;
     confirmedPosts.clear(); confirmedStories.clear(); revision++;
     restoring = true;
     notifyListeners();
@@ -53,6 +53,7 @@ class UploadCenter extends ChangeNotifier {
   }
   Future<void> _recover() async {
     final account = owner; final epoch = _epoch;
+    _localId = null;
     try {
       final saved = account == null ? null : await store.read(account);
       if (epoch != _epoch) return;
@@ -74,6 +75,8 @@ class UploadCenter extends ChangeNotifier {
     if (busy || restoring || _original == null) return;
     final epoch = _epoch;
     final original = _original!;
+    final markerId = _localId!;
+    final markerKind = kind!;
     final account = owner;
     if (account == null) return;
     busy = true; preparing = true; error = null;
@@ -81,7 +84,7 @@ class UploadCenter extends ChangeNotifier {
     notifyListeners();
     try {
       // Persist before even file preparation can hand work to the network.
-      try { await store.write(account, _localId!, kind!); }
+      try { await store.write(account, markerId, markerKind); }
       catch (_) { throw ApiError('Upload safety info could not be saved. Nothing was sent.'); }
       if (epoch != _epoch) return;
       final value = await original();
@@ -99,7 +102,7 @@ class UploadCenter extends ChangeNotifier {
       if (list.length > 32) list.removeLast();
       revision++;
       _original = null;
-      try { await store.clear(account); }
+      try { await store.clear(account, expectedId: markerId); }
       catch (_) { throw UploadError('Your upload was confirmed, but its safety info could not be cleared. Open the original before starting another.', resourceId: value['public_id'] as String, uncertain: true); }
     } catch (e) {
       if (epoch == _epoch) error = e;
@@ -113,8 +116,9 @@ class UploadCenter extends ChangeNotifier {
   Future<void> dismiss() async {
     if (busy || restoring) return;
     final account = owner; final epoch = _epoch;
+    final markerId = _localId;
     restoring = true; notifyListeners();
-    try { if (account != null) await store.clear(account); }
+    try { if (account != null) await store.clear(account, expectedId: markerId); }
     catch (_) {
       if (epoch == _epoch) { restoring = false; error = UploadError('Upload safety info could not be cleared. Uploading is paused.', uncertain: true); notifyListeners(); }
       return;

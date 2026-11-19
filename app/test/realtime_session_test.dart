@@ -75,7 +75,13 @@ void main(){
    expect(find.text('Private caller'),findsNothing);expect(find.text('Private call'),findsNothing);
    pending.complete(page=='calls'?{'data':[{'conversation_id':'late','created_at':'2026-11-20','duration_s':1,'title':'Late private call'}]}:page=='rooms'?{'data':[{'public_id':'late','title':'Late private room'}]}:<String,dynamic>{});
    await flush(t);expect(s.requests.length,1);expect(find.text('Late private call'),findsNothing);expect(find.text('Late private room'),findsNothing);expect(t.takeException(),isNull);
-   await t.pumpWidget(const SizedBox());await flush(t);expect(s.requests.length,1);
+   await t.pumpWidget(const SizedBox());await flush(t);
+   if(page=='call' || page=='room'){
+    // LiveKit disconnect waits up to 10s for its event even before connecting.
+    // Drain its finite teardown waits; keep pending-timer invariants enabled.
+    for(var i=0;i<6;i++){await t.pump(const Duration(seconds:11));}
+   }
+   expect(s.requests.length,1);
   });
  });}
  for(final same in [false,true]){

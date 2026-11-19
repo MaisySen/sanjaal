@@ -46,7 +46,7 @@ void main() {
         );
         expect(await drafts.read('ci-other-synthetic-owner'), isEmpty);
       } finally {
-        await drafts.remove('ci-synthetic-draft-owner', saved.id);
+        await drafts.remove('ci-synthetic-draft-owner', saved.id, expectedRevision: saved.revision);
       }
     });
     await binding.convertFlutterSurfaceToImage();

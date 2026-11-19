@@ -48,7 +48,7 @@ void main(){
   final draft=await drafts.save('ios-synthetic-owner',text:'Native iOS fixture');
   expect((await drafts.read('ios-synthetic-owner')).any((d)=>d.id==draft.id&&d.text=='Native iOS fixture'),isTrue);
   expect(await drafts.read('ios-other-owner'),isEmpty);
-  await drafts.remove('ios-synthetic-owner',draft.id);
+  await drafts.remove('ios-synthetic-owner',draft.id, expectedRevision: draft.revision);
   // Actual iOS video plugin and native AVFoundation poster method. The clip
   // is generated synthetic test media served by this job's local API only.
   await stage('native video start');

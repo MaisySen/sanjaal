@@ -31,7 +31,7 @@ void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();
  Future<void> capture(String name) async {
   final result=await binding.takeScreenshot(name);
-  final bytes=(result['data'] as List).cast<int>();
+  final bytes=result;
   final dir=await getTemporaryDirectory();
   final evidence=Directory('${dir.path}/ios-evidence');await evidence.create(recursive:true);
   await File('${evidence.path}/$name.png').writeAsBytes(bytes,flush:true);

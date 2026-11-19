@@ -185,11 +185,14 @@ class UploadStrip extends StatelessWidget {
         ))),child:Text(t_('Details'))),
         if (!center.busy && !center.restoring) IconButton(tooltip: t_('Dismiss'), onPressed: () async {
           if (error == null) { await center.dismiss(); return; }
+          final epoch = center.generation;
+          final markerId = center._localId;
           final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(scrollable: true,
             title: Text(t_('Discard this draft?')), content: Text(t_('This removes the local retry copy. It does not remove anything already posted. Check your profile before starting a new upload.')),
             actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Discard')))],
           ));
-          if (yes == true) await center.dismiss();
+          // The confirmation belongs to the marker shown when it opened.
+          if (yes == true && epoch == center.generation && markerId == center._localId) await center.dismiss();
         }, icon: const PhIcon('x', size: 18)),
         ]),
       ])),

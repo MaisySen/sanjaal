@@ -82,6 +82,32 @@ void main(){
   });
  });
  }
+ for(final replacement in [false,true]){
+ testWidgets('stale discard confirmation preserves ${replacement ? 'new marker' : 'same-member recovered marker'}',(t)async{
+  await fixture(t,(s,c)async{
+   await t.pumpWidget(MaterialApp(home:Scaffold(body:UploadStrip(center:c))));await flush(t);
+   c.start('post',()async=>throw UploadError('Old uncertain upload',uncertain:true));await flush(t);
+   await t.tap(find.byTooltip('Dismiss'));await t.pumpAndSettle();
+   expect(find.text('Discard this draft?'),findsOneWidget);
+   if(replacement){
+    await c.dismiss();
+    c.start('post',()async=>throw UploadError('New uncertain upload',uncertain:true));
+   }else{
+    await s.login('same-member','not-a-password');
+   }
+   await flush(t);expect(c.occupied,isTrue);
+   final currentError=c.error;
+   await t.tap(find.text('Discard'));await t.pumpAndSettle();await flush(t);
+   expect(c.occupied,isTrue,reason:'an earlier confirmation cannot dismiss the current recovery warning');
+   expect(identical(c.error,currentError),isTrue);
+   expect(c.start('post',()async=>post('must-not-start')),isFalse);
+   // The current, newly opened confirmation still works.
+   await t.tap(find.byTooltip('Dismiss'));await t.pumpAndSettle();
+   await t.tap(find.text('Discard'));await t.pumpAndSettle();await flush(t);
+   expect(c.occupied,isFalse);expect(t.takeException(),isNull);
+  });
+ });
+ }
  testWidgets('delayed open-original story cannot navigate across an account change',(t)async{
   final reply=Completer<http.Response>();var reads=0;
   await fixture(t,(s,c)async{

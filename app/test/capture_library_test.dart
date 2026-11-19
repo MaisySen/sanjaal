@@ -1,6 +1,7 @@
 // Fake native devices/library only. These tests do not establish camera,
 // microphone, codec, device-permission or local-gallery behavior on a phone.
 import 'dart:async';
+import 'package:camera/camera.dart' as camera;
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -22,9 +23,9 @@ class FakeCamera implements CaptureDevice {
   final calls=<String>[];
   Completer<void>? initPending,startPending;
   Completer<XFile>? photoPending,stopPending;
-  bool failed=false;
+  bool failed=false;Object? failure;
   Color previewColor=const Color(0xFF2C656C);
-  @override Future<void> initialize()async{calls.add('init');if(initPending!=null)await initPending!.future;if(failed)throw StateError('fixture camera failed');}
+  @override Future<void> initialize()async{calls.add('init');if(initPending!=null)await initPending!.future;if(failure!=null)throw failure!;if(failed)throw StateError('fixture camera failed');}
   @override Widget preview()=>ColoredBox(key:const ValueKey('live-fixture-preview'),color:previewColor);
   @override Future<XFile> photo()async{calls.add('photo');return photoPending?.future??XFile.fromData(imageBytes,name:'fixture.png');}
   @override Future<void> start()async{calls.add('start');if(startPending!=null)await startPending!.future;}
@@ -74,6 +75,33 @@ void main(){
   await t.tap(find.byTooltip(t_('Photo permissions')));await flush(t);expect(find.text(t_('Photo permissions could not be opened. Try again.')),findsOneWidget);expect(t.takeException(),isNull);await shot(t,'gallery_permission_error_${language}_$scale');expect(library.fileReads,0);
  });}}
 
+ for(final code in ['CameraAccessDeniedWithoutPrompt','AudioAccessDeniedWithoutPrompt']) {
+ testWidgets('denied native permission opens settings and recovers only on foreground $code',(t)async{
+  var opens=0;final broken=FakeCamera()..failure=camera.CameraException(code,'fixture');final working=FakeCamera();var boots=0;CreatorMedia? result;
+  await start(t,CapturePage(deviceFactory:(_,_)=>boots++==0?broken:working,openSettings:()async{opens++;}),result:(v)=>result=v as CreatorMedia?);
+  expect(find.text('Open device settings'),findsOneWidget);expect(result,isNull);
+  await t.tap(find.text('Open device settings'));await flush(t);expect(opens,1);expect(boots,1);
+  background(t);await flush(t);foreground(t);await flush(t);
+  expect(find.byKey(const ValueKey('live-fixture-preview')),findsOneWidget);expect(boots,2);expect(result,isNull);expect(working.calls,isNot(contains('photo')));expect(working.calls,isNot(contains('start')));
+ });
+ }
+ for(final code in ['CameraAccessRestricted','AudioAccessRestricted']) {
+ for(final language in ['en','ne']) {
+ testWidgets('restricted device does not promise settings can grant access $code $language',(t)async{
+  final device=FakeCamera()..failure=camera.CameraException(code,'fixture');
+  await start(t,CapturePage(deviceFactory:(_,_)=>device),scale:1.8,language:language);
+  expect(find.text(t_('Open device settings')),findsNothing);expect(find.text(t_('Try again')),findsNothing);
+  expect(find.text(t_('Camera or microphone access is restricted on this device. You may need help from the person who manages it. You can still choose media from your library.')),findsOneWidget);
+  expect(t.takeException(),isNull);await shot(t,'restricted_${code}_$language');
+  await t.tap(find.widgetWithText(TextButton,t_('Close camera')));await flush(t);expect(find.byType(CapturePage),findsNothing);
+ });
+ }}
+ testWidgets('failed settings launch keeps camera recovery available',(t)async{
+  final device=FakeCamera()..failure=camera.CameraException('CameraAccessDeniedWithoutPrompt','fixture');
+  await start(t,CapturePage(deviceFactory:(_,_)=>device,openSettings:()async{throw StateError('fixture');}));
+  await t.tap(find.text('Open device settings'));await flush(t);
+  expect(find.text('Device settings could not be opened. Open Settings manually, then return to Sanjaal.'),findsOneWidget);expect(find.widgetWithText(FilledButton,'Open device settings'),findsOneWidget);expect(t.takeException(),isNull);
+ });
  testWidgets('camera launch double taps open one review route and cancel unlocks gallery',(t)async{
   final library=FakeLibrary();var builds=0;
   await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library,captureBuilder:(_,_)=>Builder(builder:(context){builds++;return Scaffold(body:TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancel fixture camera')));})));final button=t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton,'Camera')).onPressed!;button();button();await flush(t);expect(find.text('Cancel fixture camera'),findsOneWidget);expect(builds,1);expect(library.fileReads,0);

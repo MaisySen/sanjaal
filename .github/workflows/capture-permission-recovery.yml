@@ -1,0 +1,29 @@
+name: Capture permission recovery checks
+on:
+  push:
+    branches: [capture-permission-recovery]
+permissions:
+  contents: read
+jobs:
+  capture-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos lib/capture_page.dart test/capture_library_test.dart
+      - run: flutter test test/capture_library_test.dart --reporter expanded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capture-permission-renders
+          path: app/test/renders/creator_*.png
+          retention-days: 7

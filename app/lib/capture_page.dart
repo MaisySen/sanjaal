@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:camera/camera.dart' as camera;
 import 'package:image_picker/image_picker.dart';
+import 'package:photo_manager/photo_manager.dart' as photos;
 import 'package:material_ui/material_ui.dart';
 
 import 'ph.dart';
@@ -128,11 +129,13 @@ class CapturePage extends StatefulWidget {
     this.allowVideo = true,
     this.maxSeconds = 60,
     this.deviceFactory,
+    this.openSettings,
   });
   final bool startVideo;
   final bool allowPhoto, allowVideo;
   final int maxSeconds;
   final CaptureDevice Function(bool video, bool front)? deviceFactory;
+  final Future<void> Function()? openSettings;
   @override
   State<CapturePage> createState() => _CapturePageState();
 }
@@ -150,6 +153,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   int epoch = 0, seconds = 0;
   double zoom = 1;
   String? error;
+  bool permissionDenied = false, permissionRestricted = false, settingsBusy = false;
   XFile? recovered;
   Timer? timer;
   Future<void>? operation;
@@ -168,6 +172,8 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     setState(() {
       ready = false;
       error = null;
+      permissionDenied = false;
+      permissionRestricted = false;
       torch = false;
       zoom = 1;
     });
@@ -190,7 +196,24 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> settings() async {
+    if (settingsBusy || busy) return;
+    setState(() => settingsBusy = true);
+    try {
+      await (widget.openSettings?.call() ?? photos.PhotoManager.openSetting());
+    } catch (_) {
+      if (mounted) showInfo(context, t_('Device settings could not be opened. Open Settings manually, then return to Sanjaal.'));
+    } finally {
+      if (mounted) setState(() => settingsBusy = false);
+    }
+  }
+
   String captureError(Object e) {
+    permissionRestricted = e is camera.CameraException && e.code.contains('Restricted');
+    permissionDenied = e is camera.CameraException && e.code.contains('Denied');
+    if (permissionRestricted) {
+      return t_('Camera or microphone access is restricted on this device. You may need help from the person who manages it. You can still choose media from your library.');
+    }
     if (e is camera.CameraException &&
         (e.code.contains('Denied') || e.code.contains('Restricted'))) {
       return t_(
@@ -424,7 +447,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.all(28),
-                          child: Column(
+                          child: SingleChildScrollView(child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
@@ -433,12 +456,17 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                                 style: const TextStyle(color: Colors.white),
                               ),
                               const SizedBox(height: 12),
-                              TextButton(
+                              if (permissionDenied) FilledButton(
+                                onPressed: busy || settingsBusy ? null : settings,
+                                child: Text(t_('Open device settings')),
+                              ),
+                              if (!permissionRestricted) TextButton(
                                 onPressed: busy ? null : boot,
                                 child: Text(t_('Try again')),
                               ),
+                              TextButton(onPressed: busy ? null : close, child: Text(t_('Close camera'))),
                             ],
-                          ),
+                          )),
                         ),
                       ),
                     if (recovered != null)

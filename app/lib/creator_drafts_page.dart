@@ -80,10 +80,12 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     if (yes != true || !mounted || !active) return;
     setState(() => busy = true);
     try {
-      await store.remove(owner!, draft.id);
+      await store.remove(owner!, draft.id, expectedRevision: draft.revision);
       if (active) await _load();
     } catch (e) {
-      if (mounted && active) showError(context, e);
+      if (mounted && active) {
+        showError(context, e is StateError ? t_(e.message.toString()) : e);
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }

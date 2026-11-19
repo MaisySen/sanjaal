@@ -85,7 +85,7 @@ void main() {
     'removed draft cannot be silently resurrected by stale editor',
     () async {
       final d = await store.save('a', text: 'Delete');
-      await store.remove('a', d.id);
+      await store.remove('a', d.id, expectedRevision: d.revision);
       await expectLater(
         store.save('a', id: d.id, text: 'Stale'),
         throwsStateError,
@@ -106,6 +106,26 @@ void main() {
       throwsStateError,
     );
     expect((await store.read('a')).single.text, 'Newer');
+  });
+  test('stale delete cannot erase a newer revision', () async {
+    final original = await store.save('a', text: 'Original');
+    final newer = await store.save('a', id: original.id,
+      expectedRevision: original.revision, text: 'Newer work');
+    await expectLater(store.remove('a', original.id,
+      expectedRevision: original.revision), throwsStateError);
+    expect((await store.read('a')).single.toJson(), newer.toJson());
+    await store.remove('a', newer.id, expectedRevision: newer.revision);
+    expect(await store.read('a'), isEmpty);
+  });
+  test('queued edit settles before stale delete without losing text', () async {
+    final original = await store.save('a', text: 'Original');
+    final edit = store.save('a', id: original.id,
+      expectedRevision: original.revision, text: 'Edited while dialog open');
+    final deletion = store.remove('a', original.id,
+      expectedRevision: original.revision);
+    await expectLater(deletion, throwsStateError);
+    final newer = await edit;
+    expect((await store.read('a')).single.toJson(), newer.toJson());
   });
   test('malformed data fails closed without replacing it', () async {
     final key = 'creator_text_drafts_v1_${sha256.convert(utf8.encode('a'))}';
@@ -132,7 +152,7 @@ void main() {
     final d = await store.save('a', text: 'One');
     await store.save('a', text: 'Two');
     await store.save('b', text: 'Three');
-    await store.remove('a', d.id);
+    await store.remove('a', d.id, expectedRevision: d.revision);
     expect((await store.read('a')).single.text, 'Two');
     expect((await store.read('b')).single.text, 'Three');
   });
@@ -171,6 +191,20 @@ void main() {
       expect(find.textContaining('No saved drafts'), findsOneWidget);
     },
   );
+  testWidgets('delete confirmation cannot erase edits made while it was open', (t) async {
+    final session = Session()..user = {'public_id': 'a'};
+    final original = await store.save('a', text: 'Original idea');
+    await t.pumpWidget(MaterialApp(home: CreatorDraftsPage(session: session)));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Delete draft'));
+    await t.pumpAndSettle();
+    final newer = await store.save('a', id: original.id,
+      expectedRevision: original.revision, text: 'Important newer idea');
+    await t.tap(find.text('Delete'));
+    await t.pumpAndSettle();
+    expect((await store.read('a')).single.toJson(), newer.toJson());
+    expect(find.textContaining('Reopen the saved copy before deleting it.'), findsOneWidget);
+  });
   testWidgets('account change hides old local drafts immediately', (t) async {
     final session = Session()..user = {'public_id': 'a'};
     await store.save('a', text: 'Private idea');

@@ -302,7 +302,8 @@ class _RoomPageState extends State<RoomPage> with SessionBoundState<RoomPage> {
         connect: () => room.connect(j['url'] as String, j['token'] as String),
         prepareMicrophone: () async { if (isHost) await microphone.startHost(); },
       );
-      if(!connected){await _stopFailedJoin();return;}
+      debugPrint('ROOM_JOIN setup completed $connected');
+      if(!connected){await _stopFailedJoin();debugPrint('ROOM_JOIN inactive cleanup done');return;}
       if (sessionActive && mounted && !leaving) setState(() => status = 'Live');
     } on ApiError catch (e) {
       await _stopFailedJoin();

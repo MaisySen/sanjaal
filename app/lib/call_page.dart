@@ -70,9 +70,11 @@ class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
         camera: () async { await room.localParticipant?.setCameraEnabled(true); },
         video: widget.video,
       );
+      debugPrint('CALL_JOIN setup completed $connected');
       if (!connected) {
         _endCall();
         await _disconnectSafely();
+        debugPrint('CALL_JOIN inactive cleanup done');
         return;
       }
       if (mounted && sessionActive) setState(() { _setupComplete = true; camOn = widget.video; });

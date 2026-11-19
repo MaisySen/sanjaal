@@ -1,6 +1,7 @@
 // Android emulator, actual secure-storage plugin, no HTTP/credentials/media.
 // The driver writes a random run-specific marker in one process, force-stops it,
 // then runs the recovery phase in a new process with package data preserved.
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -8,7 +9,7 @@ import 'package:sanjaal/api.dart';
 import 'package:sanjaal/upload_center.dart';
 import 'package:sanjaal/upload_pending_store.dart';
 
-const _phase = String.fromEnvironment('MARKER_PHASE');
+final _recover = File('/data/user/0/au.fintex.sanjaal/files/synthetic-marker-recover');
 const _id = String.fromEnvironment('MARKER_ID');
 const _owner = 'synthetic-process-death-fixture';
 
@@ -21,11 +22,12 @@ Future<void> _until(WidgetTester tester, bool Function() ready) async {
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  testWidgets('native uncertainty marker $_phase with zero requests', (tester) async {
+  testWidgets('native uncertainty marker across processes with zero requests', (tester) async {
+    final phase = _recover.existsSync() ? 'recover' : 'seed';
     expect(RegExp(r'^[0-9a-f]{48}$').hasMatch(_id), isTrue);
-    expect(['seed', 'recover'], contains(_phase));
+    expect(['seed', 'recover'], contains(phase));
     const store = UploadPendingStore();
-    if (_phase == 'seed') {
+    if (phase == 'seed') {
       // No FlutterSecureStorage.setMockInitialValues: this uses Android storage.
       expect(await tester.runAsync(() => store.read(_owner)), isNull);
       await tester.runAsync(() => store.write(_owner, _id, 'story'));

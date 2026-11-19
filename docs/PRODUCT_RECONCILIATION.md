@@ -1,5 +1,13 @@
 # Whole-product reconciliation
 
+November 20 addendum: the draft-only-in-memory statements in this historical
+checkpoint are superseded by the encrypted creator-media and text/poll work in
+[LIFECYCLE_DRAFT_CORRECTIONS.md](LIFECYCLE_DRAFT_CORRECTIONS.md). Explicit local
+photo/video/story saves now exist in candidate source, with scoped native
+process-restart evidence. They are not an automatic outbox, background resume,
+cloud sync, production upload acceptance or an installed physical-phone update.
+Other historical statuses also require their later exact verification records.
+
 November 17, 2026, 08:25 AEDT. Candidate source through b9927b7. This is an engineering checkpoint, not a finished-product or phone-release claim.
 
 ## Acceptance criterion

@@ -102,3 +102,66 @@ All overnight harness branches preserve app runtime/native/pubspec content from 
 - Saved text/poll drafts and uncertainty markers survive tested process termination. Media jobs do not persist or automatically resume. Reboot, reinstall, cloud restoration and cross-device behavior are not proved.
 - Production upload/concurrency QA remains held after the November19 database OOM. Current root cause and free-provider support eligibility remain unresolved. No further speculative tuning, paid resize, support send, production fault injection or load experiment follows from this evidence.
 - Wallet funding/transfers/cash-out stay unavailable until separately verified. No money path, public release or new audience was activated overnight.
+
+
+## Encrypted creator-media drafts, November 20 morning
+
+The November 17 text-only checkpoint above is historical. Candidate
+`af8e92f1b84572a83afe7d338de99a347660dc4c` adds explicit local saves for photos,
+videos/reels and stories. It does not add an automatic outbox or background
+upload resume. Saved story audience is preserved exactly as followers, close
+friends or only me; unknown/missing values are rejected rather than broadened.
+
+Media bytes are AES-GCM encrypted in the application's private support storage.
+Per-account index/key material uses secure storage, owner directories are hashed,
+immutable randomized file revisions are committed before their verified index,
+and stale revision/state stamps cannot overwrite or delete a replacement draft.
+Reads authenticate all saved bytes before handing them to an editor. Bounds are
+four photos or one video/story, 25 MB per file, eight drafts/100 MB per account,
+and 256 MB across device media drafts. Cleanup is confined to recognized private
+owner paths and rejects symlinks. Encryption/decryption runs off the UI isolate.
+Saving/opening does not send. A manual send reopens saved encrypted bytes rather
+than trusting a mutable picker file. An attempted saved upload disables ordinary
+Post/Share and requires explicit preparation of a separate upload. Existing
+upload-uncertainty recovery remains a separate gate.
+
+Exact regression run: https://github.com/MaisySen/sanjaal/actions/runs/44597313840 .
+Analysis and 34 focused tests pass; whole app 1006 pass and one intentional live
+skip. An unreadable text index no longer hides healthy media, or vice versa;
+unreadable bytes are preserved. Synthetic large-text/inset captures verify the
+warning/caption correction, not native keyboard geometry or the entire story
+paragraph/footer layout. The paragraph is fully reachable at a separate scrolled-bottom position in four
+English/Nepali light/dark large-text/inset captures. Bounds assertions and pixels
+were inspected in https://github.com/MaisySen/sanjaal/actions/runs/44601314810 .
+That run timed out later in a separate chat screenshot harness; it is not a full
+regression pass. Caption and paragraph captures are separate scroll positions.
+
+Last completed two-platform native checkpoint:
+`6c06174c21a9745486d0fdaa9d8ae1b83a5fc682`,
+https://github.com/MaisySen/sanjaal/actions/runs/44593185698 . One installed binary
+on each emulator/simulator saved synthetic photo, video and only-me story,
+deleted picker originals, terminated the app and recovered exact metadata and
+SHA-256 bytes in a different process with identical install/data identity.
+Other-account access was rejected. Manual reopen, attempted Post/Share disabled,
+Keep and explicit Delete passed. Actual native/app pixels were inspected.
+
+The newer af8 iOS native job also completed successfully in the exact regression
+run above. One install, same app/data containers, seed PID25738 terminated and
+recovery PID28651. Both driver processes passed and five synchronized OS images
+were inspected. Caption is complete; the privacy paragraph in the initial story
+frame extends below the scroll viewport. Full paragraph access is covered by the separately scrolled synthetic layouts
+above, not inference from native recovery success. The af8 Android job
+failed before app execution on an unreadable downloaded NDK archive; only that
+infrastructure-failed job was retried. It passed: one install, same UID10192 and
+package path, seed PID5900 force-stopped/absent, recovery PID6038. Both drivers
+passed three framework tests and five app captures were inspected. The existing
+iOS and regression successes were carried into attempt 2, not re-executed. The
+whole exact af8 run is successful. Initial Android story capture has caption
+below its viewport; it is not caption access evidence.
+
+Recovered videos retain their bytes and exact names, but in-memory story-video
+playback has an explicit unavailable-preview fallback. This is an actual product
+limitation, not proof that the video is lost. Reboot, reinstall/backup, cloud sync,
+real account uploads, production durability and physical Samsung/iPhone acceptance
+remain unproved. Production QA hold, disabled money paths and release restrictions
+are unchanged. No production API deployment or new phone installation followed.

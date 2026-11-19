@@ -1,4 +1,4 @@
-// Isolated synthetic fixture. Native secure storage and encrypted private files.
+// Isolated synthetic fixture. Native secure storage, fake search/create replies.
 // One installed binary, separate seed/recovery processes. Never contacts API.
 import 'dart:convert';
 
@@ -19,6 +19,7 @@ import 'package:sanjaal/api.dart';
 
 const _id=String.fromEnvironment('MARKER_ID');
 const _owner='synthetic-group-process-death-fixture';
+const _person={'public_id':'00000000-0000-4000-8000-000000000088','username':'fixture-friend','name':'Synthetic friend'};
 Future<void> _until(WidgetTester t,bool Function() ready)async{
  for(var i=0;i<100 && !ready();i++){await t.pump(const Duration(milliseconds:100));}
  expect(ready(),isTrue,reason:'native media recovery must settle');
@@ -57,13 +58,24 @@ void main(){
   final phase=sentinel.existsSync()?'recover':'seed';
   const store=GroupDraftStore();final title='Private group $_id';
   final identity=File('${dir.path}/saved-group-identity.json');
-  final session=NoNetworkSession()..user={'public_id':_owner,'username':'synthetic'};
+  final session=NoNetworkSession()..user={'public_id':_owner,'username':'synthetic'}..groupMemberRefsEnabled=true;
   print('GROUP_STAGE phase=$phase');
   if(phase=='seed'){
    expect(await t.runAsync(()=>store.read(_owner)),isNull);
-   final first=(await t.runAsync(()=>store.save(_owner,title:title,people:[{'public_id':'stable-friend-fixture','username':'fixture-friend','name':'Synthetic friend'}])))!;
-   final saved=(await t.runAsync(()=>store.markAttempt(_owner,first)))!;
-   await t.runAsync(()=>identity.writeAsString(jsonEncode(saved.toJson()),flush:true));
+   await t.pumpWidget(MaterialApp(home:NewChatPage(session:session)));
+   await t.tap(find.byTooltip('New group'));await t.pumpAndSettle();
+   await t.enterText(find.byType(TextField).first,title);
+   await t.enterText(find.byType(TextField).last,'fixture-friend');
+   await _until(t,()=>find.text('Synthetic friend').evaluate().isNotEmpty);
+   await t.tap(find.text('Synthetic friend'));await t.pumpAndSettle();
+   FocusManager.instance.primaryFocus?.unfocus();await t.pumpAndSettle();
+   await t.ensureVisible(find.byTooltip('Save group draft'));
+   await t.tap(find.byTooltip('Save group draft'));
+   await _until(t,()=>find.byTooltip('Delete saved group draft').evaluate().isNotEmpty);
+   final saved=(await t.runAsync(()=>store.read(_owner)))!;
+   expect(saved.title,title);expect(saved.people,[_person]);expect(saved.attempted,false);
+   expect(session.posts,0);
+   await t.pumpWidget(const SizedBox());await t.pumpAndSettle();
   }else{
    final expected=jsonDecode(await identity.readAsString());
    expect((await t.runAsync(()=>store.read(_owner)))!.toJson(),expected);
@@ -74,8 +86,16 @@ void main(){
   await _until(t,()=>find.text(title).evaluate().isNotEmpty);
   await t.pumpAndSettle();
   expect(find.text('@fixture-friend'),findsOneWidget);
+  if(phase=='seed'){
+   expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNotNull);
+   await t.ensureVisible(find.byType(FilledButton));await t.tap(find.byType(FilledButton));
+   await _until(t,()=>find.text('This group may already exist. Check Chats before starting it again.').evaluate().isNotEmpty);
+   final marked=(await t.runAsync(()=>store.read(_owner)))!;
+   expect(marked.attempted,true);expect(marked.title,title);expect(marked.people,[_person]);
+   await t.runAsync(()=>identity.writeAsString(jsonEncode(marked.toJson()),flush:true));
+  }
   expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNull);
-  expect(session.requests,0);
+  expect(session.posts,phase=='seed'?1:0);expect(session.reads,phase=='seed'?2:0);
   await capture(phase=='seed'?'media_restart_1_group_saved':'media_restart_2_group_reopened_guarded');
   if(phase=='seed')return;
   await t.tap(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
@@ -84,12 +104,22 @@ void main(){
   await t.tap(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
   await t.tap(find.text('Delete'));
   await _until(t,()=>find.text(title).evaluate().isEmpty);
-  expect(await t.runAsync(()=>store.read(_owner)),isNull);expect(session.requests,0);
+  expect(await t.runAsync(()=>store.read(_owner)),isNull);expect(session.posts,phase=='seed'?1:0);expect(session.reads,phase=='seed'?2:0);
   await capture('media_restart_3_group_explicit_delete');
-  print('GROUP_STAGE exact identity and attempted marker recovered; other owner isolated; no requests; explicit Keep/Delete');
+  print('GROUP_STAGE UI Save then simulated lost creation reply; exact identity and attempt marker recovered; other owner isolated; zero actual network; recovery issues no API requests; explicit Keep/Delete');
  });
 }
 class NoNetworkSession extends Session{
- var requests=0;
- @override Future<dynamic> call(String method,String path,{Map<String,dynamic>? body,Map<String,String>? query})async{requests++;throw StateError('No group fixture may contact API');}
+ var posts=0,reads=0;
+ @override Future<dynamic> call(String method,String path,{Map<String,dynamic>? body,Map<String,String>? query})async{
+  if(method=='GET' && path=='/users/search') {reads++;return {'users':[_person]};}
+  if(method=='POST' && path=='/conversations'){
+   posts++;
+   final saved=await const GroupDraftStore().read(_owner);
+   expect(saved!.attempted,true,reason:'native marker must be durable before simulated create');
+   expect(body!['member_refs'],[{'public_id':_person['public_id'],'username':_person['username']}]);
+   throw ApiError('Synthetic lost creation reply',503);
+  }
+  throw StateError('No group fixture may contact API');
+ }
 }

@@ -36,6 +36,7 @@ jobs:
           mkdir -p /tmp/ios-e2e;touch /tmp/ios-e2e/db.sqlite .env
           php artisan migrate --force
           php tests/E2E/prepare.php /tmp/ios-e2e
+          cp ../app/test/fixtures/ios_synthetic_video.mp4 public/ios-native-fixture.mp4
           echo "::add-mask::$(cat /tmp/ios-e2e/token.txt)"
           E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public tests/E2E/server.php > /tmp/ios-api.log 2>&1 &
           curl --retry 5 --retry-connrefused --retry-delay 1 -s http://localhost:8000/api/v1/auth/me -H 'Accept: application/json'

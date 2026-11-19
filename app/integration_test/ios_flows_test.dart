@@ -1,6 +1,11 @@
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:video_player/video_player.dart';
+import 'package:sanjaal/video_poster.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -31,6 +36,31 @@ void main(){
   expect((await drafts.read('ios-synthetic-owner')).any((d)=>d.id==draft.id&&d.text=='Native iOS fixture'),isTrue);
   expect(await drafts.read('ios-other-owner'),isEmpty);
   await drafts.remove('ios-synthetic-owner',draft.id);
+  // Actual iOS video plugin and native AVFoundation poster method. The clip
+  // is generated synthetic test media served by this job's local API only.
+  final nativePoster=await t.runAsync(() async {
+    final r=await http.get(Uri.parse('${const String.fromEnvironment('E2E_TOKEN_BASE')}/ios-native-fixture.mp4'));
+    expect(r.statusCode,200);
+    final dir=await getTemporaryDirectory();
+    final file=File('${dir.path}/ios-native-fixture.mp4');await file.writeAsBytes(r.bodyBytes);
+    final controller=VideoPlayerController.file(file);
+    try {
+      await controller.initialize();
+      expect(controller.value.duration.inMilliseconds,greaterThan(0));
+      expect(controller.value.size.width,160);
+      final poster=await VideoPoster.fromPath(file.path);expect(poster,isNotNull);
+      final codec=await ui.instantiateImageCodec(poster!);final frame=await codec.getNextFrame();
+      expect(frame.image.width,inInclusiveRange(1,320));expect(frame.image.height,inInclusiveRange(1,320));
+      frame.image.dispose();codec.dispose();
+      await controller.play();await Future<void>.delayed(const Duration(milliseconds:350));await controller.pause();
+      expect(controller.value.hasError,isFalse);expect(controller.value.position.inMilliseconds,greaterThan(0));
+      return poster;
+    } finally {await controller.dispose();await file.delete();}
+  });
+  expect(nativePoster,isNotNull);
+  await t.pumpWidget(MaterialApp(home:Scaffold(appBar:AppBar(title:const Text('iOS native video poster')),body:Center(child:Image.memory(nativePoster!)))));
+  await until(t,()=>t.widgetList<RawImage>(find.byType(RawImage)).any((image)=>image.image!=null));
+  await binding.takeScreenshot('ios_native_avfoundation_poster');
   app.main();
   await until(t,()=>find.textContaining('Sunrise over Phewa').evaluate().isNotEmpty);
   await binding.takeScreenshot('ios_home');

@@ -1,0 +1,59 @@
+name: Private media session ownership regression
+on:
+  push:
+    branches: [private-media-session-ownership]
+permissions:
+  contents: read
+concurrency:
+  group: private-media-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - name: Prove same-account media regression catches a missing epoch check
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/api.dart /tmp/private-media-api.original
+          trap 'cp /tmp/private-media-api.original lib/api.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/api.dart')
+          s = p.read_text()
+          before = "    _checkSession(epoch);\n    if (account != user?['public_id'])"
+          assert s.count(before) == 1
+          p.write_text(s.replace(before, "    if (account != user?['public_id'])", 1))
+          PY
+          if flutter test test/private_media_session_test.dart --plain-name 'chat bytes rejects delayed bytes after same account new login' --reporter expanded > /tmp/media-negative.log 2>&1; then
+            cat /tmp/media-negative.log
+            echo 'Same-account stale bytes unexpectedly accepted without epoch check'
+            exit 1
+          fi
+          cat /tmp/media-negative.log
+          grep -F 'Expected: throws' /tmp/media-negative.log
+          cp /tmp/private-media-api.original lib/api.dart
+          flutter test test/private_media_session_test.dart --reporter expanded
+      - name: Preserve test and render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-media-session-tests
+          path: |
+            app/analyze.log
+            app/test.log
+            app/test/renders/saved_drafts_conflict_*.png
+          retention-days: 7

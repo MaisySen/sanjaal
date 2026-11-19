@@ -188,13 +188,16 @@ class Session extends ChangeNotifier {
   /// Downloads private chat audio without following a redirect or returning an
   /// old member's bytes after a session identity change.
   Future<Uint8List> fetchBytes(String url) async {
+    final epoch = _sessionEpoch;
     if (!supportsPrivateMedia(url)) throw ApiError('This private media link is not supported.');
     final account = user?['public_id'];
     final headers = await privateMediaHeaders(url);
+    _checkSession(epoch);
     if (account == null || account != user?['public_id']) throw ApiError('Please sign in again.',401);
     final request = http.Request('GET',Uri.parse(url))..followRedirects = false;
     request.headers.addAll(headers);
     final r = await http.Response.fromStream(await request.send().timeout(_wait)).timeout(_wait);
+    _checkSession(epoch);
     if (account != user?['public_id']) throw ApiError('Please sign in again.',401);
     if (r.statusCode != 200) throw ApiError('Could not load this file.', r.statusCode);
     return r.bodyBytes;
@@ -203,10 +206,13 @@ class Session extends ChangeNotifier {
   /// Protected story routes are same-origin. Never send a sign-in header to a
   /// URL supplied by an unrelated host or through an object-storage redirect.
   Future<Map<String, String>> privateMediaHeaders(String url) async {
+    final epoch = _sessionEpoch;
     if (!supportsPrivateMedia(url)) {
       throw ApiError('This private media link is not supported.');
     }
-    return {'Authorization': 'Bearer ${await _token()}'};
+    final token = await _token();
+    _checkSession(epoch);
+    return {'Authorization': 'Bearer $token'};
   }
   Future<Uint8List> fetchProtectedBytes(String url) async {
     final epoch = _sessionEpoch;

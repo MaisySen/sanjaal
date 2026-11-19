@@ -49,13 +49,15 @@ void main(){
   await t.pumpWidget(MaterialApp(home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2)));
   print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
+  print('MEDIA_UI settle done');
   expect(find.byType(Image),findsWidgets);
   await t.enterText(find.byType(TextField),'Changed caption');
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
+  print('MEDIA_UI settle done');
   expect(find.textContaining('Save media changes before posting'),findsOneWidget);
-  expect((await const CreatorMediaDraftStore().read('a')).single.attempted,isFalse);
+  expect((await t.runAsync(()=>const CreatorMediaDraftStore().read('a')))!.single.attempted,isFalse);
   await t.pumpWidget(const SizedBox());
  });
  testWidgets('manual send uses encrypted saved bytes, not changed picker bytes',(t)async{
@@ -66,6 +68,7 @@ void main(){
   await t.pumpWidget(MaterialApp(home:ComposePage(session:session,backgroundUpload:true,initialMediaDraft:data.$1,savedMediaFiles:[XFile(source.path)])));
   print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
+  print('MEDIA_UI settle done');
   await t.runAsync(()=>source.writeAsString('picker changed after saving'));
   await t.runAsync(()async{
    await t.tap(find.widgetWithText(FilledButton,'Post'));
@@ -73,6 +76,7 @@ void main(){
   });
   print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
+  print('MEDIA_UI settle done');
   expect(session.sent,isNotNull);expect(session.guarded,isTrue);
   expect(session.sent!.single.bytes,original);
   expect(session.sent!.single.name,'media.png');
@@ -84,12 +88,14 @@ void main(){
   await t.pumpWidget(MaterialApp(home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2)));
   print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
+  print('MEDIA_UI settle done');
   expect(find.text('media.mp4'),findsOneWidget);
   expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
   await t.tap(find.text('Prepare a separate upload'));
   print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
-  expect((await const CreatorMediaDraftStore().read('a')).single.toJson(),data.$1.toJson());
+  print('MEDIA_UI settle done');
+  expect((await t.runAsync(()=>const CreatorMediaDraftStore().read('a')))!.single.toJson(),data.$1.toJson());
   await t.pumpWidget(const SizedBox());
  });
  for(final lang in ['en','ne'])for(final brightness in Brightness.values){
@@ -105,6 +111,7 @@ void main(){
    await t.pumpWidget(RepaintBoundary(key:key,child:MaterialApp(debugShowCheckedModeBanner:false,theme:buildTheme(brightness,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']),builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:const TextScaler.linear(1.6),viewInsets:const EdgeInsets.only(bottom:240)),child:w!),home:ComposePage(session:session,initialMediaDraft:data.$1,savedMediaFiles:data.$2))));
    print('MEDIA_UI pump settle');
   await t.pumpAndSettle();
+  print('MEDIA_UI settle done');
    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,t_('Post'))).onPressed,isNull);
    expect(t.takeException(),isNull);
    await t.runAsync(()async{

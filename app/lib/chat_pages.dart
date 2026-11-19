@@ -260,6 +260,7 @@ class _NewChatPageState extends State<NewChatPage> {
   bool group = false, busy = false, searched = false, searching = false;
   bool _completed = false, _uncertain = false;
   bool _storing=false;
+  BuildContext? _groupDraftDialog;
   GroupDraft? _savedGroup;
   String? _savedGroupFingerprint;
   String get _groupFingerprint=>jsonEncode([title.text,picked.values.map((p)=>[p['public_id'],p['username'],p['name']??'']).toList()]);
@@ -287,7 +288,8 @@ class _NewChatPageState extends State<NewChatPage> {
   }
   Future<void> _deleteGroupDraft()async{
     final draft=_savedGroup;if(draft==null || !_active || busy || _storing)return;
-    final yes=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(scrollable:true,title:Text(t_('Delete saved group draft?')),content:Text(t_('This removes only the local plan, not a group that may already exist. Check Chats before starting it again.')),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(t_('Keep'))),TextButton(onPressed:()=>Navigator.pop(c,true),child:Text(t_('Delete')))]));
+    final yes=await showDialog<bool>(context:context,builder:(c){_groupDraftDialog=c;return AlertDialog(scrollable:true,title:Text(t_('Delete saved group draft?')),content:Text(t_('This removes only the local plan, not a group that may already exist. Check Chats before starting it again.')),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(t_('Keep'))),TextButton(onPressed:()=>Navigator.pop(c,true),child:Text(t_('Delete')))]);});
+    _groupDraftDialog=null;
     if(yes!=true || !mounted || !_active || _savedGroup!=draft)return;
     setState(()=>_storing=true);
     try{await const GroupDraftStore().remove(_owner!,draft);if(mounted && _active)setState((){_savedGroup=null;_savedGroupFingerprint=null;title.clear();picked.clear();_uncertain=false;startError=null;});}
@@ -309,6 +311,8 @@ class _NewChatPageState extends State<NewChatPage> {
   void _accountChanged(){
     if(_active || !mounted)return;
     ++_seq;_debounce?.cancel();
+    final dialog=_groupDraftDialog;_groupDraftDialog=null;
+    if(dialog!=null && dialog.mounted && ModalRoute.of(dialog)?.isCurrent==true)Navigator.of(dialog).pop();
     setState((){results=[];picked.clear();q.clear();title.clear();searching=false;busy=false;startError=null;searchError=null;_savedGroup=null;_savedGroupFingerprint=null;});
   }
 
@@ -449,7 +453,7 @@ class _NewChatPageState extends State<NewChatPage> {
     busyMessage: 'Starting the conversation. Please wait.',
     child: Scaffold(
       appBar: AppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
-        IconButton(tooltip:t_('Open saved group draft'),onPressed:_locked?null:_openGroup,icon:const PhIcon('folder-open')),
+        IconButton(tooltip:t_('Open saved group draft'),onPressed:_locked?null:_openGroup,icon:const PhIcon('archive')),
         IconButton(onPressed: _locked ? null : _switchMode, icon: PhIcon(group ? Ph.person : Ph.groups), tooltip: t_(group ? 'One to one' : 'New group')),
       ]),
       body: CustomScrollView(slivers: [

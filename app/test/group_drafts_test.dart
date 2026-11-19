@@ -64,6 +64,11 @@ void main(){
   await expectLater(store.save('a',title:'Changed',people:people,expectedRevision:marked.revision),throwsStateError);
   final reset=await store.markAttempt('a',marked,attempted:false);expect(reset.attempted,false);await store.remove('a',reset);expect(await store.read('a'),isNull);
  });
+ test('attempt marking cannot substitute caller-supplied title or people with a known revision',()async{
+  final saved=await store.save('a',title:'Original plan',people:people);
+  final forged=GroupDraft.decode({...saved.toJson(),'title':'Unreviewed plan','people':[{'public_id':'different-id','username':'other','name':'Other'}]});
+  final marked=await store.markAttempt('a',forged);expect(marked.title,'Original plan');expect(marked.people,people);expect(marked.attempted,true);
+ });
  test('malformed index is preserved instead of overwritten or deleted',()async{
   final key='group_draft_v1_${sha256.convert(utf8.encode('a'))}';const secure=FlutterSecureStorage();
   await secure.write(key:key,value:'broken');await expectLater(store.read('a'),throwsFormatException);

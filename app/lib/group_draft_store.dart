@@ -56,7 +56,7 @@ class GroupDraftStore {
   Future<GroupDraft> markAttempt(String owner,GroupDraft draft,{bool attempted=true})=>_serial(owner,()async{
     final existing=await read(owner);
     if(existing?.revision!=draft.revision)throw StateError('The saved group changed. Reopen it before creating a group.');
-    return _write(owner,title:draft.title,people:draft.people,attempted:attempted);
+    return _write(owner,title:existing!.title,people:existing.people,attempted:attempted);
   });
   Future<void> remove(String owner,GroupDraft draft)=>_serial(owner,()async{
     final existing=await read(owner);if(existing==null)return;

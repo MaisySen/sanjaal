@@ -1,0 +1,59 @@
+name: Upload center session generation regression
+on:
+  push:
+    branches: [upload-center-session-generation]
+permissions:
+  contents: read
+concurrency:
+  group: upload-marker-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - name: Prove same-member replacement blocks earlier preparation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp lib/upload_center.dart /tmp/center.original
+          trap 'cp /tmp/center.original lib/upload_center.dart' EXIT
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path('lib/upload_center.dart')
+          s = p.read_text()
+          before = "if (_owner == owner && _sessionGeneration == session.generation) return;"
+          assert s.count(before) == 1
+          p.write_text(s.replace(before, "if (_owner == owner) return;", 1))
+          PYCODE
+          if flutter test test/upload_center_test.dart --plain-name 'same-account new login invalidates an earlier preparing job' --reporter expanded > /tmp/center-negative.log 2>&1; then
+            cat /tmp/center-negative.log
+            echo 'Same-member preparation incorrectly survived a new session'
+            exit 1
+          fi
+          cat /tmp/center-negative.log
+          grep -F 'Expected:' /tmp/center-negative.log
+          cp /tmp/center.original lib/upload_center.dart
+          flutter test test/upload_pending_store_test.dart test/upload_center_test.dart --reporter expanded
+      - name: Preserve test and render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-center-generation-tests
+          path: |
+            app/analyze.log
+            app/test.log
+            app/test/renders/saved_drafts_conflict_*.png
+          retention-days: 7

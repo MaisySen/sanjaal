@@ -158,6 +158,33 @@ void main(){
  testWidgets('account change discards in-memory job disclosure and ignores its late reply',(t)async{
   final reply=Completer<Map<String,dynamic>>();await fixture(t,(s,c)async{c.start('post',()=>reply.future);await flush(t);s.user={'public_id':'different','username':'other'};s.notifyListeners();expect(c.busy,isFalse);reply.complete(post('late'));await flush(t);expect(c.result,isNull);expect(c.confirmedPosts,isEmpty);expect(c.kind,isNull);});
  });
+ testWidgets('same-account new login invalidates an earlier preparing job',(t)async{
+  final prepared=Completer<void>();var sends=0;
+  await fixture(t,(s,c)async{
+   final generation=c.generation;
+   c.start('post',()async{
+    await prepared.future;
+    if(c.generation!=generation) throw ApiError('Please sign in again.',401);
+    sends++;return post('must-not-send');
+   });
+   await flush(t);expect(c.busy,isTrue);
+   await s.login('same-member','not-a-password');await flush(t);
+   expect(c.generation,greaterThan(generation));
+   prepared.complete();await flush(t);
+   expect(sends,0);expect(c.result,isNull);expect(c.confirmedPosts,isEmpty);
+   expect(c.error,isA<UploadError>(),reason:'existing uncertainty marker remains until explicitly checked');
+  });
+ });
+ testWidgets('same-account new login ignores an earlier success callback',(t)async{
+  final reply=Completer<Map<String,dynamic>>();
+  await fixture(t,(s,c)async{
+   c.start('post',()=>reply.future);await flush(t);
+   await s.login('same-member','not-a-password');await flush(t);
+   reply.complete(post('old-success'));await flush(t);
+   expect(c.result,isNull);expect(c.confirmedPosts,isEmpty);
+   expect(c.canRetry,isFalse);expect(c.error,isA<UploadError>());
+  });
+ });
  testWidgets('confirmed result survives an older list request and deduplicates server acknowledgement',(t)async{
   final pending=Completer<http.Response>();var reads=0;
   await fixture(t,(s,c)async{

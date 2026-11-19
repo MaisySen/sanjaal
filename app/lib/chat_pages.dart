@@ -1,6 +1,8 @@
 import 'ph.dart';
 import 'dart:async';
 import 'draft_exit_guard.dart';
+import 'group_draft_store.dart';
+import 'dart:convert' show jsonEncode;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
@@ -257,13 +259,51 @@ class _NewChatPageState extends State<NewChatPage> {
   final picked = <String, Map<String, dynamic>>{};
   bool group = false, busy = false, searched = false, searching = false;
   bool _completed = false, _uncertain = false;
+  bool _storing=false;
+  BuildContext? _groupDraftDialog;
+  GroupDraft? _savedGroup;
+  String? _savedGroupFingerprint;
+  String get _groupFingerprint=>jsonEncode([title.text,picked.values.map((p)=>[p['public_id'],p['username'],p['name']??'']).toList()]);
+  Future<void> _saveGroup()async{
+    if(_locked || !group || _storing)return;
+    final text=title.text;final people=picked.values.map((p)=><String,dynamic>{'public_id':p['public_id'],'username':p['username'],'name':p['name']??''}).toList();final fingerprint=_groupFingerprint;
+    setState(()=>_storing=true);
+    try{
+      final saved=await const GroupDraftStore().save(_owner!,title:text,people:people,expectedRevision:_savedGroup?.revision);
+      if(mounted && _active){setState((){_savedGroup=saved;_savedGroupFingerprint=fingerprint;});showInfo(context,t_('Group draft saved on this device. No group was created.'));}
+    }catch(e){if(mounted && _active)showError(context,e);}
+    finally{if(mounted)setState(()=>_storing=false);}
+  }
+  Future<void> _openGroup()async{
+    if(_locked || _storing)return;
+    if(picked.isNotEmpty || title.text.isNotEmpty){showInfo(context,t_('Save or clear this group before opening the saved copy.'));return;}
+    setState(()=>_storing=true);
+    try{
+      final saved=await const GroupDraftStore().read(_owner!);
+      if(!mounted || !_active)return;
+      if(saved==null){showInfo(context,t_('No saved group draft.'));return;}
+      setState((){group=true;title.text=saved.title;picked.clear();for(final p in saved.people){picked[p['username'] as String]=p;}_savedGroup=saved;_savedGroupFingerprint=_groupFingerprint;_uncertain=saved.attempted;startError=saved.attempted?t_('This group may already exist. Check Chats before starting it again.'):null;});
+    }catch(e){if(mounted && _active)showError(context,e);}
+    finally{if(mounted)setState(()=>_storing=false);}
+  }
+  Future<void> _deleteGroupDraft()async{
+    final draft=_savedGroup;if(draft==null || !_active || busy || _storing)return;
+    final yes=await showDialog<bool>(context:context,builder:(c){_groupDraftDialog=c;return AlertDialog(scrollable:true,title:Text(t_('Delete saved group draft?')),content:Text(t_('This removes only the local plan, not a group that may already exist. Check Chats before starting it again.')),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(t_('Keep'))),TextButton(onPressed:()=>Navigator.pop(c,true),child:Text(t_('Delete')))]);});
+    _groupDraftDialog=null;
+    if(yes!=true || !mounted || !_active || _savedGroup!=draft)return;
+    setState(()=>_storing=true);
+    try{await const GroupDraftStore().remove(_owner!,draft);if(mounted && _active)setState((){_savedGroup=null;_savedGroupFingerprint=null;title.clear();picked.clear();_uncertain=false;startError=null;});}
+    catch(e){if(mounted && _active)showError(context,e);}
+    finally{if(mounted)setState(()=>_storing=false);}
+  }
+
   String? searchError, startError;
   int _seq = 0;
   late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
-  bool get _locked => !_active || busy || _uncertain;
+  bool get _locked => !_active || busy || _storing || _uncertain;
   @override void initState(){
     super.initState();_session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
@@ -271,7 +311,9 @@ class _NewChatPageState extends State<NewChatPage> {
   void _accountChanged(){
     if(_active || !mounted)return;
     ++_seq;_debounce?.cancel();
-    setState((){results=[];picked.clear();q.clear();title.clear();searching=false;busy=false;startError=null;searchError=null;});
+    final dialog=_groupDraftDialog;_groupDraftDialog=null;
+    if(dialog!=null && dialog.mounted && ModalRoute.of(dialog)?.isCurrent==true)Navigator.of(dialog).pop();
+    setState((){results=[];picked.clear();q.clear();title.clear();searching=false;busy=false;startError=null;searchError=null;_savedGroup=null;_savedGroupFingerprint=null;});
   }
 
   @override
@@ -329,16 +371,46 @@ class _NewChatPageState extends State<NewChatPage> {
     _debounce?.cancel();
     ++_seq;
     setState(() { busy = true; searching = false; startError = null; });
+    var handedToServer=false;
     try {
+      if(body['type']=='group' && _savedGroup!=null){
+        final saved=_savedGroup!;
+        if(!widget.session.groupMemberRefsEnabled)throw const _GroupDraftServerNotReady();
+        body={...body,'member_refs':saved.people.map((p)=>{'public_id':p['public_id'],'username':p['username']}).toList()};
+        if(_savedGroupFingerprint!=_groupFingerprint)throw const _GroupDraftNotReady();
+        // A stored username can be renamed or reassigned. Never silently add the
+        // current owner of an old username in place of the originally picked ID.
+        for(final person in saved.people){
+          if(!mounted || !_active)return;
+          final response=await widget.session.call('GET','/users/search',query:{'q':person['username'] as String}) as Map;
+          if(!mounted || !_active)return;
+          final matches=(response['users'] as List).whereType<Map>().where((u)=>u['username']==person['username'] && u['public_id']==person['public_id']);
+          if(matches.length!=1)throw const _GroupDraftMemberChanged();
+        }
+        final marked=await const GroupDraftStore().markAttempt(_owner!,saved);
+        if(!mounted || !_active)return;
+        setState(()=>_savedGroup=marked);
+      }
+      if(!mounted || !_active)return;
+      handedToServer=true;
       final response = await widget.session.call('POST', '/conversations', body: body);
       final conversation = ((response as Map)['conversation'] as Map).cast<String, dynamic>();
       if (conversation['public_id'] is! String || (conversation['public_id'] as String).isEmpty) throw const FormatException();
       if (mounted && _active) await _leave(conversation);
     } catch (e) {
       if (!mounted || !_active) return;
+      if(e is _GroupDraftNotReady || e is _GroupDraftMemberChanged || e is _GroupDraftServerNotReady){
+        setState((){busy=false;startError=t_(e is _GroupDraftServerNotReady?'Saved groups need the member-check server update. Your draft is still here.':e is _GroupDraftNotReady?'Save group changes before creating it.':'A selected person changed or is unavailable. Remove and find them again before creating this group.');});return;
+      }
+      if(!handedToServer && _savedGroup?.attempted!=true){setState((){busy=false;startError=t_('Could not verify the saved group. Nothing was created. Try again.');});return;}
       // Groups have no server replay key. A lost/malformed success is not a
       // rejected creation, so do not offer another POST as ordinary retry.
       final rejected = e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500;
+      if(rejected && _savedGroup?.attempted==true){
+        try{final reset=await const GroupDraftStore().markAttempt(_owner!,_savedGroup!,attempted:false);if(!mounted || !_active)return;_savedGroup=reset;}
+        catch(_){if(mounted && _active)setState((){busy=false;_uncertain=true;startError=t_('This group may already exist. Check Chats before starting it again.');});return;}
+      }
+      if(!mounted || !_active)return;
       setState(() {
         busy = false;
         _uncertain = !rejected;
@@ -369,22 +441,26 @@ class _NewChatPageState extends State<NewChatPage> {
       ));
       if (discard != true || !mounted || !_active) return;
     }
-    setState(() { group = !group; picked.clear(); title.clear(); startError = null; });
+    setState(() { group = !group; picked.clear(); title.clear(); startError = null;_savedGroup=null;_savedGroupFingerprint=null; });
   }
 
   @override
   Widget build(BuildContext context) {
    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('New chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
    return DraftExitGuard(
-    hasChanges: !_completed && (picked.isNotEmpty || title.text.trim().isNotEmpty),
-    busy: busy && !_completed,
+    hasChanges: !_completed && (picked.isNotEmpty || title.text.trim().isNotEmpty) && _savedGroupFingerprint!=_groupFingerprint,
+    busy: (busy || _storing) && !_completed,
     busyMessage: 'Starting the conversation. Please wait.',
     child: Scaffold(
       appBar: AppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
+        IconButton(tooltip:t_('Open saved group draft'),onPressed:_locked?null:_openGroup,icon:const PhIcon('archive')),
         IconButton(onPressed: _locked ? null : _switchMode, icon: PhIcon(group ? Ph.person : Ph.groups), tooltip: t_(group ? 'One to one' : 'New group')),
       ]),
       body: CustomScrollView(slivers: [
         SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if(group)Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:Wrap(spacing:8,children:[Tooltip(message:t_('Save group draft'),child:TextButton.icon(onPressed:_locked?null:_saveGroup,icon:const PhIcon('bookmark-simple'),label:Text(t_('Save group draft')))),if(_savedGroup!=null)Tooltip(message:t_('Delete saved group draft'),child:TextButton.icon(onPressed:busy || _storing?null:_deleteGroupDraft,icon:const PhIcon('trash'),label:Text(t_('Delete saved group draft'))))])),
+          if(_savedGroup!=null)Padding(padding:const EdgeInsets.all(16),child:Text(t_('Local group plan. People are checked again before creation. Nothing starts automatically.'))),
+          if(_storing)const LinearProgressIndicator(),
           if (group) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: TextField(controller: title, enabled: !_locked, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: t_('Group name'), border: const OutlineInputBorder()))),
           if (group && picked.isNotEmpty) SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [for (final entry in picked.entries) Padding(padding: const EdgeInsets.only(right: 6), child: InputChip(label: Text('@${entry.key}'), onDeleted: _locked ? null : () => setState(() => picked.remove(entry.key))))])),
           Padding(padding: const EdgeInsets.all(16), child: TextField(controller: q, enabled: !_locked, autofocus: true, onChanged: _changed, decoration: InputDecoration(prefixIcon: const PhIcon('magnifying-glass'), hintText: t_('Search by name or username'), border: const OutlineInputBorder()))),
@@ -412,6 +488,10 @@ class _NewChatPageState extends State<NewChatPage> {
   );
   }
 }
+
+class _GroupDraftServerNotReady { const _GroupDraftServerNotReady(); }
+class _GroupDraftNotReady { const _GroupDraftNotReady(); }
+class _GroupDraftMemberChanged { const _GroupDraftMemberChanged(); }
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key, required this.session, required this.convo});

@@ -282,3 +282,55 @@ full-app cases with one live skip and both negative controls:
 https://github.com/MaisySen/sanjaal/actions/runs/44614683806 . Main CI emulator
 is still pending at this writing. The next combined head adds story retirement
 and must get its own exact-head checks. Earlier checkpoint wording is historical.
+
+
+## Explicit local group plans, pending final visual/native checks
+
+Group source a139840 adds one explicitly saved name/selected-people plan per
+account in secure storage. Read/write sizes, title and49-person bounds are
+validated. Saves are serialized and revision-checked. Unreadable storage is not
+overwritten. Opening a saved plan never creates a group. Creation requires the
+current server to advertise group_member_refs, fresh member lookup matching each
+saved public ID/username, and a verified persisted attempted marker before POST.
+The server validates stable references again and never substitutes the present
+owner of a reassigned username. Legacy unsaved requests remain compatible. An
+unknown creation outcome remains locked on reopening. An explicit rejection can
+clear the marker; local deletion never deletes a server conversation. No server
+replay protocol or automatic resend was added, and this API change is not deployed.
+
+Exact a139840 analysis,76 focused and1101 full-app cases with one live skip pass;
+184 API cases pass with two intentional skips. Disabling the app capability check
+fails its no-POST test; disabling stable ID handling returns201 where422 was
+required in the reassigned-username case. Restored sources pass:
+https://github.com/MaisySen/sanjaal/actions/runs/44618664590 . Initial API failures
+were fixture setup: a reused unique synthetic auth subject and missing synthetic
+APP_KEY. Those were corrected without changing or enabling money paths.
+
+The first four scrolled large-text images show the unknown-result warning and
+Back to Chats clearly above disabled creation, but visual inspection caught a
+missing icon asset on Open saved group draft. It was not treated as a visual pass.
+The current source replaces it with bundled archive.svg, tests the asset exists,
+and adds separate top/control-reachability captures plus replacement-account
+dialog cleanup. Attempt marking now uses the stored title/people, not an object
+supplied by its caller. Exact final visual/regression and same-install native
+restart acceptance remain in progress. These records do not imply a new physical
+Samsung install, distribution, production API deployment, automatic creation,
+background sync, group replay safety or native storage acceptance.
+
+
+Latest group source24b49dc passes analysis,79 focused and1104 full-app cases
+with one live skip; API184 cases pass/two skips. Both negative controls reject
+the intended unsafe behavior and restored sources pass:
+https://github.com/MaisySen/sanjaal/actions/runs/44620844109 . Eight final
+English/Nepali light/dark large-text frames were inspected. The existing archive
+icon is visible. Local-plan/name/delete and unknown-outcome/Back to Chats are
+separate scroll positions. Delete/Keep is exercised at each size. These are not
+a single unobstructed entire-screen capture, native keyboard geometry or native
+storage acceptance. Account replacement dismisses the draft-delete dialog without
+modifying either account's plan. Attempt markers use stored values, not caller-
+supplied metadata with a matching revision. Final native recovery is separate.
+
+Combined predecessor dcbb6fe completed all seven required jobs including emulator:
+https://github.com/MaisySen/sanjaal/actions/runs/44617576615 . All27 journey images
+were visually inspected. This settles the pending main-run status above.
+Publication/release stayed disabled. It predates the group implementation.

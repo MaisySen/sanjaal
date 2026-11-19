@@ -178,6 +178,7 @@ class Session extends ChangeNotifier {
   bool uploadIntentsEnabled = false;
   bool interactionControlsEnabled = false;
   bool protectedStoriesEnabled = false;
+  bool groupMemberRefsEnabled = false;
   bool videoPostersEnabled = false;
   bool loading = true;
   /// Credentials belong to this API, never to a URL's claimed purpose.
@@ -446,6 +447,7 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
     protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
+    groupMemberRefsEnabled = (j['features'] as Map?)?['group_member_refs'] == true;
     videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
     unawaited(Push.register(this));
   }
@@ -493,6 +495,7 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
     protectedStoriesEnabled = false;
+    groupMemberRefsEnabled = false;
     videoPostersEnabled = false;
     await _writeCredentials(RefreshStore.clear);
   }

@@ -21,7 +21,7 @@ jobs:
       - run: flutter pub get
       - run: dart format lib/session_bound_state.dart lib/call_page.dart lib/calls_page.dart lib/rooms_page.dart lib/gifts.dart test/realtime_session_test.dart
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
-      - run: timeout --kill-after=15s 180 flutter test test/story_session_test.dart test/media_visibility_test.dart test/story_audience_test.dart test/nonblocking_story_handoff_test.dart test/registration_session_test.dart test/session_restore_test.dart test/signout_boundary_test.dart test/realtime_session_test.dart test/call_lifecycle_test.dart test/room_lifecycle_test.dart test/room_microphone_test.dart --reporter expanded > media-draft.log 2>&1
+      - run: timeout --kill-after=15s 180 flutter test test/group_drafts_test.dart test/new_chat_journey_test.dart test/chat_screen_session_test.dart test/story_session_test.dart test/media_visibility_test.dart test/story_audience_test.dart test/nonblocking_story_handoff_test.dart test/registration_session_test.dart test/session_restore_test.dart test/signout_boundary_test.dart test/realtime_session_test.dart test/call_lifecycle_test.dart test/room_lifecycle_test.dart test/room_microphone_test.dart --reporter expanded > media-draft.log 2>&1
       - name: Login invalidation negative control
         run: |
           cp lib/api.dart /tmp/api-session-protected.dart
@@ -77,6 +77,22 @@ jobs:
           test "$result" -ne 124
           grep -q 'Actual:' story-negative.log
           cp /tmp/story-session-protected.dart lib/session_bound_state.dart
+      - name: Saved member capability negative control
+        run: |
+          cp lib/chat_pages.dart /tmp/group-plan-protected.dart
+          trap 'cp /tmp/group-plan-protected.dart lib/chat_pages.dart' EXIT
+          python3 - <<'PYGROUP'
+          from pathlib import Path
+          p=Path('lib/chat_pages.dart');s=p.read_text();needle='if(!widget.session.groupMemberRefsEnabled)throw const _GroupDraftServerNotReady();';assert needle in s;s=s.replace(needle,'',1);p.write_text(s)
+          PYGROUP
+          set +e
+          timeout --kill-after=10s 90 flutter test test/group_drafts_test.dart --plain-name 'capability-off refuses saved group creation without any POST' --reporter expanded > group-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' group-negative.log
+          cp /tmp/group-plan-protected.dart lib/chat_pages.dart
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()
@@ -85,6 +101,8 @@ jobs:
           path: |
             app/*.log
             app/pubspec.lock
+            app/lib/group_draft_store.dart
+            app/test/group_drafts_test.dart
             app/lib/session_bound_state.dart
             app/lib/call_page.dart
             app/lib/calls_page.dart

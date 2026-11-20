@@ -26,7 +26,7 @@ void main(){
    expect(t.getTopLeft(end).dy,greaterThanOrEqualTo(0));expect(t.getBottomRight(end).dy,lessThanOrEqualTo(screen.height));
    expect(t.getTopLeft(end).dx,greaterThanOrEqualTo(0));expect(t.getBottomRight(end).dx,lessThanOrEqualTo(screen.width));
    for(final tooltip in ['Unmute microphone','Turn camera on']){
-    final button=t.widget<IconButton>(find.byTooltip(tooltip));
+    final button=t.widget<IconButton>(find.byWidgetPredicate((w)=>w is IconButton && w.tooltip==tooltip));
     expect(button.onPressed,isNull);
     expect(button.style!.foregroundColor!.resolve({WidgetState.disabled}),Colors.white54,reason:'disabled capture controls remain visible on the dark call bar');
    }

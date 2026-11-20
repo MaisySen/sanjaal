@@ -19,3 +19,7 @@ colors on the fixed dark call bar. The overflow result stands, but whole visual
 acceptance was withheld. Explicit white54 disabled foreground and a state-style
 assertion now require these controls to remain visible without enabling them.
 Updated renders must be inspected before acceptance.
+
+3fc9ee2 stopped in the new style test: material_ui's tooltip finder resolves
+the RawTooltip wrapper, not IconButton. The assertion now selects IconButton
+by its tooltip property directly. No product behavior or contrast color changed.

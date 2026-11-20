@@ -272,14 +272,14 @@ class CallView extends StatelessWidget {
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(40)),
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                 IconButton.filledTonal(
-                  style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
+                  style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white, disabledForegroundColor: Colors.white54),
                   tooltip: muted ? 'Unmute microphone' : 'Mute microphone',
                   onPressed: failed || controlsBusy ? null : onMute,
                   icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
                 ),
                 if (video)
                   IconButton.filledTonal(
-                    style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white),
+                    style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white, disabledForegroundColor: Colors.white54),
                     tooltip: camOn ? 'Turn camera off' : 'Turn camera on',
                     onPressed: failed || controlsBusy ? null : onCamera,
                     icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),

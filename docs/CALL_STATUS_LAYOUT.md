@@ -13,3 +13,9 @@ content, a reachable/tappable End control and scrolling to the final error line.
 A negative control restores the old unbounded layout and must fail the same
 regression. Actual rendered pixels and complete tests are required before
 acceptance. No real call, camera, microphone or distribution action is involved.
+
+Visual follow-up: light-theme disabled microphone/camera icons inherited dark
+colors on the fixed dark call bar. The overflow result stands, but whole visual
+acceptance was withheld. Explicit white54 disabled foreground and a state-style
+assertion now require these controls to remain visible without enabling them.
+Updated renders must be inspected before acceptance.

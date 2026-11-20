@@ -19,9 +19,21 @@ class Contracts(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.run = {'id': 12, 'status': 'completed', 'conclusion': 'success', 'repository': {'full_name': 'MaisySen/sanjaal'}, 'head_sha': 'a' * 40, 'event': 'push', 'html_url': 'https://github.com/MaisySen/sanjaal/actions/runs/12'}
+        self.run.update(head_branch='candidate', run_attempt=1)
         self.jobs = {'jobs': [{'name': n, 'run_id': 12, 'head_sha': 'a' * 40, 'status': 'completed', 'conclusion': 'success'} for n in m.GATES]}
         self.artifacts = {'artifacts': []}
-        self.evidence = {}
+        workflows = []
+        for i, (filename, gates) in enumerate(m.WORKFLOW_GATES.items()):
+            run_id = 12 if filename == 'ci.yml' else 100 + i
+            run = self.run | {'id': run_id, 'path': '.github/workflows/' + filename, 'html_url': 'https://github.com/MaisySen/sanjaal/actions/runs/' + str(run_id)}
+            jobs = [{'name': n, 'run_id': run_id, 'head_sha': run['head_sha'], 'run_attempt': 1, 'status': 'completed', 'conclusion': 'success'} for n in gates]
+            if filename == 'ci.yml':
+                jobs.append({'name': 'release', 'conclusion': 'skipped'})
+            workflows.append({'run': run, 'jobs': {'jobs': jobs}})
+        self.workflows = {'runs': workflows}
+        self.workflow_file = self.root / 'workflow-checks.json'
+        self.workflow_file.write_text(json.dumps(self.workflows))
+        self.evidence = {'workflow_checks': str(self.workflow_file)}
         for i, kind in enumerate(('apk', 'aab'), 1):
             archive = self.root / (kind + '.zip')
             member = 'ci/input.' + kind
@@ -132,6 +144,56 @@ class Contracts(unittest.TestCase):
             f.write(b'tampered')
         with self.assertRaisesRegex(ValueError, 'digest mismatch'):
             self.make()
+
+
+    def test_required_workflow_metadata(self):
+        checked = m.check_workflows(self.run, self.workflows)
+        self.assertEqual(len(checked), 10)
+        self.assertEqual(checked[0]['run_id'], self.run['id'])
+        self.assertEqual(checked[1]['gates'], ['app-regression', 'android-media-restart', 'ios-media-restart'])
+
+    def test_each_workflow_and_job_required(self):
+        for i, entry in enumerate(self.workflows['runs']):
+            with self.subTest(workflow=i):
+                missing = copy.deepcopy(self.workflows)
+                missing['runs'].pop(i)
+                with self.assertRaises(ValueError):
+                    m.check_workflows(self.run, missing)
+            for j in range(len(entry['jobs']['jobs'])):
+                if entry['jobs']['jobs'][j]['name'] == 'release':
+                    continue
+                for key, value in [('conclusion', 'failure'), ('conclusion', 'skipped'), ('status', 'in_progress'), ('run_id', 999), ('head_sha', 'e' * 40), ('run_attempt', 2)]:
+                    with self.subTest(workflow=i, job=j, key=key, value=value):
+                        changed = copy.deepcopy(self.workflows)
+                        changed['runs'][i]['jobs']['jobs'][j][key] = value
+                        with self.assertRaises(ValueError):
+                            m.check_workflows(self.run, changed)
+
+    def test_workflow_source_identity_attempt_and_audience_boundaries(self):
+        for i in range(len(self.workflows['runs'])):
+            for key, value in [('head_sha', 'e' * 40), ('path', 'other.yml'), ('id', 0), ('id', True), ('status', 'queued'), ('conclusion', 'cancelled'), ('run_attempt', None), ('run_attempt', 2), ('event', 'pull_request'), ('head_branch', 'other'), ('repository', {'full_name': 'other/repo'}), ('html_url', 'https://wrong.invalid')]:
+                with self.subTest(workflow=i, key=key):
+                    changed = copy.deepcopy(self.workflows)
+                    changed['runs'][i]['run'][key] = value
+                    with self.assertRaises(ValueError):
+                        m.check_workflows(self.run, changed)
+
+    def test_workflow_duplicates_and_main_run_identity(self):
+        changed = copy.deepcopy(self.workflows)
+        changed['runs'][1] = copy.deepcopy(changed['runs'][0])
+        with self.assertRaises(ValueError):
+            m.check_workflows(self.run, changed)
+        changed = copy.deepcopy(self.workflows)
+        changed['runs'][0]['jobs']['jobs'].append(copy.deepcopy(changed['runs'][0]['jobs']['jobs'][0]))
+        with self.assertRaises(ValueError):
+            m.check_workflows(self.run, changed)
+        with self.assertRaises(ValueError):
+            m.check_workflows(self.run | {'id': 999}, self.workflows)
+        for conclusion in ['success', 'failure', None]:
+            changed = copy.deepcopy(self.workflows)
+            changed['runs'][0]['jobs']['jobs'][-1]['conclusion'] = conclusion
+            with self.assertRaises(ValueError):
+                m.check_workflows(self.run, changed)
 
 
 if __name__ == '__main__':

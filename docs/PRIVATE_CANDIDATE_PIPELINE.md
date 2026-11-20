@@ -90,3 +90,32 @@ Do not place private screenshots, test accounts, database copies or vault
 values in a manifest or build artifact. The automated promotion/signing
 workflow, scoped credential setup, Play in-app update prompt, production
 OTA baseline, and physical two-version update test remain unfinished.
+
+## Exact-source workflow bundle, November 21
+
+Manifest schema2 also requires `workflow_checks` in the local evidence JSON.
+Its value is a path to a private JSON file with a `runs` array. Each entry has
+`run` (the complete authenticated GitHub run response) and `jobs` (the complete
+latest-attempt jobs response). Fetch up to100jobs and ensure pagination did
+not omit any required job. Do not copy a summary or edit a failed result.
+
+The validator requires exactly one record for each of the ten workflows in
+`WORKFLOW_GATES` in `candidate_manifest.py`. All must be completed successfully,
+on the same repository, commit, branch and event as the selected main run.
+Required jobs must belong to that run and its current attempt. The main workflow
+record must be the artifact-producing run, including exact-money-hold and the
+historical image-parity job. The release job must remain skipped. The duplicate
+Android restart in the adapter workflow is deliberately not required: the
+separate Android and iOS restart jobs in memory-video-preview are required.
+
+An older head's green native jobs, an earlier attempt, a skipped required job,
+a missing workflow or a renamed job fails closed. Update the requirements only
+after reviewing the actual workflow change, never to make a failed candidate
+look accepted. Rerun the manifest after every selected-source change.
+
+This metadata bundle does not inspect pixels, attest that downloaded JSON is
+authentic, verify a signature, prove production compatibility or authorize
+signing, delivery or release. Recover records through authenticated GitHub
+access. Human visual review and exact-candidate physical acceptance remain
+separate. No new credential, signing, upload or production action is performed
+by this source change.

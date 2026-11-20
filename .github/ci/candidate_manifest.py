@@ -62,6 +62,60 @@ def check_run(run, jobs):
         require(job.get('status') == 'completed' and job.get('conclusion') == 'success', 'Failed CI gate: ' + name)
 
 
+# Exact-source workflow requirements for a private candidate, not release approval.
+# Human pixel inspection, physical acceptance and live compatibility stay separate.
+WORKFLOW_GATES = {
+    'ci.yml': ('api', 'app', 'ios', 'emulator', 'bundle', 'exact-money-hold', 'historical timing image parity (dcbb source)'),
+    'memory-video-preview.yml': ('app-regression', 'android-media-restart', 'ios-media-restart'),
+    'memory-native-pause.yml': ('native-adapter',),
+    'memory-channel-failure.yml': ('app-regression',),
+    'ios-export-hold.yml': ('declaration-hold',),
+    'call-status.yml': ('app-regression',),
+    'media-safety-language.yml': ('app-regression',),
+    'call-media-failure.yml': ('app-regression',),
+    'room-mic-failure.yml': ('app-regression',),
+    'creator-media-drafts.yml': ('app-regression',),
+}
+
+
+def check_workflows(main_run, evidence):
+    """Validate downloaded current run/job records. Does not authenticate a file."""
+    require(isinstance(evidence, dict) and isinstance(evidence.get('runs'), list), 'Workflow evidence required')
+    records = evidence['runs']
+    require(len(records) == len(WORKFLOW_GATES), 'Exactly the required workflow records must be supplied')
+    results = []
+    ids = set()
+    for filename, gates in WORKFLOW_GATES.items():
+        path = '.github/workflows/' + filename
+        matches = [entry for entry in records if entry.get('run', {}).get('path') == path]
+        require(len(matches) == 1, 'Missing or duplicate workflow: ' + filename)
+        entry = matches[0]
+        run = entry['run']
+        require(type(run.get('id')) is int and run['id'] > 0 and run['id'] not in ids, 'Missing or reused workflow run identity')
+        ids.add(run['id'])
+        require(run.get('repository', {}).get('full_name') == 'MaisySen/sanjaal', 'Wrong workflow repository')
+        require(run.get('head_sha') == main_run['head_sha'], 'Workflow source mismatch: ' + filename)
+        require(run.get('event') == main_run.get('event') and run.get('event') in ('push', 'workflow_dispatch'), 'Workflow event mismatch')
+        require(run.get('head_branch') == main_run.get('head_branch') and isinstance(run.get('head_branch'), str) and bool(run['head_branch']), 'Workflow branch missing or different')
+        require(run.get('status') == 'completed' and run.get('conclusion') == 'success', 'Workflow not successful: ' + filename)
+        require(run.get('html_url') == 'https://github.com/MaisySen/sanjaal/actions/runs/' + str(run['id']), 'Wrong workflow run URL')
+        require(type(run.get('run_attempt')) is int and run['run_attempt'] > 0, 'Workflow attempt missing')
+        jobs = entry.get('jobs', {}).get('jobs', [])
+        for gate in gates:
+            found = [j for j in jobs if j.get('name') == gate]
+            require(len(found) == 1, 'Missing or duplicate workflow job: ' + filename + ':' + gate)
+            job = found[0]
+            require(job.get('run_id') == run['id'] and job.get('head_sha') == run['head_sha'], 'Workflow job source/run mismatch')
+            require(job.get('run_attempt') == run['run_attempt'], 'Workflow job attempt mismatch')
+            require(job.get('status') == 'completed' and job.get('conclusion') == 'success', 'Workflow job not successful: ' + gate)
+        if filename == 'ci.yml':
+            require(run['id'] == main_run['id'] and run['run_attempt'] == main_run.get('run_attempt'), 'Main workflow identity mismatch')
+            release = [j for j in jobs if j.get('name') == 'release']
+            require(len(release) == 1 and release[0].get('conclusion') == 'skipped', 'Release job must remain skipped')
+        results.append({'workflow': path, 'run_id': run['id'], 'run_attempt': run['run_attempt'], 'url': run['html_url'], 'gates': list(gates)})
+    return results
+
+
 def check_artifact(kind, run, artifact, archive, member, signed, verification):
     expected_name = {'apk': 'sanjaal-apk', 'aab': 'sanjaal-unsigned-aab-engineering-only'}[kind]
     require(artifact.get('name') == expected_name and not artifact.get('expired'), 'Wrong or expired artifact')
@@ -100,6 +154,7 @@ def check_artifact(kind, run, artifact, archive, member, signed, verification):
 
 def build(run, jobs, artifacts, repo, api_source, api_image, evidence):
     check_run(run, jobs)
+    workflow_checks = check_workflows(run, load(evidence['workflow_checks']))
     require(re.fullmatch('sha256:[0-9a-f]{64}', api_image) is not None, 'Immutable API image digest required')
     client_tree = app_tree(repo, run['head_sha'])
     same_app = client_tree == app_tree(repo, api_source)
@@ -119,9 +174,9 @@ def build(run, jobs, artifacts, repo, api_source, api_image, evidence):
         versions.add((v['version_name'], v['version_code']))
     require(len(versions) == 1, 'APK/AAB versions differ')
     version_name, version_code = next(iter(versions))
-    return {'schema': 1, 'purpose': 'PRIVATE_CANDIDATE_NOT_RELEASE_AUTHORIZATION',
+    return {'schema': 2, 'purpose': 'PRIVATE_CANDIDATE_NOT_RELEASE_AUTHORIZATION',
             'repository': 'https://github.com/MaisySen/sanjaal', 'source_commit': run['head_sha'],
-            'app_tree': client_tree, 'ci_run_id': run['id'], 'ci_url': run['html_url'], 'ci_gates': list(GATES),
+            'app_tree': client_tree, 'ci_run_id': run['id'], 'ci_url': run['html_url'], 'ci_gates': list(GATES), 'workflow_checks': workflow_checks,
             'package': PACKAGE, 'version_name': version_name, 'version_code': version_code,
             'certificate_sha256': CERTIFICATE, 'abi': 'arm64-v8a', 'artifacts': outputs,
             'api': {'source_commit': api_source, 'image_digest': api_image, 'base_url': API,

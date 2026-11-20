@@ -101,7 +101,7 @@ void main() {
         final session = Session(); await session.login('fixture', 'not-a-password');
         await t.pumpWidget(RepaintBoundary(key:const ValueKey('retired-profile'), child:MaterialApp(debugShowCheckedModeBanner:false, theme:buildTheme(mode,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']), builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:TextScaler.linear(1.8)),child:w!), home:EditProfilePage(session:session))));
         await t.enterText(find.byKey(const ValueKey('profile-name')), 'Private old name');
-        await session.logout(); await flush(t); await t.pumpAndSettle();
+        await session.login('replacement', 'not-a-password'); await flush(t); await t.pumpAndSettle();
         expect(find.byType(TextFormField),findsNothing); expect(find.text('Private old name'),findsNothing); expect(t.takeException(),isNull);
         await t.runAsync(() async {
           final image=await t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('retired-profile'))).toImage(pixelRatio:2);

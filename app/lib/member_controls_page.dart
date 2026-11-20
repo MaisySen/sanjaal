@@ -14,10 +14,34 @@ class MemberControlsPage extends StatefulWidget {
 }
 class _MemberControlsPageState extends State<MemberControlsPage> {
   late final String? accountOwner;
-  bool get active=>accountOwner!=null && widget.session.user?['public_id']==accountOwner;
-  void accountChanged(){if(!active && mounted)setState((){current=null;saved=false;needsReload=true;error=t_("Sign in again to view this account's settings.");});}
+  late final Session sourceSession;
+  late final int sourceGeneration;
+  bool retired = false;
+  bool get active => !retired && identical(widget.session, sourceSession) &&
+      accountOwner != null && widget.session.user?['public_id'] == accountOwner &&
+      widget.session.generation == sourceGeneration;
+  void accountChanged() {
+    if (active || retired || !mounted) return;
+    setState(() {
+      retired = true;
+      generation++;
+      current = null;
+      audience = 'everyone';
+      sharing = true;
+      saved = false;
+      loading = false;
+      saving = false;
+      needsReload = true;
+      error = t_("Sign in again to view this account's settings.");
+    });
+  }
   @override
-  void dispose(){widget.session.removeListener(accountChanged);super.dispose();}
+  void didUpdateWidget(covariant MemberControlsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    accountChanged();
+  }
+  @override
+  void dispose(){sourceSession.removeListener(accountChanged);super.dispose();}
   Map<String, dynamic>? current;
   String audience = 'everyone';
   bool sharing = true;
@@ -29,7 +53,7 @@ class _MemberControlsPageState extends State<MemberControlsPage> {
   int generation = 0;
   bool get changed => current != null && (current!['comments_from'] != audience || current!['share_to_chat'] != sharing);
   @override
-  void initState() { super.initState();accountOwner=widget.session.user?['public_id'] as String?;widget.session.addListener(accountChanged);load(); }
+  void initState() { super.initState();sourceSession=widget.session;sourceGeneration=sourceSession.generation;accountOwner=sourceSession.user?['public_id'] as String?;sourceSession.addListener(accountChanged);load(); }
   Map<String,dynamic> parse(dynamic response) {
     final value = (response as Map)['controls'];
     if (value is! Map || !['everyone','following','nobody'].contains(value['comments_from']) || value['share_to_chat'] is! bool || value['revision'] is! int) throw const FormatException();

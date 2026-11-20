@@ -15,3 +15,6 @@ def check(name,source,mode,reason):
 historical=subprocess.check_output(['git','show','5fe152925708c10391e7bced50e1c07cfd73e27d:app/android/app/src/main/kotlin/au/fintex/sanjaal/MemoryVideoView.kt'],cwd=root,text=True)
 check('native-setup-historical',historical,'setup','native release not attempted')
 check('native-prepared-historical',historical,'prepared','IllegalStateException: seek')
+
+historical_resize=subprocess.check_output(['git','show','5280d57d4ad67ad377bf498eb6f7a11305c661c1:app/android/app/src/main/kotlin/au/fintex/sanjaal/MemoryVideoView.kt'],cwd=root,text=True)
+check('native-resize-historical',historical_resize,'resize','IllegalStateException: transform')

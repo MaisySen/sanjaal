@@ -95,7 +95,10 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
         matrix.setScale(vw * scale / width, vh * scale / height, width / 2, height / 2)
         surface.setTransform(matrix)
     }
-    override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) { fitVideo() }
+    override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {
+        if (disposed || failed || player == null) return
+        try { fitVideo() } catch (_: Exception) { fail() }
+    }
     override fun onSurfaceTextureUpdated(texture: SurfaceTexture) {}
     override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean { dispose(); return true }
     fun pause() { try { if(ready) player?.pause() } catch (_: Exception) { fail() } }

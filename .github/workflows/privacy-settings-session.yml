@@ -1,0 +1,53 @@
+name: Privacy settings session ownership
+on:
+  push:
+    branches: [privacy-settings-session-ownership]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/member_controls_session_test.dart test/member_controls_test.dart --reporter expanded > focused.log 2>&1
+      - name: Historical same-member privacy settings negative control
+        run: |
+          cp lib/member_controls_page.dart /tmp/controls-protected.dart
+          trap 'cp /tmp/controls-protected.dart lib/member_controls_page.dart' EXIT
+          git show 334abc8510ff910775690c6558b38499c60f2048:app/lib/member_controls_page.dart > lib/member_controls_page.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/member_controls_session_test.dart --plain-name 'privacy settings permanently retire loaded choices on same member login' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' negative.log
+          cp /tmp/controls-protected.dart lib/member_controls_page.dart
+      - run: flutter test test/member_controls_session_test.dart test/member_controls_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - run: flutter build apk --debug > build.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: privacy-settings-session-evidence
+          path: |
+            app/*.log
+            app/test/renders/controls_account_*.png
+          retention-days: 7

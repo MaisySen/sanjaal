@@ -19,3 +19,11 @@ Historical cb3093d CallView and RoomView sources must each fail the Nepali-warni
 regression; restored sources must pass before the whole suite. Actual screenshot
 inspection remains required. Coverage and glyph rendering do not replace native
 Nepali editorial review. No real call, room, hardware or network is involved.
+
+Initial candidate747e44c passed85focused/1175full(one live-only skip),17restored
+and both historical negatives. Initial16 images were inspected; Nepali call
+warning at bottom scroll clips its first line as expected for scrollable text,
+but the initial/top visual state was not captured. Follow-up adds explicit
+initial top-position and final bottom-position geometry checks and separate
+captures for every variant. No simultaneous whole-paragraph visibility claim.
+https://github.com/MaisySen/sanjaal/actions/runs/44706833913

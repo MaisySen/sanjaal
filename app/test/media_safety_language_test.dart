@@ -54,9 +54,18 @@ void main(){
    }else{expect(find.byTooltip(t_('Mute')),findsNothing);expect(find.byTooltip(t_('Unmute')),findsNothing);}
    final scrollView=find.byKey(ValueKey(kind=='call'?'call-status-scroll':'room-failure-scroll'));
    final scroll=t.state<ScrollableState>(find.descendant(of:scrollView,matching:find.byType(Scrollable)));
+   Future<void> capture(String position)async{
+    await t.runAsync(()async{final boundary=key.currentContext!.findRenderObject()! as RenderRepaintBoundary;final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/media_safety_${kind}_${language}_${landscape?'landscape':'portrait'}_${mode.name}_$position.png').writeAsBytesSync(bytes!.buffer.asUint8List());image.dispose();});
+   }
+   expect(scroll.position.pixels,0);
+   expect(t.getTopLeft(find.text(expected)).dy,greaterThanOrEqualTo(t.getTopLeft(scrollView).dy));
+   expect(t.getTopLeft(find.text(expected)).dy,lessThan(t.getBottomRight(scrollView).dy));
+   await capture('top');
    scroll.position.jumpTo(scroll.position.maxScrollExtent);await t.pumpAndSettle();
+   expect(scroll.position.extentAfter,lessThan(1));
    expect(t.getBottomRight(find.text(expected)).dy,lessThanOrEqualTo(t.getBottomRight(scrollView).dy));expect(t.takeException(),isNull);expect(toggles,0);
-   await t.runAsync(()async{final boundary=key.currentContext!.findRenderObject()! as RenderRepaintBoundary;final image=await boundary.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);Directory('test/renders').createSync(recursive:true);File('test/renders/media_safety_${kind}_${language}_${landscape?'landscape':'portrait'}_${mode.name}.png').writeAsBytesSync(bytes!.buffer.asUint8List());image.dispose();});
+   expect(t.getBottomRight(exit).dy,lessThanOrEqualTo(screen.height));
+   await capture('bottom');
    await t.tap(exit);await t.pumpAndSettle();expect(find.text('Conversation fixture'),findsOneWidget);if(kind=='call')expect(ended,1);expect(toggles,0);
   });
  }}}}

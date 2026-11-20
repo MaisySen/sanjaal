@@ -113,10 +113,12 @@ void main(){
   expect(t.getBottomRight(warning).dy,lessThanOrEqualTo(t.getTopLeft(find.byType(FilledButton)).dy),reason:'complete attempt warning must remain above Create');
   await capture(t,phase=='seed'?'media_restart_1_group_saved':'media_restart_2_group_reopened_guarded');
   if(phase=='seed')return;
-  await t.tap(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
+  await t.ensureVisible(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
+  await t.tap(find.byTooltip('Delete saved group draft')); await t.pumpAndSettle();
   await t.tap(find.text('Keep'));await t.pumpAndSettle();
   expect(await t.runAsync(()=>store.read(_owner)),isNotNull);
-  await t.tap(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
+  await t.ensureVisible(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
+  await t.tap(find.byTooltip('Delete saved group draft')); await t.pumpAndSettle();
   await t.tap(find.text('Delete'));
   await _until(t,()=>find.text(title).evaluate().isEmpty);
   expect(await t.runAsync(()=>store.read(_owner)),isNull);expect(session.posts,phase=='seed'?1:0);expect(session.reads,phase=='seed'?2:0);

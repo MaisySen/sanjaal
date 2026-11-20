@@ -21,3 +21,8 @@ an unsettled keyboard/inset layout obscuring the warning. Its UI visual
 acceptance is withheld. Next fixture dismisses IME and awaits zero inset,
 asserts complete warning above Create, and uses synchronized real Android OS
 captures while pumping frames. No application source changes.
+
+a4fc3da passes iOS and the Android warning-position/OS captures, but Android
+then fails to tap Delete because scrolling to reveal the warning moved Delete
+offscreen. The fixture now explicitly scrolls Delete back into view before
+each real tap. No missed-hit warning is suppressed and no product source changes.

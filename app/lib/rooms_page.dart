@@ -331,6 +331,7 @@ class _RoomPageState extends State<RoomPage> with SessionBoundState<RoomPage> {
   Future<void> _toggleMic() async {
     if (!sessionActive || leaving || room.connectionState != ConnectionState.connected) return;
     try { await microphone.toggle(); } catch (e) {
+      if (microphone.stopUnconfirmed) _micStopFailed(e);
       if (sessionActive && mounted && !leaving) showError(context, e);
     }
   }

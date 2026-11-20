@@ -70,8 +70,22 @@ class RoomMicrophone extends ChangeNotifier {
     try {
       await _serial(() async {
         if (_closed || !speaker || epoch != _epoch) return;
-        await setEnabled(enable);
-        if (!_closed && speaker && epoch == _epoch) muted = !enable;
+        try {
+          await setEnabled(enable);
+          if (!_closed && speaker && epoch == _epoch) muted = !enable;
+        } catch (_) {
+          // Native failures can arrive after capture has already changed.
+          // Reconcile to off before allowing another local enable. Keep this
+          // stop inside the same queue slot, ahead of any revoke/close.
+          try {
+            await setEnabled(false);
+            muted = true;
+            stopUnconfirmed = false;
+          } catch (_) {
+            stopUnconfirmed = true;
+          }
+          rethrow;
+        }
       });
     } finally {
       busy = false;

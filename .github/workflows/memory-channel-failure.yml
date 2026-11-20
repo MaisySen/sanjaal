@@ -1,7 +1,7 @@
 name: Memory video channel failure containment
 on:
   push:
-    branches: [memory-video-channel-failure, memory-video-native-pause, memory-video-native-setup, product-integrated-overnight]
+    branches: [memory-video-channel-failure, memory-channel-state-validation, memory-video-native-pause, memory-video-native-setup, product-integrated-overnight]
 permissions:
   contents: read
 jobs:
@@ -36,6 +36,19 @@ jobs:
           test "$result" -ne 124
           grep -q 'Actual:' negative.log
           cp /tmp/memory-channel-protected.dart lib/memory_video_preview.dart
+      - name: Historical unchecked state reply negative control
+        run: |
+          cp lib/memory_video_preview.dart /tmp/memory-state-protected.dart
+          trap 'cp /tmp/memory-state-protected.dart lib/memory_video_preview.dart' EXIT
+          git show 42109dcd0214f297bc760dc5dd68ff61d566370b:app/lib/memory_video_preview.dart > lib/memory_video_preview.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/memory_video_preview_test.dart --plain-name 'malformed native null state after readiness retires preview' --reporter expanded > malformed-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' malformed-negative.log
+          cp /tmp/memory-state-protected.dart lib/memory_video_preview.dart
       - run: flutter test test/memory_video_preview_test.dart --reporter expanded > restored.log 2>&1
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4

@@ -66,7 +66,13 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
     _reading=true;
     try{
       final value=await channel.invokeMapMethod<String,dynamic>('state').timeout(const Duration(seconds:3));
-      if(!mounted || epoch!=_epoch || !sessionActive || value==null)return;
+      if(!mounted || epoch!=_epoch || !sessionActive)return;
+      // A completed call is not evidence of a usable player state. Retire on
+      // absent/malformed replies rather than retain stale playing controls.
+      if(value==null || value['ready'] is! bool || value['failed'] is! bool || value['playing'] is! bool ||
+          !['position','width','height'].every((key)=>value[key] is num && (value[key] as num).isFinite && (value[key] as num)>=0)){
+        _fail();return;
+      }
       if(value['failed']==true){_fail();return;}
       final w=(value['width'] as num?)?.toDouble()??0,h=(value['height'] as num?)?.toDouble()??0;
       setState((){_ready=value['ready']==true;if(_ready)_deadline?.cancel();_playing=value['playing']==true;_position=(value['position'] as num?)?.toInt()??0;if(w>0 && h>0)_ratio=(w/h).clamp(0.2,5);});

@@ -26,10 +26,10 @@ class DelayedFile extends XFile {
 Future<void> flush(WidgetTester t)async{await t.pump();await t.pump(const Duration(milliseconds:450));await t.pump();}
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
- String? rejectMethod,hangMethod;Completer<void>? hung;
+ String? rejectMethod,hangMethod,malformedState;Completer<void>? hung;
  var calls=<String>[];var creates=0;var playing=false;var fail=false;Uint8List? received;
  setUp((){
-  rejectMethod=null;hangMethod=null;hung=null;memoryVideoPlatformInTests=true;calls=[];creates=0;playing=false;fail=false;received=null;
+  rejectMethod=null;hangMethod=null;malformedState=null;hung=null;memoryVideoPlatformInTests=true;calls=[];creates=0;playing=false;fail=false;received=null;
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views,(call)async{
    if(call.method=='create'){
     creates++;final args=call.arguments as Map;final id=args['id'];final bytes=args['params'] as Uint8List;
@@ -41,7 +41,21 @@ void main(){
      if(method.method==hangMethod){hung ??= Completer<void>();await hung!.future;}
 
      if(method.method=='play')playing=true;if(method.method=='pause'||method.method=='dispose')playing=false;
-     if(method.method=='state')return {'ready':true,'failed':fail,'playing':playing,'width':20,'height':30};return null;
+     if(method.method=='state'){
+      if(malformedState=='null')return null;
+      final value=<String,dynamic>{'ready':true,'failed':fail,'playing':playing,'position':0,'width':20,'height':30};
+      switch(malformedState){
+       case 'empty':value.clear();break;
+       case 'missing-ready':value.remove('ready');break;
+       case 'nonbool-ready':value['ready']='true';break;
+       case 'missing-playing':value.remove('playing');break;
+       case 'nonfinite-width':value['width']=double.nan;break;
+       case 'negative-position':value['position']=-1;break;
+       case 'missing-failed':value.remove('failed');break;
+      }
+      return value;
+     }
+     return null;
     });
     return null;
    }
@@ -118,6 +132,25 @@ void main(){
   expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);
   expect(find.byTooltip('Play'),findsNothing);await t.pumpWidget(const SizedBox());await flush(t);
  });
+ for(final malformed in ['null','empty','missing-ready','nonbool-ready','missing-playing','nonfinite-width','negative-position','missing-failed']){
+  for(final afterReady in [false,true]){
+   testWidgets('malformed native $malformed state ${afterReady?'after readiness':'before readiness'} retires preview',(t)async{
+    if(!afterReady)malformedState=malformed;
+    await t.pumpWidget(app(session(),file()));await flush(t);await flush(t);
+    if(afterReady){
+     await t.tap(find.byTooltip('Play'));await flush(t);expect(playing,true);
+     malformedState=malformed;await flush(t);await flush(t);
+    }
+    expect(calls,contains('dispose'));expect(playing,false);
+    expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);
+    expect(find.byTooltip('Play'),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
+    // A later well-formed reply cannot recreate a retired native view.
+    final oldCreates=creates;malformedState=null;await flush(t);await flush(t);
+    expect(creates,oldCreates);expect(find.byType(AndroidViewSurface),findsNothing);
+    await t.pumpWidget(const SizedBox());await flush(t);expect(t.takeException(),isNull);
+   });
+  }
+ }
  testWidgets('non-memory paths never open a native player',(t)async{
   await t.pumpWidget(app(session(),XFile('/tmp/not-a-saved-draft.mp4')));await flush(t);expect(creates,0);expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);await t.pumpWidget(const SizedBox());await flush(t);
  });

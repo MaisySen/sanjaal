@@ -1,6 +1,7 @@
 import 'ph.dart';
 import 'upload_center.dart';
 import 'draft_exit_guard.dart';
+import 'session_bound_state.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'actions.dart';
@@ -352,7 +353,14 @@ class EditProfilePage extends StatefulWidget {
   State<EditProfilePage> createState() => _EditProfilePageState();
 }
 
-class _EditProfilePageState extends State<EditProfilePage> {
+class _EditProfilePageState extends State<EditProfilePage> with SessionBoundState<EditProfilePage> {
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() {
+    for (final field in [name, username, bio]) { field.clear(); }
+    busy = false;
+  }
   late final name = TextEditingController(text: (widget.session.user?['name'] ?? '').toString());
   late final username = TextEditingController(text: (widget.session.user?['username'] ?? '').toString());
   late final bio = TextEditingController(text: (widget.session.user?['bio'] ?? '').toString());
@@ -373,30 +381,30 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
 
   Future<void> _avatar() async {
-    if (busy) return;
+    if (busy || !sessionActive) return;
     setState(() => busy = true);
     try {
       final f = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 78));
-      if (f == null || !mounted) return;
+      if (f == null || !mounted || !sessionActive) return;
       final bytes = await f.readAsBytes();
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       await widget.session.uploadAvatar(UploadFile(bytes, mimeFor(f.name), f.name));
-      if (mounted) showInfo(context, t_('Photo saved. Text changes still need Save.'));
-    } catch (e) { if (mounted) showError(context, e); }
+      if (mounted && sessionActive) showInfo(context, t_('Photo saved. Text changes still need Save.'));
+    } catch (e) { if (mounted && sessionActive) showError(context, e); }
     finally { if (mounted) setState(() => busy = false); }
   }
 
   Future<void> _save() async {
-    if (busy || !_form.currentState!.validate()) return;
+    if (busy || !sessionActive || !_form.currentState!.validate()) return;
     setState(() => busy = true);
     try {
       await widget.session.updateProfile({'name': name.text.trim(), 'username': username.text.trim(), 'bio': bio.text.trim()});
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() { saved = true; busy = false; });
       await WidgetsBinding.instance.endOfFrame;
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && sessionActive) Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
+      if (mounted && sessionActive) {
         setState(() => busy = false);
         showError(context, e);
       }
@@ -405,6 +413,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!sessionActive) return retiredSessionView();
     return DraftExitGuard(hasChanges: !saved && (name.text, username.text, bio.text) != initial, busy: busy, busyMessage: 'Your profile is still updating.', child: Scaffold(
       appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Edit profile'), maxLines: 2, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)), actions: [
         Padding(padding: const EdgeInsets.only(right: 8), child: FilledButton(onPressed: busy ? null : _save, child: Text(t_('Save')))),

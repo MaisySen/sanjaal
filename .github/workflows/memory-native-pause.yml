@@ -1,7 +1,7 @@
 name: Memory video Android pause failure containment
 on:
   push:
-    branches: [memory-video-native-pause, memory-video-native-setup, product-integrated-overnight]
+    branches: [memory-video-native-pause, memory-video-native-setup, memory-native-resize-containment, product-integrated-overnight]
 permissions:
   contents: read
 jobs:
@@ -27,7 +27,7 @@ jobs:
           path: native-*.log
           retention-days: 7
   android-media-restart:
-    if: github.ref == 'refs/heads/memory-video-native-pause' || github.ref == 'refs/heads/memory-video-native-setup'
+    if: github.ref == 'refs/heads/memory-video-native-pause' || github.ref == 'refs/heads/memory-video-native-setup' || github.ref == 'refs/heads/memory-native-resize-containment'
     needs: native-adapter
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -18,5 +18,6 @@ class TextureView(context:Context):View() {
  }
  var surfaceTextureListener:SurfaceTextureListener?=null
  val width=320;val height=240
- fun setTransform(matrix:Matrix){}
+ var throwOnTransform=false
+ fun setTransform(matrix:Matrix){if(throwOnTransform)throw IllegalStateException("transform")}
 }

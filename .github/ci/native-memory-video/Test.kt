@@ -83,5 +83,16 @@ fun main(args:Array<String>) {
   check(f.player.events.count{it=="seek"}==seeks){"failed prepared callback retried"}
   f.view.dispose();passed++;println("PASS prepared seek exception contained and retired")
  }
+ if(selected("resize")) {
+  val f=fixture();invoke(f,"play")
+  val surface=f.view.getView() as TextureView
+  surface.throwOnTransform=true
+  f.view.onSurfaceTextureSizeChanged(SurfaceTexture(),240,320)
+  retired(f)
+  val releases=f.player.events.count{it=="release"}
+  f.view.onSurfaceTextureSizeChanged(SurfaceTexture(),320,240)
+  check(f.player.events.count{it=="release"}==releases){"retired resize retried release"}
+  f.view.dispose();passed++;println("PASS resize transform exception contained and retired")
+ }
  check(passed>0);println("$passed native adapter cases passed; deterministic fakes only")
 }

@@ -13,3 +13,7 @@ after terminal retirement, and covered-route pause failure. A historical-source
 negative requires the old swallowed-pause behavior to fail the new contract.
 Native implementation unchanged. Existing actual Android/iOS recovery evidence
 belongs to its source; whole combined/native verification remains separate.
+
+Isolated2c0a2ae passed64focused,1182full/one live-only skip and13restored.
+Historical663 pause-error negative failed on missing disposal as intended.
+https://github.com/MaisySen/sanjaal/actions/runs/44712533401

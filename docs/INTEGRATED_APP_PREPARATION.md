@@ -97,3 +97,18 @@ accessibility-label translations with actual app-language top/bottom warning
 renders. Combined current-head validation is pending; no inherited native
 acceptance claim. Unknown service details are preserved. No media behavior,
 production, money or distribution change. See MEDIA_SAFETY_LANGUAGE.md.
+
+
+## Bounded recovered-video channel failure integration
+
+Combined663b312 completed all seven workflows, including Android/iOS native
+recovery and emulator journeys.1175full/one live-only skip,96current images
+inspected. iOS one install/same app and data containers, distinct PIDs26133 and
+28854 each verified absent after termination. No physical-device acceptance,
+native Nepali editorial, OS-background timing or production capacity claim.
+https://github.com/MaisySen/sanjaal/actions/runs/44709982478
+https://github.com/MaisySen/sanjaal/actions/runs/44709982427
+
+Follow-up integrates isolated2c0a2ae bounded native channel errors/timeouts.
+Current combined verification pending. Native decoder source unchanged.
+No distribution, production, money, hardware-off or secure-erasure claim.

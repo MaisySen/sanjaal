@@ -22,6 +22,23 @@ Future<void> until(WidgetTester t,bool Function() ready)async{
  for(var i=0;i<160 && !ready();i++)await t.pump(const Duration(milliseconds:100));
  expect(ready(),isTrue,reason:'native memory video must reach its explicit state');
 }
+String clock(WidgetTester t)=>t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
+Future<void> assertPausedWallClock(WidgetTester t,String label)async{
+ // Pumping a Duration alone advances test time, not the native decoder clock.
+ // Keep polling while real time passes, then require the visible clock to hold.
+ await t.pump(const Duration(milliseconds:450));
+ final value=clock(t),elapsed=Stopwatch()..start();
+ final parts=value.split(':').map(int.parse).toList();
+ expect(parts[0]*60+parts[1],lessThan(17),reason:'Pause stability must be tested before the20-second fixture ends');
+ while(elapsed.elapsedMilliseconds<1600){
+  await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+  await t.pump(const Duration(milliseconds:100));
+  expect(find.byTooltip('Pause'),findsNothing,reason:'$label must not resume');
+  expect(find.byTooltip('Play'),findsOneWidget);
+  expect(clock(t),value,reason:'$label clock advanced while paused');
+ }
+ print('NATIVE_PAUSE_WALL_CLOCK $label elapsed_ms=${elapsed.elapsedMilliseconds} position=$value');
+}
 void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();SemanticsHandle? semantics;
  setUpAll(()async{if(Platform.isIOS){semantics=binding.ensureSemantics();for(var i=0;i<100&&!ui.PlatformDispatcher.instance.semanticsEnabled;i++)await Future<void>.delayed(const Duration(milliseconds:100));}});
@@ -92,12 +109,12 @@ void main(){
     await t.pumpAndSettle();
     nav.currentState!.pop();await t.pumpAndSettle();
     await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
+    await assertPausedWallClock(t,'route-return');
     await capture(t,'memory_video_2a_route_return_paused');
     await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
    }
    await t.tap(find.byTooltip('Pause'));await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
-   final value=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
-   await t.pump(const Duration(milliseconds:800));expect(find.text(value),findsOneWidget);
+   await assertPausedWallClock(t,d.story?'story-manual':'post-manual');
    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,d.story?'Share story':'Post')).onPressed,isNull,reason:'playback never lifts uncertain-send lock');
    await capture(t,d.story?'memory_video_6_story_paused':'memory_video_3_post_paused');
    await t.pageBack();await t.pumpAndSettle();expect(session.requests,0);

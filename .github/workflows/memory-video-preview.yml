@@ -1,7 +1,7 @@
 name: Encrypted video memory playback
 on:
   push:
-    branches: [recovered-video-memory-preview, product-integrated-overnight]
+    branches: [recovered-video-memory-preview, memory-native-pause-wallclock, product-integrated-overnight]
 permissions:
   contents: read
 jobs:

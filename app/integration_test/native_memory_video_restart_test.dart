@@ -28,7 +28,8 @@ void main(){
  tearDownAll(()=>semantics?.dispose());
  Future<void> capture(WidgetTester t,String name)async{
   final preview=find.byType(MemoryVideoPreview);
-  final rect=preview.evaluate().isEmpty?null:t.getRect(preview);
+  final native=find.byWidgetPredicate((w)=>w is AndroidView||w is UiKitView);
+  final rect=preview.evaluate().isEmpty||native.evaluate().isEmpty?null:t.getRect(preview);
   final viewport=t.view.physicalSize/t.view.devicePixelRatio;
   final spec=<String,dynamic>{'viewport':[viewport.width,viewport.height],if(rect!=null)'videoRect':[rect.left,rect.top,rect.width,rect.height]};
   // OS capture is required: a Flutter raster does not include a native view.

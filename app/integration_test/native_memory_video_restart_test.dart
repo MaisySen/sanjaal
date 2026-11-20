@@ -29,7 +29,7 @@ Future<void> assertPausedWallClock(WidgetTester t,String label)async{
  await t.pump(const Duration(milliseconds:450));
  final value=clock(t),elapsed=Stopwatch()..start();
  final parts=value.split(':').map(int.parse).toList();
- expect(parts[0]*60+parts[1],lessThan(17),reason:'Pause stability must be tested before the20-second fixture ends');
+ expect(parts[0]*60+parts[1],lessThan(55),reason:'Pause stability must be tested before the60-second fixture ends');
  while(elapsed.elapsedMilliseconds<1600){
   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
   await t.pump(const Duration(milliseconds:100));

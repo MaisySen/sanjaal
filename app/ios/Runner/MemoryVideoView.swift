@@ -49,10 +49,18 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
   private var background: NSObjectProtocol?
   private var disposed = false
   private var failed = false
+  private var diagnosticID: Int64 = -1
+  private func trace(_ event: String) {
+    #if DEBUG
+    print("MEMORY_NATIVE id=\(diagnosticID) event=\(event) seconds=\(player?.currentTime().seconds ?? -1) rate=\(player?.rate ?? -1) stamp=\(Date().timeIntervalSince1970)")
+    #endif
+  }
   init(frame: CGRect, id: Int64, args: Any?, messenger: FlutterBinaryMessenger) {
     surface = MemoryPlayerSurface(frame: frame)
     channel = FlutterMethodChannel(name: "au.fintex.sanjaal/memory-video/\(id)", binaryMessenger: messenger)
     super.init()
+    diagnosticID = id
+    trace("created")
     Self.current?.dispose()
     Self.current = self
     surface.backgroundColor = .black
@@ -69,7 +77,7 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
       player.actionAtItemEnd = .pause
       self.player = player; surface.playerLayer.player = player
     } else { failed = true }
-    background = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.player?.pause() }
+    background = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in self?.trace("willResignActive"); self?.player?.pause(); self?.trace("didPauseInactive") }
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }
       switch call.method {
@@ -82,6 +90,7 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
                 "position": Int((self.player?.currentTime().seconds ?? 0).isFinite ? max(0, self.player?.currentTime().seconds ?? 0) * 1000 : 0),
                 "width": size.width, "height": size.height])
       case "play":
+        self.trace("playRequested")
         if !self.disposed, self.player?.currentItem?.status == .readyToPlay {
           let now = self.player!.currentTime().seconds
           let end = self.player!.currentItem!.duration.seconds
@@ -89,7 +98,7 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
           self.player?.play()
         }
         result(nil)
-      case "pause": self.player?.pause(); result(nil)
+      case "pause": self.trace("pauseRequested"); self.player?.pause(); result(nil)
       case "dispose": self.dispose(); result(nil)
       default: result(FlutterMethodNotImplemented)
       }
@@ -104,7 +113,7 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
     surface.isHidden = true
   }
   private func dispose() {
-    if disposed { return }; disposed = true
+    if disposed { return }; trace("dispose"); disposed = true
     releasePlayer(); channel.setMethodCallHandler(nil)
     if let observer = background { NotificationCenter.default.removeObserver(observer); background = nil }
   }

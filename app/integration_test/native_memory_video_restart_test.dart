@@ -101,6 +101,13 @@ void main(){
     await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
     await capture(t,'memory_video_2a_route_return_paused');
     await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
+    await capture(t,'memory_video_2aa_before_os_background');
+    int clockSeconds(){
+     final label=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
+     final parts=label.split(':');return int.parse(parts.first)*60+int.parse(parts.last);
+    }
+    final beforeBackground=clockSeconds();
+    print('OS_INTERRUPT before_seconds=$beforeBackground wall=${DateTime.now().toIso8601String()}');
     final backgroundPending=File('${dir.path}/memory_video_os.background-pending');
     final backgroundDone=File('${dir.path}/memory_video_os.background-done');
     await t.runAsync(()=>backgroundPending.writeAsString('synthetic OS interruption',flush:true));
@@ -114,6 +121,10 @@ void main(){
     await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
     expect(binding.lifecycleState,AppLifecycleState.resumed);
     await capture(t,'memory_video_2b_os_return_paused');
+    final afterBackground=clockSeconds();
+    print('OS_INTERRUPT after_seconds=$afterBackground wall=${DateTime.now().toIso8601String()}');
+    expect(afterBackground,greaterThanOrEqualTo(beforeBackground-1),reason:'background return must not rewind video');
+    expect(afterBackground,lessThanOrEqualTo(beforeBackground+2),reason:'background playback must pause promptly');
     final pausedLabel=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
     await t.pump(const Duration(milliseconds:1200));
     expect(find.text(pausedLabel),findsOneWidget,reason:'OS return cannot resume playback');

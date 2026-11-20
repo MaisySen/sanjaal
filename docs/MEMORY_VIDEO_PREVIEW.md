@@ -105,3 +105,13 @@ not native wall time. Its next version uses a fixed16-second wall-clock budget,
 pumps and yields100ms to real native callbacks, and logs lifecycle/rendered
 labels on failure. The product's15-second readiness bound remains unchanged.
 This changes synchronization and diagnostics, not just timeout duration.
+
+82b31d2 passes app and both native interruption jobs with all22 OS images
+inspected. Android HOME/return retains PID7881; iOS other-app launch/return
+retains PID52150 after process recovery50828->52150. Both return paused and
+require manual Play. However iOS returns at0:00 instead of its prior position.
+The other-app screenshot is a blank launch surface, not loaded Settings. This
+closes only paused-return evidence, not position continuity. The next diagnostic
+candidate captures the exact pre-background frame, asserts the return position
+within -1/+2seconds, and adds debug-only iOS player-ID/lifecycle/position traces.
+No release logging, private URLs, account data or media bytes are logged.

@@ -73,3 +73,13 @@ Current source-of-truth check locations:
 
 Do not distribute before exact-candidate Samsung acceptance. Preserve app data
 and the existing signing identity. Wallet money paths remain unavailable.
+
+
+## Direct-call and room terminal media-failure integration
+
+Combines verified 3bd532e direct-call containment and 1988ad0 room terminal
+policy. These replace the earlier room retry policy after a locked SDK source
+audit showed high-level off success is insufficient to settle a failed toggle.
+See CALL_MEDIA_FAILURE.md and ROOM_MIC_FAILURE.md for exact scope and evidence.
+Combined current-head checks are pending; isolated results do not establish
+combined acceptance. No production, distribution, money or hardware-off claim.

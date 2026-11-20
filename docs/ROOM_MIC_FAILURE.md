@@ -1,5 +1,12 @@
 # Uncertain native microphone changes
 
+Current policy: any failed native toggle is terminal for this room instance.
+The ordered-retry policy described in the historical evidence below is superseded
+by the conservative SDK boundary section. High-level cleanup is never physical-off
+confirmation.
+
+## Historical ordered-retry candidate
+
 Audit found that RoomMicrophone.toggle propagated an adapter failure without
 reconciling the physical capture state. An enable can take effect before its
 acknowledgement fails. The old path retained muted=true and allowed another
@@ -60,3 +67,10 @@ A regression holds cleanup open and checks this notification ordering and busy
 lock. Historical-source negative controls omit only that callback-specific test
 while compiling against the historical constructor, restoring the full test
 file before restored/full checks.
+
+
+1988ad0 verified 82 focused, 1144 full (one live-only skip), 29 restored.
+All three historical-source negatives reproduced: missing off; second enable
+following acknowledged cleanup; old layout overflow. Six warning/consent renders
+were inspected, with Back reachable and final warning text readable.
+https://github.com/MaisySen/sanjaal/actions/runs/44700843014

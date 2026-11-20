@@ -19,3 +19,10 @@ Exact warning renders cover 320x640 and 640x320, light/dark at text scale 1.8.
 
 This does not prove hardware capture stopped, LiveKit behavior, a real call, or
 production signaling. No new distribution, production operation or money path.
+
+
+3bd532e verified 75 focused, 1155 full (one live-only skip), 14 restored.
+Both mutation negatives reproduced their intended missing operations/latch.
+All four exact-warning renders were inspected, with readable status, visible
+disabled media icons and End reachable in light/dark portrait/landscape.
+https://github.com/MaisySen/sanjaal/actions/runs/44700543895

@@ -501,18 +501,22 @@ class RoomView extends StatelessWidget {
         if (isHost && !failed) TextButton(onPressed: onEnd, child: Text(t_('End'))),
       ]),
       body: failed
-          ? Center(
-              child: Padding(
+          ? Column(children: [
+              Expanded(child: SingleChildScrollView(
+                key: const ValueKey('room-failure-scroll'),
                 padding: const EdgeInsets.all(24),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   PhIcon('warning-circle', size: 64, color: scheme.error),
                   const SizedBox(height: 12),
-                  Text(status, textAlign: TextAlign.center),
-                  const SizedBox(height: 20),
-                  FilledButton(onPressed: () => Navigator.pop(context), child: Text(t_('Back'))),
+                  Semantics(liveRegion: true, child: Text(status, textAlign: TextAlign.center)),
                 ]),
-              ),
-            )
+              )),
+              SafeArea(top: false, child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                child: SizedBox(width: double.infinity, child: FilledButton(
+                  onPressed: () => Navigator.pop(context), child: Text(t_('Back')))),
+              )),
+            ])
           : _roomBody(context, <Widget>[
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),

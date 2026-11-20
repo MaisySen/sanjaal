@@ -5,8 +5,9 @@ import 'package:livekit_client/livekit_client.dart' as livekit show ConnectionSt
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_lifecycle.dart';
+import 'call_media_guard.dart';
 import 'call_presentation.dart';
-import 'ui.dart' show showError, t_;
+import 'ui.dart' show t_;
 
 /// Voice or video call for one conversation, over LiveKit.
 class CallPage extends StatefulWidget {
@@ -33,6 +34,7 @@ class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
   bool _ended = false;
   bool _closed = false;
   bool _mediaBusy = false;
+  final _mediaGuard = CallMediaGuard();
   bool _setupComplete = false;
   late final Future<void> _joining;
   Future<void>? _mediaChange;
@@ -135,16 +137,35 @@ class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
   Future<void> _media({required bool camera}) async {
     if (!sessionActive || _closed || _mediaBusy || failed || room.localParticipant == null) return;
     setState(() => _mediaBusy = true);
+    final participant = room.localParticipant!;
     try {
       final next = camera ? !camOn : !muted;
-      if (camera) {
-        await room.localParticipant?.setCameraEnabled(next);
-      } else {
-        await room.localParticipant?.setMicrophoneEnabled(!next);
-      }
-      if (mounted && sessionActive) setState(() { if (camera) { camOn = next; } else { muted = next; } });
-    } catch (e) {
-      if (mounted && sessionActive) showError(context, e);
+      final applied = await _mediaGuard.change(
+        isActive: () => mounted && sessionActive && !_closed && !failed,
+        apply: () async {
+          if (camera) {
+            await participant.setCameraEnabled(next);
+          } else {
+            await participant.setMicrophoneEnabled(!next);
+          }
+        },
+        onFailure: () {
+          if (mounted && sessionActive && !_closed) {
+            setState(() {
+              failed = true;
+              status = 'Media controls failed. Leave this call. Microphone or camera state could not be confirmed.';
+            });
+          }
+          _endCall();
+        },
+        stopMicrophone: () async { await participant.setMicrophoneEnabled(false); },
+        stopCamera: () async { await participant.setCameraEnabled(false); },
+        disconnect: () => room.disconnect(),
+      );
+      if (applied && mounted && sessionActive && !_closed) setState(() { if (camera) { camOn = next; } else { muted = next; } });
+    } catch (_) {
+      // The persistent failed state above keeps End reachable. Do not restore
+      // controls after an uncertain native mutation or claim capture stopped.
     } finally {
       if (mounted && sessionActive) setState(() => _mediaBusy = false);
     }

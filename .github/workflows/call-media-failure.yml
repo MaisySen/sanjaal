@@ -1,0 +1,66 @@
+name: Call media native failure containment
+on:
+  push:
+    branches: [call-media-native-failure, product-integrated-overnight]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/call_media_guard_test.dart test/call_media_failure_layout_test.dart test/call_status_layout_test.dart test/call_lifecycle_test.dart test/realtime_session_test.dart test/communication_journey_test.dart --reporter expanded > focused.log 2>&1
+      - name: Missing cleanup mutation negative control
+        run: |
+          cp lib/call_media_guard.dart /tmp/call-media-protected.dart
+          trap 'cp /tmp/call-media-protected.dart lib/call_media_guard.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('lib/call_media_guard.dart')
+          s=p.read_text()
+          a=s.index('      for (final stop in')
+          b=s.index('      rethrow;',a)
+          p.write_text(s[:a]+s[b:])
+          PY
+          set +e
+          timeout --kill-after=10s 90 flutter test test/call_media_guard_test.dart --plain-name 'failed native change stops both capabilities and latches' --reporter expanded > cleanup-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' cleanup-negative.log
+          cp /tmp/call-media-protected.dart lib/call_media_guard.dart
+      - name: Missing terminal latch mutation negative control
+        run: |
+          cp lib/call_media_guard.dart /tmp/call-media-protected.dart
+          trap 'cp /tmp/call-media-protected.dart lib/call_media_guard.dart' EXIT
+          sed -i 's/failed = true;/failed = false;/' lib/call_media_guard.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/call_media_guard_test.dart --plain-name 'failed native change stops both capabilities and latches' --reporter expanded > latch-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' latch-negative.log
+          cp /tmp/call-media-protected.dart lib/call_media_guard.dart
+      - run: flutter test test/call_media_guard_test.dart test/call_media_failure_layout_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: call-media-failure-evidence
+          path: |
+            app/*.log
+            app/test/renders/call_media_failure*.png
+          retention-days: 7

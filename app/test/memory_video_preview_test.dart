@@ -27,7 +27,7 @@ void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
  var calls=<String>[];var creates=0;var playing=false;var fail=false;Uint8List? received;
  setUp((){
-  debugDefaultTargetPlatformOverride=TargetPlatform.android;calls=[];creates=0;playing=false;fail=false;received=null;
+  debugDefaultTargetPlatformOverride=TargetPlatform.android;memoryVideoPlatformInTests=true;calls=[];creates=0;playing=false;fail=false;received=null;
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views,(call)async{
    if(call.method=='create'){
     creates++;final args=call.arguments as Map;final id=args['id'];final bytes=args['params'] as Uint8List;
@@ -44,7 +44,7 @@ void main(){
    return null;
   });
  });
- tearDown((){debugDefaultTargetPlatformOverride=null;TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views,null);});
+ tearDown((){debugDefaultTargetPlatformOverride=null;memoryVideoPlatformInTests=false;TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views,null);});
  Widget app(Session s,XFile f,{GlobalKey<NavigatorState>? nav})=>MaterialApp(navigatorKey:nav,navigatorObservers:[mediaRoutes],home:Scaffold(body:SizedBox(height:280,child:MemoryVideoPreview(session:s,file:f))));
  XFile file()=>XFile.fromData(Uint8List.fromList([1,2,3,4]),name:'media.mp4',path:'draft-memory://fixture/media.mp4');
  PreviewSession session()=>PreviewSession()..user={'public_id':'owner'};

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +10,9 @@ import 'media_visibility.dart';
 import 'session_bound_state.dart';
 import 'ui.dart' show t_;
 import 'ph.dart';
+
+@visibleForTesting
+bool memoryVideoPlatformInTests=false;
 
 /// Saved video bytes remain in memory. The native player accepts no filesystem
 /// path or network URL. It never autoplays or sends/uploads anything.
@@ -26,7 +30,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
   bool _failed=false,_ready=false,_playing=false,_reading=false;
   double _ratio=16/9;
   int _epoch=0,_position=0;
-  @override void initState(){super.initState();_read();}
+  @override void initState(){super.initState();if(!memoryVideoPlatformInTests && !Platform.isAndroid && !Platform.isIOS)return;_deadline=Timer(const Duration(seconds:15),(){if(mounted && !_ready && sessionActive)_fail();});_read();}
   Future<void> _read()async{
     final epoch=_epoch;
     try{
@@ -46,7 +50,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
     final channel=MethodChannel('au.fintex.sanjaal/memory-video/$id');
     if(!mounted || !sessionActive || _failed){channel.invokeMethod<void>('dispose').catchError((Object _){});return;}
     _channel=channel;_bytes?.fillRange(0,_bytes!.length,0);_bytes=null;
-    _deadline=Timer(const Duration(seconds:15),(){if(mounted && !_ready && sessionActive)_fail();});
+
     _state();_poll=Timer.periodic(const Duration(milliseconds:400),(_)=>_state());
   }
   Future<void> _state()async{
@@ -76,7 +80,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
   Widget fallback()=>Center(child:Padding(padding:const EdgeInsets.all(16),child:Text(t_('Video preview unavailable. Your video is still selected.'),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white))));
   @override Widget build(BuildContext context){
     if(!sessionActive)return const SizedBox.shrink();
-    if(_failed || kIsWeb || ![TargetPlatform.android,TargetPlatform.iOS].contains(defaultTargetPlatform))return fallback();
+    if(_failed || (!memoryVideoPlatformInTests && !Platform.isAndroid && !Platform.isIOS) || kIsWeb || ![TargetPlatform.android,TargetPlatform.iOS].contains(defaultTargetPlatform))return fallback();
     if(_bytes==null && _channel==null)return const Center(child:CircularProgressIndicator());
     final params=<String,dynamic>{if(_bytes!=null)'bytes':_bytes,'type':widget.file.name.toLowerCase().split('.').last};
     // Once created, the same platform-view element retains its own native data;

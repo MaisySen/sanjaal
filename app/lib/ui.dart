@@ -96,6 +96,21 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Media controls failed. Leave this call. Microphone or camera state could not be confirmed.': 'मिडिया नियन्त्रणमा समस्या आयो। यो कलबाट बाहिर निस्कनुहोस्। माइक्रोफोन वा क्यामेराको अवस्था पुष्टि गर्न सकिएन।',
+  'Microphone state could not be confirmed. Leave this room.': 'माइक्रोफोनको अवस्था पुष्टि गर्न सकिएन। यो कोठाबाट बाहिर निस्कनुहोस्।',
+  'Could not start the call. Check your connection and microphone permission.': 'कल सुरु गर्न सकिएन। आफ्नो जडान र माइक्रोफोनको अनुमति जाँच्नुहोस्।',
+  'Connecting...': 'जोडिँदै छ...',
+  'Reconnecting...': 'फेरि जोडिँदै छ...',
+  'Connected': 'जोडियो',
+  'Disconnected': 'जडान टुट्यो',
+  'Could not connect.': 'जोड्न सकिएन।',
+  'Call disconnected. End this call and try again.': 'कलको जडान टुट्यो। यो कल समाप्त गरेर फेरि प्रयास गर्नुहोस्।',
+  'Waiting for others to join': 'अरू सहभागीहरूलाई पर्खिँदै',
+  'Unmute microphone': 'माइक्रोफोन अनम्युट गर्नुहोस्',
+  'Mute microphone': 'माइक्रोफोन म्युट गर्नुहोस्',
+  'Turn camera off': 'क्यामेरा बन्द गर्नुहोस्',
+  'Turn camera on': 'क्यामेरा खोल्नुहोस्',
+  'Your camera preview': 'तपाईंको क्यामेराको पूर्वावलोकन',
   'Open saved group draft': 'सुरक्षित समूह मस्यौदा खोल्नुहोस्',
   'Save group draft': 'समूह मस्यौदा सुरक्षित गर्नुहोस्',
   'Delete saved group draft': 'सुरक्षित समूह मस्यौदा हटाउनुहोस्',

@@ -2,6 +2,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:sanjaal/main.dart' show buildTheme;
+import 'package:sanjaal/ui.dart' show prefs;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -26,6 +32,11 @@ class DelayedFile extends XFile {
   Future<Uint8List> readAsBytes() { reading = true; return bytes.future; }
 }
 void main() {
+  setUpAll(() async {
+    for (final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf')]) {
+      final loader = FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(File(f.$2).readAsBytesSync()))); await loader.load();
+    }
+  });
   setUp(() => SharedPreferences.setMockInitialValues({}));
   for (final same in [false, true]) {
     for (final stage in ['edited text', 'picker', 'file read', 'save response']) {
@@ -82,4 +93,23 @@ void main() {
       ? reply({'access_token':'fixture','expires_in':3600})
       : reply({'user':{'public_id':'a','username':'aaa','name':'Current member'}})));
   });
+  for (final lang in ['en', 'ne']) for (final mode in [Brightness.light, Brightness.dark]) {
+    testWidgets('retired profile editor readable $lang ${mode.name}', (t) async {
+      t.view.physicalSize = const Size(320,640); t.view.devicePixelRatio = 1; addTearDown(t.view.reset);
+      prefs.lang = lang; addTearDown(() => prefs.lang = 'en');
+      await http.runWithClient(() async {
+        final session = Session(); await session.login('fixture', 'not-a-password');
+        await t.pumpWidget(RepaintBoundary(key:const ValueKey('retired-profile'), child:MaterialApp(debugShowCheckedModeBanner:false, theme:buildTheme(mode,fontFamily:'Roboto',fontFamilyFallback:['NotoDev']), builder:(c,w)=>MediaQuery(data:MediaQuery.of(c).copyWith(textScaler:TextScaler.linear(1.8)),child:w!), home:EditProfilePage(session:session))));
+        await t.enterText(find.byKey(const ValueKey('profile-name')), 'Private old name');
+        await session.logout(); await flush(t); await t.pumpAndSettle();
+        expect(find.byType(TextFormField),findsNothing); expect(find.text('Private old name'),findsNothing); expect(t.takeException(),isNull);
+        await t.runAsync(() async {
+          final image=await t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('retired-profile'))).toImage(pixelRatio:2);
+          final data=await image.toByteData(format:ui.ImageByteFormat.png); Directory('test/renders').createSync(recursive:true); File('test/renders/profile_retired_${lang}_${mode.name}.png').writeAsBytesSync(data!.buffer.asUint8List());
+        });
+        await t.pumpWidget(const SizedBox());
+      },()=>MockClient((r)async=>r.url.path.endsWith('/oauth/token')?reply({'access_token':'fixture','expires_in':3600}):reply({'user':{'public_id':'a','username':'aaa','name':'Current member'}})));
+    });
+  }
+
 }

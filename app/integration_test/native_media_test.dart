@@ -16,6 +16,7 @@ import 'package:sanjaal/media_library_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:video_player/video_player.dart';
 import 'package:sanjaal/video_poster.dart';
+import 'package:sanjaal/ph.dart';
 
 Future<void> wait(
   WidgetTester t,
@@ -59,8 +60,30 @@ Future<Map<String,dynamic>> bridge(WidgetTester t, String action) async {
 
 // A native ready flag and a fake-clock pump do not prove a camera texture
 // reached the Android display. Inspect real screencap pixels, excluding chrome.
+void cameraControls(WidgetTester t) {
+  final target=find.byTooltip('Switch camera');
+  final button=t.getRect(target);
+  final icon=t.getRect(find.descendant(of:target,matching:find.byType(PhIcon)));
+  final view=t.view;
+  final ratio=view.devicePixelRatio;
+  final safe=Rect.fromLTRB(view.padding.left/ratio,view.padding.top/ratio,
+    (view.physicalSize.width-view.padding.right)/ratio,
+    (view.physicalSize.height-view.padding.bottom)/ratio);
+  print('CAMERA_CONTROL_GEOMETRY button=$button icon=$icon safe=$safe viewport=${view.physicalSize}/$ratio');
+  expect(button.width,greaterThanOrEqualTo(48));
+  expect(button.height,greaterThanOrEqualTo(48));
+  expect(button.left,greaterThanOrEqualTo(safe.left));
+  expect(button.top,greaterThanOrEqualTo(safe.top));
+  expect(button.right,lessThanOrEqualTo(safe.right));
+  expect(button.bottom,lessThanOrEqualTo(safe.bottom));
+  expect(icon.top,greaterThanOrEqualTo(button.top));
+  expect(icon.bottom,lessThanOrEqualTo(button.bottom));
+  expect(target.hitTestable(),findsOneWidget);
+}
+
 Future<void> visibleCameraFrame(WidgetTester t) async {
   for (var attempt=0; attempt<12; attempt++) {
+    cameraControls(t);
     final frame=await bridge(t,'camera');
     final visible=await t.runAsync(() async {
       final codec=await ui.instantiateImageCodec(base64Decode(frame['camera_frame_png'] as String));
@@ -211,6 +234,7 @@ void main() {
         () => find.bySemanticsLabel('Stop recording').evaluate().isNotEmpty,
       );
       await t.pump(const Duration(seconds: 3));
+      cameraControls(t);
       await bridge(t, 'recording');
       await t.tap(find.bySemanticsLabel('Stop recording'));
       await wait(t, () => capture != null);

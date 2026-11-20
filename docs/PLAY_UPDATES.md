@@ -55,3 +55,21 @@ iOS/web do not invoke the Android bridge and show store update guidance.
 OTA patches remain a separate unfinished decision: signed patch baseline,
 SDK compatibility, quota, code scope, policy and rollback require review.
 No OTA provider account, key upload or modified engine was added.
+
+## Unknown-state correction, November21candidate
+
+The bridge now returns raw Play availability alongside its boolean. A successful
+transport with UNKNOWN availability is not evidence that no newer build exists.
+Only explicit UPDATE_NOT_AVAILABLE can produce the no-newer-build message.
+Missing, inconsistent or malformed enum/boolean values show unavailable instead.
+Resume preserves CANCELED rather than replacing it with current or a new offer.
+A valid downloaded/downloading status still takes precedence over UNKNOWN
+availability, without automatically installing or restarting anything.
+
+Focused fake-gateway tests and a historical false-current negative control
+exercise this correction. CI Android compilation and image inspection remain
+required; none of this proves a Play-owned device download or installation.
+
+Enum sources checked November21:
+- https://developer.android.com/reference/com/google/android/play/core/install/model/UpdateAvailability
+- https://developer.android.com/reference/com/google/android/play/core/install/model/InstallStatus

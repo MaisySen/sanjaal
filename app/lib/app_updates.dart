@@ -122,6 +122,16 @@ class AppUpdateController extends ChangeNotifier {
           ? value['availableVersionCode'] as int
           : null;
       final status = value['installStatus'];
+      final availability = value['availability'];
+      // UNKNOWN is not UPDATE_NOT_AVAILABLE. Reject malformed or newer
+      // protocol values instead of saying the account has no newer build.
+      if (status is! int || !{0, 1, 2, 3, 4, 5, 6, 11}.contains(status) ||
+          availability is! int || !{0, 1, 2, 3}.contains(availability) ||
+          value['available'] is! bool || value['flexibleAllowed'] is! bool ||
+          value['available'] != (availability == 2)) {
+        _set(UpdatePhase.unavailable);
+        return;
+      }
       if (status == 11) {
         _set(UpdatePhase.ready);
       } else if (status == 1 || status == 2) {
@@ -130,14 +140,18 @@ class AppUpdateController extends ChangeNotifier {
         _set(UpdatePhase.installing);
       } else if (status == 5) {
         _set(UpdatePhase.failed);
-      } else if (value['available'] == true) {
+      } else if (status == 6) {
+        _set(UpdatePhase.canceled);
+      } else if (availability == 2) {
         _set(
           value['flexibleAllowed'] == true
               ? UpdatePhase.available
               : UpdatePhase.unavailable,
         );
-      } else {
+      } else if (availability == 1) {
         _set(UpdatePhase.current);
+      } else {
+        _set(UpdatePhase.unavailable);
       }
     } catch (_) {
       if (!_disposed && token == _request) _set(UpdatePhase.unavailable);

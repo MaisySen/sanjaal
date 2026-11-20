@@ -25,7 +25,9 @@ void main() {
             .invokeMapMethod<String, dynamic>('check')
             .timeout(const Duration(seconds: 30));
         expect(value, isNotNull);
-        expect(value!['available'], isA<bool>());
+        expect(value!['availability'], isA<int>());
+        expect(value['available'], value['availability'] == 2);
+        expect(value['available'], isA<bool>());
         expect(value['flexibleAllowed'], isA<bool>());
         expect(value['installStatus'], isA<int>());
       } on PlatformException catch (error) {

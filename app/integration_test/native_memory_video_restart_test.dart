@@ -34,12 +34,22 @@ void main(){
   final spec=<String,dynamic>{'viewport':[viewport.width,viewport.height],if(rect!=null)'videoRect':[rect.left,rect.top,rect.width,rect.height]};
   // OS capture is required: a Flutter raster does not include a native view.
   final dir=await getApplicationSupportDirectory();
-  await binding.runAsync(()async{
-   final pending=File('${dir.path}/$name.native-pending'),done=File('${dir.path}/$name.native-done');
-   await pending.writeAsString(jsonEncode(spec),flush:true);
-   final end=DateTime.now().add(const Duration(seconds:25));
-   while(!await done.exists()){if(DateTime.now().isAfter(end))throw TestFailure('Missing synchronized OS image');await Future<void>.delayed(const Duration(milliseconds:100));}
-  });
+  final pending=File('${dir.path}/$name.native-pending'),done=File('${dir.path}/$name.native-done');
+  // Test bindings do not schedule normal Flutter frames while runAsync waits.
+  // Keep pumping so Android platform textures reach the actual OS compositor.
+  for(var frame=0;frame<6;frame++){
+   await t.pump(const Duration(milliseconds:100));
+   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+  }
+  await t.runAsync(()=>pending.writeAsString(jsonEncode(spec),flush:true));
+  var captured=false;
+  for(var i=0;i<250;i++){
+   await t.pump(const Duration(milliseconds:100));
+   captured=(await t.runAsync(()=>done.exists()))!;
+   if(captured)break;
+   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+  }
+  expect(captured,isTrue,reason:'Missing synchronized OS image');
  }
  testWidgets('encrypted videos play only from recovered memory after actual process death',(t)async{
   final dir=(await t.runAsync(getApplicationSupportDirectory))!;

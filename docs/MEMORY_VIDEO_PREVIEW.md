@@ -45,3 +45,10 @@ was rejected. The next candidate uses TextureView rather than a nested
 SurfaceView and validates the synthetic pattern's saturated pixels inside the
 Flutter-reported preview rectangle on both OS screenshots. This gate supplements,
 not replaces, inspection of actual frames and the lifecycle assertions.
+
+Candidatec1db3a1 kept iOS colored frame/process proof with the strict pixel gate;
+Android failed that gate at ready, and remains unaccepted. The capture handshake
+now keeps Flutter test frames pumping before and while OS screenshots are
+requested, instead of blocking inside runAsync. This corrects a possible stale
+texture capture in Android's test binding. It is not evidence of playback until
+the strict gate and actual image inspection pass on the resulting candidate.

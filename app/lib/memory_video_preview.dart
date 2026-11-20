@@ -45,7 +45,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
   void _created(int id){
     final channel=MethodChannel('au.fintex.sanjaal/memory-video/$id');
     if(!mounted || !sessionActive || _failed){channel.invokeMethod<void>('dispose').catchError((Object _){});return;}
-    _channel=channel;_bytes?.fillRange(0,_bytes!.length);_bytes=null;
+    _channel=channel;_bytes?.fillRange(0,_bytes!.length,0);_bytes=null;
     _deadline=Timer(const Duration(seconds:15),(){if(mounted && !_ready && sessionActive)_fail();});
     _state();_poll=Timer.periodic(const Duration(milliseconds:400),(_)=>_state());
   }
@@ -65,7 +65,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
   }
   void _fail(){_destroy();if(mounted)setState(()=>_failed=true);}
   void _destroy(){
-    ++_epoch;_bytes?.fillRange(0,_bytes!.length);_bytes=null;_poll?.cancel();_poll=null;_deadline?.cancel();_deadline=null;
+    ++_epoch;_bytes?.fillRange(0,_bytes!.length,0);_bytes=null;_poll?.cancel();_poll=null;_deadline?.cancel();_deadline=null;
     final channel=_channel;_channel=null;_ready=false;_playing=false;
     if(channel!=null)unawaited(channel.invokeMethod<void>('dispose').catchError((Object _){}));
   }

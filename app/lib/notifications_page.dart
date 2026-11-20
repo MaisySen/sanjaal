@@ -1,6 +1,7 @@
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'session_bound_state.dart';
 import 'profile_pages.dart';
 import 'post_page.dart';
 import 'ui.dart';
@@ -12,7 +13,15 @@ class NotificationsPage extends StatefulWidget {
   State<NotificationsPage> createState() => _NotificationsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> {
+class _NotificationsPageState extends State<NotificationsPage> with SessionBoundState<NotificationsPage> {
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() {
+    items = null;
+    error = null;
+    loading = false;
+  }
   List<Map<String, dynamic>>? items;
   String? error;
   bool loading = false;
@@ -24,22 +33,23 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> _load() async {
-    if (loading) return;
+    if (loading || !sessionActive) return;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/notifications') as Map<String, dynamic>;
       final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
       if(rows.any((v)=>!['like','comment','follow'].contains(v['type']) || v['actor'] is! String || (v['actor'] as String).trim().isEmpty)) throw const FormatException('Invalid notification');
-      if (mounted) setState(() { items = rows; error = null; });
+      if (mounted && sessionActive) setState(() { items = rows; error = null; });
     } catch (e) {
-      if (mounted) setState(() => error = e is ApiError ? t_(e.message) : t_('Notifications could not be loaded.'));
+      if (mounted && sessionActive) setState(() => error = e is ApiError ? t_(e.message) : t_('Notifications could not be loaded.'));
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted && sessionActive) setState(() => loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!sessionActive) return retiredSessionView();
     Widget body;
     if (items == null && error == null) {
       body = const Center(child: CircularProgressIndicator());

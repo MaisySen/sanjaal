@@ -25,6 +25,11 @@ void main(){
    final end=find.byTooltip('End call');final screen=t.view.physicalSize/t.view.devicePixelRatio;
    expect(t.getTopLeft(end).dy,greaterThanOrEqualTo(0));expect(t.getBottomRight(end).dy,lessThanOrEqualTo(screen.height));
    expect(t.getTopLeft(end).dx,greaterThanOrEqualTo(0));expect(t.getBottomRight(end).dx,lessThanOrEqualTo(screen.width));
+   for(final tooltip in ['Unmute microphone','Turn camera on']){
+    final button=t.widget<IconButton>(find.byWidgetPredicate((w)=>w is IconButton && w.tooltip==tooltip));
+    expect(button.onPressed,isNull);
+    expect(button.style!.foregroundColor!.resolve({WidgetState.disabled}),Colors.white54,reason:'disabled capture controls remain visible on the dark call bar');
+   }
    await t.tap(find.byTooltip('Unmute microphone'));await t.tap(find.byTooltip('Turn camera on'));expect(mutes,0);expect(cameras,0);
    await t.tap(end);expect(ends,1);
    final statusView=find.byKey(const ValueKey('call-status-scroll'));

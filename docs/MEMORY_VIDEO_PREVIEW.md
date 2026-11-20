@@ -87,3 +87,17 @@ with unchanged app/data containers. One install each; no uninstall or data clear
 App57 focused/1124 full passes with one live-only skip, retirement-removal fails
 and restored6 pass. This is simulator proof, not physical Samsung/iPhone or real
 OS-background interruption proof. Combined current-source CI is still required.
+
+Additional interruption evidence, fixture/diagnostics branchd4ba4f3:
+https://github.com/MaisySen/sanjaal/actions/runs/44682169677
+All three jobs pass and25actualOSimages were inspected. Android keeps its
+process across HOME/return and clock5->5seconds. iOS38682 was absent before
+40497, one install/samecontainers, then sameprocess/playerID0across switch.
+Native event stamps record willResignActive at10.2889seconds and paused at
+10.2913seconds about4mslater, stable through return and manualresume.
+The strict position-bound passes after prewarming the simulator switch target.
+Earlier0:00return was not sufficient proof of a reset defect; no playerreset
+occurs in this measured run. The other app still shows a blank launch surface,
+not loaded Settings. This does not cover every interruption or physicaldevice.
+Diagnostic-only Swift condition/state traces and background fixture remain on
+the separate branch, not silently integrated into this product candidate.

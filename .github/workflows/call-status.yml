@@ -1,7 +1,7 @@
 name: Call status small-screen containment
 on:
   push:
-    branches: [call-status-small-screen]
+    branches: [call-status-small-screen, product-integrated-overnight]
 permissions:
   contents: read
 jobs:

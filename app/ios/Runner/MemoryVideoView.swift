@@ -49,9 +49,14 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
   private var background: NSObjectProtocol?
   private var disposed = false
   private var failed = false
+  private var diagnosticEvents = [[String: Any]]()
   private var diagnosticID: Int64 = -1
   private func trace(_ event: String) {
     #if DEBUG
+    if diagnosticEvents.count >= 64 { diagnosticEvents.removeFirst() }
+    diagnosticEvents.append(["id": diagnosticID, "event": event,
+      "seconds": (player?.currentTime().seconds ?? -1).isFinite ? (player?.currentTime().seconds ?? -1) : -1,
+      "rate": player?.rate ?? -1, "stamp": Date().timeIntervalSince1970])
     print("MEMORY_NATIVE id=\(diagnosticID) event=\(event) seconds=\(player?.currentTime().seconds ?? -1) rate=\(player?.rate ?? -1) stamp=\(Date().timeIntervalSince1970)")
     #endif
   }
@@ -86,9 +91,13 @@ final class MemoryVideoView: NSObject, FlutterPlatformView {
         let ready = item?.status == .readyToPlay && !self.disposed
         let size = item?.presentationSize ?? .zero
         if item?.status == .failed { self.failed = true; self.releasePlayer() }
-        result(["ready": ready, "failed": self.failed, "playing": self.player?.rate != 0 && self.player != nil,
+        var state: [String: Any] = ["ready": ready, "failed": self.failed, "playing": self.player?.rate != 0 && self.player != nil,
                 "position": Int((self.player?.currentTime().seconds ?? 0).isFinite ? max(0, self.player?.currentTime().seconds ?? 0) * 1000 : 0),
-                "width": size.width, "height": size.height])
+                "width": size.width, "height": size.height]
+        #if DEBUG
+        state["diagnosticEvents"] = self.diagnosticEvents
+        #endif
+        result(state)
       case "play":
         self.trace("playRequested")
         if !self.disposed, self.player?.currentItem?.status == .readyToPlay {

@@ -115,3 +115,11 @@ closes only paused-return evidence, not position continuity. The next diagnostic
 candidate captures the exact pre-background frame, asserts the return position
 within -1/+2seconds, and adds debug-only iOS player-ID/lifecycle/position traces.
 No release logging, private URLs, account data or media bytes are logged.
+
+23a34f4 rejects iOS continuity: before8seconds, returned16seconds, above +2.
+Android passes4->5seconds with samePID7856. Debug print output was not captured
+from the externally launched iOS process. The next fixture collects bounded
+debug-only native lifecycle event dictionaries through state, snapshots them to
+synthetic test JSON, and timestamps the host launch requests/completions. This
+distinguishes slow simulator switching from lifecycle pause failure before a
+product correction. No position-preservation acceptance is claimed.

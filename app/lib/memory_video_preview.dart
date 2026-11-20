@@ -15,6 +15,8 @@ import 'ph.dart';
 
 @visibleForTesting
 bool memoryVideoPlatformInTests=false;
+@visibleForTesting
+void Function(Map<String,dynamic>)? memoryVideoStateForTests;
 
 /// Saved video bytes remain in memory. The native player accepts no filesystem
 /// path or network URL. It never autoplays or sends/uploads anything.
@@ -62,6 +64,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
     try{
       final value=await channel.invokeMapMethod<String,dynamic>('state');
       if(!mounted || epoch!=_epoch || !sessionActive || value==null)return;
+      if(kDebugMode)memoryVideoStateForTests?.call(value);
       if(value['failed']==true){_fail();return;}
       final w=(value['width'] as num?)?.toDouble()??0,h=(value['height'] as num?)?.toDouble()??0;
       setState((){_ready=value['ready']==true;if(_ready)_deadline?.cancel();_playing=value['playing']==true;_position=(value['position'] as num?)?.toInt()??0;if(w>0 && h>0)_ratio=(w/h).clamp(0.2,5);});

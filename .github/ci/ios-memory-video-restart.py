@@ -34,10 +34,15 @@ for phase in ['seed','recover']:
     for pending in before.rglob('*.background-pending'):
      if str(pending) in seen:continue
      seen.add(str(pending))
+     timeline={'request':time.time()}
      run('xcrun','simctl','launch',device,'com.apple.Preferences')
+     timeline['other_launch_done']=time.time()
      time.sleep(2)
      run('xcrun','simctl','io',device,'screenshot',str(root/'memory_video_os_background.native.png'))
+     timeline['return_request']=time.time()
      returned=subprocess.check_output(['xcrun','simctl','launch',device,bundle],text=True)
+     timeline['return_launch_done']=time.time()
+     (root/'background-timeline.json').write_text(json.dumps(timeline))
      assert int(returned.strip().split(':')[-1])==pid, 'background changed app PID'
      os.kill(pid,0)
      time.sleep(1)
@@ -53,7 +58,11 @@ for phase in ['seed','recover']:
  try:
   with open(root/('driver-'+phase+'.log'),'w') as log:
    run('flutter','drive','-d',device,'--driver=test_driver/integration_test.dart','--use-existing-app=http://127.0.0.1:57321/','--no-pub',stdout=log,stderr=subprocess.STDOUT,timeout=240)
- finally:stop.set();thread.join(timeout=5)
+ finally:
+  stop.set();thread.join(timeout=5)
+  for diagnostic in before.rglob('memory-video-*.json'):
+   if diagnostic.name in ['memory-video-before.json','memory-video-after.json']:
+    (root/diagnostic.name).write_bytes(diagnostic.read_bytes())
  assert not errors,errors
  run('xcrun','simctl','terminate',device,bundle)
  # Simulator app PIDs share the macOS host process namespace. Confirm the

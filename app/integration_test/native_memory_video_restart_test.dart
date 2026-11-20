@@ -31,6 +31,9 @@ Future<void> until(WidgetTester t,bool Function() ready)async{
 }
 void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();SemanticsHandle? semantics;
+ Map<String,dynamic>? nativeState;
+ memoryVideoStateForTests=(value)=>nativeState=Map<String,dynamic>.from(value);
+ tearDownAll(()=>memoryVideoStateForTests=null);
  setUpAll(()async{if(Platform.isIOS){semantics=binding.ensureSemantics();for(var i=0;i<100&&!ui.PlatformDispatcher.instance.semanticsEnabled;i++)await Future<void>.delayed(const Duration(milliseconds:100));}});
  tearDownAll(()=>semantics?.dispose());
  Future<void> capture(WidgetTester t,String name)async{
@@ -107,6 +110,7 @@ void main(){
      final parts=label.split(':');return int.parse(parts.first)*60+int.parse(parts.last);
     }
     final beforeBackground=clockSeconds();
+    await t.runAsync(()=>File('${dir.path}/memory-video-before.json').writeAsString(jsonEncode({'state':nativeState,'wall':DateTime.now().toIso8601String()})));
     print('OS_INTERRUPT before_seconds=$beforeBackground wall=${DateTime.now().toIso8601String()}');
     final backgroundPending=File('${dir.path}/memory_video_os.background-pending');
     final backgroundDone=File('${dir.path}/memory_video_os.background-done');
@@ -122,6 +126,7 @@ void main(){
     expect(binding.lifecycleState,AppLifecycleState.resumed);
     await capture(t,'memory_video_2b_os_return_paused');
     final afterBackground=clockSeconds();
+    await t.runAsync(()=>File('${dir.path}/memory-video-after.json').writeAsString(jsonEncode({'state':nativeState,'wall':DateTime.now().toIso8601String()})));
     print('OS_INTERRUPT after_seconds=$afterBackground wall=${DateTime.now().toIso8601String()}');
     expect(afterBackground,greaterThanOrEqualTo(beforeBackground-1),reason:'background return must not rewind video');
     expect(afterBackground,lessThanOrEqualTo(beforeBackground+2),reason:'background playback must pause promptly');

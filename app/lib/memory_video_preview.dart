@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
@@ -87,7 +88,14 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
     // rebuilds do not re-send bytes. A new source requires a new widget key.
     return ColoredBox(color:Colors.black,child:Column(children:[
       Expanded(child:Center(child:AspectRatio(aspectRatio:_ratio,child:defaultTargetPlatform==TargetPlatform.android
-        ?AndroidView(viewType:'au.fintex.sanjaal/memory-video',creationParams:params,creationParamsCodec:const StandardMessageCodec(),onPlatformViewCreated:_created)
+        ?PlatformViewLink(viewType:'au.fintex.sanjaal/memory-video',
+          surfaceFactory:(context,controller)=>AndroidViewSurface(controller:controller as AndroidViewController,gestureRecognizers:const <Factory<OneSequenceGestureRecognizer>>{},hitTestBehavior:PlatformViewHitTestBehavior.opaque),
+          onCreatePlatformView:(settings){
+            final controller=PlatformViewsService.initExpensiveAndroidView(id:settings.id,viewType:'au.fintex.sanjaal/memory-video',layoutDirection:TextDirection.ltr,creationParams:params,creationParamsCodec:const StandardMessageCodec());
+            controller.addOnPlatformViewCreatedListener(settings.onPlatformViewCreated);
+            controller.addOnPlatformViewCreatedListener(_created);
+            controller.create();return controller;
+          })
         :UiKitView(viewType:'au.fintex.sanjaal/memory-video',creationParams:params,creationParamsCodec:const StandardMessageCodec(),onPlatformViewCreated:_created)))),
       if(!_ready)const Padding(padding:EdgeInsets.all(12),child:SizedBox(width:20,height:20,child:CircularProgressIndicator()))
       else Row(mainAxisAlignment:MainAxisAlignment.center,children:[Text('${_position~/60000}:${((_position~/1000)%60).toString().padLeft(2,'0')}',style:const TextStyle(color:Colors.white)),IconButton(tooltip:t_(_playing?'Pause':'Play'),onPressed:(){if(sessionActive && mediaVisible && _ready)unawaited(_command(_playing?'pause':'play'));},icon:PhIcon(_playing?'pause-circle':'play-circle',color:Colors.white,size:38))]),

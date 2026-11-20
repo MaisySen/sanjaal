@@ -28,7 +28,7 @@ void main(){
  tearDownAll(()=>semantics?.dispose());
  Future<void> capture(WidgetTester t,String name)async{
   final preview=find.byType(MemoryVideoPreview);
-  final native=find.byWidgetPredicate((w)=>w is AndroidView||w is UiKitView);
+  final native=find.byWidgetPredicate((w)=>w is AndroidViewSurface||w is UiKitView);
   final rect=preview.evaluate().isEmpty||native.evaluate().isEmpty?null:t.getRect(preview);
   final viewport=t.view.physicalSize/t.view.devicePixelRatio;
   final spec=<String,dynamic>{'viewport':[viewport.width,viewport.height],if(rect!=null)'videoRect':[rect.left,rect.top,rect.width,rect.height]};
@@ -99,7 +99,7 @@ void main(){
   await t.pumpWidget(MaterialApp(home:Scaffold(body:SizedBox(height:280,child:MemoryVideoPreview(session:session,file:file)))));
   await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
   session.user={'public_id':'replacement-owner'};session.notifyListeners();await t.pumpAndSettle();
-  expect(find.byType(AndroidView),findsNothing);expect(find.byType(UiKitView),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
+  expect(find.byType(AndroidViewSurface),findsNothing);expect(find.byType(UiKitView),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
   await capture(t,'memory_video_7_retired');expect(session.requests,0);
   expect(original.existsSync(),false);expect((await t.runAsync(()=>store.read(_owner)))!.every((d)=>d.attempted),isTrue);
   print('MEMORY_VIDEO exact encrypted originals restored after process death; native post/story decoder clock advanced; explicit Play/Pause; no auto-start; attempted locks unchanged; session retirement; zero API requests');

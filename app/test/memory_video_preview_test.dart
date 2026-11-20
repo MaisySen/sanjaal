@@ -38,7 +38,7 @@ void main(){
      if(method.method=='play')playing=true;if(method.method=='pause'||method.method=='dispose')playing=false;
      if(method.method=='state')return {'ready':true,'failed':fail,'playing':playing,'width':20,'height':30};return null;
     });
-    return 42;
+    return null;
    }
    if(call.method=='resize')return {'width':320.0,'height':200.0};
    return null;
@@ -60,13 +60,13 @@ void main(){
   await t.tap(find.byTooltip('Play'));await flush(t);
   // Same identity, different authenticated generation.
   s.epoch++;s.notifyListeners();await t.pump();await flush(t);
-  expect(calls,contains('dispose'));expect(playing,false);expect(find.byTooltip('Play'),findsNothing);expect(find.byType(AndroidView),findsNothing);
+  expect(calls,contains('dispose'));expect(playing,false);expect(find.byTooltip('Play'),findsNothing);expect(find.byType(AndroidViewSurface),findsNothing);
   await t.pumpWidget(const SizedBox());await flush(t);
  });
  testWidgets('late decrypted bytes cannot create a retired native player',(t)async{
   final s=session(),data=Completer<Uint8List>();await t.pumpWidget(app(s,DelayedFile(data)));await flush(t);
   s.user={'public_id':'other'};s.notifyListeners();await t.pump();data.complete(Uint8List.fromList([1,2,3,4]));await flush(t);
-  expect(creates,0);expect(find.byType(AndroidView),findsNothing);await t.pumpWidget(const SizedBox());await flush(t);
+  expect(creates,0);expect(find.byType(AndroidViewSurface),findsNothing);await t.pumpWidget(const SizedBox());await flush(t);
  });
  testWidgets('covered and backgrounded preview pauses without auto-resuming',(t)async{
   final nav=GlobalKey<NavigatorState>();await t.pumpWidget(app(session(),file(),nav:nav));await flush(t);await flush(t);

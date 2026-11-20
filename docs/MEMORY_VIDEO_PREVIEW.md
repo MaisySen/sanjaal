@@ -52,3 +52,12 @@ now keeps Flutter test frames pumping before and while OS screenshots are
 requested, instead of blocking inside runAsync. This corrects a possible stale
 texture capture in Android's test binding. It is not evidence of playback until
 the strict gate and actual image inspection pass on the resulting candidate.
+
+5476a4a disproved the frame-pumping hypothesis as a sufficient Android fix:
+its ready native region remained black and was rejected. The following candidate
+uses Android hierarchy-level hybrid composition (initExpensiveAndroidView),
+keeping the bounded TextureView memory source. The fake platform fixture now
+matches that controller's void creation result. The synthetic pattern clip is
+20 seconds instead of4, so actual screenshot time cannot consume the entire
+clip before Pause is tested; production playback logic is not changed by this.
+The pixel gate, explicit manual-play checks and retirement tests remain required.

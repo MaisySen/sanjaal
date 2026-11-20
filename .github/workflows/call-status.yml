@@ -1,0 +1,48 @@
+name: Call status small-screen containment
+on:
+  push:
+    branches: [call-status-small-screen]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: timeout --kill-after=15s 180 flutter test test/call_status_layout_test.dart test/call_presentation_test.dart test/call_lifecycle_test.dart test/communication_journey_test.dart test/realtime_session_test.dart --reporter expanded > focused.log 2>&1
+      - name: Long error negative control
+        run: |
+          cp lib/call_page.dart /tmp/call-status-protected.dart
+          trap 'cp /tmp/call-status-protected.dart lib/call_page.dart' EXIT
+          git show 7f984877cd3abf58318458a57e46174fd249418d:app/lib/call_page.dart > lib/call_page.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/call_status_layout_test.dart --plain-name 'long call error retains reachable End en landscape=false light' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'RenderFlex overflowed' negative.log
+          cp /tmp/call-status-protected.dart lib/call_page.dart
+      - run: flutter test test/call_status_layout_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: call-status-evidence
+          path: |
+            app/*.log
+            app/test/renders/call_status_*.png
+          retention-days: 7

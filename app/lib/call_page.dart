@@ -240,12 +240,15 @@ class CallView extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(leading: Navigator.of(context).canPop() ? BackButton(color: Colors.white, style: IconButton.styleFrom(foregroundColor: Colors.white), onPressed: onEnd) : null, title: Text(title, style: const TextStyle(color: Colors.white)), iconTheme: const IconThemeData(color: Colors.white), backgroundColor: Colors.black, foregroundColor: Colors.white),
-      body: Column(children: [
-        Padding(
+      body: LayoutBuilder(builder: (context, box) => Column(children: [
+        // A service/permission error may be long, especially with large text.
+        // Keep it fully scrollable without pushing End call off the screen.
+        ConstrainedBox(constraints: BoxConstraints(maxHeight: box.maxHeight * 0.3), child: SingleChildScrollView(
+          key: const ValueKey('call-status-scroll'),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
           child: Semantics(liveRegion: true, child: Text(status, textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70))),
-        ),
+        )),
         Expanded(child: Stack(children: [
           if (tiles.isEmpty)
             const Center(child: PhIcon('user-fill', size: 80, color: Colors.white54))
@@ -291,7 +294,7 @@ class CallView extends StatelessWidget {
             ),
           ),
         ),
-      ]),
+      ])),
     );
   }
 }

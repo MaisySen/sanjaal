@@ -197,7 +197,7 @@ class _RoomPageState extends State<RoomPage> with SessionBoundState<RoomPage> {
     final participant = room.localParticipant;
     if (participant == null && on) throw StateError('Not connected');
     await participant?.setMicrophoneEnabled(on);
-  });
+  }, onFailure: () => _micStopFailed(StateError('Native microphone result is uncertain')));
   bool get speaker => microphone.speaker;
   bool get muted => microphone.muted;
   bool leaving = false;

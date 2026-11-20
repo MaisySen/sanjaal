@@ -3,11 +3,13 @@ import 'package:flutter/foundation.dart';
 /// Local microphone consent. A verified host may offer the stage or revoke it,
 /// but only a local button can enable capture. Native mutations are ordered.
 class RoomMicrophone extends ChangeNotifier {
-  RoomMicrophone(this.setEnabled);
+  RoomMicrophone(this.setEnabled, {this.onFailure});
+  final void Function()? onFailure;
   final Future<void> Function(bool) setEnabled;
   bool speaker = false, muted = true, busy = false;
   bool stopUnconfirmed = false;
   bool _closed = false;
+  bool _failed = false;
   int _epoch = 0;
   Future<void> _tail = Future.value();
   Future<void> _serial(Future<void> Function() action) {
@@ -29,6 +31,7 @@ class RoomMicrophone extends ChangeNotifier {
     required Object? allow,
   }) async {
     if (_closed ||
+        (_failed && allow == true) ||
         sender == null ||
         sender.isEmpty ||
         host == null ||
@@ -55,14 +58,14 @@ class RoomMicrophone extends ChangeNotifier {
 
   /// Called only by explicit local Go live after API/SFU connect succeeds.
   Future<void> startHost() async {
-    if (_closed) return;
+    if (_closed || _failed) return;
     speaker = true;
     muted = true;
     await toggle();
   }
 
   Future<void> toggle() async {
-    if (_closed || !speaker || busy || stopUnconfirmed) return;
+    if (_closed || _failed || !speaker || busy || stopUnconfirmed) return;
     final epoch = _epoch;
     final enable = muted;
     busy = true;
@@ -74,13 +77,16 @@ class RoomMicrophone extends ChangeNotifier {
           await setEnabled(enable);
           if (!_closed && speaker && epoch == _epoch) muted = !enable;
         } catch (_) {
-          // Native failures can arrive after capture has already changed.
-          // Reconcile to off before allowing another local enable. Keep this
-          // stop inside the same queue slot, ahead of any revoke/close.
+          // A high-level off acknowledgment may skip a native stop if the
+          // SDK already considers its track muted. Any toggle failure is
+          // terminal even when cleanup returns. The page must disconnect.
+          _failed = true;
+          stopUnconfirmed = true;
+          _changed();
+          try { onFailure?.call(); } catch (_) {}
           try {
             await setEnabled(false);
             muted = true;
-            stopUnconfirmed = false;
           } catch (_) {
             stopUnconfirmed = true;
           }
@@ -102,8 +108,9 @@ class RoomMicrophone extends ChangeNotifier {
     // An in-flight enable settles before this disable, never after it.
     try {
       await _serial(() => setEnabled(false));
-      stopUnconfirmed = false;
+      if (!_failed) stopUnconfirmed = false;
     } catch (_) {
+      _failed = true;
       stopUnconfirmed = true;
       _changed();
       rethrow;

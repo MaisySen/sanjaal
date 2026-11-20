@@ -27,3 +27,11 @@ but the initial/top visual state was not captured. Follow-up adds explicit
 initial top-position and final bottom-position geometry checks and separate
 captures for every variant. No simultaneous whole-paragraph visibility claim.
 https://github.com/MaisySen/sanjaal/actions/runs/44706833913
+
+
+d5d4448 passes85focused/1175full(one live-only skip),17restored and both
+historical language negatives. All32 top/bottom renders inspected. Initial
+Nepali call text is visible and final text reachable by scrolling; End remains
+fixed. Room warning/Back readable in both languages and orientations/themes.
+Native Nepali editorial review remains separate.
+https://github.com/MaisySen/sanjaal/actions/runs/44708396245

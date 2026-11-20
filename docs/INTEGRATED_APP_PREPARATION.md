@@ -83,3 +83,17 @@ audit showed high-level off success is insufficient to settle a failed toggle.
 See CALL_MEDIA_FAILURE.md and ROOM_MIC_FAILURE.md for exact scope and evidence.
 Combined current-head checks are pending; isolated results do not establish
 combined acceptance. No production, distribution, money or hardware-off claim.
+
+
+## Media safety language integration
+
+Previous combined cb3093d completed all six workflows including native iOS and
+Android recovery. Full suite1158/one live-only skip;64 current images inspected.
+https://github.com/MaisySen/sanjaal/actions/runs/44701732797
+https://github.com/MaisySen/sanjaal/actions/runs/44701732961
+
+This follow-up adds verified747e44c/d5d4448 presentation-only fixed status and
+accessibility-label translations with actual app-language top/bottom warning
+renders. Combined current-head validation is pending; no inherited native
+acceptance claim. Unknown service details are preserved. No media behavior,
+production, money or distribution change. See MEDIA_SAFETY_LANGUAGE.md.

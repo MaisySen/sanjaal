@@ -166,4 +166,38 @@ void main() {
       expect(calls, [true]);
     },
   );
+  test('failed enable reconciles native off before retry', () async {
+    mic.dispose();var fail=true;
+    mic=RoomMicrophone((on)async{calls.add(on);if(on && fail){fail=false;throw StateError('enable acknowledgement lost');}});
+    await grant();await expectLater(mic.toggle(),throwsStateError);
+    expect(calls,[true,false]);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isFalse);expect(mic.busy,isFalse);
+    await mic.toggle();expect(calls,[true,false,true]);expect(mic.muted,isFalse);
+  });
+  test('failed enable and failed cleanup block host grants and local retry', () async {
+    mic.dispose();mic=RoomMicrophone((on)async{calls.add(on);throw StateError('native result unknown');});
+    await grant();await expectLater(mic.toggle(),throwsStateError);
+    expect(calls,[true,false]);expect(mic.stopUnconfirmed,isTrue);expect(mic.busy,isFalse);
+    await grant();await mic.toggle();expect(calls,[true,false]);
+  });
+  test('failed manual mute attempts a second stop and marks uncertainty', () async {
+    mic.dispose();mic=RoomMicrophone((on)async{calls.add(on);if(!on)throw StateError('stop result unknown');});
+    await grant();await mic.toggle();await expectLater(mic.toggle(),throwsStateError);
+    expect(calls,[true,false,false]);expect(mic.stopUnconfirmed,isTrue);
+    await mic.toggle();expect(calls,[true,false,false]);
+  });
+  test('cleanup stays busy and revoke waits behind failed-enable stop', () async {
+    mic.dispose();final stop=Completer<void>();var stops=0;
+    mic=RoomMicrophone((on)async{calls.add(on);if(on)throw StateError('enable result unknown');if(++stops==1)await stop.future;});
+    await grant();final enabling=expectLater(mic.toggle(),throwsStateError);
+    await Future<void>.delayed(Duration.zero);expect(calls,[true,false]);expect(mic.busy,isTrue);
+    final revoked=mic.revoke();await mic.toggle();expect(calls,[true,false]);
+    stop.complete();await enabling;await revoked;expect(calls,[true,false,false]);expect(mic.speaker,isFalse);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isFalse);
+  });
+  test('a failed mute with confirmed cleanup leaves muted but surfaces error', () async {
+    mic.dispose();var firstStop=true;
+    mic=RoomMicrophone((on)async{calls.add(on);if(!on && firstStop){firstStop=false;throw StateError('stop acknowledgement lost');}});
+    await grant();await mic.toggle();await expectLater(mic.toggle(),throwsStateError);
+    expect(calls,[true,false,false]);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isFalse);
+  });
+
 }

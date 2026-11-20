@@ -1,0 +1,48 @@
+name: Room microphone native failure containment
+on:
+  push:
+    branches: [room-mic-native-failure]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: timeout --kill-after=15s 180 flutter test test/room_microphone_test.dart test/room_lifecycle_test.dart test/realtime_session_test.dart test/room_consent_render_test.dart test/communication_journey_test.dart --reporter expanded > focused.log 2>&1
+      - name: Failed enable cleanup negative control
+        run: |
+          cp lib/room_microphone.dart /tmp/room-mic-protected.dart
+          trap 'cp /tmp/room-mic-protected.dart lib/room_microphone.dart' EXIT
+          git show b6cbf8771f36dee3717916e5cc64b16ec0c07b16:app/lib/room_microphone.dart > lib/room_microphone.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/room_microphone_test.dart --plain-name 'failed enable reconciles native off before retry' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' negative.log
+          cp /tmp/room-mic-protected.dart lib/room_microphone.dart
+      - run: flutter test test/room_microphone_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: room-mic-failure-evidence
+          path: |
+            app/*.log
+            app/test/renders/room*.png
+          retention-days: 7

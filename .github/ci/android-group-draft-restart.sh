@@ -4,7 +4,7 @@ set -eux
 cd app
 mkdir -p build/screenshots
 marker=$(openssl rand -hex 24)
-timeout 600 flutter drive --driver=test_driver/integration_test.dart \
+python3 ../.github/ci/android-group-capture.py seed 600 flutter drive --driver=test_driver/integration_test.dart \
   --target=integration_test/native_group_draft_restart_test.dart --no-pub --keep-app-running \
   --dart-define=MARKER_ID="$marker" > build/screenshots/process_death_seed.log 2>&1 || {
     tail -100 build/screenshots/process_death_seed.log; exit 1;
@@ -43,7 +43,7 @@ grep -F 'package:au.fintex.sanjaal uid:' build/screenshots/process_death_uid_aft
 adb shell pm path au.fintex.sanjaal > build/screenshots/process_death_package_after.log
 diff build/screenshots/process_death_uid_before.log build/screenshots/process_death_uid_after.log
 diff build/screenshots/process_death_package_before.log build/screenshots/process_death_package_after.log
-timeout 180 flutter drive --driver=test_driver/integration_test.dart \
+python3 ../.github/ci/android-group-capture.py recover 180 flutter drive --driver=test_driver/integration_test.dart \
   --target=integration_test/native_group_draft_restart_test.dart --no-pub \
   --use-existing-app="$local_uri" > build/screenshots/process_death_recover.log 2>&1 || {
     tail -100 build/screenshots/process_death_recover.log; exit 1;

@@ -1,0 +1,21 @@
+import pathlib,subprocess,sys,threading,time
+phase,timeout,*cmd=sys.argv[1:];stop=threading.Event();errors=[]
+root=pathlib.Path('build/screenshots');root.mkdir(parents=True,exist_ok=True)
+def adb(*args):return subprocess.check_output(['adb',*args])
+def capture():
+ seen=set()
+ try:
+  while not stop.wait(0.3):
+   try:listing=adb('shell','run-as','au.fintex.sanjaal','ls','files').decode().splitlines()
+   except subprocess.CalledProcessError:continue
+   for name in listing:
+    if not name.startswith('media_restart_') or not name.endswith('.native-pending') or name in seen:continue
+    seen.add(name);stem=name.removesuffix('.native-pending')
+    (root/(stem+'.native.png')).write_bytes(adb('exec-out','screencap','-p'))
+    subprocess.run(['adb','shell','run-as','au.fintex.sanjaal','touch','files/'+stem+'.native-done'],check=True)
+ except Exception as e:errors.append(str(e))
+thread=threading.Thread(target=capture,daemon=True);thread.start()
+try:result=subprocess.run(cmd,timeout=int(timeout))
+finally:stop.set();thread.join(timeout=5)
+if errors:raise RuntimeError(errors)
+raise SystemExit(result.returncode)

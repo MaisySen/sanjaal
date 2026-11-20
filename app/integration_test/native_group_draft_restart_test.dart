@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sanjaal/group_draft_store.dart';
 import 'package:sanjaal/chat_pages.dart';
@@ -35,22 +36,30 @@ void main(){
   }
  });
  tearDownAll(()=>suiteSemantics?.dispose());
- var converted=false;
- Future<void> capture(String name)async{
-  if(Platform.isAndroid){if(!converted){await binding.convertFlutterSurfaceToImage();converted=true;}await binding.pump();}
-  await binding.takeScreenshot(name);
-  if(Platform.isIOS){
-   final dir=await getApplicationSupportDirectory();
-   await binding.runAsync(()async{
-    final pending=File('${dir.path}/$name.native-pending');final done=File('${dir.path}/$name.native-done');
-    await pending.writeAsString('waiting',flush:true);
-    final deadline=DateTime.now().add(const Duration(seconds:20));
-    while(!await done.exists()){
-     if(DateTime.now().isAfter(deadline))throw TestFailure('Native screenshot missing $name');
-     await Future<void>.delayed(const Duration(milliseconds:100));
-    }
-   });
+ Future<void> capture(WidgetTester t,String name)async{
+  FocusManager.instance.primaryFocus?.unfocus();
+  await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  final elapsed=Stopwatch()..start();
+  while(t.view.viewInsets.bottom>0 && elapsed.elapsed<const Duration(seconds:10)){
+   await t.pump(const Duration(milliseconds:100));
+   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
   }
+  expect(t.view.viewInsets.bottom,0,reason:'capture must not retain stale keyboard inset');
+  for(var frame=0;frame<8;frame++){
+   await t.pump(const Duration(milliseconds:100));
+   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+  }
+  final dir=await getApplicationSupportDirectory();
+  final pending=File('${dir.path}/$name.native-pending'),done=File('${dir.path}/$name.native-done');
+  await t.runAsync(()=>pending.writeAsString('synthetic group OS capture',flush:true));
+  final wait=Stopwatch()..start();var captured=false;
+  while(wait.elapsed<const Duration(seconds:20)){
+   await t.pump(const Duration(milliseconds:100));
+   captured=(await t.runAsync(()=>done.exists()))!;
+   if(captured)break;
+   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+  }
+  expect(captured,isTrue,reason:'actual OS group capture required');
  }
  testWidgets('saved group and attempted state survive process death without creation',(t)async{
   final dir=(await t.runAsync(getApplicationSupportDirectory))!;
@@ -96,7 +105,13 @@ void main(){
   }
   expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNull);
   expect(session.posts,phase=='seed'?1:0);expect(session.reads,phase=='seed'?2:0);
-  await capture(phase=='seed'?'media_restart_1_group_saved':'media_restart_2_group_reopened_guarded');
+  FocusManager.instance.primaryFocus?.unfocus();
+  await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  for(var frame=0;frame<8;frame++){await t.pump(const Duration(milliseconds:100));await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));}
+  final warning=find.text(phase=='seed'?'The chat may already exist. Check Chats before starting it again.':'This group may already exist. Check Chats before starting it again.');
+  await t.ensureVisible(warning);await t.pumpAndSettle();
+  expect(t.getBottomRight(warning).dy,lessThanOrEqualTo(t.getTopLeft(find.byType(FilledButton)).dy),reason:'complete attempt warning must remain above Create');
+  await capture(t,phase=='seed'?'media_restart_1_group_saved':'media_restart_2_group_reopened_guarded');
   if(phase=='seed')return;
   await t.tap(find.byTooltip('Delete saved group draft'));await t.pumpAndSettle();
   await t.tap(find.text('Keep'));await t.pumpAndSettle();
@@ -105,7 +120,7 @@ void main(){
   await t.tap(find.text('Delete'));
   await _until(t,()=>find.text(title).evaluate().isEmpty);
   expect(await t.runAsync(()=>store.read(_owner)),isNull);expect(session.posts,phase=='seed'?1:0);expect(session.reads,phase=='seed'?2:0);
-  await capture('media_restart_3_group_explicit_delete');
+  await capture(t,'media_restart_3_group_explicit_delete');
   print('GROUP_STAGE UI Save then simulated lost creation reply; exact identity and attempt marker recovered; other owner isolated; zero actual network; recovery issues no API requests; explicit Keep/Delete');
  });
 }

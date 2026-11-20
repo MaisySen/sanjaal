@@ -13,3 +13,11 @@ Keep/Delete. All API behavior is a local test double; no actual group, invitatio
 message or production request occurs. Both native results and actual captures
 need inspection. A green build alone is not physical acceptance, server replay
 implementation or distribution.
+
+db6b0f0 passes all three jobs, Android6137->6342 and iOS41471->43543
+one install, with exact recovered attempted group and zero recovery API calls.
+All six captures inspected; Android's Flutter-only recovery image still has
+an unsettled keyboard/inset layout obscuring the warning. Its UI visual
+acceptance is withheld. Next fixture dismisses IME and awaits zero inset,
+asserts complete warning above Create, and uses synchronized real Android OS
+captures while pumping frames. No application source changes.

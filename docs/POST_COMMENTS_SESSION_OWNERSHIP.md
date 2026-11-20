@@ -1,0 +1,5 @@
+# Post routes and comment drafts keep their opening login
+
+A detail post and a comments sheet retire permanently when their Session object, member, login generation, or post target changes. Detail-post retirement removes the PostCard and its authenticated actions. Comment retirement clears rows, local draft text, reply target, cursors, deletion state and delta, and removes all comment actions. Read/write responses already pending cannot repopulate an old view or report success/error to a later login. A discard confirmation already open cannot dismiss the retired sheet with an old comment delta. Requests already sent are not undone or replayed.
+
+Synthetic tests cover loaded and pending reads, same/other member, replacement Session, changed target, late send/delete success/error and draft-discard completion. Existing unchanged-account comment journey tests remain required. Historical comments code must fail the same-member retirement assertion before restored checks/full suite/debug build pass. No production action or device acceptance is implied.

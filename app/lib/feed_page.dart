@@ -20,6 +20,7 @@ import 'package:video_player/video_player.dart';
 import 'actions.dart';
 import 'gifts.dart';
 import 'api.dart';
+import 'session_bound_state.dart';
 import 'notifications_page.dart';
 import 'profile_pages.dart';
 import 'search_page.dart';
@@ -630,7 +631,19 @@ class CommentsSheet extends StatefulWidget {
   State<CommentsSheet> createState() => _CommentsSheetState();
 }
 
-class _CommentsSheetState extends State<CommentsSheet> {
+class _CommentsSheetState extends State<CommentsSheet> with SessionBoundState<CommentsSheet> {
+  late final String _openingPost=widget.postId;
+  @override
+  Session get viewSession=>widget.session;
+  @override
+  bool get sessionActive=>super.sessionActive && widget.postId==_openingPost;
+  @override
+  void sessionRetired(){
+    input.clear();items.clear();deleting.clear();local.clear();removed.clear();replyTo=null;
+    error=null;nextCursor=null;delta=0;canComment=false;loading=false;sending=false;
+    closing=false;uncertain=false;replyGone=false;retryRefresh=false;
+  }
+
   final items = <Map<String, dynamic>>[];
   final input = TextEditingController();
   final scroll = ScrollController();
@@ -655,11 +668,11 @@ class _CommentsSheetState extends State<CommentsSheet> {
   void dispose() { input.dispose(); scroll.dispose(); super.dispose(); }
 
   Future<void> _load({bool refresh = false}) async {
-    if (loading) return;
+    if (loading || !sessionActive) return;
     setState(() { loading = true; error = null; retryRefresh = refresh; });
     try {
       final j = await widget.session.call('GET', '/posts/${widget.postId}/comments', query: {if (!refresh && nextCursor != null) 'cursor': nextCursor!}) as Map<String, dynamic>;
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       canComment = j['can_comment'] != false;
       final incoming = (j['data'] as List).cast<Map<String, dynamic>>().where((c) => !removed.contains(c['public_id']) && !removed.contains(c['parent_id'])).toList();
       final cursor = j['next_cursor'] as String?;
@@ -670,18 +683,18 @@ class _CommentsSheetState extends State<CommentsSheet> {
       items.insertAll(firstLocal < 0 ? items.length : firstLocal, fresh);
       nextCursor = cursor;
     } catch (e) {
-      if (mounted) error = e is ApiError ? e.message : t_('Comments could not be loaded.');
-    } finally { if (mounted) setState(() => loading = false); }
+      if (mounted && sessionActive) error = e is ApiError ? e.message : t_('Comments could not be loaded.');
+    } finally { if (mounted && sessionActive) setState(() => loading = false); }
   }
 
   Future<void> _send() async {
     final tx = input.text.trim();
-    if (!canComment || tx.isEmpty || sending || deleting.isNotEmpty || uncertain || replyGone) return;
+    if (!sessionActive || !canComment || tx.isEmpty || sending || deleting.isNotEmpty || uncertain || replyGone) return;
     final parent = replyTo;
     setState(() => sending = true);
     try {
       final j = await widget.session.call('POST', '/posts/${widget.postId}/comments', body: {'body': tx, if (parent != null) 'parent_id': parent['public_id']}) as Map<String, dynamic>;
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       final c = (j['comment'] as Map).cast<String, dynamic>();
       if (c['public_id'] is! String || (c['public_id'] as String).isEmpty || c['body'] is! String || c['author'] is! Map) throw const FormatException('Incomplete comment response');
       if (!items.any((item) => item['public_id'] == c['public_id'])) items.add(c);
@@ -689,31 +702,32 @@ class _CommentsSheetState extends State<CommentsSheet> {
       input.clear(); delta++; replyTo = null;
       showInfo(context, t_('Comment posted.'));
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       uncertain = e is! ApiError || e.status == null || e.status! >= 500;
       showError(context, e is ApiError ? e : ApiError(t_('The comment result is unknown.')));
-      if (uncertain) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && scroll.hasClients) scroll.jumpTo(0); });
-    } finally { if (mounted) setState(() => sending = false); }
+      if (uncertain) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && sessionActive && scroll.hasClients) scroll.jumpTo(0); });
+    } finally { if (mounted && sessionActive) setState(() => sending = false); }
   }
 
   Future<void> _delete(Map<String, dynamic> c) async {
     final id = c['public_id'].toString();
-    if (sending || deleting.isNotEmpty) return;
+    if (!sessionActive || sending || deleting.isNotEmpty) return;
     setState(() => deleting.add(id));
     try {
       final result = await widget.session.call('DELETE', '/comments/$id');
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       removed.add(id);
       final before = items.length;
       items.removeWhere((x) => x['public_id'] == id || x['parent_id'] == id);
       final count = result is Map && result['deleted_count'] is int ? result['deleted_count'] as int : before - items.length;
       delta -= count;
       if (replyTo?['public_id'] == id) replyGone = true;
-    } catch (e) { if (mounted) showError(context, e); }
-    finally { if (mounted) setState(() => deleting.remove(id)); }
+    } catch (e) { if (mounted && sessionActive) showError(context, e); }
+    finally { if (mounted && sessionActive) setState(() => deleting.remove(id)); }
   }
 
   Future<void> _close() async {
+    if (!sessionActive) {if(mounted)Navigator.of(context).pop();return;}
     if (closing) return;
     if (sending || deleting.isNotEmpty) { showInfo(context, t_('Your comment is still updating.')); return; }
     if (input.text.trim().isNotEmpty) {
@@ -727,11 +741,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
       closing = false;
       if (discard != true) return;
     }
-    if (mounted) Navigator.of(context).pop(delta);
+    if (mounted && sessionActive) Navigator.of(context).pop(delta);
   }
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return retiredSessionView();
     final me = widget.session.user?['public_id'];
     final children = <String, List<Map<String, dynamic>>>{};
     final roots = <Map<String, dynamic>>[];
@@ -769,7 +784,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
               content: Text(t_('The earlier attempt may already be posted. Check it first to avoid a duplicate. Your current draft will be kept.')),
               actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))), TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('New comment')))],
             ));
-            if (yes == true && mounted) setState(() => uncertain = false);
+            if (yes == true && mounted && sessionActive) setState(() => uncertain = false);
           }, child: Text(t_('New comment'))),
         ]),
       ])),

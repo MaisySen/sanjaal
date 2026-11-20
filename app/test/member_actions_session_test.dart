@@ -77,4 +77,24 @@ void main(){
    await t.tap(find.text('Open action'));await flush(t);active=false;await t.tap(find.text(action=='report'?'Spam':'Block'));await flush(t);expect(writes,0);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
   },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});writes++;return reply({});}));
  });}
+ for(final action in ['report','block'])for(final cancel in [false,true]){
+ testWidgets('$action unchanged login ${cancel?'cancels cleanly':'completes once'}',(t)async{
+  var writes=0;bool? blocked;
+  await http.runWithClient(()async{
+   final s=Session();await s.login('fixture','not-a-password');await t.pumpWidget(MaterialApp(home:Builder(builder:(c)=>Scaffold(body:TextButton(onPressed:()async{if(action=='report'){await reportFlow(c,s,'user','target');}else{blocked=await blockFlow(c,s,'target');}},child:const Text('Open action'))))));
+   await t.tap(find.text('Open action'));await flush(t);
+   if(cancel){Navigator.of(t.element(find.byType(action=='report'?SimpleDialog:AlertDialog))).pop();}else{await t.tap(find.text(action=='report'?'Spam':'Block'));}
+   await flush(t);expect(writes,cancel?0:1);if(action=='block')expect(blocked,!cancel);
+   if(!cancel)expect(find.textContaining(action=='report'?'We review every report':'is blocked.'),findsOneWidget);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+  },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});writes++;expect(r.url.path,endsWith(action=='report'?'/reports':'/users/target/block'));return reply({});}));
+ });}
+ testWidgets('member profile permanently retires changed route target',(t)async{
+  var reads=0;
+  await http.runWithClient(()async{
+   final s=Session();await s.login('fixture','not-a-password');Widget page(String target)=>MaterialApp(home:UserProfilePage(session:s,username:target));
+   await t.pumpWidget(page('target'));await flush(t);expect(find.text('Private profile'),findsOneWidget);
+   await t.pumpWidget(page('other'));await flush(t);retired();await t.pumpWidget(page('target'));await flush(t);retired();expect(reads,1);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+  },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});if(r.url.path.endsWith('/users/target')){reads++;return reply({'user':person()});}return reply({'data':[],'next_cursor':null});}));
+ });
+
 }

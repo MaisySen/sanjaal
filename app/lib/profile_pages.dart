@@ -82,6 +82,9 @@ class UserProfilePage extends StatefulWidget {
 }
 
 class _UserProfilePageState extends State<UserProfilePage> with SessionBoundState<UserProfilePage> {
+  late final String _openingUsername=widget.username;
+  @override
+  bool get sessionActive=>super.sessionActive && widget.username==_openingUsername;
   @override
   Session get viewSession => widget.session;
   @override

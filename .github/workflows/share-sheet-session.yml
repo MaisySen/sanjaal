@@ -1,0 +1,53 @@
+name: Share sheet session ownership
+on:
+  push:
+    branches: [share-sheet-session]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/share_sheet_session_test.dart test/discovery_journey_test.dart --reporter expanded > focused.log 2>&1
+      - name: Historical share sheet negative control
+        run: |
+          cp lib/share_post.dart /tmp/share-protected.dart
+          trap 'cp /tmp/share-protected.dart lib/share_post.dart' EXIT
+          git show bd595ebb8c2169dd38195c85e67d3867214317ca:app/lib/share_post.dart > lib/share_post.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/share_sheet_session_test.dart --plain-name 'share loaded recipients retire after same login' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' negative.log
+          cp /tmp/share-protected.dart lib/share_post.dart
+      - run: flutter test test/share_sheet_session_test.dart test/discovery_journey_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - run: flutter build apk --debug > build.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: share-sheet-session-evidence
+          path: |
+            app/*.log
+            app/test/renders/shared_*.png
+          retention-days: 7

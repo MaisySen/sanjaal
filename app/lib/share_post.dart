@@ -3,6 +3,7 @@ import 'ph.dart';
 import 'dart:math';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'session_bound_state.dart';
 import 'ui.dart';
 
 /// Pick a chat and send a post into it. Nothing is sent until a chat is tapped.
@@ -23,7 +24,12 @@ class _ShareSheet extends StatefulWidget {
   State<_ShareSheet> createState() => _ShareSheetState();
 }
 
-class _ShareSheetState extends State<_ShareSheet> {
+class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareSheet> {
+  @override
+  Session get viewSession=>widget.session;
+  @override
+  void sessionRetired(){chats=null;error=null;sending=null;loading=false;}
+
   List<Map<String, dynamic>>? chats;
   String? error;
   String? sending;
@@ -36,31 +42,31 @@ class _ShareSheetState extends State<_ShareSheet> {
   }
 
   Future<void> _load() async {
-    if (loading) return;
+    if (loading || !sessionActive) return;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/conversations') as Map<String, dynamic>;
-      if (mounted) setState(() => chats = (j['data'] as List).cast<Map<String, dynamic>>());
+      if (mounted && sessionActive) setState(() => chats = (j['data'] as List).cast<Map<String, dynamic>>());
     } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (mounted && sessionActive) setState(() => error = e.message);
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted && sessionActive) setState(() => loading = false);
     }
   }
 
   Future<void> _send(Map<String, dynamic> c) async {
-    if (sending != null) return;
+    if (sending != null || !sessionActive) return;
     setState(() => sending = c['public_id'].toString());
     try {
       await widget.session.call('POST', '/conversations/${c['public_id']}/messages', body: {
         'shared_post': widget.postId,
         'client_id': 'share-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 20)}',
       });
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${t_('Sent to')} ${c['title'] ?? ''}')));
     } on ApiError catch (e) {
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() => sending = null);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
@@ -68,6 +74,7 @@ class _ShareSheetState extends State<_ShareSheet> {
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return SafeArea(child:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This screen belongs to another signed-in session. Close it and sign in again to continue.'))));
     final list = chats;
     return SafeArea(
       child: ConstrainedBox(

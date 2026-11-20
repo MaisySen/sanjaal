@@ -99,7 +99,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
           })
         :UiKitView(viewType:'au.fintex.sanjaal/memory-video',creationParams:params,creationParamsCodec:const StandardMessageCodec(),onPlatformViewCreated:_created)))),
       if(!_ready)const Padding(padding:EdgeInsets.all(12),child:SizedBox(width:20,height:20,child:CircularProgressIndicator()))
-      else Row(mainAxisAlignment:MainAxisAlignment.center,children:[Text('${_position~/60000}:${((_position~/1000)%60).toString().padLeft(2,'0')}',style:const TextStyle(color:Colors.white)),IconButton(tooltip:t_(_playing?'Pause':'Play'),onPressed:(){if(sessionActive && mediaVisible && _ready)unawaited(_command(_playing?'pause':'play'));},icon:PhIcon(_playing?'pause-circle':'play-circle',color:Colors.white,size:38))]),
+      else Row(mainAxisAlignment:MainAxisAlignment.center,children:[Text('${_position~/60000}:${((_position~/1000)%60).toString().padLeft(2,'0')}',style:const TextStyle(color:Colors.white)),IconButton(tooltip:t_(_playing?'Pause':'Play'),onPressed:(){if(sessionActive && mediaVisible && _ready)unawaited(_command(_playing?'pause':'play'));},icon:PhIcon(_playing?'pause-circle-fill':'play-circle',color:Colors.white,size:38))]),
     ]));
   }
 }

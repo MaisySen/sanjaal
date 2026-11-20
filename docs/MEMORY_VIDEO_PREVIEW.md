@@ -61,3 +61,19 @@ matches that controller's void creation result. The synthetic pattern clip is
 20 seconds instead of4, so actual screenshot time cannot consume the entire
 clip before Pause is tested; production playback logic is not changed by this.
 The pixel gate, explicit manual-play checks and retirement tests remain required.
+
+Evidencee62c825/run44656533328: app57 focused,1124 full passes with one live
+skip, retirement-removal failure and restored6 pass. Both native process-restart
+jobs pass; all16 OS images inspected. Android's directly composed surface now
+shows actual colored post/story frames, with38-45% saturated pixels in its strict
+preview-area gate. Android7647 was absent before7850, same UID/package path;
+iOS28648 was absent before29974, same containers, one install each. Exact saved
+bytes, deleted picker originals, other-owner isolation, manual Play/Pause,
+unchanged uncertain-send locks, removal on retirement and zero API calls pass.
+This is simulator evidence, not physical Samsung/iPhone acceptance.
+
+A remaining visual defect was caught: the nonexistent pause-circle SVG kept the
+old play graphic while playing. The next source uses the existing
+pause-circle-fill asset and checks that actual asset in the widget fixture. It
+also adds native route-cover/return-paused and same-owner/new-generation
+retirement checks. Real OS-background interruption is not claimed from these.

@@ -57,6 +57,7 @@ void main(){
   final recover=sentinel.existsSync();const store=CreatorMediaDraftStore();
   final identity=File('${dir.path}/memory-video-identity.json');
   final original=File('${dir.path}/synthetic-picker.mp4');
+  final nav=GlobalKey<NavigatorState>();
   final session=NoNetworkSession()..user={'public_id':_owner,'username':'synthetic'}..protectedStoriesEnabled=true;
   if(!recover){
    final bytes=(await rootBundle.load('test/fixtures/memory_synthetic_video.mp4')).buffer.asUint8List();
@@ -75,7 +76,7 @@ void main(){
   for(final row in rows){
    final d=CreatorMediaDraft.decode(row['draft']);final files=(await t.runAsync(()=>store.open(_owner,d)))!;
    expect(sha256.convert(await files.single.readAsBytes()).toString(),row['hash']);expect(files.single.path,startsWith('draft-memory://'));
-   await t.pumpWidget(MaterialApp(navigatorObservers:[mediaRoutes],home:CreatorDraftsPage(session:session)));
+   await t.pumpWidget(MaterialApp(navigatorKey:nav,navigatorObservers:[mediaRoutes],home:CreatorDraftsPage(session:session)));
    await until(t,()=>find.text(d.text).evaluate().isNotEmpty);await t.tap(find.text(d.text));
    await until(t,()=>find.byType(MemoryVideoPreview).evaluate().isNotEmpty);
    await t.scrollUntilVisible(find.byType(MemoryVideoPreview),120,scrollable:find.byType(Scrollable).first);
@@ -86,6 +87,14 @@ void main(){
    await t.ensureVisible(find.byTooltip('Play'));await t.tap(find.byTooltip('Play'));
    await until(t,()=>find.text('0:01').evaluate().isNotEmpty);
    await capture(t,d.story?'memory_video_5_story_playing':'memory_video_2_post_playing');
+   if(!d.story){
+    nav.currentState!.push(MaterialPageRoute<void>(builder:(_)=>const Scaffold(body:Text('Preview covered'))));
+    await t.pumpAndSettle();
+    nav.currentState!.pop();await t.pumpAndSettle();
+    await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
+    await capture(t,'memory_video_2a_route_return_paused');
+    await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
+   }
    await t.tap(find.byTooltip('Pause'));await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
    final value=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
    await t.pump(const Duration(milliseconds:800));expect(find.text(value),findsOneWidget);
@@ -98,14 +107,15 @@ void main(){
   final file=(await t.runAsync(()=>store.open(_owner,video)))!.single;
   await t.pumpWidget(MaterialApp(home:Scaffold(body:SizedBox(height:280,child:MemoryVideoPreview(session:session,file:file)))));
   await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
-  session.user={'public_id':'replacement-owner'};session.notifyListeners();await t.pumpAndSettle();
+  session.epoch++;session.notifyListeners();await t.pumpAndSettle();
   expect(find.byType(AndroidViewSurface),findsNothing);expect(find.byType(UiKitView),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
   await capture(t,'memory_video_7_retired');expect(session.requests,0);
   expect(original.existsSync(),false);expect((await t.runAsync(()=>store.read(_owner)))!.every((d)=>d.attempted),isTrue);
-  print('MEMORY_VIDEO exact encrypted originals restored after process death; native post/story decoder clock advanced; explicit Play/Pause; no auto-start; attempted locks unchanged; session retirement; zero API requests');
+  print('MEMORY_VIDEO exact encrypted originals restored after process death; native post/story decoder clock advanced; covered route stayed paused; same-owner generation retired; explicit Play/Pause; no auto-start; attempted locks unchanged; session retirement; zero API requests');
  });
 }
 class NoNetworkSession extends Session{
- var requests=0;
+ var requests=0,epoch=0;
+ @override int get generation=>epoch;
  @override Future<dynamic> call(String method,String path,{Map<String,dynamic>? body,Map<String,String>? query})async{requests++;throw StateError('No preview fixture may call API');}
 }

@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/memory_video_preview.dart';
 import 'package:sanjaal/media_visibility.dart';
+import 'package:sanjaal/ph.dart';
 
 class PreviewSession extends Session {
  PreviewSession():super(unregisterPush:(_)async{});
@@ -52,6 +53,8 @@ void main(){
   await t.pumpWidget(app(session(),file()));await flush(t);await flush(t);
   expect(creates,1);expect(received,[1,2,3,4]);expect(calls,contains('state'));expect(calls, isNot(contains('play')));
   await t.tap(find.byTooltip('Play'));await flush(t);expect(calls,contains('play'));expect(playing,true);
+  expect(t.widget<PhIcon>(find.descendant(of:find.byTooltip('Pause'),matching:find.byType(PhIcon))).icon,'pause-circle-fill');
+  expect(await rootBundle.loadString('assets/icons/pause-circle-fill.svg'),contains('<svg'));
   await t.tap(find.byTooltip('Pause'));await flush(t);expect(playing,false);
   await t.pumpWidget(const SizedBox());await flush(t);expect(calls,contains('dispose'));expect(t.takeException(),isNull);
  });

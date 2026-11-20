@@ -38,3 +38,11 @@ setup and prepared-callback negatives fail on missing release and escaped seek
 exception. Local protected/restored16 pass, five specific negatives reproduced.
 No real native-fault injection, physical shutdown or erasure claim. Actual decoder
 restart and Flutter integration verification remain separate CI checks.
+
+Isolatede2c310b CI passed native16/restored16 and5specific negative controls,
+Flutter64focused/1182full (one live-only skip)/13restored. Exact Android restart
+passed,9images inspected; sameUID10192/package path across confirmed force-stop,
+single install/no clear. Route return paused0:02, seed still splash. This is
+separate from subsequent combined/current-head verification.
+https://github.com/MaisySen/sanjaal/actions/runs/44723655963
+https://github.com/MaisySen/sanjaal/actions/runs/44723655787

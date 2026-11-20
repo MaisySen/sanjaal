@@ -87,3 +87,12 @@ with unchanged app/data containers. One install each; no uninstall or data clear
 App57 focused/1124 full passes with one live-only skip, retirement-removal fails
 and restored6 pass. This is simulator proof, not physical Samsung/iPhone or real
 OS-background interruption proof. Combined current-source CI is still required.
+
+### OS-background fixture extension, unverified
+
+This separate fixture branch keeps combined7f98487 application source unchanged.
+It asks the external Android runner to press HOME and return to the activity,
+and the iOS runner to open Settings and return to the running app. Both retain
+and verify the same app PID. The fixture requires return in resumed lifecycle,
+Play rather than Pause, a stable paused clock, actual OS captures and manual
+Play to resume. This is pending evidence, not an accepted interruption result.

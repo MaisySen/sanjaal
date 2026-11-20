@@ -94,6 +94,23 @@ void main(){
     await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
     await capture(t,'memory_video_2a_route_return_paused');
     await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
+    final backgroundPending=File('${dir.path}/memory_video_os.background-pending');
+    final backgroundDone=File('${dir.path}/memory_video_os.background-done');
+    await t.runAsync(()=>backgroundPending.writeAsString('synthetic OS interruption',flush:true));
+    var returned=false;
+    for(var attempt=0;attempt<300;attempt++){
+     await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+     returned=(await t.runAsync(()=>backgroundDone.exists()))!;
+     if(returned)break;
+    }
+    expect(returned,isTrue,reason:'external OS background and return required');
+    await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
+    expect(binding.lifecycleState,AppLifecycleState.resumed);
+    await capture(t,'memory_video_2b_os_return_paused');
+    final pausedLabel=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
+    await t.pump(const Duration(milliseconds:1200));
+    expect(find.text(pausedLabel),findsOneWidget,reason:'OS return cannot resume playback');
+    await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
    }
    await t.tap(find.byTooltip('Pause'));await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
    final value=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
@@ -111,7 +128,7 @@ void main(){
   expect(find.byType(AndroidViewSurface),findsNothing);expect(find.byType(UiKitView),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
   await capture(t,'memory_video_7_retired');expect(session.requests,0);
   expect(original.existsSync(),false);expect((await t.runAsync(()=>store.read(_owner)))!.every((d)=>d.attempted),isTrue);
-  print('MEMORY_VIDEO exact encrypted originals restored after process death; native post/story decoder clock advanced; covered route stayed paused; same-owner generation retired; explicit Play/Pause; no auto-start; attempted locks unchanged; session retirement; zero API requests');
+  print('MEMORY_VIDEO exact encrypted originals restored after process death; native post/story decoder clock advanced; actual OS background returned paused; covered route stayed paused; same-owner generation retired; explicit Play/Pause; no auto-start; attempted locks unchanged; session retirement; zero API requests');
  });
 }
 class NoNetworkSession extends Session{

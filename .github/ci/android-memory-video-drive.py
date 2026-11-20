@@ -10,6 +10,17 @@ def capture():
   while not stop.wait(0.3):
    try:listing=adb('shell','run-as','au.fintex.sanjaal','ls','files').decode().splitlines()
    except subprocess.CalledProcessError:continue
+   if 'memory_video_os.background-pending' in listing and 'background' not in seen:
+    seen.add('background')
+    pid=adb('shell','pidof','au.fintex.sanjaal').decode().strip()
+    subprocess.run(['adb','shell','input','keyevent','KEYCODE_HOME'],check=True)
+    time.sleep(2)
+    (root/'memory_video_os_background.native.png').write_bytes(adb('exec-out','screencap','-p'))
+    subprocess.run(['adb','shell','am','start','-n','au.fintex.sanjaal/.MainActivity'],check=True)
+    time.sleep(1)
+    assert adb('shell','pidof','au.fintex.sanjaal').decode().strip()==pid, 'background changed app process'
+    (root/'process_death_background.log').write_text('OS HOME then activity return; same PID '+pid)
+    subprocess.run(['adb','shell','run-as','au.fintex.sanjaal','touch','files/memory_video_os.background-done'],check=True)
    for name in listing:
     if not name.startswith('memory_video_') or not name.endswith('.native-pending') or name in seen:continue
     seen.add(name);stem=name.removesuffix('.native-pending')

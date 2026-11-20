@@ -31,6 +31,18 @@ for phase in ['seed','recover']:
   seen=set()
   try:
    while not stop.wait(0.3):
+    for pending in before.rglob('*.background-pending'):
+     if str(pending) in seen:continue
+     seen.add(str(pending))
+     run('xcrun','simctl','launch',device,'com.apple.Preferences')
+     time.sleep(2)
+     run('xcrun','simctl','io',device,'screenshot',str(root/'memory_video_os_background.native.png'))
+     returned=subprocess.check_output(['xcrun','simctl','launch',device,bundle],text=True)
+     assert int(returned.strip().split(':')[-1])==pid, 'background changed app PID'
+     os.kill(pid,0)
+     time.sleep(1)
+     (root/'background.log').write_text('OS Settings then app return; same PID '+str(pid))
+     pending.with_suffix('.background-done').write_text('returned')
     for pending in before.rglob('*.native-pending'):
      if str(pending) in seen or pending.with_suffix('.native-done').exists():continue
      seen.add(str(pending));run('xcrun','simctl','io',device,'screenshot',str(root/(pending.stem+'.native.png')))

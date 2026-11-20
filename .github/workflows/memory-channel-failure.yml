@@ -1,0 +1,46 @@
+name: Memory video channel failure containment
+on:
+  push:
+    branches: [memory-video-channel-failure, product-integrated-overnight]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/memory_video_preview_test.dart test/creator_media_drafts_test.dart test/creator_media_draft_widgets_test.dart test/media_visibility_test.dart --reporter expanded > focused.log 2>&1
+      - name: Historical swallowed channel failures negative control
+        run: |
+          cp lib/memory_video_preview.dart /tmp/memory-channel-protected.dart
+          trap 'cp /tmp/memory-channel-protected.dart lib/memory_video_preview.dart' EXIT
+          git show 663b312bf30552ee27ec33236232a85ba6f2d7de:app/lib/memory_video_preview.dart > lib/memory_video_preview.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/memory_video_preview_test.dart --plain-name 'native pause error retires playback and shows fallback' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' negative.log
+          cp /tmp/memory-channel-protected.dart lib/memory_video_preview.dart
+      - run: flutter test test/memory_video_preview_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: memory-channel-failure-evidence
+          path: app/*.log
+          retention-days: 7

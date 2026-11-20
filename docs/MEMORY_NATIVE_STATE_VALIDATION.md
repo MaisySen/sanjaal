@@ -8,4 +8,6 @@ The preview now retires its native view, stops polling and shows the existing ho
 
 Sixteen fake-channel tests cover eight malformed shapes before and after readiness. Late well-formed responses cannot recreate the retired view. A negative control replaces only the Dart implementation with exact42109dc and requires the null-after-readiness regression to fail for its intended missing-dispose assertion. The existing swallowed-channel negative, restored tests and full app suite remain.
 
-Acceptance still requires exact-candidate Android/iOS native regression and the separate physical Samsung/real-device gates. This document is a test plan until the corresponding logs are reviewed.
+Acceptance still requires exact-candidate Android/iOS native regression and the separate physical Samsung/real-device gates. Isolated0d4f2b2 passed80focused,29preview/restored and1198full app tests with1skip. The exact421null-after-ready negative and earlier swallowed-channel negative failed their intended missing-dispose assertion. Integration with the export hold is being checked separately; isolated success is not combined-head acceptance.
+
+Last settled combined checkpoint42109dc passed all9workflows and96images were inspected, including both native restart flows. New combined checks must pass before replacing that source/emulator checkpoint.

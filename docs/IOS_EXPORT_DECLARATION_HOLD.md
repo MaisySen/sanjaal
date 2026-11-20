@@ -26,3 +26,5 @@ https://developer.apple.com/help/app-store-connect/reference/app-information/exp
 https://developer.apple.com/help/app-store-connect/manage-app-information/determine-and-upload-app-encryption-documentation/
 Package source:
 https://pub.dev/api/archives/cryptography-2.9.0.tar.gz
+
+See IOS_ENCRYPTION_IMPLEMENTATION_INVENTORY.md for the locked package archive and selected iOS framework evidence. This narrows the inventory gap; formal determination and final-candidate review remain unresolved. Isolated8c6213a passed2protected/restored checks and its exact421unsupported-exemption negative before integration.

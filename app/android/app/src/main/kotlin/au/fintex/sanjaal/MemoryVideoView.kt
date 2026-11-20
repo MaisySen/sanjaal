@@ -71,8 +71,8 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
             player = MediaPlayer().also { p ->
                 display = Surface(texture)
                 p.setSurface(display)
-                p.setOnPreparedListener { if(!disposed) { fitVideo(); p.seekTo(0); ready = true } }
-                p.setOnCompletionListener { ended = true }
+                p.setOnPreparedListener { if(!disposed && !failed && player === p) { fitVideo(); p.seekTo(0); ready = true } }
+                p.setOnCompletionListener { if(!disposed && !failed && player === p) ended = true }
                 p.setOnErrorListener { _, _, _ -> fail(); true }
                 p.setDataSource(source!!)
                 p.prepareAsync()
@@ -92,14 +92,21 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
     override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) { fitVideo() }
     override fun onSurfaceTextureUpdated(texture: SurfaceTexture) {}
     override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean { dispose(); return true }
-    fun pause() { try { if(ready) player?.pause() } catch (_: Exception) {} }
+    fun pause() { try { if(ready) player?.pause() } catch (_: Exception) { fail() } }
     private fun fail() { failed = true; disposePlayer() }
     private fun disposePlayer() {
         ready = false
-        try { player?.setOnPreparedListener(null); player?.setOnErrorListener(null); player?.setOnCompletionListener(null); player?.release() } catch (_: Exception) {}
-        player = null
-        display?.release(); display = null
-        source?.close(); source = null
+        // Detach ownership first. A failed listener removal must not skip release
+        // or retain the private byte source. Each cleanup is best-effort.
+        val oldPlayer = player; player = null
+        val oldDisplay = display; display = null
+        val oldSource = source; source = null
+        try { oldPlayer?.setOnPreparedListener(null) } catch (_: Exception) {}
+        try { oldPlayer?.setOnErrorListener(null) } catch (_: Exception) {}
+        try { oldPlayer?.setOnCompletionListener(null) } catch (_: Exception) {}
+        try { oldPlayer?.release() } catch (_: Exception) {}
+        try { oldDisplay?.release() } catch (_: Exception) {}
+        try { oldSource?.close() } catch (_: Exception) {}
         surface.visibility = View.INVISIBLE
     }
     override fun dispose() {

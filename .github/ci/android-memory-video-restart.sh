@@ -51,3 +51,17 @@ python3 ../.github/ci/android-memory-video-drive.py recover 240 flutter drive --
 tail -6 build/screenshots/process_death_recover.log
 grep -F 'All tests passed.' build/screenshots/process_death_seed.log
 grep -F 'All tests passed.' build/screenshots/process_death_recover.log
+
+for label in route-return post-manual story-manual; do
+  adb shell run-as au.fintex.sanjaal cat "files/memory-pause-$label.json" > "build/screenshots/memory-pause-$label.json"
+done
+python3 - <<'VERIFY'
+import json,pathlib
+samples=[]
+for label in ['route-return','post-manual','story-manual']:
+ data=json.loads(pathlib.Path('build/screenshots/memory-pause-'+label+'.json').read_text())
+ assert data['label']==label and data['elapsed_ms']>=1600
+ m,s=map(int,data['position'].split(':'));assert 0<=m*60+s<55
+ samples.append(data)
+print('NATIVE_PAUSE_WALL_CLOCK_ARTIFACTS',json.dumps(samples))
+VERIFY

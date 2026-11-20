@@ -43,6 +43,14 @@ for phase in ['seed','recover']:
    run('flutter','drive','-d',device,'--driver=test_driver/integration_test.dart','--use-existing-app=http://127.0.0.1:57321/','--no-pub',stdout=log,stderr=subprocess.STDOUT,timeout=240)
  finally:stop.set();thread.join(timeout=5)
  assert not errors,errors
+ if phase=='recover':
+  samples=[]
+  for label in ['route-return','post-manual','story-manual']:
+   source=list(before.rglob('memory-pause-'+label+'.json'));assert len(source)==1,(label,source)
+   payload=json.loads(source[0].read_text());assert payload['label']==label and payload['elapsed_ms']>=1600
+   minutes,seconds=map(int,payload['position'].split(':'));assert 0<=minutes*60+seconds<55
+   (root/source[0].name).write_text(json.dumps(payload));samples.append(payload)
+  print('NATIVE_PAUSE_WALL_CLOCK_ARTIFACTS',json.dumps(samples),flush=True)
  run('xcrun','simctl','terminate',device,bundle)
  # Simulator app PIDs share the macOS host process namespace. Confirm the
  # observed PID was alive before, and is absent after, explicit termination.

@@ -37,6 +37,9 @@ Future<void> assertPausedWallClock(WidgetTester t,String label)async{
   expect(find.byTooltip('Play'),findsOneWidget);
   expect(clock(t),value,reason:'$label clock advanced while paused');
  }
+ final measured=<String,dynamic>{'label':label,'elapsed_ms':elapsed.elapsedMilliseconds,'position':value,'fixture_seconds':60};
+ final dir=await t.runAsync(getApplicationSupportDirectory);
+ await t.runAsync(()=>File('${dir!.path}/memory-pause-$label.json').writeAsString(jsonEncode(measured),flush:true));
  print('NATIVE_PAUSE_WALL_CLOCK $label elapsed_ms=${elapsed.elapsedMilliseconds} position=$value');
 }
 void main(){

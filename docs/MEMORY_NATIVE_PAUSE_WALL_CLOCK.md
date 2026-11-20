@@ -11,3 +11,5 @@ The same one-install/two-process encrypted-draft recovery, frame-color gate, pac
 Exact Android and iOS runs and their current logs must be reviewed before treating this test change as verified. The combined5280d57 checkpoint is being checked independently.
 
 Isolated7c64cfa Android passed real elapsed route1728ms/post1730ms/story1730ms at0:03. Its iOS run stopped at the validity guard, already0:17of20seconds following slow OS screenshots, so no iOS wall-clock verdict was reached. Extended the synthetic pattern fixture to60seconds by lossless repetition and kept a5-second pre-end margin. No production player change. Both native platforms must pass the updated fixture.
+
+Isolatedb965 all3jobs pass. Android measured1728/1726/1729ms for route/post/story; iOS retained route1760ms only in console, with later manual assertions/screenshots and completion present. Do not infer missing numeric samples. Combined run now writes each measured result as app-private JSON, extracts only those synthetic measurements and asserts1600ms/pre-end validity in each host driver. All18b965native images inspected.

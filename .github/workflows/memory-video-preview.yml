@@ -97,6 +97,7 @@ jobs:
           path: |
             app/build/screenshots/memory_video_*.png
             app/build/screenshots/process_death_*.log
+            app/build/screenshots/memory-pause-*.json
           retention-days: 7
   ios-media-restart:
     needs: app-regression

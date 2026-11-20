@@ -6,4 +6,4 @@ The size-change callback now returns when retired or failed and catches transfor
 
 The harness executes the actual production Kotlin adapter with deterministic Android/Flutter fakes. A transform fault after explicit play must latch failure, remove readiness, attempt player/display release, clear the source and hide the surface. A second size callback cannot revive the retired player. Local17protected/restored cases pass; all6negative controls fail for their intended reason, including exact5280d57historical resize with an uncaught transform error. This is not evidence that an error occurred on a physical device.
 
-Isolated CI and exact Android restart acceptance still need review before integration. Preserve Samsung/real-device, production, money and distribution gates.
+Isolated0e36 CI and exact Android restart passed after a failed-job-only dependency-resolution retry. All9current native images were inspected; sameUID10192/package, one install and force-stop confirmed. First attempt failed before app tests while resolving Kotlin2.3.20; no dependency/source change for retry. Preserve Samsung/real-device, production, money and distribution gates.

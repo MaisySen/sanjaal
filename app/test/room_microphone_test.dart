@@ -166,12 +166,12 @@ void main() {
       expect(calls, [true]);
     },
   );
-  test('failed enable reconciles native off before retry', () async {
+  test('failed enable attempts native off but remains terminal', () async {
     mic.dispose();var fail=true;
     mic=RoomMicrophone((on)async{calls.add(on);if(on && fail){fail=false;throw StateError('enable acknowledgement lost');}});
     await grant();await expectLater(mic.toggle(),throwsStateError);
-    expect(calls,[true,false]);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isFalse);expect(mic.busy,isFalse);
-    await mic.toggle();expect(calls,[true,false,true]);expect(mic.muted,isFalse);
+    expect(calls,[true,false]);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isTrue);expect(mic.busy,isFalse);
+    await mic.toggle();expect(calls,[true,false]);expect(mic.muted,isTrue);
   });
   test('failed enable and failed cleanup block host grants and local retry', () async {
     mic.dispose();mic=RoomMicrophone((on)async{calls.add(on);throw StateError('native result unknown');});
@@ -191,13 +191,35 @@ void main() {
     await grant();final enabling=expectLater(mic.toggle(),throwsStateError);
     await Future<void>.delayed(Duration.zero);expect(calls,[true,false]);expect(mic.busy,isTrue);
     final revoked=mic.revoke();await mic.toggle();expect(calls,[true,false]);
-    stop.complete();await enabling;await revoked;expect(calls,[true,false,false]);expect(mic.speaker,isFalse);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isFalse);
+    stop.complete();await enabling;await revoked;expect(calls,[true,false,false]);expect(mic.speaker,isFalse);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isTrue);
   });
-  test('a failed mute with confirmed cleanup leaves muted but surfaces error', () async {
+  test('a failed mute remains uncertain even when cleanup acknowledges off', () async {
     mic.dispose();var firstStop=true;
     mic=RoomMicrophone((on)async{calls.add(on);if(!on && firstStop){firstStop=false;throw StateError('stop acknowledgement lost');}});
     await grant();await mic.toggle();await expectLater(mic.toggle(),throwsStateError);
-    expect(calls,[true,false,false]);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isFalse);
+    expect(calls,[true,false,false]);expect(mic.muted,isTrue);expect(mic.stopUnconfirmed,isTrue);
+  });
+
+  test('successful cleanup cannot permit retry after failed enable', () async {
+    mic.dispose();var first=true;
+    mic=RoomMicrophone((on)async{calls.add(on);if(on && first){first=false;throw StateError('synthetic failed enable');}});
+    await grant();await expectLater(mic.toggle(),throwsStateError);
+    await mic.toggle();expect(calls,[true,false]);
+  });
+  test('later revoke acknowledgment cannot unlock failed room capture', () async {
+    mic.dispose();var first=true;
+    mic=RoomMicrophone((on)async{calls.add(on);if(on && first){first=false;throw StateError('synthetic failed enable');}});
+    await grant();await expectLater(mic.toggle(),throwsStateError);
+    await mic.revoke();expect(mic.stopUnconfirmed,isTrue);
+    expect(await grant(),isFalse);await mic.startHost();await mic.toggle();expect(calls,[true,false,false]);
+  });
+
+  test('terminal notification precedes slow cleanup and cannot unlock capture', () async {
+    mic.dispose();final stop=Completer<void>();final notified=Completer<void>();final events=<String>[];
+    mic=RoomMicrophone((on)async{events.add(on?'enable':'off');if(on)throw StateError('synthetic failed enable');await stop.future;},onFailure:(){expect(mic.stopUnconfirmed,isTrue);events.add('terminal');notified.complete();});
+    await grant();final result=expectLater(mic.toggle(),throwsStateError);await notified.future;
+    expect(mic.busy,isTrue);await mic.toggle();expect(events,['enable','terminal','off']);
+    stop.complete();await result;await mic.toggle();expect(events,['enable','terminal','off']);
   });
 
 }

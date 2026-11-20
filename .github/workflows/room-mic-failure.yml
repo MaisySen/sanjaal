@@ -1,7 +1,7 @@
 name: Room microphone native failure containment
 on:
   push:
-    branches: [room-mic-native-failure, product-integrated-overnight]
+    branches: [room-mic-native-failure, room-mic-terminal-failure, product-integrated-overnight]
 permissions:
   contents: read
 jobs:
@@ -26,16 +26,43 @@ jobs:
       - name: Failed enable cleanup negative control
         run: |
           cp lib/room_microphone.dart /tmp/room-mic-protected.dart
-          trap 'cp /tmp/room-mic-protected.dart lib/room_microphone.dart' EXIT
+          cp test/room_microphone_test.dart /tmp/room-mic-tests.dart
+          trap 'cp /tmp/room-mic-protected.dart lib/room_microphone.dart; cp /tmp/room-mic-tests.dart test/room_microphone_test.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('test/room_microphone_test.dart')
+          s=p.read_text();a=s.index("  test('terminal notification precedes");p.write_text(s[:a]+'\n}\n')
+          PY
           git show b6cbf8771f36dee3717916e5cc64b16ec0c07b16:app/lib/room_microphone.dart > lib/room_microphone.dart
           set +e
-          timeout --kill-after=10s 90 flutter test test/room_microphone_test.dart --plain-name 'failed enable reconciles native off before retry' --reporter expanded > negative.log 2>&1
+          timeout --kill-after=10s 90 flutter test test/room_microphone_test.dart --plain-name 'failed enable attempts native off but remains terminal' --reporter expanded > negative.log 2>&1
           result=$?
           set -e
           test "$result" -ne 0
           test "$result" -ne 124
           grep -q 'Actual:' negative.log
           cp /tmp/room-mic-protected.dart lib/room_microphone.dart
+          cp /tmp/room-mic-tests.dart test/room_microphone_test.dart
+      - name: Successful high-level off cannot unlock capture negative control
+        run: |
+          cp lib/room_microphone.dart /tmp/room-mic-protected.dart
+          cp test/room_microphone_test.dart /tmp/room-mic-tests.dart
+          trap 'cp /tmp/room-mic-protected.dart lib/room_microphone.dart; cp /tmp/room-mic-tests.dart test/room_microphone_test.dart' EXIT
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('test/room_microphone_test.dart')
+          s=p.read_text();a=s.index("  test('terminal notification precedes");p.write_text(s[:a]+'\n}\n')
+          PY
+          git show afd8be69f1ec0731682f2234b4250dbd72e15683:app/lib/room_microphone.dart > lib/room_microphone.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/room_microphone_test.dart --plain-name 'successful cleanup cannot permit retry after failed enable' --reporter expanded > terminal-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' terminal-negative.log
+          cp /tmp/room-mic-protected.dart lib/room_microphone.dart
+          cp /tmp/room-mic-tests.dart test/room_microphone_test.dart
       - name: Error exit layout negative control
         run: |
           cp lib/rooms_page.dart /tmp/room-exit-protected.dart

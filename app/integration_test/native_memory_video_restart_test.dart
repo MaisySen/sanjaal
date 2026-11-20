@@ -88,12 +88,18 @@ void main(){
     d=(await t.runAsync(()=>store.attempted(_owner,d,value:true)))!;
     rows.add({'draft':d.toJson(),'hash':sha256.convert(bytes).toString()});
    }
+   // Non-container bytes with an MP4 filename must retire to the honest fallback.
+   final invalidBytes=List<int>.generate(768,(i)=>(i*31+7)%256);
+   await t.runAsync(()=>original.writeAsBytes(invalidBytes,flush:true));
+   var invalid=(await t.runAsync(()=>store.save(_owner,text:'Recovered invalid private video',video:true,files:[XFile(original.path)])))!;
+   invalid=(await t.runAsync(()=>store.attempted(_owner,invalid,value:true)))!;
+   rows.add({'draft':invalid.toJson(),'hash':sha256.convert(invalidBytes).toString(),'invalid':true});
    await t.runAsync(()=>identity.writeAsString(jsonEncode(rows),flush:true));await t.runAsync(original.delete);
    await t.pumpWidget(const MaterialApp(home:Scaffold(body:Text('Encrypted videos saved; originals deleted'))));await t.pumpAndSettle();await capture(t,'memory_video_0_seed');return;
   }
   expect(original.existsSync(),false);expect(await t.runAsync(()=>store.read('different-owner')),isEmpty);
   final rows=jsonDecode(await identity.readAsString()) as List;
-  for(final row in rows){
+  for(final row in rows.where((row)=>row['invalid']!=true)){
    final d=CreatorMediaDraft.decode(row['draft']);final files=(await t.runAsync(()=>store.open(_owner,d)))!;
    expect(sha256.convert(await files.single.readAsBytes()).toString(),row['hash']);expect(files.single.path,startsWith('draft-memory://'));
    await t.pumpWidget(MaterialApp(navigatorKey:nav,navigatorObservers:[mediaRoutes],home:CreatorDraftsPage(session:session)));
@@ -122,6 +128,26 @@ void main(){
    await capture(t,d.story?'memory_video_6_story_paused':'memory_video_3_post_paused');
    await t.pageBack();await t.pumpAndSettle();expect(session.requests,0);
   }
+  final invalidRow=rows.singleWhere((row)=>row['invalid']==true);
+  final invalid=CreatorMediaDraft.decode(invalidRow['draft']);
+  final invalidFile=(await t.runAsync(()=>store.open(_owner,invalid)))!.single;
+  expect(sha256.convert(await invalidFile.readAsBytes()).toString(),invalidRow['hash']);
+  expect(invalidFile.path,startsWith('draft-memory://'));
+  await t.pumpWidget(MaterialApp(navigatorKey:nav,navigatorObservers:[mediaRoutes],home:CreatorDraftsPage(session:session)));
+  await until(t,()=>find.text(invalid.text).evaluate().isNotEmpty);await t.tap(find.text(invalid.text));
+  await until(t,()=>find.byType(MemoryVideoPreview).evaluate().isNotEmpty);
+  final fallback=find.text('Video preview unavailable. Your video is still selected.');
+  for(var attempt=0;attempt<200&&fallback.evaluate().isEmpty;attempt++){
+   await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+   await t.pump(const Duration(milliseconds:100));
+  }
+  expect(fallback,findsOneWidget,reason:'Malformed native video must fail closed, not stay loading');
+  expect(find.byType(AndroidViewSurface),findsNothing);expect(find.byType(UiKitView),findsNothing);
+  expect(find.byTooltip('Play'),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
+  expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
+  expect(sha256.convert(await invalidFile.readAsBytes()).toString(),invalidRow['hash'],reason:'Decoder failure must not discard the selected draft');
+  expect(session.requests,0);await capture(t,'memory_video_8_invalid_fallback');
+  await t.pageBack();await t.pumpAndSettle();
   // A loaded native preview must be removed when the opening login retires.
   final video=CreatorMediaDraft.decode(rows.first['draft']);
   final file=(await t.runAsync(()=>store.open(_owner,video)))!.single;

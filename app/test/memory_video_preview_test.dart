@@ -100,6 +100,10 @@ void main(){
  });
  testWidgets('native decoder failure preserves honest fallback and disposes',(t)async{
   fail=true;await t.pumpWidget(app(session(),file()));await flush(t);await flush(t);
+  final warning=find.text('Video preview unavailable. Your video is still selected.');
+  final background=find.ancestor(of:warning,matching:find.byType(ColoredBox)).first;
+  expect(t.widget<ColoredBox>(background).color,Colors.black);
+  expect(t.widget<Text>(warning).style?.color,Colors.white);
   expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);expect(calls,contains('dispose'));expect(calls,isNot(contains('play')));await t.pumpWidget(const SizedBox());await flush(t);
  });
  for(final method in ['play','pause','state']){

@@ -77,3 +77,13 @@ old play graphic while playing. The next source uses the existing
 pause-circle-fill asset and checks that actual asset in the widget fixture. It
 also adds native route-cover/return-paused and same-owner/new-generation
 retirement checks. Real OS-background interruption is not claimed from these.
+
+Final scoped native proofa5cd088/run44660377017: both platforms pass the strict
+color-pixel gate and9 OS images each were inspected. Pause uses the correct
+existing asset, covered route returns paused until explicit Play, and retirement
+with the same owner but a new generation removes the native view. Android7534
+was absent before7746 with the same package/UID; iOS39053 was absent before40921
+with unchanged app/data containers. One install each; no uninstall or data clear.
+App57 focused/1124 full passes with one live-only skip, retirement-removal fails
+and restored6 pass. This is simulator proof, not physical Samsung/iPhone or real
+OS-background interruption proof. Combined current-source CI is still required.

@@ -135,3 +135,20 @@ Room mic-control packets now require the actual SFU participant identity to matc
 17 fake-microphone policy/race tests pass, including arbitrary/missing sender, wrong target/type, invitation-without-enable, manual consent, duplicate grants, revoke/leave during in-flight unmute and native failures. 13 communication regressions passed separately;3stable-host stage tests and two actual320px/180%invitation/control renders passed. English dark and Nepali light pixels inspected; invitation and local mic control readable. Existing room chrome still has untranslated text; Nepali copy needs native-language review. These are synthetic widgets/adapters, not microphone capture, LiveKit permission propagation, physical mute or network delivery proof. No real room, token, recording or provider action was used. Older installed clients are not patched by a source commit; source-only fixes do not establish safety of those clients or existing sessions. Direct calls/API/data are unchanged. Real device sender/target/local-consent/revoke/leave verification is still required before lifting a room-use restriction.
 
 Visual review follow-up: the first invitation fixture showed the old oversized large-text room empty-state hint clipped at its scroll boundary above the composer. Replaced that large-text empty state with compact complete localized text, re-rendered and re-inspected both actual images. A geometry assertion now requires the whole empty-state text to end above the composer. Earlier images are superseded for this layout check. No native/media claim is changed.
+
+### Recovered encrypted-video preview integration candidate
+
+The retained encrypted video can now play in post/story review from a bounded
+in-memory native source, without a plaintext playback file, local HTTP server,
+network URL or auto-upload. Opening stays paused. Route cover pauses it; session
+retirement releases the preview. Unsupported formats/decoders retain the honest
+unavailable message, not a misleading playable card. Attempted-send locks are
+unchanged. Candidatea5cd088 has both-platform same-install process-death recovery,
+exact bytes, deleted picker originals, native frames, manual Play/Pause,
+route-return-paused and same-owner/new-generation retirement proof.18 actual OS
+images inspected, including fixed Pause graphics. Full details and rejected
+black-frame predecessors are in MEMORY_VIDEO_PREVIEW.md.
+
+This source is now entering combined CI, not being distributed. Physical Samsung
+acceptance, real OS-background interruption, production recovery and release
+conditions remain open. No production QA, provider activation or money action.

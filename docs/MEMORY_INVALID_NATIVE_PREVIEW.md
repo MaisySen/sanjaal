@@ -5,3 +5,10 @@ Synthetic-only isolated check. Adds a768-byte non-container MP4 draft before pro
 Both Android/iOS one-install/native restart checks and actual fallback images must pass and be inspected before integration. This does not establish malformed real-world file completeness, secure erasure or physical-device acceptance.
 
 Initiale358native checks passed on bothOSes, but actual fallback screenshots showed white warning text invisible against the light composer background. The fallback now owns a black background, matching the normal preview surface. Do not treat e358as visually accepted; corrected native images must be inspected.
+
+994corrected contrast and passed all native checks; iOS pixels show the warning,
+but the narrow Android screenshot cropped the warning below the visible fold.
+The native test now explicitly scrolls it into view and requires viewport
+bounds and hit testing before full native capture. The combined candidate's
+actual Android pixels must still be inspected. Earlier Android screenshot is
+not warning-visibility proof.

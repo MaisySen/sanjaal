@@ -146,6 +146,14 @@ void main(){
   expect(find.byTooltip('Play'),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
   expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,'Post')).onPressed,isNull);
   expect(sha256.convert(await invalidFile.readAsBytes()).toString(),invalidRow['hash'],reason:'Decoder failure must not discard the selected draft');
+  // The narrow Android composer can put the preview center below the fold.
+  // Require the warning itself inside the real viewport before native capture.
+  await t.ensureVisible(fallback);await t.pumpAndSettle();
+  final bounds=t.getRect(fallback),view=ui.PlatformDispatcher.instance.views.first;
+  final height=view.physicalSize.height/view.devicePixelRatio;
+  expect(bounds.top,greaterThanOrEqualTo(0));
+  expect(bounds.bottom,lessThan(height-48),reason:'Fallback warning must be above the fixed composer actions');
+  expect(fallback.hitTestable(),findsOneWidget);
   expect(session.requests,0);await capture(t,'memory_video_8_invalid_fallback');
   await t.pageBack();await t.pumpAndSettle();
   // A loaded native preview must be removed when the opening login retires.

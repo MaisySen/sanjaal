@@ -17,6 +17,7 @@ class FakeUpdates implements AppUpdateGateway {
   bool supported = true;
   final stream = StreamController<Map<String, dynamic>>.broadcast(sync: true);
   Map<String, dynamic> info = {
+    'availability': 2,
     'available': true,
     'flexibleAllowed': true,
     'availableVersionCode': 2009,
@@ -110,10 +111,59 @@ void main() {
     expect(controller.phase, UpdatePhase.installing);
   });
   test('current only means Play reports no newer account build', () async {
+    gateway.info['availability'] = 1;
     gateway.info['available'] = false;
     await controller.check();
     expect(controller.phase, UpdatePhase.current);
   });
+  test('unknown and in-progress availability never claim current', () async {
+    for (final availability in [0, 3]) {
+      gateway.info['availability'] = availability;
+      gateway.info['available'] = false;
+      await controller.check();
+      expect(controller.phase, UpdatePhase.unavailable);
+      expect(gateway.starts + gateway.installs, 0);
+    }
+  });
+  test('resume preserves Play canceled state instead of current or offer', () async {
+    for (final availability in [1, 2]) {
+      gateway.info['availability'] = availability;
+      gateway.info['available'] = availability == 2;
+      gateway.info['installStatus'] = 6;
+      await controller.check(resume: true);
+      expect(controller.phase, UpdatePhase.canceled);
+      expect(gateway.starts + gateway.installs, 0);
+    }
+  });
+  test('invalid native check cannot report current or offer an update', () async {
+    final valid = Map<String, dynamic>.from(gateway.info);
+    for (final changed in <Map<String, dynamic>>[
+      {'availability': null}, {'availability': '2'}, {'availability': 2.0},
+      {'availability': -1}, {'availability': 99}, {'availability': false},
+      {'available': null}, {'available': 'true'}, {'available': false},
+      {'flexibleAllowed': null}, {'flexibleAllowed': 'true'},
+      {'installStatus': null}, {'installStatus': '0'}, {'installStatus': 0.0},
+      {'installStatus': -1}, {'installStatus': 99},
+      {'availability': 1, 'available': true},
+    ]) {
+      gateway.info = {...valid, ...changed};
+      await controller.check();
+      expect(controller.phase, UpdatePhase.unavailable, reason: '$changed');
+      expect(gateway.starts + gateway.installs, 0);
+    }
+  });
+  test('ready or downloading status is preserved with unknown availability', () async {
+    gateway.info['availability'] = 0;
+    gateway.info['available'] = false;
+    gateway.info['installStatus'] = 11;
+    await controller.check(resume: true);
+    expect(controller.phase, UpdatePhase.ready);
+    gateway.info['installStatus'] = 2;
+    await controller.check(resume: true);
+    expect(controller.phase, UpdatePhase.downloading);
+    expect(gateway.installs, 0);
+  });
+
   test('offline does not falsely report latest', () async {
     gateway.failCheck = true;
     await controller.check();
@@ -222,7 +272,8 @@ void main() {
     expect(find.textContaining('may restart'), findsOneWidget);
   });
   for (final brightness in Brightness.values) {
-    testWidgets('render ready $brightness at narrow large text', (
+    for (final scenario in ['ready', 'unknown', 'canceled', 'current']) {
+    testWidgets('render $scenario $brightness at narrow large text', (
       tester,
     ) async {
       final font = FontLoader('Roboto');
@@ -237,8 +288,13 @@ void main() {
       tester.view.physicalSize = const Size(960, 2100);
       tester.view.devicePixelRatio = 3;
       addTearDown(tester.view.reset);
+      if (scenario == 'unknown' || scenario == 'current') {
+        gateway.info['availability'] = scenario == 'unknown' ? 0 : 1;
+        gateway.info['available'] = false;
+      }
+      if (scenario == 'canceled') gateway.info['installStatus'] = 6;
       await controller.check();
-      gateway.stream.add({'installStatus': 11});
+      if (scenario == 'ready') gateway.stream.add({'installStatus': 11});
       final key = GlobalKey();
       await tester.pumpWidget(
         RepaintBoundary(
@@ -277,9 +333,10 @@ void main() {
         final image = await boundary.toImage(pixelRatio: 2);
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
         Directory('test/renders').createSync(recursive: true);
-        File('test/renders/app_updates_${brightness.name}.png')
+        File('test/renders/app_updates_${scenario}_${brightness.name}.png')
             .writeAsBytesSync(bytes!.buffer.asUint8List());
       });
     });
+    }
   }
 }

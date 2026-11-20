@@ -25,6 +25,7 @@ class MainActivity : FlutterActivity() {
             "bytesDownloaded" to state.bytesDownloaded(), "totalBytes" to state.totalBytesToDownload()))
     }
     private fun info(value: AppUpdateInfo): Map<String, Any> = mapOf(
+        "availability" to value.updateAvailability(),
         "available" to (value.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE),
         "flexibleAllowed" to value.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE),
         "installStatus" to value.installStatus(),

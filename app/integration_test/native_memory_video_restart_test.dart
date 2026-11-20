@@ -19,7 +19,14 @@ import 'package:sanjaal/media_visibility.dart';
 
 const _owner='synthetic-memory-video-owner';
 Future<void> until(WidgetTester t,bool Function() ready)async{
- for(var i=0;i<160 && !ready();i++)await t.pump(const Duration(milliseconds:100));
+ final elapsed=Stopwatch()..start();
+ while(!ready() && elapsed.elapsed<const Duration(seconds:16)){
+  await t.pump(const Duration(milliseconds:100));
+  await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:100)));
+ }
+ if(!ready()){
+  print('NATIVE_WAIT_FAILED real_ms=${elapsed.elapsedMilliseconds} lifecycle=${t.binding.lifecycleState} texts=${t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().join(' | ')}');
+ }
  expect(ready(),isTrue,reason:'native memory video must reach its explicit state');
 }
 void main(){

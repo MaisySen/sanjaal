@@ -96,3 +96,12 @@ and the iOS runner to open Settings and return to the running app. Both retain
 and verify the same app PID. The fixture requires return in resumed lifecycle,
 Play rather than Pause, a stable paused clock, actual OS captures and manual
 Play to resume. This is pending evidence, not an accepted interruption result.
+
+OS-background198c70a: Android HOME/return passes with same PID8852, visible
+HOME screen and paused native return; explicit Play resumes. First iOS attempt
+fails before its interruption step at initial Play readiness, so no iOS
+background claim follows. The fixture wait previously counted only pump calls,
+not native wall time. Its next version uses a fixed16-second wall-clock budget,
+pumps and yields100ms to real native callbacks, and logs lifecycle/rendered
+labels on failure. The product's15-second readiness bound remains unchanged.
+This changes synchronization and diagnostics, not just timeout duration.

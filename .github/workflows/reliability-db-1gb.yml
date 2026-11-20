@@ -1,0 +1,18 @@
+name: Isolated PostgreSQL 1GB diagnostics
+on:
+  push:
+    branches: [reliability-db-1gb]
+permissions:
+  contents: read
+jobs:
+  isolated-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/ci/reliability_db_1gb.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-db-1gb-evidence
+          path: build/db-1gb/

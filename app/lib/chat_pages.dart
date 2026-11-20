@@ -540,9 +540,12 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
     _session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
+    input.addListener(_composerChanged);
     scroll.addListener(() { if (unseen > 0 && nearEnd && mounted) setState(() => unseen = 0); });
     _loop();
   }
+
+  void _composerChanged(){if(mounted && _active)setState((){});}
 
   bool _closed = false;
 
@@ -873,9 +876,10 @@ class _ChatPageState extends State<ChatPage> {
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
     return DraftExitGuard(
-      hasChanges: hasLocalMedia, busy: pickingMedia || msgs.any((m) => m['_file'] is UploadFile && m['pending'] == true),
-      title: 'Leave chat?', message: 'Leaving removes local retry copies, not messages that may have arrived.',
-      keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: 'Your attachment is still sending.',
+      hasChanges: hasLocalMedia || input.text.trim().isNotEmpty || replyTo!=null || recording || msgs.any((m)=>m['failed']==true || m['pending']==true),
+      busy: pickingMedia || recording || msgs.any((m)=>m['pending']==true),
+      title: 'Leave chat?', message: 'Leaving removes unsent text and local retry copies, not messages that may have arrived.',
+      keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: recording?'Finish or cancel the recording before leaving.':pickingMedia?'Wait for the media picker to close before leaving.':'Your message is still sending.',
       child: Scaffold(
       appBar: AppBar(
         title: InkWell(

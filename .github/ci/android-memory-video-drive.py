@@ -1,3 +1,5 @@
+import runpy
+verify_frame=runpy.run_path(str(__import__('pathlib').Path(__file__).with_name('memory-video-pixels.py')))['verify_frame']
 import pathlib,subprocess,sys,threading,time
 phase,timeout,*cmd=sys.argv[1:];stop=threading.Event();errors=[]
 root=pathlib.Path('build/screenshots');root.mkdir(parents=True,exist_ok=True)
@@ -11,7 +13,9 @@ def capture():
    for name in listing:
     if not name.startswith('memory_video_') or not name.endswith('.native-pending') or name in seen:continue
     seen.add(name);stem=name.removesuffix('.native-pending')
-    (root/(stem+'.native.png')).write_bytes(adb('exec-out','screencap','-p'))
+    image=root/(stem+'.native.png')
+    image.write_bytes(adb('exec-out','screencap','-p'))
+    verify_frame(image,adb('shell','run-as','au.fintex.sanjaal','cat','files/'+name).decode())
     subprocess.run(['adb','shell','run-as','au.fintex.sanjaal','touch','files/'+stem+'.native-done'],check=True)
  except Exception as e:errors.append(str(e))
 thread=threading.Thread(target=capture,daemon=True);thread.start()

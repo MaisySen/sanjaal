@@ -1,13 +1,12 @@
 package au.fintex.sanjaal
 
 import android.content.Context
-import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.SurfaceTexture
 import android.media.MediaDataSource
 import android.media.MediaPlayer
-import android.os.Handler
-import android.os.Looper
-import android.view.SurfaceHolder
-import android.view.SurfaceView
+import android.view.Surface
+import android.view.TextureView
 import android.view.View
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
@@ -31,13 +30,14 @@ private class MemorySource(private var bytes: ByteArray?) : MediaDataSource() {
     }
     @Synchronized override fun close() { bytes?.fill(0); bytes = null }
 }
-class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, args: Any?) : PlatformView, SurfaceHolder.Callback {
+class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, args: Any?) : PlatformView, TextureView.SurfaceTextureListener {
     companion object {
         private var current: WeakReference<MemoryVideoView>? = null
         fun pauseCurrent() { current?.get()?.pause() }
         fun disposeCurrent() { current?.get()?.dispose() }
     }
-    private val surface = SurfaceView(context).apply { setBackgroundColor(Color.BLACK) }
+    private val surface = TextureView(context)
+    private var display: Surface? = null
     private val channel = MethodChannel(messenger, "au.fintex.sanjaal/memory-video/$id")
     private var source: MemorySource? = null
     private var player: MediaPlayer? = null
@@ -48,7 +48,7 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
     init {
         current?.get()?.dispose()
         current = WeakReference(this)
-        surface.holder.addCallback(this)
+        surface.surfaceTextureListener = this
         val bytes = (args as? Map<*, *>)?.get("bytes") as? ByteArray
         if (bytes == null || bytes.isEmpty() || bytes.size > 25 * 1024 * 1024) { failed = true }
         else { source = MemorySource(bytes) }
@@ -65,12 +65,13 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
         }
     }
     override fun getView(): View = surface
-    override fun surfaceCreated(holder: SurfaceHolder) {
+    override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
         if (disposed || failed || player != null || source == null) return
         try {
             player = MediaPlayer().also { p ->
-                p.setDisplay(holder)
-                p.setOnPreparedListener { if(!disposed) ready = true }
+                display = Surface(texture)
+                p.setSurface(display)
+                p.setOnPreparedListener { if(!disposed) { fitVideo(); p.seekTo(0); ready = true } }
                 p.setOnCompletionListener { ended = true }
                 p.setOnErrorListener { _, _, _ -> fail(); true }
                 p.setDataSource(source!!)
@@ -78,14 +79,26 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
             }
         } catch (_: Exception) { fail() }
     }
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-    override fun surfaceDestroyed(holder: SurfaceHolder) { dispose() }
+    private fun fitVideo() {
+        val p = player ?: return
+        val vw = p.videoWidth.toFloat(); val vh = p.videoHeight.toFloat()
+        val width = surface.width.toFloat(); val height = surface.height.toFloat()
+        if (vw <= 0 || vh <= 0 || width <= 0 || height <= 0) return
+        val scale = minOf(width / vw, height / vh)
+        val matrix = Matrix()
+        matrix.setScale(vw * scale / width, vh * scale / height, width / 2, height / 2)
+        surface.setTransform(matrix)
+    }
+    override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) { fitVideo() }
+    override fun onSurfaceTextureUpdated(texture: SurfaceTexture) {}
+    override fun onSurfaceTextureDestroyed(texture: SurfaceTexture): Boolean { dispose(); return true }
     fun pause() { try { if(ready) player?.pause() } catch (_: Exception) {} }
     private fun fail() { failed = true; disposePlayer() }
     private fun disposePlayer() {
         ready = false
         try { player?.setOnPreparedListener(null); player?.setOnErrorListener(null); player?.setOnCompletionListener(null); player?.release() } catch (_: Exception) {}
         player = null
+        display?.release(); display = null
         source?.close(); source = null
         surface.visibility = View.INVISIBLE
     }
@@ -93,7 +106,7 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
         if(disposed) return
         disposed = true
         disposePlayer()
-        surface.holder.removeCallback(this)
+        surface.surfaceTextureListener = null
         channel.setMethodCallHandler(null)
         if(current?.get() === this) current = null
     }

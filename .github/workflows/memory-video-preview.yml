@@ -70,6 +70,8 @@ jobs:
           channel: stable
           flutter-version: '3.50.0'
           cache: true
+      - run: python3 -m pip install --target /tmp/sj-pixel-deps Pillow==11.3.0
+      - run: echo 'PYTHONPATH=/tmp/sj-pixel-deps' >> "$GITHUB_ENV"
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -107,6 +109,8 @@ jobs:
           channel: stable
           flutter-version: '3.50.0'
           cache: true
+      - run: python3 -m pip install --target /tmp/sj-pixel-deps Pillow==11.3.0
+      - run: echo 'PYTHONPATH=/tmp/sj-pixel-deps' >> "$GITHUB_ENV"
       - name: Select simulator
         run: |
           xcrun simctl list devices available --json > /tmp/devices.json

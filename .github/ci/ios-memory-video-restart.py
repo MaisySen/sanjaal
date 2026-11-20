@@ -1,3 +1,5 @@
+import runpy
+verify_frame=runpy.run_path(str(__import__('pathlib').Path(__file__).with_name('memory-video-pixels.py')))['verify_frame']
 import subprocess,os,pathlib,time,urllib.request,json,threading
 root=pathlib.Path('build/screenshots');root.mkdir(parents=True,exist_ok=True)
 device=os.environ['IOS_DEVICE'];bundle='au.fintex.sanjaal'
@@ -32,6 +34,7 @@ for phase in ['seed','recover']:
     for pending in before.rglob('*.native-pending'):
      if str(pending) in seen or pending.with_suffix('.native-done').exists():continue
      seen.add(str(pending));run('xcrun','simctl','io',device,'screenshot',str(root/(pending.stem+'.native.png')))
+     verify_frame(root/(pending.stem+'.native.png'),pending.read_text())
      pending.with_suffix('.native-done').write_text('captured')
   except Exception as e:errors.append(str(e))
  thread=threading.Thread(target=capture,daemon=True);thread.start()

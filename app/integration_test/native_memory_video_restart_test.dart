@@ -26,12 +26,16 @@ void main(){
  final binding=IntegrationTestWidgetsFlutterBinding.ensureInitialized();SemanticsHandle? semantics;
  setUpAll(()async{if(Platform.isIOS){semantics=binding.ensureSemantics();for(var i=0;i<100&&!ui.PlatformDispatcher.instance.semanticsEnabled;i++)await Future<void>.delayed(const Duration(milliseconds:100));}});
  tearDownAll(()=>semantics?.dispose());
- Future<void> capture(String name)async{
+ Future<void> capture(WidgetTester t,String name)async{
+  final preview=find.byType(MemoryVideoPreview);
+  final rect=preview.evaluate().isEmpty?null:t.getRect(preview);
+  final viewport=t.view.physicalSize/t.view.devicePixelRatio;
+  final spec=<String,dynamic>{'viewport':[viewport.width,viewport.height],if(rect!=null)'videoRect':[rect.left,rect.top,rect.width,rect.height]};
   // OS capture is required: a Flutter raster does not include a native view.
   final dir=await getApplicationSupportDirectory();
   await binding.runAsync(()async{
    final pending=File('${dir.path}/$name.native-pending'),done=File('${dir.path}/$name.native-done');
-   await pending.writeAsString('waiting',flush:true);
+   await pending.writeAsString(jsonEncode(spec),flush:true);
    final end=DateTime.now().add(const Duration(seconds:25));
    while(!await done.exists()){if(DateTime.now().isAfter(end))throw TestFailure('Missing synchronized OS image');await Future<void>.delayed(const Duration(milliseconds:100));}
   });
@@ -53,7 +57,7 @@ void main(){
     rows.add({'draft':d.toJson(),'hash':sha256.convert(bytes).toString()});
    }
    await t.runAsync(()=>identity.writeAsString(jsonEncode(rows),flush:true));await t.runAsync(original.delete);
-   await t.pumpWidget(const MaterialApp(home:Scaffold(body:Text('Encrypted videos saved; originals deleted'))));await capture('memory_video_0_seed');return;
+   await t.pumpWidget(const MaterialApp(home:Scaffold(body:Text('Encrypted videos saved; originals deleted'))));await t.pumpAndSettle();await capture(t,'memory_video_0_seed');return;
   }
   expect(original.existsSync(),false);expect(await t.runAsync(()=>store.read('different-owner')),isEmpty);
   final rows=jsonDecode(await identity.readAsString()) as List;
@@ -67,15 +71,15 @@ void main(){
    await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
    // Neither loading nor merely opening can start playback.
    expect(find.byTooltip('Pause'),findsNothing);expect(find.text('0:00'),findsOneWidget);
-   await capture(d.story?'memory_video_4_story_ready':'memory_video_1_post_ready');
+   await capture(t,d.story?'memory_video_4_story_ready':'memory_video_1_post_ready');
    await t.ensureVisible(find.byTooltip('Play'));await t.tap(find.byTooltip('Play'));
    await until(t,()=>find.text('0:01').evaluate().isNotEmpty);
-   await capture(d.story?'memory_video_5_story_playing':'memory_video_2_post_playing');
+   await capture(t,d.story?'memory_video_5_story_playing':'memory_video_2_post_playing');
    await t.tap(find.byTooltip('Pause'));await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);
    final value=t.widgetList<Text>(find.byType(Text)).map((w)=>w.data).whereType<String>().where((v)=>RegExp(r'^\d+:\d\d$').hasMatch(v)).single;
    await t.pump(const Duration(milliseconds:800));expect(find.text(value),findsOneWidget);
    expect(t.widget<FilledButton>(find.widgetWithText(FilledButton,d.story?'Share story':'Post')).onPressed,isNull,reason:'playback never lifts uncertain-send lock');
-   await capture(d.story?'memory_video_6_story_paused':'memory_video_3_post_paused');
+   await capture(t,d.story?'memory_video_6_story_paused':'memory_video_3_post_paused');
    await t.pageBack();await t.pumpAndSettle();expect(session.requests,0);
   }
   // A loaded native preview must be removed when the opening login retires.
@@ -85,7 +89,7 @@ void main(){
   await until(t,()=>find.byTooltip('Play').evaluate().isNotEmpty);await t.tap(find.byTooltip('Play'));await until(t,()=>find.byTooltip('Pause').evaluate().isNotEmpty);
   session.user={'public_id':'replacement-owner'};session.notifyListeners();await t.pumpAndSettle();
   expect(find.byType(AndroidView),findsNothing);expect(find.byType(UiKitView),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
-  await capture('memory_video_7_retired');expect(session.requests,0);
+  await capture(t,'memory_video_7_retired');expect(session.requests,0);
   expect(original.existsSync(),false);expect((await t.runAsync(()=>store.read(_owner)))!.every((d)=>d.attempted),isTrue);
   print('MEMORY_VIDEO exact encrypted originals restored after process death; native post/story decoder clock advanced; explicit Play/Pause; no auto-start; attempted locks unchanged; session retirement; zero API requests');
  });

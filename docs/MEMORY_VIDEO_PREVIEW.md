@@ -36,3 +36,12 @@ recovery, exact byte hashes and native decoder playback clocks for post/story.
 Synchronized OS captures, not Flutter-only raster screenshots, must show actual
 native frames. Native/physical acceptance remains pending until that evidence
 has been inspected. No current source is being distributed to a phone or store.
+
+First9365415 evidence:57 focused/1124 full app passes, one live skip,
+retirement-removal negative fails and restored6 pass. First iOS run44644882967
+has actual colored post/story native frames across same-install process death.
+Its Android decoder clock passed but OS captures were black, so Android playback
+was rejected. The next candidate uses TextureView rather than a nested
+SurfaceView and validates the synthetic pattern's saturated pixels inside the
+Flutter-reported preview rectangle on both OS screenshots. This gate supplements,
+not replaces, inspection of actual frames and the lifecycle assertions.

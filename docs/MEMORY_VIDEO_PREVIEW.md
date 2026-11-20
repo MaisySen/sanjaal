@@ -123,3 +123,13 @@ debug-only native lifecycle event dictionaries through state, snapshots them to
 synthetic test JSON, and timestamps the host launch requests/completions. This
 distinguishes slow simulator switching from lifecycle pause failure before a
 product correction. No position-preservation acceptance is claimed.
+
+f1108bb rejects iOS again (6->16seconds). Host timing reveals4.4seconds for
+the other-app launch and12.3seconds before requesting app return, including
+the first OS screenshot. It does not isolate the instant playback should stop.
+The intended Swift DEBUG diagnostics were absent because Runner's Debug config
+had no DEBUG Swift condition (only RunnerTests did). Next candidate sets that
+condition in Runner Debug only and prewarms the OS target before either Sanjaal
+process so cold Settings startup is outside the timed playback interval. The
+strict +2/-1 clock checks stay unchanged. Diagnostic events, not a zero frame
+alone, must identify whether an actual player reset or lifecycle failure exists.

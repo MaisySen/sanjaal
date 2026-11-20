@@ -7,6 +7,12 @@ def run(*args,**kw):return subprocess.run(args,check=True,**kw)
 def container():return pathlib.Path(subprocess.check_output(['xcrun','simctl','get_app_container',device,bundle,'data'],text=True).strip())
 run('xcrun','simctl','install',device,'build/ios/iphonesimulator/Runner.app')
 before=container();app=subprocess.check_output(['xcrun','simctl','get_app_container',device,bundle,'app'],text=True).strip()
+# Launch the OS target before the timed interruption. Cold simulator Settings
+# startup and its first screenshot can take longer than the test clip itself.
+# This does not launch or install Sanjaal, or touch either private app container.
+run('xcrun','simctl','launch',device,'com.apple.Preferences')
+time.sleep(3)
+run('xcrun','simctl','io',device,'screenshot',str(root/'os-prewarm.native.png'))
 pids=[]
 for phase in ['seed','recover']:
  if phase=='recover':

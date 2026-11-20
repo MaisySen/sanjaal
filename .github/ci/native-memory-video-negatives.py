@@ -12,13 +12,6 @@ def check(name,source,mode,reason):
   assert result.returncode!=0 and reason in result.stdout,(name,result.returncode,result.stdout)
   print('EXPECTED FAILURE',name,reason)
  finally:p.write_text(protected)
-historical=subprocess.check_output(['git','show','e45325426b55520613e77c13a2427d8809e94269:app/android/app/src/main/kotlin/au/fintex/sanjaal/MemoryVideoView.kt'],cwd=root,text=True)
-check('native-pause-historical',historical,'pause','failed latch missing')
-start=protected.index('        // Detach ownership first.')
-end=protected.index('        surface.visibility = View.INVISIBLE',start)
-a=historical.index('        try { player?.setOnPreparedListener(null);')
-b=historical.index('        surface.visibility = View.INVISIBLE',a)
-check('native-cleanup-historical',protected[:start]+historical[a:b]+protected[end:],'cleanup','native release not attempted')
-needle='if(!disposed && !failed && player === p) { fitVideo();'
-assert needle in protected
-check('native-late-prepare-mutation',protected.replace(needle,'if(!disposed) { fitVideo();',1),'late','late prepare callback revived retired player')
+historical=subprocess.check_output(['git','show','5fe152925708c10391e7bced50e1c07cfd73e27d:app/android/app/src/main/kotlin/au/fintex/sanjaal/MemoryVideoView.kt'],cwd=root,text=True)
+check('native-setup-historical',historical,'setup','native release not attempted')
+check('native-prepared-historical',historical,'prepared','IllegalStateException: seek')

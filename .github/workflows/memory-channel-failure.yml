@@ -1,7 +1,7 @@
 name: Memory video channel failure containment
 on:
   push:
-    branches: [memory-video-channel-failure, memory-video-native-pause, product-integrated-overnight]
+    branches: [memory-video-channel-failure, memory-video-native-pause, memory-video-native-setup, product-integrated-overnight]
 permissions:
   contents: read
 jobs:

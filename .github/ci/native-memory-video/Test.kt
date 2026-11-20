@@ -11,12 +11,13 @@ import io.flutter.plugin.common.*
 private val messenger=object:BinaryMessenger{}
 private var count=0
 private data class Fixture(val view:MemoryVideoView,val player:MediaPlayer,val bytes:ByteArray,val channel:MethodChannel)
-private fun fixture():Fixture {
+private fun fixture(prepare:Boolean=true,failures:Set<String> = emptySet()):Fixture {
+ MediaPlayer.initialFailures.clear();MediaPlayer.initialFailures.addAll(failures)
  Surface.throwOnRelease=false
  val bytes=byteArrayOf(4,5,6,7)
  val view=MemoryVideoView(Context(),messenger,++count,mapOf("bytes" to bytes))
  (view.getView() as TextureView).surfaceTextureListener!!.onSurfaceTextureAvailable(SurfaceTexture(),320,240)
- val player=MediaPlayer.latest!!;player.prepared!!(player)
+ val player=MediaPlayer.latest!!;if(prepare)player.prepared!!(player)
  return Fixture(view,player,bytes,MethodChannel.channels["au.fintex.sanjaal/memory-video/$count"]!!)
 }
 private fun invoke(f:Fixture,name:String):Any? {
@@ -33,7 +34,7 @@ private fun retired(f:Fixture) {
  check(state["ready"]==false && state["playing"]==false){"retired state still playable"}
  check("release" in f.player.events){"native release not attempted"}
  check(f.bytes.all{it==0.toByte()}){"private source not cleared"}
- check(f.player.data!!.getSize()==0L && f.player.data!!.readAt(0,ByteArray(4),0,4)==-1){"closed byte source remains readable"}
+ check(f.player.data==null || (f.player.data!!.getSize()==0L && f.player.data!!.readAt(0,ByteArray(4),0,4)==-1)){"closed byte source remains readable"}
  check(f.view.getView().visibility==View.INVISIBLE){"surface still visible"}
  val starts=f.player.events.count{it=="start"};invoke(f,"play")
  check(f.player.events.count{it=="start"}==starts){"retired player restarted"}
@@ -69,6 +70,18 @@ fun main(args:Array<String>) {
   val seeks=f.player.events.count{it=="seek"};late(f.player)
   check(f.player.events.count{it=="seek"}==seeks){"late prepare callback revived retired player"}
   retired(f);f.view.dispose();passed++;println("PASS late prepared callback stays retired")
+ }
+ if(selected("setup")) for(failure in listOf("setSurface","setPrepared","setError","setCompleted","setDataSource","prepareAsync")) {
+  val f=fixture(prepare=false,failures=setOf(failure));retired(f)
+  check(Surface.latest!!.releases==1){"setup failure did not release display"}
+  f.view.dispose();passed++;println("PASS allocation released after $failure setup exception")
+ }
+ if(selected("prepared")) {
+  val f=fixture(prepare=false);f.player.failures.add("seek")
+  val prepare=f.player.prepared!!;prepare(f.player);retired(f)
+  val seeks=f.player.events.count{it=="seek"};prepare(f.player)
+  check(f.player.events.count{it=="seek"}==seeks){"failed prepared callback retried"}
+  f.view.dispose();passed++;println("PASS prepared seek exception contained and retired")
  }
  check(passed>0);println("$passed native adapter cases passed; deterministic fakes only")
 }

@@ -26,9 +26,10 @@ class DelayedFile extends XFile {
 Future<void> flush(WidgetTester t)async{await t.pump();await t.pump(const Duration(milliseconds:450));await t.pump();}
 void main(){
  TestWidgetsFlutterBinding.ensureInitialized();
+ String? rejectMethod,hangMethod;Completer<void>? hung;
  var calls=<String>[];var creates=0;var playing=false;var fail=false;Uint8List? received;
  setUp((){
-  memoryVideoPlatformInTests=true;calls=[];creates=0;playing=false;fail=false;received=null;
+  rejectMethod=null;hangMethod=null;hung=null;memoryVideoPlatformInTests=true;calls=[];creates=0;playing=false;fail=false;received=null;
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views,(call)async{
    if(call.method=='create'){
     creates++;final args=call.arguments as Map;final id=args['id'];final bytes=args['params'] as Uint8List;
@@ -36,6 +37,9 @@ void main(){
     received=Uint8List.fromList(params['bytes'] as Uint8List);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(MethodChannel('au.fintex.sanjaal/memory-video/$id'),(method)async{
      calls.add(method.method);
+     if(method.method==rejectMethod)throw PlatformException(code:'native-unconfirmed');
+     if(method.method==hangMethod){hung ??= Completer<void>();await hung!.future;}
+
      if(method.method=='play')playing=true;if(method.method=='pause'||method.method=='dispose')playing=false;
      if(method.method=='state')return {'ready':true,'failed':fail,'playing':playing,'width':20,'height':30};return null;
     });
@@ -83,6 +87,36 @@ void main(){
  testWidgets('native decoder failure preserves honest fallback and disposes',(t)async{
   fail=true;await t.pumpWidget(app(session(),file()));await flush(t);await flush(t);
   expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);expect(calls,contains('dispose'));expect(calls,isNot(contains('play')));await t.pumpWidget(const SizedBox());await flush(t);
+ });
+ for(final method in ['play','pause','state']){
+  for(final hangs in [false,true]){
+   testWidgets('native $method ${hangs?'timeout':'error'} retires playback and shows fallback',(t)async{
+    await t.pumpWidget(app(session(),file()));await flush(t);await flush(t);
+    await t.tap(find.byTooltip('Play'));await flush(t);expect(playing,true);
+    if(hangs){hangMethod=method;}else{rejectMethod=method;}
+    if(method=='play'){
+     await t.tap(find.byTooltip('Pause'));await flush(t);
+     await t.tap(find.byTooltip('Play'));
+    }else if(method=='pause'){await t.tap(find.byTooltip('Pause'));}
+    else{await t.pump(const Duration(milliseconds:450));}
+    await flush(t);if(hangs){await t.pump(const Duration(seconds:4));await flush(t);}
+    expect(calls,contains('dispose'));expect(playing,false);
+    expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);
+    expect(find.byTooltip('Play'),findsNothing);expect(find.byTooltip('Pause'),findsNothing);
+    hangMethod=null;hung?.complete();await flush(t);
+    expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);
+    await t.pumpWidget(const SizedBox());await flush(t);expect(t.takeException(),isNull);
+   });
+  }
+ }
+ testWidgets('covered route pause failure retires preview instead of hiding unconfirmed playback',(t)async{
+  final nav=GlobalKey<NavigatorState>();await t.pumpWidget(app(session(),file(),nav:nav));await flush(t);await flush(t);
+  await t.tap(find.byTooltip('Play'));await flush(t);rejectMethod='pause';
+  nav.currentState!.push(MaterialPageRoute<void>(builder:(_)=>const Scaffold(body:Text('Covered'))));
+  await t.pumpAndSettle();expect(calls,contains('dispose'));expect(playing,false);
+  nav.currentState!.pop();await t.pumpAndSettle();
+  expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);
+  expect(find.byTooltip('Play'),findsNothing);await t.pumpWidget(const SizedBox());await flush(t);
  });
  testWidgets('non-memory paths never open a native player',(t)async{
   await t.pumpWidget(app(session(),XFile('/tmp/not-a-saved-draft.mp4')));await flush(t);expect(creates,0);expect(find.text('Video preview unavailable. Your video is still selected.'),findsOneWidget);await t.pumpWidget(const SizedBox());await flush(t);

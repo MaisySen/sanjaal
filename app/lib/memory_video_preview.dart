@@ -47,7 +47,12 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
       setState(()=>_bytes=Uint8List.fromList(data));
     }catch(_){if(mounted && epoch==_epoch && sessionActive)setState(()=>_failed=true);}
   }
-  Future<void> _command(String name)async{try{await _channel?.invokeMethod<void>(name);}catch(_){}}
+  Future<void> _command(String name)async{
+    final channel=_channel,epoch=_epoch;
+    if(channel==null)return;
+    try{await channel.invokeMethod<void>(name).timeout(const Duration(seconds:3));}
+    catch(_){if(mounted && epoch==_epoch && identical(channel,_channel) && sessionActive)_fail();}
+  }
   void _created(int id){
     final channel=MethodChannel('au.fintex.sanjaal/memory-video/$id');
     if(!mounted || !sessionActive || _failed){channel.invokeMethod<void>('dispose').catchError((Object _){});return;}
@@ -60,7 +65,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
     if(_reading || channel==null || !sessionActive)return;
     _reading=true;
     try{
-      final value=await channel.invokeMapMethod<String,dynamic>('state');
+      final value=await channel.invokeMapMethod<String,dynamic>('state').timeout(const Duration(seconds:3));
       if(!mounted || epoch!=_epoch || !sessionActive || value==null)return;
       if(value['failed']==true){_fail();return;}
       final w=(value['width'] as num?)?.toDouble()??0,h=(value['height'] as num?)?.toDouble()??0;

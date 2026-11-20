@@ -25,3 +25,10 @@ RoomView smallportrait/landscape light/dark1.8x tests require visible actionable
 exit, hidden media controls, final warning line readable and real route pop.
 An old-layout negative must reproduce overflow. No actual microphone state is
 claimed from these offline contracts.
+
+6e0e76f verified79focused/1141full(one live-only skip),26restored. Both
+negative controls distinguish old behavior: missing native disable and84pixel
+room error overflow. All four error renders and both consent renders inspected.
+Back remains fixed/actionable and returns to room list, complete final warning
+readable after scroll. No actual microphone/device-off proof.
+https://github.com/MaisySen/sanjaal/actions/runs/44696631140

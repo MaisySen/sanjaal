@@ -1,7 +1,7 @@
 name: Room microphone native failure containment
 on:
   push:
-    branches: [room-mic-native-failure]
+    branches: [room-mic-native-failure, product-integrated-overnight]
 permissions:
   contents: read
 jobs:

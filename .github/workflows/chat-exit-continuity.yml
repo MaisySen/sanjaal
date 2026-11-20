@@ -1,0 +1,52 @@
+name: Chat text exit continuity
+on:
+  push:
+    branches: [chat-text-exit-continuity]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/chat_exit_continuity_test.dart test/chat_retry_test.dart test/chat_screen_session_test.dart --reporter expanded > focused.log 2>&1
+      - name: Historical unguarded text exit negative control
+        run: |
+          cp lib/chat_pages.dart /tmp/chat-exit-protected.dart
+          trap 'cp /tmp/chat-exit-protected.dart lib/chat_pages.dart' EXIT
+          git show 3ba53b94d3262a9ab90ad9720cf3c4a3f6b2e609:app/lib/chat_pages.dart > lib/chat_pages.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/chat_exit_continuity_test.dart test/chat_retry_test.dart test/chat_screen_session_test.dart --plain-name 'unsent text requires deliberate leave and Stay preserves it' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' negative.log
+          cp /tmp/chat-exit-protected.dart lib/chat_pages.dart
+      - run: flutter test test/chat_exit_continuity_test.dart test/chat_retry_test.dart test/chat_screen_session_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chat-exit-continuity-evidence
+          path: |
+            app/*.log
+            app/test/renders/chat_exit_*.png
+          retention-days: 7

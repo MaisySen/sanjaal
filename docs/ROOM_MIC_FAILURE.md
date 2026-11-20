@@ -17,3 +17,11 @@ cleanup, blocked regrant/retry and revocation during cleanup. A negative control
 restores the old toggle and must fail the enable-cleanup regression. These are
 source ordering contracts only, not proof of real microphone-off, LiveKit or
 physical-device behavior. No real room, call or recording occurs.
+
+8f239ab passes75focused/1137full(one live skip),22restored policy cases;
+old-source negative confirms missing disable after failed enable. Next candidate
+also bounds/scrolls the room error text and fixes Back below it. Four actual
+RoomView smallportrait/landscape light/dark1.8x tests require visible actionable
+exit, hidden media controls, final warning line readable and real route pop.
+An old-layout negative must reproduce overflow. No actual microphone state is
+claimed from these offline contracts.

@@ -22,7 +22,7 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
-      - run: timeout --kill-after=15s 180 flutter test test/room_microphone_test.dart test/room_lifecycle_test.dart test/realtime_session_test.dart test/room_consent_render_test.dart test/communication_journey_test.dart --reporter expanded > focused.log 2>&1
+      - run: timeout --kill-after=15s 180 flutter test test/room_failure_layout_test.dart test/room_microphone_test.dart test/room_lifecycle_test.dart test/realtime_session_test.dart test/room_consent_render_test.dart test/communication_journey_test.dart --reporter expanded > focused.log 2>&1
       - name: Failed enable cleanup negative control
         run: |
           cp lib/room_microphone.dart /tmp/room-mic-protected.dart
@@ -36,7 +36,20 @@ jobs:
           test "$result" -ne 124
           grep -q 'Actual:' negative.log
           cp /tmp/room-mic-protected.dart lib/room_microphone.dart
-      - run: flutter test test/room_microphone_test.dart --reporter expanded > restored.log 2>&1
+      - name: Error exit layout negative control
+        run: |
+          cp lib/rooms_page.dart /tmp/room-exit-protected.dart
+          trap 'cp /tmp/room-exit-protected.dart lib/rooms_page.dart' EXIT
+          git show b6cbf8771f36dee3717916e5cc64b16ec0c07b16:app/lib/rooms_page.dart > lib/rooms_page.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/room_failure_layout_test.dart --plain-name 'uncertain room microphone keeps exit reachable landscape=false light' --reporter expanded > layout-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'RenderFlex overflowed' layout-negative.log
+          cp /tmp/room-exit-protected.dart lib/rooms_page.dart
+      - run: flutter test test/room_failure_layout_test.dart test/room_microphone_test.dart --reporter expanded > restored.log 2>&1
       - run: flutter test --reporter expanded > test.log 2>&1
       - uses: actions/upload-artifact@v4
         if: always()

@@ -267,7 +267,7 @@ class CallView extends StatelessWidget {
         ConstrainedBox(constraints: BoxConstraints(maxHeight: box.maxHeight * 0.3), child: SingleChildScrollView(
           key: const ValueKey('call-status-scroll'),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: Semantics(liveRegion: true, child: Text(status, textAlign: TextAlign.center,
+          child: Semantics(liveRegion: true, child: Text(t_(status), textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70))),
         )),
         Expanded(child: Stack(children: [
@@ -282,7 +282,7 @@ class CallView extends StatelessWidget {
             );
           }),
           if (selfPreview != null) Positioned(right: 14, top: 14,
-            child: Semantics(label: 'Your camera preview', child: SizedBox(height: 120, width: 90,
+            child: Semantics(label: t_('Your camera preview'), child: SizedBox(height: 120, width: 90,
               child: ClipRRect(borderRadius: BorderRadius.circular(14), child: selfPreview)))),
         ])),
         SafeArea(
@@ -294,14 +294,14 @@ class CallView extends StatelessWidget {
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                 IconButton.filledTonal(
                   style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white, disabledForegroundColor: Colors.white54),
-                  tooltip: muted ? 'Unmute microphone' : 'Mute microphone',
+                  tooltip: t_(muted ? 'Unmute microphone' : 'Mute microphone'),
                   onPressed: failed || controlsBusy ? null : onMute,
                   icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
                 ),
                 if (video)
                   IconButton.filledTonal(
                     style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white, disabledForegroundColor: Colors.white54),
-                    tooltip: camOn ? 'Turn camera off' : 'Turn camera on',
+                    tooltip: t_(camOn ? 'Turn camera off' : 'Turn camera on'),
                     onPressed: failed || controlsBusy ? null : onCamera,
                     icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),
                   ),

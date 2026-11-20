@@ -508,7 +508,7 @@ class RoomView extends StatelessWidget {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   PhIcon('warning-circle', size: 64, color: scheme.error),
                   const SizedBox(height: 12),
-                  Semantics(liveRegion: true, child: Text(status, textAlign: TextAlign.center)),
+                  Semantics(liveRegion: true, child: Text(t_(status), textAlign: TextAlign.center)),
                 ]),
               )),
               SafeArea(top: false, child: Padding(
@@ -524,7 +524,7 @@ class RoomView extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(4)),
-                    child: Text(status.toUpperCase(), style: TextStyle(color: scheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                    child: Text(t_(status).toUpperCase(), style: TextStyle(color: scheme.onPrimary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Text(tf_('{n} in the room', {'n': inRoom}), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))),

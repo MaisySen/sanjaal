@@ -25,3 +25,16 @@ is splash, not visual seed proof. Route return is paused0:03. Combined checks
 remain separate until their exact-head run completes.
 https://github.com/MaisySen/sanjaal/actions/runs/44718815336
 https://github.com/MaisySen/sanjaal/actions/runs/44718815170
+
+## Allocation and prepare callback follow-up
+
+A second source audit found assignment after MediaPlayer configuration, leaving
+cleanup without ownership when configuration throws. The allocation is now owned
+before any setter or preparation call. Prepared callback fit/seek exceptions
+retire the player rather than escaping that callback. Seven additional actual
+production-adapter cases inject six setup exceptions and a prepared seek failure.
+The earlier nine cases and three negative controls remain. Exact5fe historical
+setup and prepared-callback negatives fail on missing release and escaped seek
+exception. Local protected/restored16 pass, five specific negatives reproduced.
+No real native-fault injection, physical shutdown or erasure claim. Actual decoder
+restart and Flutter integration verification remain separate CI checks.

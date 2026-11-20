@@ -1,7 +1,7 @@
 name: Memory video Android pause failure containment
 on:
   push:
-    branches: [memory-video-native-pause, product-integrated-overnight]
+    branches: [memory-video-native-pause, memory-video-native-setup, product-integrated-overnight]
 permissions:
   contents: read
 jobs:
@@ -17,6 +17,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: bash .github/ci/test-native-memory-video.sh > native-protected.log 2>&1
+      - run: python3 .github/ci/native-memory-video-pause-negatives.py
       - run: python3 .github/ci/native-memory-video-negatives.py
       - run: bash .github/ci/test-native-memory-video.sh > native-restored.log 2>&1
       - uses: actions/upload-artifact@v4
@@ -26,7 +27,7 @@ jobs:
           path: native-*.log
           retention-days: 7
   android-media-restart:
-    if: github.ref == 'refs/heads/memory-video-native-pause'
+    if: github.ref == 'refs/heads/memory-video-native-pause' || github.ref == 'refs/heads/memory-video-native-setup'
     needs: native-adapter
     runs-on: ubuntu-latest
     timeout-minutes: 30

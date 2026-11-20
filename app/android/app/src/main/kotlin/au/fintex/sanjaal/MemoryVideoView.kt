@@ -68,15 +68,21 @@ class MemoryVideoView(context: Context, messenger: BinaryMessenger, id: Int, arg
     override fun onSurfaceTextureAvailable(texture: SurfaceTexture, width: Int, height: Int) {
         if (disposed || failed || player != null || source == null) return
         try {
-            player = MediaPlayer().also { p ->
-                display = Surface(texture)
-                p.setSurface(display)
-                p.setOnPreparedListener { if(!disposed && !failed && player === p) { fitVideo(); p.seekTo(0); ready = true } }
-                p.setOnCompletionListener { if(!disposed && !failed && player === p) ended = true }
-                p.setOnErrorListener { _, _, _ -> fail(); true }
-                p.setDataSource(source!!)
-                p.prepareAsync()
+            // Own the allocation before any configuration call can throw.
+            val p = MediaPlayer()
+            player = p
+            display = Surface(texture)
+            p.setSurface(display)
+            p.setOnPreparedListener {
+                if(!disposed && !failed && player === p) {
+                    try { fitVideo(); p.seekTo(0); ready = true }
+                    catch (_: Exception) { fail() }
+                }
             }
+            p.setOnCompletionListener { if(!disposed && !failed && player === p) ended = true }
+            p.setOnErrorListener { _, _, _ -> fail(); true }
+            p.setDataSource(source!!)
+            p.prepareAsync()
         } catch (_: Exception) { fail() }
     }
     private fun fitVideo() {

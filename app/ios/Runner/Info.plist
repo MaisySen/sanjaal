@@ -74,7 +74,5 @@
 	<string>Sanjaal uses the camera when you take photos or videos for posts, reels and stories, or turn on video in a call.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Sanjaal uses the microphone when you record videos or voice messages, speak in live rooms, or join voice and video calls.</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

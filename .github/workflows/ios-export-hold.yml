@@ -1,0 +1,34 @@
+name: iOS export declaration hold
+on:
+  push:
+    branches: [ios-export-declaration-hold, product-integrated-overnight]
+permissions:
+  contents: read
+jobs:
+  declaration-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 .github/ci/test_ios_export_declaration.py > export-protected.log 2>&1
+      - name: Historical unsupported exemption negative control
+        run: |
+          cp app/ios/Runner/Info.plist /tmp/export-protected.plist
+          trap 'cp /tmp/export-protected.plist app/ios/Runner/Info.plist' EXIT
+          git show 42109dcd0214f297bc760dc5dd68ff61d566370b:app/ios/Runner/Info.plist > app/ios/Runner/Info.plist
+          set +e
+          python3 .github/ci/test_ios_export_declaration.py > export-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          grep -q 'Export classification is unresolved' export-negative.log
+          cp /tmp/export-protected.plist app/ios/Runner/Info.plist
+      - run: python3 .github/ci/test_ios_export_declaration.py > export-restored.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-export-hold-evidence
+          path: export-*.log
+          retention-days: 7

@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     tags: ['v*']
-    branches: ['**', '!ios-platform-readiness', '!ios-auth-inputs', '!ios-session-response', '!ios-social-callback', '!capture-permission-recovery', '!room-join-lifecycle', '!creator-draft-delete-guard', '!app-lifecycle-draft-validation', '!upload-session-ownership', '!app-followthrough-native-compile', '!private-media-session-ownership', '!private-media-native-compile', '!signout-local-boundary', '!signout-native-compile', '!upload-marker-ownership', '!upload-process-death-native', '!upload-center-session-generation', '!native-capture-readiness', '!upload-discard-confirmation-ownership', '!ios-direct-vm-attach', '!ios-marker-process-restart', '!ios-manual-retry-native', '!ios-saved-draft-restart', '!android-saved-draft-restart', '!creator-media-draft-preservation', '!creator-story-draft-preservation', '!chat-screen-session-ownership', '!realtime-session-ownership', '!recovered-video-memory-preview', '!call-status-small-screen', '!room-mic-native-failure', '!call-media-native-failure', '!room-mic-terminal-failure', '!media-safety-localization', '!memory-video-channel-failure', '!memory-video-native-pause', '!memory-video-native-setup']
+    branches: ['**', '!ios-platform-readiness', '!ios-auth-inputs', '!ios-session-response', '!ios-social-callback', '!capture-permission-recovery', '!room-join-lifecycle', '!creator-draft-delete-guard', '!app-lifecycle-draft-validation', '!upload-session-ownership', '!app-followthrough-native-compile', '!private-media-session-ownership', '!private-media-native-compile', '!signout-local-boundary', '!signout-native-compile', '!upload-marker-ownership', '!upload-process-death-native', '!upload-center-session-generation', '!native-capture-readiness', '!upload-discard-confirmation-ownership', '!ios-direct-vm-attach', '!ios-marker-process-restart', '!ios-manual-retry-native', '!ios-saved-draft-restart', '!android-saved-draft-restart', '!creator-media-draft-preservation', '!creator-story-draft-preservation', '!chat-screen-session-ownership', '!realtime-session-ownership', '!recovered-video-memory-preview', '!call-status-small-screen', '!room-mic-native-failure', '!call-media-native-failure', '!room-mic-terminal-failure', '!media-safety-localization', '!memory-video-channel-failure', '!memory-video-native-pause', '!memory-video-native-setup', '!ios-export-declaration-hold']
   pull_request:
 
 jobs:
@@ -168,6 +168,9 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+      - name: Unresolved iOS export declaration stays unanswered
+        run: python3 .github/ci/test_ios_export_declaration.py
+        working-directory: .
       - name: Phone preview finalizer unit contracts (fake Android tools)
         run: python3 .github/ci/test_finalize_phone_preview.py && python3 .github/ci/test_finalize_play_bundle.py && python3 .github/ci/test_candidate_manifest.py && python3 -O .github/ci/test_finalize_phone_preview.py && python3 -O .github/ci/test_finalize_play_bundle.py && python3 -O .github/ci/test_candidate_manifest.py
         working-directory: .

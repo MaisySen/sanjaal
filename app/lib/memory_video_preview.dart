@@ -90,7 +90,7 @@ class _MemoryVideoPreviewState extends State<MemoryVideoPreview> with SessionBou
   @override void mediaVisibilityChanged(bool visible){if(!visible){unawaited(_command('pause'));_playing=false;}}
   @override void didUpdateWidget(MemoryVideoPreview old){super.didUpdateWidget(old);if(!identical(old.file,widget.file))_fail();}
   @override void dispose(){_destroy();super.dispose();}
-  Widget fallback()=>Center(child:Padding(padding:const EdgeInsets.all(16),child:Text(t_('Video preview unavailable. Your video is still selected.'),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white))));
+  Widget fallback()=>ColoredBox(color:Colors.black,child:Center(child:Padding(padding:const EdgeInsets.all(16),child:Text(t_('Video preview unavailable. Your video is still selected.'),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white)))));
   @override Widget build(BuildContext context){
     if(!sessionActive)return const SizedBox.shrink();
     if(_failed || (!memoryVideoPlatformInTests && !Platform.isAndroid && !Platform.isIOS) || kIsWeb || ![TargetPlatform.android,TargetPlatform.iOS].contains(defaultTargetPlatform))return fallback();

@@ -81,7 +81,14 @@ class UserProfilePage extends StatefulWidget {
   State<UserProfilePage> createState() => _UserProfilePageState();
 }
 
-class _UserProfilePageState extends State<UserProfilePage> {
+class _UserProfilePageState extends State<UserProfilePage> with SessionBoundState<UserProfilePage> {
+  late final String _openingUsername=widget.username;
+  @override
+  bool get sessionActive=>super.sessionActive && widget.username==_openingUsername;
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() { u=null;error=null;busy=false;loading=false;read++; }
   Map<String, dynamic>? u;
   String? error;
   bool busy = false;
@@ -95,66 +102,67 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   Future<void> _load() async {
-    if (!mounted) return;
+    if (!mounted || !sessionActive) return;
     final request = ++read;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/${widget.username}') as Map<String, dynamic>;
-      if (mounted && request == read) setState(() => u = (j['user'] as Map).cast<String, dynamic>());
+      if (mounted && sessionActive && request == read) setState(() => u = (j['user'] as Map).cast<String, dynamic>());
     } catch (e) {
-      if (mounted && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : e.message) : t_('Profile could not be loaded.'));
-    } finally { if (mounted && request == read) setState(() => loading = false); }
+      if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : e.message) : t_('Profile could not be loaded.'));
+    } finally { if (mounted && sessionActive && request == read) setState(() => loading = false); }
   }
 
   Future<void> _follow() async {
-    if (busy || loading || u == null) return;
+    if (!sessionActive || busy || loading || u == null) return;
     final me = u!;
     final was = me['following'] == true;
     setState(() => busy = true);
     try {
       await widget.session.call(was ? 'DELETE' : 'POST', '/users/${widget.username}/follow');
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() {
         u = {...u!, 'following': !was, 'followers_count': (((u!['followers_count'] as num?)?.toInt() ?? 0) + (was ? -1 : 1)).clamp(0, 1 << 31)};
       });
       await _load();
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted && sessionActive) setState(() => busy = false);
   }
 
   Future<void> _message() async {
-    if (busy || loading) return;
+    if (!sessionActive || busy || loading) return;
     setState(() => busy = true);
     try {
       final j = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': widget.username}) as Map<String, dynamic>;
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: (j['conversation'] as Map).cast<String, dynamic>())));
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     }
-    if (mounted) setState(() => busy = false);
+    if (mounted && sessionActive) setState(() => busy = false);
   }
 
   Future<void> _menu(String v) async {
-    if (busy || loading) return;
-    if (v == 'report') return reportFlow(context, widget.session, 'user', widget.username);
+    if (!sessionActive || busy || loading) return;
+    if (v == 'report') return reportFlow(context, widget.session, 'user', widget.username, isActive:()=>sessionActive);
     if (v == 'block') {
-      if (await blockFlow(context, widget.session, widget.username) && mounted) Navigator.of(context).pop();
+      if (await blockFlow(context, widget.session, widget.username, isActive:()=>sessionActive) && mounted && sessionActive) Navigator.of(context).pop();
     }
     if (v == 'unblock') {
       try {
         await widget.session.call('DELETE', '/users/${widget.username}/block');
         await _load();
       } catch (e) {
-        if (mounted) showError(context, e);
+        if (mounted && sessionActive) showError(context, e);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!sessionActive) return retiredSessionView();
     final user = u;
     if (user == null) {
       return Scaffold(

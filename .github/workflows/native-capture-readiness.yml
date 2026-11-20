@@ -1,7 +1,7 @@
 name: Native screenshot readiness
 on:
   push:
-    branches: [native-capture-readiness]
+    branches: [native-capture-readiness, native-camera-first-frame]
 permissions:
   contents: read
 jobs:

@@ -16,6 +16,7 @@ import 'package:sanjaal/media_library_page.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:video_player/video_player.dart';
 import 'package:sanjaal/video_poster.dart';
+import 'package:sanjaal/ph.dart';
 
 Future<void> wait(
   WidgetTester t,
@@ -31,7 +32,7 @@ Future<void> wait(
   );
 }
 
-Future<void> bridge(WidgetTester t, String action) async {
+Future<Map<String,dynamic>> bridge(WidgetTester t, String action) async {
   final response = await t.runAsync(
     () => http
         .post(
@@ -52,7 +53,59 @@ Future<void> bridge(WidgetTester t, String action) async {
     200,
     reason: 'Native fixture preparation/focus must pass: ${response?.body}',
   );
-  expect(jsonDecode(response!.body)['app_focused'], true);
+  final result=(jsonDecode(response!.body) as Map).cast<String,dynamic>();
+  expect(result['app_focused'], true);
+  return result;
+}
+
+// A native ready flag and a fake-clock pump do not prove a camera texture
+// reached the Android display. Inspect real screencap pixels, excluding chrome.
+void cameraControls(WidgetTester t) {
+  final target=find.byTooltip('Switch camera');
+  final button=t.getRect(target);
+  final icon=t.getRect(find.descendant(of:target,matching:find.byType(PhIcon)));
+  final view=t.view;
+  final ratio=view.devicePixelRatio;
+  final safe=Rect.fromLTRB(view.padding.left/ratio,view.padding.top/ratio,
+    (view.physicalSize.width-view.padding.right)/ratio,
+    (view.physicalSize.height-view.padding.bottom)/ratio);
+  print('CAMERA_CONTROL_GEOMETRY button=$button icon=$icon safe=$safe viewport=${view.physicalSize}/$ratio');
+  expect(button.width,greaterThanOrEqualTo(48));
+  expect(button.height,greaterThanOrEqualTo(48));
+  expect(button.left,greaterThanOrEqualTo(safe.left));
+  expect(button.top,greaterThanOrEqualTo(safe.top));
+  expect(button.right,lessThanOrEqualTo(safe.right));
+  expect(button.bottom,lessThanOrEqualTo(safe.bottom));
+  expect(icon.top,greaterThanOrEqualTo(button.top));
+  expect(icon.bottom,lessThanOrEqualTo(button.bottom));
+  expect(target.hitTestable(),findsOneWidget);
+}
+
+Future<void> visibleCameraFrame(WidgetTester t) async {
+  for (var attempt=0; attempt<12; attempt++) {
+    cameraControls(t);
+    final frame=await bridge(t,'camera');
+    final visible=await t.runAsync(() async {
+      final codec=await ui.instantiateImageCodec(base64Decode(frame['camera_frame_png'] as String));
+      final image=(await codec.getNextFrame()).image;
+      try {
+        final bytes=(await image.toByteData(format:ui.ImageByteFormat.rawRgba))!.buffer.asUint8List();
+        final colors=<int>{}; var lit=0,total=0;
+        for(var y=image.height~/4;y<image.height*3~/4;y+=(image.height~/30).clamp(1,image.height)) {
+          for(var x=image.width~/5;x<image.width*4~/5;x+=(image.width~/30).clamp(1,image.width)) {
+            final o=(y*image.width+x)*4; final red=bytes[o],green=bytes[o+1],blue=bytes[o+2];
+            colors.add(((red~/16)<<8)|((green~/16)<<4)|(blue~/16));
+            if(red>35 || green>35 || blue>35)lit++; total++;
+          }
+        }
+        return colors.length>12 && lit>total~/4;
+      } finally {image.dispose();codec.dispose();}
+    });
+    if(visible==true)return;
+    await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:300)));
+    await t.pump();
+  }
+  throw TestFailure('Android camera display never showed varied preview pixels; screenshot is not accepted.');
 }
 
 void main() {
@@ -112,7 +165,7 @@ void main() {
       // A ready controller can precede its first camera frame. Allow real frames
       // before capture; the decoded photo below must contain varied pixels.
       await t.pump(const Duration(seconds: 2));
-      await bridge(t, 'camera');
+      await visibleCameraFrame(t);
       await t.tap(find.bySemanticsLabel('Take a photo'));
       await wait(t, () => capture != null);
       final image = await t.runAsync(() async {
@@ -181,6 +234,7 @@ void main() {
         () => find.bySemanticsLabel('Stop recording').evaluate().isNotEmpty,
       );
       await t.pump(const Duration(seconds: 3));
+      cameraControls(t);
       await bridge(t, 'recording');
       await t.tap(find.bySemanticsLabel('Stop recording'));
       await wait(t, () => capture != null);

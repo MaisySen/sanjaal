@@ -1,0 +1,70 @@
+name: Member action session ownership
+on:
+  push:
+    branches: [member-actions-session]
+permissions:
+  contents: read
+jobs:
+  app-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos > analyze.log 2>&1
+      - run: flutter test test/member_actions_session_test.dart test/profile_journey_test.dart --reporter expanded > focused.log 2>&1
+      - name: Historical loaded profile negative control
+        run: |
+          cp lib/profile_pages.dart /tmp/profile-protected.dart
+          trap 'cp /tmp/profile-protected.dart lib/profile_pages.dart' EXIT
+          git show bd595ebb8c2169dd38195c85e67d3867214317ca:app/lib/profile_pages.dart > lib/profile_pages.dart
+          set +e
+          timeout --kill-after=10s 90 flutter test test/member_actions_session_test.dart --plain-name 'member profile retires loaded after same login' --reporter expanded > negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' negative.log
+          cp /tmp/profile-protected.dart lib/profile_pages.dart
+      - name: Dialog listener mutation negative control
+        run: |
+          cp lib/actions.dart /tmp/actions-protected.dart
+          trap 'cp /tmp/actions-protected.dart lib/actions.dart' EXIT
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p=Path('lib/actions.dart');s=p.read_text();assert 'session.addListener(_changed);' in s
+          p.write_text(s.replace('session.addListener(_changed);','// negative control: listener deliberately absent'))
+          PYCODE
+          set +e
+          timeout --kill-after=10s 90 flutter test test/member_actions_session_test.dart --plain-name 'report dialog closes on same login without mutation' --reporter expanded > dialog-negative.log 2>&1
+          result=$?
+          set -e
+          test "$result" -ne 0
+          test "$result" -ne 124
+          grep -q 'Actual:' dialog-negative.log
+          cp /tmp/actions-protected.dart lib/actions.dart
+      - run: flutter test test/member_actions_session_test.dart test/profile_journey_test.dart --reporter expanded > restored.log 2>&1
+      - run: flutter test --reporter expanded > test.log 2>&1
+      - run: flutter build apk --debug > build.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: member-actions-session-evidence
+          path: |
+            app/*.log
+            app/test/renders/profile_*.png
+          retention-days: 7

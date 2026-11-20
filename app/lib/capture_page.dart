@@ -645,7 +645,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
               child: Row(
                 children: [
                   Expanded(
@@ -681,6 +681,8 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                   ),
                   IconButton(
                     tooltip: t_('Switch camera'),
+                    constraints: const BoxConstraints.tightFor(width:48,height:48),
+                    style: IconButton.styleFrom(minimumSize:const Size(48,48),maximumSize:const Size(48,48)),
                     onPressed:
                         busy ||
                             recording ||

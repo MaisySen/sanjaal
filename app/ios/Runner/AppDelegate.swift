@@ -17,6 +17,7 @@ import AVFoundation
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SanjaalVideoPoster") else { return }
+    registrar.register(MemoryVideoFactory(messenger: registrar.messenger()), withId: "au.fintex.sanjaal/memory-video")
     let channel = FlutterMethodChannel(name: "au.fintex.sanjaal/video-poster", binaryMessenger: registrar.messenger())
     channel.setMethodCallHandler { [weak self] call, result in
       guard call.method == "extract" else { result(FlutterMethodNotImplemented); return }

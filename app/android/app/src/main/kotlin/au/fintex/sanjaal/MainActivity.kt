@@ -33,6 +33,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
         VideoPosterChannel(this).register(engine.dartExecutor.binaryMessenger)
+        engine.platformViewsController.registry.registerViewFactory("au.fintex.sanjaal/memory-video", MemoryVideoFactory(engine.dartExecutor.binaryMessenger))
         EventChannel(engine.dartExecutor.binaryMessenger, "au.fintex.sanjaal/updates/events")
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -90,7 +91,13 @@ class MainActivity : FlutterActivity() {
             else -> "FAILED"
         })
     }
+    override fun onPause() {
+        MemoryVideoView.pauseCurrent()
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        MemoryVideoView.disposeCurrent()
         updates.unregisterListener(listener)
         sink = null
         finishConsent("CANCELED")

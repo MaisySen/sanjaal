@@ -1,3 +1,4 @@
+import 'memory_video_preview.dart';
 import 'session_bound_state.dart';
 import 'media_library_page.dart';
 import 'creator_media_draft_store.dart';
@@ -620,7 +621,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
         Text(t_('Disappears after 24 hours'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         const SizedBox(height: 16),
         ClipRRect(borderRadius: BorderRadius.circular(16), child: ColoredBox(color: Colors.black, child: SizedBox(height: 280, child: widget.isVideo
-          ? widget.file.path.contains('://')?Center(child:Text(t_('Video preview unavailable. Your video is still selected.'),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white))):_StoryVideoPreview(file: widget.file)
+          ? widget.file.path.startsWith('draft-memory://')?MemoryVideoPreview(key:ValueKey(widget.file.path),session:widget.session,file:widget.file):widget.file.path.contains('://')?Center(child:Text(t_('Video preview unavailable. Your video is still selected.'),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white))):_StoryVideoPreview(file: widget.file)
           : FutureBuilder<Uint8List>(future: bytes, builder: (_, value) => value.hasData
             ? Image.memory(value.data!, fit: BoxFit.contain, errorBuilder: (_, error, stack) => Center(child: Text(t_('Photo preview unavailable'), style: const TextStyle(color: Colors.white))))
             : value.hasError ? Center(child: Text(t_('File could not be read'), style: const TextStyle(color: Colors.white))) : const Center(child: CircularProgressIndicator()))))),

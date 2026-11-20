@@ -1,3 +1,4 @@
+import 'memory_video_preview.dart';
 import 'dart:typed_data';
 import 'video_poster.dart';
 import 'dart:convert' show jsonEncode;
@@ -1084,7 +1085,7 @@ class _ComposePageState extends State<ComposePage> {
             Text(t_('One choice per person. Results show counts, not names.')),
           ],
           if (video != null)
-            Card(child: ListTile(leading: const PhIcon('video-camera'), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: Text(t_('Posts as a reel')))),
+            Column(children:[Card(child: ListTile(leading: const PhIcon('video-camera'), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: Text(t_('Posts as a reel')))),if(video!.path.startsWith('draft-memory://'))SizedBox(height:280,child:MemoryVideoPreview(key:ValueKey(video!.path),session:widget.session,file:video!))]),
           if (images.isNotEmpty)
             SizedBox(
               height: 140,

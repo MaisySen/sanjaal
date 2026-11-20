@@ -38,4 +38,4 @@ file_put_contents($dir.'/native_media_'.$action.'_window.txt',$window);
 if($capture===0)file_put_contents($dir.'/native_media_'.$action.'.png',$bytes);
 file_put_contents($dir.'/native_media_'.$action.'_result.txt',json_encode(['commands'=>$results,'app_focused'=>$focused,'capture_exit'=>$capture]));
 $ok=$focused && $capture===0 && !array_filter($results,fn($code)=>$code!==0);
-http_response_code($ok?200:502);echo json_encode(['ok'=>$ok,'app_focused'=>$focused,'commands'=>$results]);
+http_response_code($ok?200:502);echo json_encode(['ok'=>$ok,'app_focused'=>$focused,'commands'=>$results,...($action==='camera' && $capture===0 ? ['camera_frame_png'=>base64_encode($bytes)] : [])]);

@@ -244,6 +244,7 @@ class ExtrasController extends Controller
     /** Exact current call state. An absent call is not evidence of its outcome. */
     public function callState(Request $request, string $id): JsonResponse
     {
+        abort_unless(Str::isUuid($id), 404);
         $c = DB::table('calls')->where('public_id', $id)->first();
         abort_unless($c, 404);
         abort_unless(DB::table('conversation_members')->where('conversation_id', $c->conversation_id)->where('user_id', $request->user()->id)->exists(), 404);
@@ -253,6 +254,7 @@ class ExtrasController extends Controller
 
     public function callStatus(Request $request, string $id): JsonResponse
     {
+        abort_unless(Str::isUuid($id), 404);
         $data = $request->validate(['action' => ['required', 'in:answer,decline,end']]);
         $me = $request->user();
         $row = DB::transaction(function () use ($data, $me, $id) {

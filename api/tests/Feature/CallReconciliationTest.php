@@ -35,6 +35,8 @@ class CallReconciliationTest extends TestCase
             ->assertJsonStructure(['call' => ['ring_expires_at']]);
         $this->getJson("/api/v1/calls/$call", $outsider)->assertNotFound();
         $this->getJson('/api/v1/calls/missing-fixture', $recipient)->assertNotFound();
+        $this->getJson('/api/v1/calls/00000000-0000-4000-8000-000000000001', $recipient)->assertNotFound();
+        $this->postJson('/api/v1/calls/missing-fixture/action', ['action'=>'answer'], $recipient)->assertNotFound();
         $this->assertSame($count, DB::table('calls')->count());
     }
 
@@ -74,6 +76,8 @@ class CallReconciliationTest extends TestCase
         $count = DB::table('calls')->count();
         $this->postJson("/api/v1/conversations/$conversation/call-token?call=missing-fixture", [], $recipient)
             ->assertNotFound();
+        $this->postJson("/api/v1/conversations/$conversation/call-token?call=00000000-0000-4000-8000-000000000001", [], $recipient)->assertNotFound();
+        $this->postJson("/api/v1/conversations/$conversation/call-token?call[]=invalid-fixture", [], $recipient)->assertNotFound();
         $this->postJson("/api/v1/conversations/$conversation/call-token?call=$call", [], $recipient)
             ->assertStatus(409);
         $this->postJson("/api/v1/calls/$call/action", ['action' => 'decline'], $recipient)->assertOk();

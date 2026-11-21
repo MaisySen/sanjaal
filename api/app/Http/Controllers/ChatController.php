@@ -60,7 +60,9 @@ class ChatController extends Controller
         $me = $request->user();
         $existing = null;
         if ($request->query->has('call')) {
-            $selected = DB::table('calls')->where('public_id', $request->query('call'))->where('conversation_id', $convo->id)->first();
+            $callId = $request->query('call');
+            abort_unless(is_string($callId) && \Illuminate\Support\Str::isUuid($callId), 404);
+            $selected = DB::table('calls')->where('public_id', $callId)->where('conversation_id', $convo->id)->first();
             abort_unless($selected, 404);
             abort_unless(in_array($selected->status, ['ringing', 'answered'], true), 410);
             abort_if($selected->status === 'ringing' && \Carbon\Carbon::parse($selected->created_at)->lte(now()->subSeconds(40)), 410);

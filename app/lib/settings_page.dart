@@ -1,3 +1,4 @@
+import 'account_deletion_page.dart';
 import 'glass/glass_settings.dart';
 import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
@@ -67,12 +68,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
           final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal'));
           if (!ok && context.mounted && sessionActive) showInfo(context, 'Email contact@fintex.au for help.');
         }, subtitle: 'contact@fintex.au')),
-        ('Delete my account data', option('Delete my account', 'trash', () async {
-          if(!mounted || !sessionActive)return;
-          final u = (session.user?['username'] ?? '').toString();
-          final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=${Uri.encodeComponent('Delete my Sanjaal account')}&body=${Uri.encodeComponent('Please delete my Sanjaal account and data. Username: $u')}'));
-          if (!ok && context.mounted && sessionActive) showInfo(context, 'Email contact@fintex.au to request account deletion.');
-        }, subtitle: 'Sends a request by email')),
+        ('Delete my account data', option('Delete my account', 'trash', () => open(AccountDeletionPage(session: session)), destructive: true)),
       ],
       'Login': [
         ('Sign out logout', option('Sign out', 'sign-out', () {

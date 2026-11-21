@@ -124,6 +124,20 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Request status could not be verified. Check its status again.': 'अनुरोधको स्थिति पुष्टि हुन सकेन। यसको स्थिति फेरि जाँच्नुहोस्।',
+  'Could not confirm your request. Check its status before trying again.': 'तपाईंको अनुरोध पुष्टि हुन सकेन। फेरि प्रयास गर्नुअघि यसको स्थिति जाँच्नुहोस्।',
+  'Could not load account deletion. No new request has been sent.': 'खाता मेटाउने विवरण लोड हुन सकेन। कुनै नयाँ अनुरोध पठाइएको छैन।',
+  'Request deletion': 'मेटाउन अनुरोध गर्नुहोस्',
+  'Sending request...': 'अनुरोध पठाइँदैछ...',
+  'Check status': 'स्थिति जाँच्नुहोस्',
+  'No request has been sent. Account deletion is not set up for this version.': 'कुनै अनुरोध पठाइएको छैन। यस संस्करणमा खाता मेटाउने व्यवस्था तयार छैन।',
+  'Account deletion is not available yet': 'खाता मेटाउने सुविधा अझै उपलब्ध छैन',
+  'I want to request deletion of my account and data.': 'म आफ्नो खाता र डाटा मेटाउन अनुरोध गर्न चाहन्छु।',
+  'Request deletion of your Sanjaal account and associated personal data, including content you shared. This is different from signing out.': 'तपाईंले साझा गर्नुभएको सामग्रीसहित आफ्नो सञ्जाल खाता र सम्बन्धित व्यक्तिगत डाटा मेटाउन अनुरोध गर्नुहोस्। यो साइन आउट गर्नु भन्दा फरक हो।',
+  'Request account deletion': 'खाता मेटाउन अनुरोध गर्नुहोस्',
+  'Your request has been recorded. Your account and data have not been deleted yet.': 'तपाईंको अनुरोध दर्ता भएको छ। तपाईंको खाता र डाटा अझै मेटाइएको छैन।',
+  'Deletion requested': 'खाता मेटाउने अनुरोध पठाइयो',
+  'This account session has ended.': 'यो खाताको सत्र समाप्त भएको छ।',
   'Transparency': 'पारदर्शिता',
   'Ultra clear': 'धेरै पारदर्शी',
   'Fully tinted': 'गाढा रङ',

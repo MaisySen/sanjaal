@@ -12,6 +12,8 @@ Route::get('/v1/ping', fn () => response()->json(['app' => 'sanjaal', 'status' =
 
 Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/me/deletion', [\App\Http\Controllers\AccountDeletionController::class, 'show']);
+    Route::post('/me/deletion', [\App\Http\Controllers\AccountDeletionController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/me/story-audience', [\App\Http\Controllers\StoryAudienceController::class, 'index']);
     Route::get('/me/story-audience/{username}', [\App\Http\Controllers\StoryAudienceController::class, 'show']);
     Route::put('/me/story-audience/{username}', [\App\Http\Controllers\StoryAudienceController::class, 'update'])->middleware('throttle:30,1');

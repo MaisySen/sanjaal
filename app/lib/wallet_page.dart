@@ -364,7 +364,8 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
 
   @override
   Widget build(BuildContext context) {
-    if (!sessionActive) return Scaffold(
+    if (!sessionActive) {
+      return Scaffold(
       appBar: AppBar(title: Text(t_('Wallet'))),
       body: ModalRoute.of(context)?.isCurrent == false ? const SizedBox.shrink() : SingleChildScrollView(
         padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -380,6 +381,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
       ),
     );
     final esewa = topup['esewa'] == true;
+    }
     final canCash = cashout['available'] == true && balance >= ((cashout['min'] as num?)?.toInt() ?? 500);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(

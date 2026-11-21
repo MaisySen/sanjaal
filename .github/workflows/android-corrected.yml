@@ -1,5 +1,5 @@
 name: Corrected2013 Android engineering checks
-true:
+on:
   push:
     branches:
     - android-corrected-2013

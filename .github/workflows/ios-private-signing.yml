@@ -1,4 +1,4 @@
-name: Sanjaal private identity preflight
+name: Sanjaal private signed archive
 on:
   push:
     branches: [ios-private-signing]
@@ -8,37 +8,146 @@ concurrency:
   group: sanjaal-private-signing
   cancel-in-progress: false
 jobs:
-  preflight:
+  archive:
     if: github.repository == 'MaisySen/sanjaal' && github.ref == 'refs/heads/ios-private-signing'
     environment: sanjaal-private-signing
     runs-on: macos-latest
-    timeout-minutes: 5
+    timeout-minutes: 40
+    env:
+      SOURCE_SHA: dc48198dd29143e6db7bd52d3dc030c6971e13f2
+      TEAM_ID: B85KQRQZW7
+      PROFILE_UUID: 7ffa720f-5565-4125-87d3-5881862f317f
+      PROFILE_NAME: Sanjaal-Private-AppStore-20261121
+      CERT_SHA256: 71AF69FDFE928791EF38FAA38C00FBC1807301146CFA1DA1A6C007D6BF88549F
     steps:
-      - name: Test approved identity without app source or dependencies
+      - name: Check out exact accepted source, never branch or PR input
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dc48198dd29143e6db7bd52d3dc030c6971e13f2
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: false
+      - name: Verify source and preserve unanswered export declaration
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python3 .github/ci/test_ios_export_declaration.py
+          git diff --exit-code
+          xcodebuild -version
+          flutter --version
+      - name: Prepare exact release build without a signing credential present
+        working-directory: app
+        run: |
+          set -euo pipefail
+          flutter pub get
+          flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1
+      - name: Import one approved identity into an ephemeral keychain
         env:
           SIGNING_P12_B64: ${{ secrets.SANJAAL_SIGNING_P12_B64 }}
+          SIGNING_PROFILE_B64: ${{ secrets.SANJAAL_SIGNING_PROFILE_B64 }}
           SIGNING_P12_PASSWORD: ${{ secrets.SANJAAL_SIGNING_P12_PASSWORD }}
         run: |
           set -euo pipefail
           umask 077
-          python3 - <<'CHECK'
-          import os,base64,pathlib,subprocess,hashlib,secrets
-          r=pathlib.Path(os.environ['RUNNER_TEMP'])/'sanjaal-preflight';r.mkdir(mode=0o700)
-          k=str(r/'check.keychain-db');p=secrets.token_urlsafe(32)
-          try:
-           (r/'identity.p12').write_bytes(base64.b64decode(os.environ['SIGNING_P12_B64'],validate=True))
-           for cmd in [['security','create-keychain','-p',p,k],['security','set-keychain-settings','-lut','600',k],['security','unlock-keychain','-p',p,k],['security','import',str(r/'identity.p12'),'-P',os.environ['SIGNING_P12_PASSWORD'],'-A','-k',k],['security','list-keychains','-d','user','-s',k],['security','set-key-partition-list','-S','apple-tool:,apple:,codesign:','-k',p,k]]:
-            result=subprocess.run(cmd,capture_output=True,text=True)
-            if result.returncode:raise RuntimeError('Keychain stage failed: '+cmd[1]+'; '+result.stderr)
-           ids=subprocess.check_output(['security','find-identity','-v','-p','codesigning',k],text=True)
-           assert 'Apple Distribution' in ids and 'B85KQRQZW7' in ids, 'Approved identity is not usable'
-           (r/'test.c').write_text('int main(void){return 0;}')
-           subprocess.run(['xcrun','clang',str(r/'test.c'),'-o',str(r/'test')],check=True,capture_output=True)
-           subprocess.run(['codesign','--force','--sign','Apple Distribution','--keychain',k,str(r/'test')],check=True,capture_output=True)
-           subprocess.run(['codesign','--verify','--strict',str(r/'test')],check=True,capture_output=True)
-           print('PASS: approved identity imported, located as valid codesigning identity, and signed a local throwaway executable; strict signature verification passed. No app built or uploaded.')
-          finally:
-           subprocess.run(['security','delete-keychain',k],capture_output=True)
-           import shutil
-           shutil.rmtree(r,ignore_errors=True)
-          CHECK
+          python3 - <<'PY'
+          import os,base64,pathlib,plistlib,hashlib,subprocess,secrets
+          r=pathlib.Path(os.environ['RUNNER_TEMP'])/'sanjaal-signing';r.mkdir(mode=0o700)
+          for env,name in [('SIGNING_P12_B64','identity.p12'),('SIGNING_PROFILE_B64','app.mobileprovision')]:
+              value=os.environ[env]
+              if not value: raise SystemExit('Required scoped signing secret is missing')
+              (r/name).write_bytes(base64.b64decode(value,validate=True))
+          profile=plistlib.loads(subprocess.check_output(['security','cms','-D','-i',str(r/'app.mobileprovision')]))
+          assert profile['UUID']==os.environ['PROFILE_UUID']
+          assert profile['TeamIdentifier']==[os.environ['TEAM_ID']]
+          assert profile['Entitlements']['application-identifier']==os.environ['TEAM_ID']+'.au.fintex.sanjaal'
+          assert profile['Entitlements']['get-task-allow'] is False
+          assert not profile.get('ProvisionedDevices') and not profile.get('ProvisionsAllDevices')
+          assert len(profile['DeveloperCertificates'])==1
+          cert=profile['DeveloperCertificates'][0]
+          assert hashlib.sha256(cert).hexdigest().upper()==os.environ['CERT_SHA256']
+          (r/'recipient.cer').write_bytes(cert)
+          subprocess.run(['openssl','x509','-inform','DER','-in',str(r/'recipient.cer'),'-out',str(r/'recipient.pem')],check=True)
+          keychain=str(r/'sanjaal.keychain-db');password=secrets.token_urlsafe(32)
+          for cmd in [
+              ['security','create-keychain','-p',password,keychain],
+              ['security','set-keychain-settings','-lut','21600',keychain],
+              ['security','unlock-keychain','-p',password,keychain],
+              ['security','import',str(r/'identity.p12'),'-P',os.environ['SIGNING_P12_PASSWORD'],'-A','-k',keychain],
+              ['security','list-keychains','-d','user','-s',keychain],
+              ['security','set-key-partition-list','-S','apple-tool:,apple:,codesign:','-k',password,keychain],
+          ]: subprocess.run(cmd,check=True,stdout=subprocess.DEVNULL)
+          dest=pathlib.Path.home()/'Library/MobileDevice/Provisioning Profiles';dest.mkdir(parents=True,exist_ok=True)
+          (dest/(profile['UUID']+'.mobileprovision')).write_bytes((r/'app.mobileprovision').read_bytes())
+          identities=subprocess.check_output(['security','find-identity','-v','-p','codesigning',keychain],text=True)
+          assert 'Apple Distribution' in identities and os.environ['TEAM_ID'] in identities
+          (r/'identity.p12').unlink()
+          options={'method':'app-store-connect','destination':'export','signingStyle':'manual','teamID':os.environ['TEAM_ID'],'signingCertificate':'Apple Distribution','provisioningProfiles':{'au.fintex.sanjaal':profile['UUID']},'uploadSymbols':False,'manageAppVersionAndBuildNumber':False,'stripSwiftSymbols':True}
+          (r/'ExportOptions.plist').write_bytes(plistlib.dumps(options))
+          project=pathlib.Path('app/ios/Runner.xcodeproj/project.pbxproj')
+          text=project.read_text()
+          import re
+          count=0
+          def signing(match):
+              global count
+              block=match.group(0)
+              if 'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;' not in block: return block
+              assert 'PRODUCT_BUNDLE_IDENTIFIER = au.fintex.sanjaal;' in block
+              count+=1
+              settings='CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = B85KQRQZW7;\n\t\t\t\t"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "Sanjaal-Private-AppStore-20261121";'
+              return block.replace('CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;', 'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;\n\t\t\t\t'+settings)
+          text=re.sub(r'\b[A-F0-9]{24} /\* (?:Release|Profile|Debug) \*/ = \{.*?\n\t\t\};',signing,text,flags=re.S)
+          assert count==3, f'Unexpected Runner configuration count: {count}'
+          project.write_text(text)
+          print('Exact Sanjaal profile and certificate verified; ephemeral identity imported; Runner-only signing settings applied locally.')
+          PY
+      - name: Archive and export locally, no upload or distribution command
+        working-directory: app
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Sanjaal.xcarchive" archive COMPILER_INDEX_STORE_ENABLE=NO > "$RUNNER_TEMP/sanjaal-archive.log" 2>&1 || { tail -100 "$RUNNER_TEMP/sanjaal-archive.log"; exit 1; }
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Sanjaal.xcarchive" -exportPath "$RUNNER_TEMP/sanjaal-export" -exportOptionsPlist "$RUNNER_TEMP/sanjaal-signing/ExportOptions.plist" > "$RUNNER_TEMP/sanjaal-export.log" 2>&1 || { tail -100 "$RUNNER_TEMP/sanjaal-export.log"; exit 1; }
+      - name: Verify actual signed app and encrypt the only uploaded output
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sanjaal-verify" "$RUNNER_TEMP/sanjaal-encrypted"
+          python3 - <<'PY'
+          import pathlib,os,zipfile,subprocess,plistlib,hashlib,json,shutil
+          r=pathlib.Path(os.environ['RUNNER_TEMP']);ipas=list((r/'sanjaal-export').glob('*.ipa'));assert len(ipas)==1
+          ipa=ipas[0]
+          with zipfile.ZipFile(ipa) as z: z.extractall(r/'sanjaal-verify')
+          apps=list((r/'sanjaal-verify/Payload').glob('*.app'));assert len(apps)==1;app=apps[0]
+          subprocess.run(['codesign','--verify','--deep','--strict','--verbose=2',str(app)],check=True)
+          info=plistlib.loads((app/'Info.plist').read_bytes());assert info['CFBundleIdentifier']=='au.fintex.sanjaal';assert info['CFBundleShortVersionString']=='0.5.7';assert str(info['CFBundleVersion'])=='2012'
+          assert 'ITSAppUsesNonExemptEncryption' not in info
+          p=plistlib.loads(subprocess.check_output(['security','cms','-D','-i',str(app/'embedded.mobileprovision')]))
+          assert p['UUID']==os.environ['PROFILE_UUID'];assert hashlib.sha256(p['DeveloperCertificates'][0]).hexdigest().upper()==os.environ['CERT_SHA256']
+          e=plistlib.loads(subprocess.check_output(['codesign','-d','--entitlements',':-',str(app)],stderr=subprocess.DEVNULL))
+          assert e['application-identifier']==os.environ['TEAM_ID']+'.au.fintex.sanjaal'
+          assert e.get('get-task-allow',False) is False
+          verify={'source_sha':os.environ['SOURCE_SHA'],'ipa_sha256':hashlib.sha256(ipa.read_bytes()).hexdigest(),'ipa_bytes':ipa.stat().st_size,'bundle_id':info['CFBundleIdentifier'],'version':info['CFBundleShortVersionString'],'build':info['CFBundleVersion'],'team_id':os.environ['TEAM_ID'],'profile_uuid':p['UUID'],'certificate_sha256':os.environ['CERT_SHA256'],'entitlements':e,'codesign_deep_strict':True,'export_declaration':'unanswered','distribution':'not uploaded; no device acceptance yet'}
+          (r/'sanjaal-verify/audit.json').write_text(json.dumps(verify,indent=2,default=str))
+          payload=r/'sanjaal-private-payload.zip'
+          with zipfile.ZipFile(payload,'w',zipfile.ZIP_DEFLATED) as z:
+              z.write(ipa,'sanjaal-0.5.7-2012-appstore-signed.ipa');z.write(r/'sanjaal-verify/audit.json','audit.json')
+              description=r/'sanjaal-export/AppStoreInfo.plist'
+              if description.exists(): z.write(description,'AppStoreInfo.plist')
+          subprocess.run(['openssl','cms','-encrypt','-binary','-aes256','-in',str(payload),'-out',str(r/'sanjaal-encrypted/sanjaal-private-archive.cms'),'-outform','DER',str(r/'sanjaal-signing/recipient.pem')],check=True)
+          print(json.dumps(verify,indent=2,default=str))
+          payload.unlink()
+          PY
+      - name: Upload encrypted archive only, never plaintext IPA or key
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sanjaal-private-archive-encrypted
+          path: ${{ runner.temp }}/sanjaal-encrypted/sanjaal-private-archive.cms
+          if-no-files-found: error
+          retention-days: 1
+      - name: Remove transient credentials and plaintext build files
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/sanjaal-signing/sanjaal.keychain-db" 2>/dev/null || true
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          rm -rf "$RUNNER_TEMP/sanjaal-signing" "$RUNNER_TEMP/sanjaal-export" "$RUNNER_TEMP/sanjaal-verify" "$RUNNER_TEMP/Sanjaal.xcarchive" "$RUNNER_TEMP/sanjaal-private-payload.zip"

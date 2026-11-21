@@ -755,7 +755,7 @@ void main() {
           await tester.pump(const Duration(milliseconds: 100));
         }
         bool icon(String n) => find.byWidgetPredicate((w) => w is PhIcon && (w.icon == n || (w.icon is PhData && (w.icon as PhData).name == n))).evaluate().isNotEmpty;
-        final msg = {'offline': 'No connection. Check your internet and try again.', 'server500': 'Server trouble', 'garbled': 'Could not load posts. Try again.'}[mode]!;
+        final msg = {'offline': 'No connection. Check your internet and try again.', 'server500': 'Could not load this. Try again.', 'garbled': 'Could not load posts. Try again.'}[mode]!;
         expect(find.text(msg), findsOneWidget);
         expect(find.text('Nothing saved yet'), findsNothing, reason: 'a failure must not read as an empty list');
         expect(icon('cloud-slash'), mode == 'offline');

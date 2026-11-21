@@ -1,4 +1,5 @@
 import 'ph.dart';
+import 'api.dart';
 import 'photo_gallery.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
@@ -19,10 +20,37 @@ String ago(String iso) {
   return '${t.day}/${t.month}/${t.year}';
 }
 
+String failureMessage(Object error, {String fallback = 'Something went wrong. Check the current state before trying again.'}) {
+  if (error is String) return error;
+  if (error is ApiError) return error.message;
+  if (error is StateError) {
+    const allowed = {
+      'This draft changed. Reopen the saved copy before deleting it.',
+      'This saved draft was removed. Open a new post to save another.',
+      'This draft changed in another editor. Reopen the saved copy before saving again.',
+      'Eight drafts are saved. Delete one before saving another.',
+      'This media draft changed. Reopen the saved copy.',
+      'This media draft changed. Reopen before deleting.',
+      'Check the earlier upload before changing this saved draft.',
+      'Eight media drafts are saved. Delete one before saving another.',
+      'Each saved file must be at most 25 MB',
+      'This file type cannot be saved as a draft',
+      'Local media draft storage is full. Delete a saved draft first.',
+      'Media draft key is unavailable. Nothing was replaced.',
+      'Saved media is missing or changed. Nothing was posted.',
+    };
+    if (allowed.contains(error.message)) return error.message.toString();
+    if (const {'Unsafe media storage', 'Unsafe draft path', 'Saved media could not be verified'}.contains(error.message)) {
+      return 'Saved media could not be verified. Nothing was posted.';
+    }
+  }
+  return fallback;
+}
+
 void showError(BuildContext context, Object e) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(e.toString())));
+    ..showSnackBar(SnackBar(content: Semantics(liveRegion: true, child: Text(t_(failureMessage(e))))));
 }
 
 /// Runs a photo or video pick. Cancelling returns null. A refused camera or photo permission, or a picker that fails,
@@ -96,6 +124,50 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Could not load this. Try again.': 'यो देखाउन सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Could not confirm the result. Check before trying again.': 'नतिजा पुष्टि भएन। फेरि प्रयास गर्नुअघि जाँच्नुहोस्।',
+
+  'Amount must be between 1 and 100000 coins.': 'रकम १ देखि १००००० सिक्कासम्म हुनुपर्छ।',
+  'Cash out between 500 and 100000 coins at a time.': 'एक पटकमा ५०० देखि १००००० सिक्कासम्म झिक्न सकिन्छ।',
+  'A group can have at most 50 members.': 'समूहमा बढीमा ५० सदस्य हुन सक्छन्।',
+  'A poll needs a question and 2 to 4 different options, without media.': 'मतदानमा प्रश्न र २ देखि ४ फरक विकल्प चाहिन्छ। मिडिया राख्न मिल्दैन।',
+  'A post needs text or media.': 'पोस्टमा लेखाइ वा मिडिया चाहिन्छ।',
+  'A reel needs exactly one video.': 'रिलमा एउटा मात्र भिडियो चाहिन्छ।',
+  'Calls are not available yet.': 'कल सुविधा अझै उपलब्ध छैन।',
+  'Cash out is not switched on yet.': 'रकम झिक्ने सुविधा अझै खुलेको छैन।',
+  'Live rooms are not available yet.': 'लाइभ कोठा अझै उपलब्ध छैनन्।',
+  'Not enough coins.': 'पर्याप्त सिक्का छैनन्।',
+  'One or more users were not found.': 'एक वा बढी प्रयोगकर्ता भेटिएनन्।',
+  'Only groups have a member list.': 'समूहमा मात्र सदस्य सूची हुन्छ।',
+  'Only groups have a name.': 'समूहको मात्र नाम राख्न मिल्छ।',
+  'Only the group owner can rename it.': 'समूह बनाउनेले मात्र यसको नाम बदल्न सक्छन्।',
+  'Only the host of a live room can do that.': 'लाइभ कोठाको सञ्चालकले मात्र यो गर्न सक्छन्।',
+  'Safe upload retries are temporarily unavailable. Your draft is kept.': 'सुरक्षित रूपमा फेरि अपलोड गर्ने सुविधा अहिले उपलब्ध छैन। मस्यौदा सुरक्षित छ।',
+  'Selected people changed. Find them again.': 'छानिएका व्यक्तिको विवरण बदलियो। फेरि खोज्नुहोस्।',
+  'That request id was already used for a different amount.': 'यो अनुरोध पहिल्यै अर्को रकमका लागि प्रयोग भयो।',
+  'The group name cannot be empty.': 'समूहको नाम खाली हुन सक्दैन।',
+  'The original upload was removed or expired. It will not be shared again.': 'मूल अपलोड हटाइयो वा म्याद सकियो। यसलाई फेरि साझा गरिने छैन।',
+  'This cash out is already being processed and cannot be canceled.': 'यो रकम झिक्ने प्रक्रिया सुरु भइसकेकाले रद्द गर्न मिल्दैन।',
+  'This draft was already submitted with different content. Check the original before sharing again.': 'यो मस्यौदा पहिल्यै फरक सामग्रीसहित पठाइयो। फेरि साझा गर्नुअघि मूल सामग्री जाँच्नुहोस्।',
+  'This room has ended.': 'यो कोठा बन्द भइसक्यो।',
+  'Top up is not switched on yet.': 'सिक्का थप्ने सुविधा अझै खुलेको छैन।',
+  'Transfers are unavailable until verification is complete.': 'पुष्टि पूरा नभएसम्म सिक्का पठाउन मिल्दैन।',
+  'Unknown gift.': 'यो उपहार उपलब्ध छैन।',
+  'User not found.': 'प्रयोगकर्ता भेटिएनन्।',
+  'You already have a live room. End it first.': 'तपाईंको लाइभ कोठा चलिरहेको छ। पहिले त्यसलाई बन्द गर्नुहोस्।',
+  'You can only leave a group.': 'समूहबाट मात्र बाहिरिन मिल्छ।',
+  'You cannot message yourself.': 'आफैँलाई सन्देश पठाउन मिल्दैन।',
+  'You cannot send coins to yourself.': 'आफैँलाई सिक्का पठाउन मिल्दैन।',
+  'This transfer key already belongs to different details.': 'यो स्थानान्तरण पहिल्यै फरक विवरणका लागि प्रयोग भयो।',
+  'No member with that username.': 'यो प्रयोगकर्ता नाम भएको सदस्य भेटिएन।',
+
+  'Something went wrong. Check the current state before trying again.': 'समस्या आयो। फेरि प्रयास गर्नुअघि हालको अवस्था जाँच्नुहोस्।',
+  'Saved media could not be verified. Nothing was posted.': 'सुरक्षित मिडिया पुष्टि गर्न सकिएन। केही पोस्ट गरिएको छैन।',
+  'The request result could not be confirmed. Check its current state before trying again.': 'अनुरोधको नतिजा पुष्टि गर्न सकिएन। फेरि प्रयास गर्नुअघि हालको अवस्था जाँच्नुहोस्।',
+  'Check the details and try again.': 'विवरण जाँचेर फेरि प्रयास गर्नुहोस्।',
+  'You do not have access to do that.': 'तपाईंलाई यो गर्ने अनुमति छैन।',
+  'This item is unavailable.': 'यो सामग्री उपलब्ध छैन।',
+
   'Account recovery': 'खाता पुनःप्राप्ति',
   'Forgot password?': 'पासवर्ड बिर्सनुभयो?',
   'Check your inbox': 'आफ्नो इमेल जाँच्नुहोस्',

@@ -66,7 +66,7 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
       if (mounted && active)
         setState(
           () => error = e is ApiError
-              ? e.message
+              ? t_(e.message)
               : t_('Story audience could not be loaded.'),
         );
     } finally {
@@ -231,7 +231,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
       if (mounted && active)
         setState(
           () => error = e is ApiError
-              ? e.message
+              ? t_(e.message)
               : t_('Story audience could not be loaded.'),
         );
     } finally {
@@ -266,7 +266,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
         setState(() {
           needsReload = true;
           error = e is ApiError
-              ? e.message
+              ? t_(e.message)
               : t_(
                   'Save result is unconfirmed. Reload before making another change.',
                 );

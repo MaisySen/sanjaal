@@ -48,7 +48,7 @@ class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareS
       final j = await widget.session.call('GET', '/conversations') as Map<String, dynamic>;
       if (mounted && sessionActive) setState(() => chats = (j['data'] as List).cast<Map<String, dynamic>>());
     } on ApiError catch (e) {
-      if (mounted && sessionActive) setState(() => error = e.message);
+      if (mounted && sessionActive) setState(() => error = t_(e.message));
     } finally {
       if (mounted && sessionActive) setState(() => loading = false);
     }
@@ -68,7 +68,7 @@ class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareS
     } on ApiError catch (e) {
       if (!mounted || !sessionActive) return;
       setState(() => sending = null);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_(e.message))));
     }
   }
 

@@ -173,7 +173,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
     } catch (e) {
       if (mounted && sessionActive && generation == loadGeneration) {
         setState(() {
-          error = e is ApiError ? e.message : t_('Wallet could not be loaded.');
+          error = e is ApiError ? t_(e.message) : t_('Wallet could not be loaded.');
           loading = false;
           refreshing = false;
         });

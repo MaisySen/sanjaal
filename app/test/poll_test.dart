@@ -61,7 +61,7 @@ void main() {
     await fixture(t, (s) async {
       await t.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: Scaffold(body: PollCard(session: s, post: post))));
       await t.tap(find.text('Saturday')); await flush(t);
-      expect(find.text('Vote fixture failed'), findsOneWidget);
+      expect(find.text('Could not confirm the result. Check before trying again.'), findsOneWidget);
       expect(find.text('0 votes'), findsOneWidget);
       expect(find.text('Remove vote'), findsNothing);
       fail = false;

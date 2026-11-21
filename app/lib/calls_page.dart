@@ -134,7 +134,7 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
         ),
       ));
     } catch (e) {
-      if (mounted && sessionActive) setState(() { busy = false; error = e is ApiError ? e.message : t_('Could not update the call. Try again.'); });
+      if (mounted && sessionActive) setState(() { busy = false; error = e is ApiError ? t_(e.message) : t_('Could not update the call. Try again.'); });
     }
   }
 

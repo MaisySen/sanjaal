@@ -127,7 +127,7 @@ void main() {
       await withSession(t, (s) async {
         await t.pumpWidget(app(switch (page) { 'chats' => ChatsPage(session: s), 'calls' => CallsPage(session: s), _ => RoomsPage(session: s) }));
         await flush(t);
-        expect(find.text('Fixture unavailable'), findsOneWidget);
+        expect(find.text('Could not load this. Try again.'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Try again'), findsOneWidget);
         expect(find.text('Start a conversation'), findsNothing);
         expect(find.text('No rooms live right now'), findsNothing);
@@ -135,7 +135,7 @@ void main() {
         await t.tap(find.text('Try again'));
         await flush(t);
         expect(reads, 2);
-        expect(find.text('Fixture unavailable'), findsNothing);
+        expect(find.text('Could not load this. Try again.'), findsNothing);
         expect(t.takeException(), isNull);
       }, (_) async { reads++; return reply(fail ? {'message': 'Fixture unavailable'} : {'data': []}, fail ? 503 : 200); });
     });
@@ -249,7 +249,7 @@ void main() {
         expect(actions, 1);
         pending.complete(reply({'message': 'Call update failed'}, 503));
         await flush(t);
-        expect(find.text('Call update failed'), findsOneWidget);
+        expect(find.text('Could not confirm the result. Check before trying again.'), findsOneWidget);
         expect(find.byType(IncomingCallPage), findsOneWidget);
         expect(find.byType(CallPage), findsNothing);
         expect(tokens, 0);

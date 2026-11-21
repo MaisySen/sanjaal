@@ -44,7 +44,7 @@ class _PostPageState extends State<PostPage> with SessionBoundState<PostPage> {
       if (!mounted || !sessionActive) return;
       setState(() {
         unavailable = e.status == 404 || e.status == 410;
-        error = unavailable ? null : e.message;
+        error = unavailable ? null : t_(e.message);
       });
     } finally {
       if (mounted && sessionActive) setState(() => loading = false);

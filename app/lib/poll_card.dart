@@ -37,7 +37,7 @@ class _PollCardState extends State<PollCard> {
         widget.post['poll'] = poll;
       });
     } catch (e) {
-      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Could not save your vote. Try again.'));
+      if (mounted) setState(() => error = e is ApiError ? t_(e.message) : t_('Could not save your vote. Try again.'));
     } finally {
       if (mounted) setState(() => busy = false);
     }

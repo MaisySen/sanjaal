@@ -575,7 +575,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
       await widget.session.upload('/stories', fields: {'caption': caption.text.trim(), 'protected_media':'1', 'audience':audience}, file: UploadFile(data, mimeFor(widget.file.name, video: widget.isVideo), widget.file.name), intent: intent);
       if (mounted && _active) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted) setState(() { busy = false; error = e.toString(); uploadError = e is UploadError ? e : null; });
+      if (mounted) setState(() { busy = false; error = t_(failureMessage(e, fallback: 'The upload result is unknown. Check your posts or stories before sharing again.')); uploadError = e is UploadError ? e : null; });
     }
   }
 

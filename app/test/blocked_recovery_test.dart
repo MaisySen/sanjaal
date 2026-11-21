@@ -29,7 +29,7 @@ void main(){
   var reads=0;
   await helpers.fixture(t,(s,c)async{
    await t.pumpWidget(MaterialApp(home:BlockedPage(session:s)));await helpers.flush(t);
-   expect(find.text('Synthetic unavailable'),findsOneWidget);
+   expect(find.text('Could not load this. Try again.'),findsOneWidget);
    await t.tap(find.text('Try again'));await helpers.flush(t);
    expect(find.text('You have not blocked anyone'),findsOneWidget);
    await t.tap(find.byTooltip('Refresh'));await helpers.flush(t);expect(reads,3);
@@ -40,7 +40,7 @@ void main(){
   await helpers.fixture(t,(s,c)async{
    await t.pumpWidget(MaterialApp(home:BlockedPage(session:s)));await helpers.flush(t);
    await t.tap(find.byTooltip('Refresh'));await helpers.flush(t);
-   expect(find.text('@fixture'),findsOneWidget);expect(find.text('Synthetic read failed'),findsOneWidget);
+   expect(find.text('@fixture'),findsOneWidget);expect(find.text('Could not load this. Try again.'),findsOneWidget);
    await t.tap(find.text('Try again'));await helpers.flush(t);expect(reads,3);expect(writes,0);
   },respond:(r)async{if(r.method!='GET')writes++;reads++;return reads==2?helpers.json({'message':'Synthetic read failed'},503):helpers.json({'data':[{'username':'fixture'}]});});
  });

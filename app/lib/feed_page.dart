@@ -198,7 +198,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
         });
       }
     } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (mounted) setState(() => error = t_(e.message));
     } catch (_) {
       // A reply the app could not read must not look like an empty list.
       if (mounted) setState(() => error = 'Could not load posts. Try again.');
@@ -411,7 +411,7 @@ class _PostCardState extends State<PostCard> {
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() => widget.post['saved'] = was);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_(e.message))));
     }
   }
 
@@ -683,7 +683,7 @@ class _CommentsSheetState extends State<CommentsSheet> with SessionBoundState<Co
       items.insertAll(firstLocal < 0 ? items.length : firstLocal, fresh);
       nextCursor = cursor;
     } catch (e) {
-      if (mounted && sessionActive) error = e is ApiError ? e.message : t_('Comments could not be loaded.');
+      if (mounted && sessionActive) error = e is ApiError ? t_(e.message) : t_('Comments could not be loaded.');
     } finally { if (mounted && sessionActive) setState(() => loading = false); }
   }
 

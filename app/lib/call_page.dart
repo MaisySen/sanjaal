@@ -84,7 +84,7 @@ class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
       if (mounted && sessionActive) {
         setState(() {
           failed = true;
-          status = e.message;
+          status = t_(e.message);
         });
       }
     } catch (_) {

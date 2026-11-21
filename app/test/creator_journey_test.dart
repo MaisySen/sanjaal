@@ -85,7 +85,7 @@ void main() {
     var writes=0; final bodies=<String>[];
     await fixture(t,story,() async {
       expect(writes,0); expect(find.byType(Image),findsOneWidget); await t.enterText(find.byType(TextField),'A caption worth keeping');
-      await t.tap(find.text('Share story')); await flush(t); expect(find.text('Fixture offline'),findsOneWidget); expect(find.text('A caption worth keeping'),findsOneWidget);
+      await t.tap(find.text('Share story')); await flush(t); expect(find.text('Could not confirm the result. Check before trying again.'),findsOneWidget); expect(find.text('A caption worth keeping'),findsOneWidget);
       await t.tap(find.text('Try again')); await flush(t); expect(writes,2); expect(bodies, everyElement(contains('A caption worth keeping'))); expect(bodies, everyElement(contains('image/png'))); expect(find.byType(StoryComposePage),findsNothing);
     },respond:(r)async {bodies.add(latin1.decode(r.bodyBytes));return ++writes==1?json({'message':'Fixture offline'},503):json({'story':{}},201);});
   });

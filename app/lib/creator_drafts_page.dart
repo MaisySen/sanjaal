@@ -5,7 +5,7 @@ import 'stories_page.dart' show StoryComposePage;
 import 'creator_draft_store.dart';
 import 'creator_media_draft_store.dart';
 import 'feed_page.dart' show ComposePage;
-import 'ui.dart' show showError, t_;
+import 'ui.dart' show showError, failureMessage, t_;
 import 'ph.dart';
 
 class CreatorDraftsPage extends StatefulWidget {
@@ -88,7 +88,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     } catch (e) {
       if (e is StateError && mounted && active) await _load();
       if (mounted && active) {
-        showError(context, e is StateError ? t_(e.message.toString()) : e);
+        showError(context, failureMessage(e));
       }
     } finally {
       if (mounted) setState(() => busy = false);

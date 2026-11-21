@@ -69,7 +69,7 @@ void main(){
       return cursors.last==null?json({'data':[comment('a')],'next_cursor':'page2'}):json({'data':[comment('a'),comment('b')],'next_cursor':null});
     },() async {
       expect(cursors,[null]); expect(find.text('Comment a'),findsOneWidget);
-      await tap(t,'Load more comments'); expect(find.text('Comment a'),findsOneWidget);expect(find.text('Fixture read failed'),findsOneWidget);
+      await tap(t,'Load more comments'); expect(find.text('Comment a'),findsOneWidget);expect(find.text('Could not load this. Try again.'),findsOneWidget);
       await tap(t,'Try again');expect(cursors,[null,'page2','page2']);expect(find.text('Comment a'),findsOneWidget);expect(find.text('Comment b'),findsOneWidget);expect(find.text('Load more comments'),findsNothing);
     });
   });

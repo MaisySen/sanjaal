@@ -109,7 +109,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
       final j = await widget.session.call('GET', '/users/${widget.username}') as Map<String, dynamic>;
       if (mounted && sessionActive && request == read) setState(() => u = (j['user'] as Map).cast<String, dynamic>());
     } catch (e) {
-      if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : e.message) : t_('Profile could not be loaded.'));
+      if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : t_(e.message)) : t_('Profile could not be loaded.'));
     } finally { if (mounted && sessionActive && request == read) setState(() => loading = false); }
   }
 
@@ -265,7 +265,7 @@ class _MePageState extends State<MePage> {
       final j = await widget.session.call('GET', '/users/$name') as Map<String, dynamic>;
       if (mounted && request == read) setState(() => counts = (j['user'] as Map).cast<String, dynamic>());
     } catch (e) {
-      if (mounted && request == read) setState(() => error = e is ApiError ? e.message : t_('Profile could not be loaded.'));
+      if (mounted && request == read) setState(() => error = e is ApiError ? t_(e.message) : t_('Profile could not be loaded.'));
     } finally { if (mounted && request == read) setState(() => loading = false); }
   }
 

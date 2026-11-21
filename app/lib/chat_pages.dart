@@ -352,7 +352,7 @@ class _NewChatPageState extends State<NewChatPage> {
       if (!mounted || !_active || seq != _seq) return;
       setState(() {
         searching = false;
-        searchError = e is ApiError ? e.message : t_('Could not load members. Try again.');
+        searchError = e is ApiError ? t_(e.message) : t_('Could not load members. Try again.');
       });
     }
   }
@@ -413,7 +413,7 @@ class _NewChatPageState extends State<NewChatPage> {
       setState(() {
         busy = false;
         _uncertain = !rejected;
-        startError = rejected ? e.message : t_('The chat may already exist. Check Chats before starting it again.');
+        startError = rejected ? t_(e.message) : t_('The chat may already exist. Check Chats before starting it again.');
       });
     }
   }
@@ -614,7 +614,7 @@ class _ChatPageState extends State<ChatPage> {
       // Older rows grow in the sliver before the center. Its offset stays fixed
       // without guessing text/image heights or moving a user reading history.
     } catch (e) {
-      if (mounted && _active) setState(() => olderError = e is ApiError ? e.message : t_('Earlier messages could not be loaded.'));
+      if (mounted && _active) setState(() => olderError = e is ApiError ? t_(e.message) : t_('Earlier messages could not be loaded.'));
     } finally { if (mounted && _active) setState(() => loadingOlder = false); }
   }
 
@@ -654,7 +654,7 @@ class _ChatPageState extends State<ChatPage> {
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
     } catch (e) {
-      if (mounted && _active) setState(() => error = e is ApiError ? e.message : t_('Messages could not be loaded.'));
+      if (mounted && _active) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
     } finally {
       fetching = false;
       if (mounted && _active && loading) setState(() => loading = false);
@@ -1032,7 +1032,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       final c = j['conversation'] as Map<String, dynamic>;
       if (mounted && _active) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
     } on ApiError catch (e) {
-      if (mounted && _active) _say(e.message);
+      if (mounted && _active) _say(t_(e.message));
     } finally {
       if (mounted && _active) setState(() => busy = false);
     }
@@ -1061,7 +1061,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       final c = j['conversation'] as Map<String, dynamic>;
       if (mounted && _active) setState(() => title = (c['title'] ?? name).toString());
     } on ApiError catch (e) {
-      if (mounted && _active) _say(e.message);
+      if (mounted && _active) _say(t_(e.message));
     } finally {
       if (mounted && _active) setState(() => busy = false);
     }
@@ -1090,7 +1090,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     } on ApiError catch (e) {
       if (mounted && _active) {
         setState(() => busy = false);
-        _say(e.message);
+        _say(t_(e.message));
       }
     }
   }

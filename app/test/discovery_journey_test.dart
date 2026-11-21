@@ -140,7 +140,7 @@ void main() {
       await t.enterText(find.byType(TextField), 'asha');
       await t.pump(const Duration(milliseconds: 400));
       await flush(t);
-      expect(find.text('Fixture unavailable'), findsOneWidget);
+      expect(find.text('Could not load this. Try again.'), findsOneWidget);
       await t.tap(find.text('Try again'));
       await flush(t);
       expect(find.text('asha-result'), findsOneWidget);
@@ -176,7 +176,7 @@ void main() {
     var reads = 0;
     await fixture(t, () async {
       await flush(t);
-      expect(find.text('Fixture unavailable'), findsOneWidget);
+      expect(find.text('Could not load this. Try again.'), findsOneWidget);
       await t.tap(find.text('Try again'));
       await flush(t);
       expect(find.text('Recovered post'), findsOneWidget);
@@ -233,11 +233,11 @@ void main() {
     var reads = 0;
     await fixture(t, () async {
       await t.tap(find.text('Share fixture')); await t.pumpAndSettle(); await flush(t);
-      expect(find.text('Temporary failure'), findsOneWidget);
+      expect(find.text('Could not load this. Try again.'), findsOneWidget);
       await review(t, 'share_retry_recovery');
       await t.tap(find.text('Try again')); await flush(t);
       expect(find.text('Community picnic'), findsOneWidget);
-      expect(find.text('Temporary failure'), findsNothing);
+      expect(find.text('Could not load this. Try again.'), findsNothing);
       expect(reads, 2);
     }, (r) async {
       expect(r.method, 'GET');

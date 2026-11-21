@@ -354,7 +354,7 @@ void main() {
         await open(t);
         expect(find.byType(SwitchListTile), findsNothing);
         expect(save(t).onPressed, isNull);
-        expect(find.text('Lookup failed'), findsOneWidget);
+        expect(find.text('Could not load this. Try again.'), findsOneWidget);
       },
     );
   });
@@ -451,7 +451,7 @@ void main() {
           await t.tap(find.text('Share story'));
           await flush(t);
           expect(payloads.length, 1);
-          expect(find.text('Fixture unavailable'), findsOneWidget);
+          expect(find.text('Could not confirm the result. Check before trying again.'), findsOneWidget);
           expect(
             t
                 .widget<TextButton>(

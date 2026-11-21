@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'api_failure.dart';
 import 'push.dart';
 import 'dart:convert';
 import 'dart:io' show Platform;
@@ -99,7 +100,7 @@ UploadError _uploadFailure(http.Response r, {bool replaySafe = false}) {
   final message = switch(code) {
     'upload_intent_conflict' => 'This draft was already shared with different content.',
     'upload_intent_gone' => 'The original upload was removed or expired.',
-    _ => !replaySafe && r.statusCode >= 500 ? 'The upload result is unknown. Check your posts or stories before sharing again.' : _errorText(r),
+    _ => !replaySafe && r.statusCode >= 500 ? 'The upload result is unknown. Check your posts or stories before sharing again.' : _errorText(r, mutating: true),
   };
   return UploadError(message, status: r.statusCode, code: code, resourceId: resourceId, uncertain: !replaySafe && r.statusCode >= 500);
 }
@@ -116,21 +117,22 @@ Map<String, dynamic> _uploadResult(http.Response r, String operation, bool repla
   } catch (_) { throw _interruptedUpload(replaySafe); }
 }
 
-String _errorText(http.Response r) {
+String _errorText(http.Response r, {bool mutating = false}) {
+  final candidates = <Object?>[];
   try {
     final j = jsonDecode(r.body);
     if (j is Map) {
       final errs = j['errors'];
       if (errs is Map && errs.isNotEmpty) {
         final first = errs.values.first;
-        if (first is List && first.isNotEmpty) return first.first.toString();
+        if (first is List && first.isNotEmpty) candidates.add(first.first);
       }
-      for (final k in ['message', 'error_description', 'description', 'error']) {
-        if (j[k] is String && (j[k] as String).isNotEmpty) return j[k] as String;
+      for (final key in ['message', 'error_description', 'description', 'error']) {
+        candidates.add(j[key]);
       }
     }
   } catch (_) {}
-  return 'Request failed (${r.statusCode})';
+  return apiFailureMessage(r.statusCode, candidates, mutating: mutating);
 }
 
 /// Holds the Auth0 session and makes authenticated API calls.
@@ -675,7 +677,7 @@ class Session extends ChangeNotifier {
       if (r.statusCode >= 200 && r.statusCode < 300) {
         return r.body.isEmpty ? null : jsonDecode(r.body);
       }
-      throw ApiError(_errorText(r), r.statusCode);
+      throw ApiError(_errorText(r, mutating: method != 'GET'), r.statusCode);
     }
     throw ApiError('Please sign in again.', 401);
   }
@@ -742,7 +744,7 @@ class Session extends ChangeNotifier {
       throw _interruptedUpload(replaySafe);
     }
     _checkSession(epoch);
-    if (r.statusCode != 200 && r.statusCode != 201) throw path == '/stories' ? _uploadFailure(r, replaySafe: replaySafe) : ApiError(_errorText(r), r.statusCode);
+    if (r.statusCode != 200 && r.statusCode != 201) throw path == '/stories' ? _uploadFailure(r, replaySafe: replaySafe) : ApiError(_errorText(r, mutating: true), r.statusCode);
     return path == '/stories' ? _uploadResult(r, 'story', replaySafe) : jsonDecode(r.body) as Map<String, dynamic>;
   }
 
@@ -761,7 +763,7 @@ class Session extends ChangeNotifier {
       throw ApiError('Upload failed. Check your connection and try again.');
     }
     _checkSession(epoch);
-    if (r.statusCode != 200) throw ApiError(_errorText(r), r.statusCode);
+    if (r.statusCode != 200) throw ApiError(_errorText(r, mutating: true), r.statusCode);
     user = {...?user, ...((jsonDecode(r.body) as Map)['user'] as Map).cast<String, dynamic>()};
     notifyListeners();
   }

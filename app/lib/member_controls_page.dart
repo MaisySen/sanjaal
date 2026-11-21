@@ -69,7 +69,7 @@ class _MemberControlsPageState extends State<MemberControlsPage> {
       if (!mounted || !active || request != generation || owner != widget.session.user?['public_id']) return;
       setState(() { current = value; audience = value['comments_from']; sharing = value['share_to_chat']; needsReload = false; saved = false; });
     } catch (e) {
-      if (mounted && active && request == generation) setState(() => error = e is ApiError ? e.message : t_('Settings could not be loaded.'));
+      if (mounted && active && request == generation) setState(() => error = e is ApiError ? t_(e.message) : t_('Settings could not be loaded.'));
     } finally { if (mounted && request == generation) setState(() => loading = false); }
   }
   Future<void> save() async {
@@ -82,7 +82,7 @@ class _MemberControlsPageState extends State<MemberControlsPage> {
       if (!mounted || !active || owner != widget.session.user?['public_id']) return;
       setState(() { current = value; audience = value['comments_from']; sharing = value['share_to_chat']; saved = true; });
     } catch (e) {
-      if (mounted && active) setState(() { error = e is ApiError ? e.message : t_('Settings result is unconfirmed. Reload to check before changing them again.'); needsReload = true; });
+      if (mounted && active) setState(() { error = e is ApiError ? t_(e.message) : t_('Settings result is unconfirmed. Reload to check before changing them again.'); needsReload = true; });
     } finally { if (mounted) setState(() => saving = false); }
   }
   @override

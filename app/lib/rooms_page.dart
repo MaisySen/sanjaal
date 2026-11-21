@@ -309,7 +309,7 @@ class _RoomPageState extends State<RoomPage> with SessionBoundState<RoomPage> {
       if (sessionActive && mounted && !leaving) {
         setState(() {
           failed = true;
-          status = e.status == 410 ? 'This room has ended.' : e.message;
+          status = e.status == 410 ? 'This room has ended.' : t_(e.message);
         });
       }
     } catch (_) {

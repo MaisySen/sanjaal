@@ -139,7 +139,7 @@ class _ReelsPageState extends State<ReelsPage> {
       });
       if (refresh) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && pager.hasClients) pager.jumpToPage(0); });
     } on ApiError catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (mounted) setState(() => error = t_(e.message));
     } catch (_) {
       if (mounted) setState(() => error = 'Could not load reels. Try again.');
     } finally {

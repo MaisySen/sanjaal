@@ -167,7 +167,7 @@ class UploadStrip extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(listenable: center, builder: (context, _) {
     if (!center.busy && center.error == null && center.result == null && !center.restoring) return const SizedBox.shrink();
     final error = center.error;
-    final label = center.restoring ? t_('Checking earlier uploads...') : error != null ? t_(error.toString()) : center.busy
+    final label = center.restoring ? t_('Checking earlier uploads...') : error != null ? t_(failureMessage(error, fallback: 'The upload result is unknown. Check your posts or stories before sharing again.')) : center.busy
         ? center.preparing ? t_('Preparing upload...') : center.progress == 1 ? t_('Finishing upload...') : t_('Uploading... Keep the app open.')
         : t_(center.kind == 'story' ? 'Your story is up.' : center.kind == 'reel' ? 'Your reel is live in the Reels tab.' : 'Your post is up.');
     return Material(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: SafeArea(bottom: false, child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -180,7 +180,7 @@ class UploadStrip extends StatelessWidget {
         if (!center.busy && ((error is UploadError && error.resourceId != null) || center.result != null)) TextButton(onPressed: center.openingOriginal ? null : () => center.openOriginal(context), child: Text(t_('Open original'))),
         if (center.canRetry) TextButton(onPressed: center.retry, child: Text(t_('Try again'))),
         if (error != null) TextButton(onPressed:()=>showDialog<void>(context:context,builder:(c)=>ListenableBuilder(listenable:center,builder:(c,_)=>AlertDialog(
-          scrollable:true,title:Text(t_('Upload details')),content:Text(center.error == null ? t_('No upload details to show.') : t_(center.error.toString())),
+          scrollable:true,title:Text(t_('Upload details')),content:Text(center.error == null ? t_('No upload details to show.') : t_(failureMessage(center.error!, fallback: 'The upload result is unknown. Check your posts or stories before sharing again.'))),
           actions:[TextButton(onPressed:()=>Navigator.pop(c),child:Text(t_('Close')))],
         ))),child:Text(t_('Details'))),
         if (!center.busy && !center.restoring) IconButton(tooltip: t_('Dismiss'), onPressed: () async {

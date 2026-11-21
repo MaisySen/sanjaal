@@ -47,5 +47,7 @@ jobs:
         run: |
           python3 .github/ci/test_ios_release_gate.py
           python3 -O .github/ci/test_ios_release_gate.py
+          python3 .github/ci/test_apple_readonly.py
+          python3 -O .github/ci/test_apple_readonly.py
 # No build, archive, certificate, upload password, API key, TestFlight assignment,
 # export declaration, App Store submission or billing change can run here.

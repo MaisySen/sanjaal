@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:sanjaal/main.dart' show buildTheme;
 import 'package:sanjaal/ui.dart' show prefs;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -29,7 +30,8 @@ void main(){
    final f=File(p.$2);if(f.existsSync()){final font=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await font.load();}
   }
  });
- setUp((){SharedPreferences.setMockInitialValues({});FlutterSecureStorage.setMockInitialValues({});});
+ setUp((){debugDefaultTargetPlatformOverride=TargetPlatform.iOS;SharedPreferences.setMockInitialValues({});FlutterSecureStorage.setMockInitialValues({});});
+ tearDown((){debugDefaultTargetPlatformOverride=null;});
  for(final replacement in ['same member','other member','logout']){
  testWidgets('old wallet transfer confirmation cannot borrow $replacement session',(t)async{
   var account='me',writes=0;
@@ -41,7 +43,7 @@ void main(){
    await t.enterText(find.byType(TextFormField).at(1),'25');
    await t.tap(find.widgetWithText(FilledButton,'Send'));await t.pumpAndSettle();
    final staleConfirm=t.widget<FilledButton>(find.widgetWithText(FilledButton,'Confirm send')).onPressed!;
-   if(replacement=='logout'){await t.runAsync(s.logout);}else{if(replacement=='other member')account='other';await s.login('replacement','not-a-password');}
+   if(replacement=='logout'){final signingOut=s.logout();await t.pump();await signingOut;}else{if(replacement=='other member')account='other';await s.login('replacement','not-a-password');}
    await t.pump();
    // Invoke the captured callback too: hiding a button is not a send guard.
    staleConfirm();await flush(t);await t.pumpAndSettle();

@@ -204,7 +204,9 @@ class _SanjaalAppState extends State<SanjaalApp> {
         darkTheme: buildTheme(Brightness.dark, fontFamily: widget.fontFamily),
         themeMode: prefs.mode,
         home: KeyedSubtree(
-          key: ValueKey(prefs.lang),
+          // Locale changes must not discard a signed-out member's form.
+          // Signed-in routes retain their existing full locale rebuild.
+          key: ValueKey(session.user == null ? 'signed-out' : prefs.lang),
           child: ListenableBuilder(
             listenable: session,
             builder: (context, _) {

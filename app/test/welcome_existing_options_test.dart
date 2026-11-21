@@ -104,6 +104,82 @@ void main() {
       await t.pumpWidget(const SizedBox());
     },
   );
+  for (final registration in [false, true]) {
+    testWidgets(
+      'signed out root language change preserves ${registration ? 'registration' : 'sign in'} draft without submitting',
+      (t) async {
+        SharedPreferences.setMockInitialValues({
+          'theme': 'light',
+          'lang': 'en',
+          'onboarded': true,
+        });
+        FlutterSecureStorage.setMockInitialValues({});
+        prefs.lang = 'en';
+        await t.pumpWidget(const SanjaalApp(fontFamily: 'Roboto'));
+        await flush(t);
+        if (registration) {
+          await t.tap(find.text('Create an account'));
+          await flush(t);
+        }
+        final fields = find.byType(TextFormField);
+        await t.enterText(fields.first, 'fixture@invalid.example');
+        if (registration) await t.enterText(fields.at(1), 'fixture_user');
+        await t.enterText(fields.last, 'synthetic-password');
+        final show = find.byTooltip('Show password');
+        await t.ensureVisible(show);
+        await t.tap(show);
+        await flush(t);
+        expect(
+          t
+              .widget<EditableText>(
+                find.descendant(
+                  of: fields.last,
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isFalse,
+        );
+        // The root, not an isolated form, must retain editor state on locale changes.
+        final language = find.text('Language');
+        await t.ensureVisible(language);
+        await t.tap(language);
+        await flush(t);
+        await t.tap(find.text('नेपाली'));
+        await flush(t);
+        await t.pageBack();
+        await flush(t);
+        expect(
+          t.widget<TextFormField>(fields.first).controller!.text,
+          'fixture@invalid.example',
+        );
+        expect(
+          t.widget<TextFormField>(fields.last).controller!.text,
+          'synthetic-password',
+        );
+        if (registration) {
+          expect(
+            t.widget<TextFormField>(fields.at(1)).controller!.text,
+            'fixture_user',
+          );
+        }
+        expect(
+          t
+              .widget<EditableText>(
+                find.descendant(
+                  of: fields.last,
+                  matching: find.byType(EditableText),
+                ),
+              )
+              .obscureText,
+          isTrue,
+        );
+        expect(t.takeException(), isNull);
+        await t.pumpWidget(const SizedBox());
+        await flush(t);
+      },
+    );
+  }
   for (final shape in [
     (390.0, 1.0, 'en', 'light'),
     (320.0, 1.8, 'ne', 'dark'),

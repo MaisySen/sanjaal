@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show TextInput;
 import 'api.dart';
 import 'auth_failure.dart';
 import 'password_recovery_page.dart';
+import 'language_settings_page.dart';
 import 'ui.dart';
 
 class AuthPage extends StatefulWidget {
@@ -96,6 +97,11 @@ class _AuthPageState extends State<AuthPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Align(alignment:Alignment.centerRight,child:TextButton(
+                      onPressed:busy?null:() async {
+                        setState(() {showPassword=false;error=null;});
+                        await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const LanguageSettingsPage()));
+                      },child:Text(t_('Language')))),
                     const Center(child: Logo(size: 84)),
                     const SizedBox(height: 16),
                     Text('Sanjaal', textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),

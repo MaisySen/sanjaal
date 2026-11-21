@@ -32,8 +32,7 @@ jobs:
             if result.returncode:raise RuntimeError('Keychain stage failed: '+cmd[1]+'; '+result.stderr)
            ids=subprocess.check_output(['security','find-identity','-v','-p','codesigning',k],text=True)
            assert 'Apple Distribution' in ids and 'B85KQRQZW7' in ids, 'Approved identity is not usable'
-           (r/'test.c').write_text('int main(void){return 0;}
-          ')
+           (r/'test.c').write_text('int main(void){return 0;}')
            subprocess.run(['xcrun','clang',str(r/'test.c'),'-o',str(r/'test')],check=True,capture_output=True)
            subprocess.run(['codesign','--force','--sign','Apple Distribution','--keychain',k,str(r/'test')],check=True,capture_output=True)
            subprocess.run(['codesign','--verify','--strict',str(r/'test')],check=True,capture_output=True)

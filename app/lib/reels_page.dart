@@ -47,6 +47,13 @@ class ReelPlayerPool {
     for (final value in _players.keys.toList()) { if (!keep.contains(value)) _players.remove(value)!.dispose(); }
     for (final value in keep) { _players.putIfAbsent(value, () => ReelPlayback(value)); }
   }
+  bool discardFailedFor(Map<String, dynamic> reel) {
+    final value = url(reel);
+    final player = _players[value];
+    if (player == null || (!player.failed && !player.controller.value.hasError)) return false;
+    _players.remove(value)!.dispose();
+    return true;
+  }
   void discardFailed() {
     for (final url in _players.keys.toList()) {
       final player = _players[url]!;
@@ -198,6 +205,11 @@ class _ReelsPageState extends State<ReelsPage> with SessionBoundState<ReelsPage>
             playing: widget.active && i == index,
             muted: muted,
             onToggleMute: () => setState(() => muted = !muted),
+            onRetry: () {
+              if (!mounted || !sessionActive || !widget.active || i != index) return;
+              if (!players.discardFailedFor(reels[i])) return;
+              setState(() => players.warm(reels, index));
+            },
           ),
         ),
         const Positioned(top: 0, left: 0, right: 0, height: 160,
@@ -223,8 +235,9 @@ class _ReelsPageState extends State<ReelsPage> with SessionBoundState<ReelsPage>
 }
 
 class ReelItem extends StatefulWidget {
-  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0, this.playback});
+  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0, this.playback, this.onRetry});
   final ReelPlayback? playback;
+  final VoidCallback? onRetry;
   final Session session;
   final Map<String, dynamic> reel;
   final bool playing;
@@ -239,6 +252,7 @@ class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, M
   @override Session get viewSession=>widget.session;
   @override void sessionRetired(){
     ++_playerEpoch;
+    c?.removeListener(_playerChanged);
     if(widget.playback==null){c?.dispose();}else if(!widget.playback!.disposed){c?.pause();}
     c=null;ready=false;
   }
@@ -259,6 +273,21 @@ class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, M
     _attach();
   }
 
+  void _playerChanged() {
+    if (!mounted || !sessionActive || c?.value.hasError != true || failed) return;
+    setState(() { failed = true; ready = false; });
+  }
+
+  void _retry() {
+    if (!mounted || !sessionActive || !failed || !mediaVisible || !widget.playing) return;
+    if (widget.playback != null) {
+      widget.onRetry?.call();
+      return;
+    }
+    c?.removeListener(_playerChanged); c?.dispose(); c = null;
+    setState(_attach);
+  }
+
   void _attach() {
     if(!sessionActive)return;
     final epoch = ++_playerEpoch;
@@ -271,9 +300,11 @@ class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, M
     }
     final ctl = widget.playback?.controller ?? VideoPlayerController.networkUrl(Uri.parse(v.first['url'] as String));
     c = ctl;
+    ctl.addListener(_playerChanged);
     if (widget.playback == null) ctl.setLooping(true);
     (widget.playback?.initialized ?? ctl.initialize()).then((_) {
       if (!mounted || !sessionActive || epoch != _playerEpoch || widget.playback?.disposed == true) return;
+      if (ctl.value.hasError) { _playerChanged(); return; }
       ctl.setVolume(widget.muted ? 0 : 1);
       setState(() => ready = true);
       if (widget.playing && mediaVisible) ctl.play();
@@ -288,6 +319,7 @@ class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, M
     if(!sessionActive)return;
     if(old.reel['public_id']!=id){comments=(widget.reel['comments_count'] as num?)?.toInt()??0;following=author['following']==true;followBusy=false;}
     if (!identical(old.playback, widget.playback)) {
+      c?.removeListener(_playerChanged);
       if (old.playback == null) { c?.dispose(); } else if (!old.playback!.disposed) { c?.pause(); }
       c = null; _attach(); return;
     }
@@ -309,6 +341,7 @@ class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, M
   @override
   void dispose() {
     _playerEpoch++;
+    c?.removeListener(_playerChanged);
     if (widget.playback == null) { c?.dispose(); } else if (!widget.playback!.disposed) { c?.pause(); }
     super.dispose();
   }
@@ -375,7 +408,11 @@ class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, M
     final body = (widget.reel['body'] ?? '').toString();
     return Stack(fit: StackFit.expand, children: [
       if (failed)
-        Positioned(top: 104, left: 24, right: 84, child: Text(t_('Video could not load'), style: TextStyle(color: Colors.white70)))
+        Positioned(top: 104, left: 24, right: 84, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(t_('Video could not load'), style: const TextStyle(color: Colors.white70)),
+          if (ReelPlayerPool.url(widget.reel) != null && (widget.playback == null || widget.onRetry != null))
+            TextButton(style: TextButton.styleFrom(foregroundColor: Colors.white, minimumSize: const Size(44, 44)), onPressed: widget.playing ? _retry : null, child: Text(t_('Try again'))),
+        ]))
       else if (!ready || ctl == null)
         const Center(child: CircularProgressIndicator())
       else

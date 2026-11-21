@@ -8,7 +8,7 @@ class Read(unittest.TestCase):
    self.calls.append(req);return io.BytesIO(json.dumps(pages.pop(0)).encode())
   return a.AppleReadOnly('fixture-only-not-a-token',open_)
  def test_readonly_and_scoped(self):
-  c=self.client([{'data':[{'id':'1'}],'links':{}}]);r=c.builds();self.assertTrue(r['complete']);self.assertEqual(self.calls[0].get_method(),'GET');self.assertTrue(self.calls[0].full_url.startswith(a.ORIGIN+'/v1/apps/'+a.APP+'/builds?'))
+  c=self.client([{'data':[{'id':'1','type':'builds'}],'links':{}}]);r=c.builds();self.assertTrue(r['complete']);self.assertEqual(self.calls[0].get_method(),'GET');self.assertTrue(self.calls[0].full_url.startswith(a.ORIGIN+'/v1/apps/'+a.APP+'/builds?'))
  def test_wrong_app(self):
   with self.assertRaises(ValueError):self.client([]).collection('/v1/apps/other/builds')
  def test_pagination_external(self):
@@ -37,8 +37,28 @@ class Read(unittest.TestCase):
   with self.assertRaises(ValueError):c.audience_groups()
   self.assertEqual(len(self.calls),1)
  def test_build_numbers_normalize_only_expected_shape(self):
-  c=self.client([{'data':[{'type':'builds','attributes':{'version':'2013'}}],'links':{}}]);self.assertEqual(c.build_number_snapshot()['build_numbers'],[2013])
+  c=self.client([{'data':[{'type':'builds','id':'build1','attributes':{'version':'2013'}}],'links':{}}]);self.assertEqual(c.build_number_snapshot()['build_numbers'],[2013])
  def test_build_number_does_not_truncate_dotted_value(self):
-  c=self.client([{'data':[{'type':'builds','attributes':{'version':'2013.1'}}],'links':{}}])
+  c=self.client([{'data':[{'type':'builds','id':'build1','attributes':{'version':'2013.1'}}],'links':{}}])
   with self.assertRaises(ValueError):c.build_number_snapshot()
+class DirectMembership(unittest.TestCase):
+ client=Read.client
+ def test_only_current_app_builds(self):
+  c=self.client([{'data':[{'type':'builds','id':'build1'}]},{'data':[{'type':'betaTesters','id':'tester1'}]}])
+  r=c.individual_tester_snapshot();self.assertTrue(r['direct_membership_enumeration_complete']);self.assertFalse(r['complete_groups_and_testers']);self.assertEqual(r['builds'][0]['tester_ids'],['tester1']);self.assertEqual(len(self.calls),2);self.assertTrue(all(x.get_method()=='GET' for x in self.calls))
+ def test_arbitrary_build_cannot_be_read(self):
+  c=self.client([])
+  with self.assertRaises(ValueError):c.collection('/v1/builds/unknown/relationships/individualTesters')
+  self.assertEqual(len(self.calls),0)
+ def test_malicious_build_id_rejected_before_read(self):
+  c=self.client([{'data':[{'type':'builds','id':'../users'}]}])
+  with self.assertRaises(ValueError):c.individual_tester_snapshot()
+  self.assertEqual(len(self.calls),1)
+ def test_wrong_resource_type_rejected(self):
+  c=self.client([{'data':[{'type':'builds','id':'build1'}]},{'data':[{'type':'users','id':'tester1'}]}])
+  with self.assertRaises(ValueError):c.individual_tester_snapshot()
+ def test_direct_pagination_cannot_jump_to_another_build(self):
+  c=self.client([{'data':[{'type':'builds','id':'build1'}]},{'data':[],'links':{'next':a.ORIGIN+'/v1/builds/other/relationships/individualTesters'}}])
+  with self.assertRaises(ValueError):c.individual_tester_snapshot()
+  self.assertEqual(len(self.calls),2)
 if __name__=='__main__':unittest.main()

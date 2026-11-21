@@ -13,7 +13,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 class AppleReadOnly:
  def __init__(self,jwt,opener=None):
   if not jwt:raise ValueError('Missing private JWT')
-  self._known_group_ids=set();self._jwt=jwt;self._open=opener or urllib.request.build_opener(NoRedirect()).open
+  self._known_group_ids=set();self._known_build_ids=set();self._jwt=jwt;self._open=opener or urllib.request.build_opener(NoRedirect()).open
  def _get(self,url):
   p=urllib.parse.urlsplit(url)
   if p.scheme!='https' or p.netloc!='api.appstoreconnect.apple.com' or p.username or p.fragment:raise ValueError('Untrusted Apple pagination URL')
@@ -25,6 +25,7 @@ class AppleReadOnly:
  def collection(self,path,query=None):
   allowed={f'/v1/apps/{APP}/betaGroups',f'/v1/apps/{APP}/builds',f'/v1/apps/{APP}/preReleaseVersions'}
   allowed.update('/v1/betaGroups/'+gid+'/betaTesters' for gid in self._known_group_ids)
+  allowed.update('/v1/builds/'+bid+'/relationships/individualTesters' for bid in self._known_build_ids)
   if path not in allowed:raise ValueError('Read outside assigned app collections')
   url=ORIGIN+path+('?' + urllib.parse.urlencode(query) if query else '');rows=[];seen=set()
   for _ in range(100):
@@ -52,7 +53,28 @@ class AppleReadOnly:
     all_testers[tid]={'id':tid,'email_identifier':attrs.get('email'),'state':attrs.get('state')}
    groups.append({'id':gid,'attributes':group.get('attributes',{}),'tester_ids':ids,'testers_enumeration_complete':True})
   return {'app_id':APP,'fetched_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'),'groups':groups,'testers':list(all_testers.values()),'group_membership_enumeration_complete':True,'complete_groups_and_testers':False,'unverified_tester_identifiers':[x['email_identifier'] or x['id'] for x in all_testers.values()],'remaining_checks':['owner identity/audience review','automatic-distribution field must be independently verified','direct build testers and all audience paths','legal authority, not API-derived']}
- def builds(self):return self.collection(f'/v1/apps/{APP}/builds',{'limit':200})
+ def builds(self):
+  result=self.collection(f'/v1/apps/{APP}/builds',{'limit':200})
+  ids=set()
+  for build in result['data']:
+   bid=build.get('id')
+   if build.get('type')!='builds' or not isinstance(bid,str) or not re.fullmatch('[A-Za-z0-9-]{1,100}',bid):raise ValueError('Invalid app-scoped build ID')
+   ids.add(bid)
+  self._known_build_ids=ids
+  return result
+ def individual_tester_snapshot(self):
+  # Official API route: get-v1-builds-_id_-relationships-individualtesters.
+  # Enumerate only builds obtained from this app, never caller-selected IDs.
+  builds=self.builds();records=[]
+  for build in builds['data']:
+   bid=build['id'];testers=self.collection('/v1/builds/'+bid+'/relationships/individualTesters',{'limit':200});ids=[]
+   for tester in testers['data']:
+    tid=tester.get('id')
+    if tester.get('type')!='betaTesters' or not isinstance(tid,str) or not re.fullmatch('[A-Za-z0-9-]{1,100}',tid):raise ValueError('Invalid individual tester ID')
+    ids.append(tid)
+   records.append({'build_id':bid,'tester_ids':sorted(set(ids))})
+  return {'app_id':APP,'fetched_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'),'builds':records,'direct_membership_enumeration_complete':True,'complete_groups_and_testers':False,'remaining_checks':['group membership and automatic-distribution paths','owner identity/audience review','legal authority, not API-derived']}
+
  def build_number_snapshot(self):
   collection=self.builds();numbers=[]
   for resource in collection['data']:

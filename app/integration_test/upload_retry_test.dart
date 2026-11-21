@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/main.dart' as app;
+import 'package:sanjaal/api.dart' show ApiError;
+import 'package:sanjaal/upload_center.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _base = String.fromEnvironment('E2E_TOKEN_BASE');
@@ -83,11 +85,13 @@ void main() {
     }
     final offeredRetry = find.text('Try again').evaluate().isNotEmpty;
     expect(offeredRetry, isTrue, reason: 'a lost reply on a replay-safe upload must offer Try again, not claim success');
-    // Client-side proof the app received the 503 body our hook sent (not the real 201): that text is only on screen if so.
-    final seen = find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((x) => x.contains('temporarily unavailable')).toList();
-    // ignore: avoid_print
-    print('Upload-retry client-visible 503 text: $seen');
-    expect(seen, isNotEmpty, reason: 'the client must show the 503 reply message, proving it received the fault response');
+    // Status proves the intended response was received. Server prose is data,
+    // deliberately replaced by reviewed fixed copy in this candidate.
+    final center = UploadCenter.of(tester.widget<app.HomeShell>(find.byType(app.HomeShell)).session);
+    expect(center.error, isA<ApiError>());
+    expect((center.error as ApiError).status, 503);
+    expect(find.text('Could not confirm the result. Check before trying again.'), findsOneWidget);
+    expect(find.textContaining('Service temporarily unavailable'), findsNothing);
     expect(find.text('Your post is up.'), findsNothing);
     // ignore: avoid_print
     print('Upload-retry after lost reply: offered Try again = $offeredRetry');

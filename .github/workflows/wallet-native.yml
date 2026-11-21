@@ -1,0 +1,66 @@
+name: Wallet retirement native synthetic check
+on:
+  push:
+    branches:
+    - wallet-native-2013
+permissions:
+  contents: read
+jobs:
+  native-wallet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        persist-credentials: false
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+      with:
+        channel: stable
+        flutter-version: 3.50.0
+        cache: true
+    - name: Enable KVM
+      run: 'echo ''KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"''
+        | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+
+        sudo udevadm control --reload-rules
+
+        sudo udevadm trigger --name-match=kvm
+
+        '
+    - run: flutter pub get
+      working-directory: app
+    - name: Verify product tree is unchanged from signed2013
+      run: 'git fetch --depth=1 origin d0dcfcd188f41ec2fbe3eff4ed56588aa927b73a
+
+        for p in app/lib app/android app/ios app/pubspec.yaml app/pubspec.lock; do
+        git diff --exit-code d0dcfcd188f41ec2fbe3eff4ed56588aa927b73a -- "$p"; done'
+    - name: Smoke test on emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34
+        arch: x86_64
+        target: google_apis
+        script: cd app && flutter drive --driver=test_driver/integration_test.dart
+          --target=integration_test/wallet_retirement_native_test.dart --no-pub --dart-define=API_BASE_URL=http://127.0.0.1:9/api/v1
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: emulator-screenshots
+        path: 'app/build/screenshots/*.png
+
+          app/build/screenshots/*.mp4
+
+          app/build/screenshots/*.txt
+
+          app/build/screenshots/*.xml
+
+          /tmp/drive_*.log
+
+          '
+        if-no-files-found: warn

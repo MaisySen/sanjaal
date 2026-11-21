@@ -252,6 +252,7 @@ const _ne = <String, String>{
   'Sign in to save drafts on this device.': 'यो फोनमा मस्यौदा सुरक्षित गर्न साइन इन गर्नुहोस्।',
   'Only text and poll options can be saved for now. Photos and videos are not saved.': 'अहिले लेख र मतदानका विकल्प मात्र सुरक्षित गर्न सकिन्छ। तस्बिर र भिडियो सुरक्षित हुँदैनन्।',
   'Draft saved on this device. Find it in Settings > Saved drafts. Nothing was posted.': 'मस्यौदा यही फोनमा सुरक्षित भयो। सेटिङको सुरक्षित मस्यौदामा हेर्नुहोस्। केही पोस्ट भएको छैन।',
+  'You are signed out. Close this dialog and sign in to use your wallet.': 'तपाईं साइन आउट हुनुहुन्छ। वालेट प्रयोग गर्न यो संवाद बन्द गरेर साइन इन गर्नुहोस्।',
   'Your sign-in changed. This wallet has been closed.': 'तपाईंको साइन-इन बदलियो। यो वालेट बन्द गरिएको छ।',
   'Open current wallet': 'हालको वालेट खोल्नुहोस्',
   'Your sign-in changed. Close this dialog to open your current wallet.': 'तपाईंको साइन-इन बदलियो। हालको वालेट खोल्न यो संवाद बन्द गर्नुहोस्।',

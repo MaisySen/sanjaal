@@ -521,7 +521,7 @@ class _WalletDialogState extends State<_WalletDialog> with SessionBoundState<_Wa
   void dispose() { for (final c in fields) { c.dispose(); } super.dispose(); }
   @override
   Widget build(BuildContext context) => sessionActive ? widget.builder(context, fields) : AlertDialog(
-    scrollable: true, content: Text(t_('Your sign-in changed. Close this dialog to open your current wallet.')),
+    scrollable: true, content: Text(t_(widget.session.user == null ? 'You are signed out. Close this dialog and sign in to use your wallet.' : 'Your sign-in changed. Close this dialog to open your current wallet.')),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(t_('Close')))],
   );
 }

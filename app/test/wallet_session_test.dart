@@ -51,13 +51,22 @@ void main(){
    expect(writes,0);expect(find.textContaining('private_recipient'),findsNothing);
    expect(find.text('1200'),findsNothing);
    expect(t.takeException(),isNull);
+   await t.tap(find.widgetWithText(TextButton,'Close'));await t.pumpAndSettle();
+   if(replacement=='logout'){
+    expect(find.widgetWithText(FilledButton,'Open current wallet'),findsNothing);
+   }else{
+    await t.tap(find.widgetWithText(FilledButton,'Open current wallet'));await flush(t);await t.pumpAndSettle();
+    expect(find.text(replacement=='other member'?'777':'1200'),findsOneWidget);
+    expect(writes,0);expect(find.byType(TextFormField),findsNothing);
+   }
+   expect(t.takeException(),isNull);
    await t.pumpWidget(const SizedBox());await t.pump(const Duration(seconds:1));
   },()=>MockClient((r)async{
    if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});
    if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':account,'username':account}});
    if(r.url.path.endsWith('/devices/remove'))return reply({});
    if(r.method=='POST'){writes++;return reply({'message':'Synthetic rejection'},422);}
-   return r.url.path.endsWith('/withdrawals')?reply({'data':[]}):reply(wallet());
+   return r.url.path.endsWith('/withdrawals')?reply({'data':[]}):reply({...wallet(),if(account=='other')'balance':777});
   }));
  },timeout:const Timeout(Duration(seconds:60)));
  }

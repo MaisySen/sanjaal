@@ -114,7 +114,8 @@ class AppPrefs extends ChangeNotifier {
     lang = l;
     notifyListeners();
     final p = await SharedPreferences.getInstance();
-    await p.setString('lang', l);
+    final saved = await p.setString('lang', l);
+    if (!saved) throw StateError('Language preference was not saved');
   }
 
   Future<void> finishOnboarding() async {
@@ -128,6 +129,7 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Language changed for now, but could not be saved. Choose it again to retry.': 'अहिलेका लागि भाषा फेरिएको छ, तर सुरक्षित गर्न सकिएन। फेरि प्रयास गर्न उही भाषा छान्नुहोस्।',
   'Device preferences could not be loaded.': 'यन्त्रमा सुरक्षित सेटिङहरू खोल्न सकिएन।',
   'Your saved settings were not reset. Try again. If this continues, close and reopen Sanjaal.': 'तपाईंका सुरक्षित सेटिङहरू मेटाइएका छैनन्। फेरि प्रयास गर्नुहोस्। समस्या रहिरहेमा सञ्जाल बन्द गरेर फेरि खोल्नुहोस्।',
   'Transparency': 'पारदर्शिता',

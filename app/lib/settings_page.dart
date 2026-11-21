@@ -1,4 +1,5 @@
 import 'glass/glass_settings.dart';
+import 'language_settings_page.dart';
 import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'session_recovery.dart';
@@ -55,7 +56,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
       ],
       'Your app and media': [
         ('Appearance theme light dark', option('Appearance', 'moon', () => open(const _AppearanceSettings()))),
-        ('Language translations English Nepali', option('Language', 'translate', () => open(const _LanguageSettings()))),
+        ('Language translations English Nepali', option('Language', 'translate', () => open(const LanguageSettingsPage()))),
       ],
       'Your balance and activity': [
         ('Coin wallet payments activity', option('Coin wallet', 'wallet', () => open(WalletPage(session: session)))),
@@ -114,15 +115,6 @@ class _AppearanceSettings extends StatelessWidget {
         Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(t_('Ultra clear')), Text(t_('Fully tinted'))])),
         SwitchListTile(title: Text(t_('Reduce glass')), subtitle: Text(t_('Solid surfaces instead of glass')), value: glassSettings.reduced, onChanged: glassSettings.setReduced),
       ])),
-    ]),
-  ));
-}
-class _LanguageSettings extends StatelessWidget {
-  const _LanguageSettings();
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => Scaffold(
-    appBar: ReviewedAppBar(title: Text(t_('Language'))), body: ListView(children: [
-      for (final item in [('en', 'English'), ('ne', 'नेपाली')]) ListTile(title: Text(item.$2), trailing: prefs.lang == item.$1 ? const PhIcon('check') : null, onTap: () => prefs.setLang(item.$1)),
     ]),
   ));
 }

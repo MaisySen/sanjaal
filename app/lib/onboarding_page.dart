@@ -2,6 +2,8 @@ import 'glass/glass_action.dart';
 import 'package:material_ui/material_ui.dart';
 import 'ui.dart';
 import 'ph.dart';
+import 'language_settings_page.dart';
+import 'about_page.dart';
 
 /// One optional introduction, then the real task. Feature help belongs beside
 /// the task that needs it, not in a sequence of pages a new member must recall.
@@ -30,7 +32,10 @@ class OnboardingPage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => _continue(false), child: Text(t_('Sign in')))),
+                Wrap(alignment:WrapAlignment.spaceBetween, crossAxisAlignment:WrapCrossAlignment.center, children:[
+                  TextButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const LanguageSettingsPage())),icon:const PhIcon('translate',size:20),label:Text(t_('Language'))),
+                  TextButton(onPressed: () => _continue(false), child: Text(t_('Sign in'))),
+                ]),
                 SizedBox(height: largeText ? 12 : 64),
                 Center(child: Container(width: largeText ? 72 : 140, height: largeText ? 72 : 140,
                   decoration: const BoxDecoration(shape: BoxShape.circle, color: brandRed),
@@ -43,6 +48,8 @@ class OnboardingPage extends StatelessWidget {
                 GlassAction(onPressed: () => _continue(true), label: t_('Create an account')),
                 const SizedBox(height: 12),
                 Text(t_('Your community starts with you.'), textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
+                const SizedBox(height:12),
+                TextButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>const AboutPage())),child:Text(t_('About, privacy and terms'),textAlign:TextAlign.center)),
               ]),
             ),
           ),

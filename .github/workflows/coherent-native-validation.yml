@@ -59,7 +59,20 @@ jobs:
           assert v['dartSdkVersion']=='3.14.0'
           PY
           java -version 2> /tmp/private-android/java-version.txt
-          flutter pub get
+          flutter pub get --enforce-lockfile
+          # Flutter3.50 --no-pub skips release-mode plugin regeneration. Generate
+          # release tooling without compiling, before the unchanged final command.
+          flutter build apk --config-only --release --target-platform android-arm64
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,subprocess
+          registrant=Path('android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java')
+          assert registrant.exists()
+          assert 'integration_test' not in registrant.read_text(), 'Dev-only plugin leaked into release registrant'
+          subprocess.run(['git','diff','--exit-code','--','pubspec.yaml','pubspec.lock','android'],check=True)
+          proof={'source':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'preparation':['flutter pub get --enforce-lockfile','flutter build apk --config-only --release --target-platform android-arm64'],'registrant_sha256':hashlib.sha256(registrant.read_bytes()).hexdigest(),'dev_test_plugin_absent':True,'tracked_dependency_and_android_config_unchanged':True,'no_app_compiled_in_preparation':True}
+          Path('/tmp/private-android/release-tooling-preparation.json').write_text(json.dumps(proof,indent=2))
+          PY
           git diff --exit-code -- pubspec.yaml pubspec.lock android
           sha256sum pubspec.yaml pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties android/gradle.properties > /tmp/private-android/platform-config-sha256.txt
       - name: Compile one production-endpoint ARM64 release engineering input, no private signer
@@ -118,6 +131,7 @@ jobs:
             /tmp/private-android/java-version.txt
             /tmp/private-android/platform-config-sha256.txt
             /tmp/private-android/build-command.json
+            /tmp/private-android/release-tooling-preparation.json
             /tmp/private-android/payload-badging.txt
           retention-days: 1
           if-no-files-found: error

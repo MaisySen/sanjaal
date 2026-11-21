@@ -9,7 +9,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/auth_page.dart';
 import 'package:sanjaal/search_page.dart';
-import 'package:sanjaal/ui.dart' show prefs;
 import 'package:sanjaal/wallet_page.dart';
 import 'package:sanjaal/profile_pages.dart';
 import 'package:sanjaal/chat_pages.dart';

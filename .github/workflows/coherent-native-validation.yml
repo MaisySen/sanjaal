@@ -1,104 +1,117 @@
-name: Reviewed candidate API verification only
+name: Reviewed private Android compilation only
 'on':
   push:
-    branches:
-    - coherent-native-validation
+    branches: [coherent-native-validation]
 permissions:
   contents: read
 concurrency:
   group: coherent-native-validation
   cancel-in-progress: false
 jobs:
-  api:
+  android-private-compile:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015
-        env:
-          POSTGRES_USER: sanjaal
-          POSTGRES_PASSWORD: local-fixture-only
-          POSTGRES_DB: sanjaal_test
-        ports:
-        - 5432:5432
-        options: --health-cmd "pg_isready -U sanjaal -d sanjaal_test" --health-interval 5s --health-timeout 5s --health-retries
-          10
-    defaults:
-      run:
-        working-directory: api
+    timeout-minutes: 35
+    permissions:
+      contents: read
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      with:
-        ref: 4ccd751ff585271f1dede4b3a4ddd4d559e60ae6
-        persist-credentials: false
-    - name: Verify frozen candidate API dependency and platform identity
-      working-directory: .
-      run: 'test "$(git rev-parse HEAD:api)" = f8da760fa1c6513548f1479ca5b6c4c6db527b5d
-
-        test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
-
-        git rev-parse HEAD HEAD:api HEAD:app/lib HEAD:app/android HEAD:app/ios HEAD:app/pubspec.lock HEAD:api/composer.lock
-
-        git diff --exit-code'
-    - uses: shivammathur/setup-php@v2
-      with:
-        php-version: '8.4'
-        extensions: mbstring, pdo_sqlite, sqlite3, pdo_pgsql, bcmath, gd
-        coverage: none
-    - run: composer install --no-interaction --prefer-dist --no-progress
-    - run: 'set -euo pipefail
-
-        {
-
-        touch .env && php artisan test
-
-        } 2>&1 | tee /tmp/candidate-api-1.log'
-      env:
-        APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
-    - run: 'set -euo pipefail
-
-        {
-
-        touch .env
-
-        php artisan route:cache && php artisan event:cache
-
-        php artisan test
-
-        php artisan route:clear && php artisan event:clear
-
-
-        } 2>&1 | tee /tmp/candidate-api-2.log'
-      env:
-        APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
-    - name: PostgreSQL 18 API and concurrent invariant checks (throwaway service only)
-      run: 'set -euo pipefail
-
-        {
-
-        php artisan test
-
-        php artisan route:cache && php artisan event:cache
-
-        php artisan test
-
-        php artisan route:clear && php artisan event:clear
-
-        PG_RACE=1 php artisan test tests/Concurrency
-
-
-        } 2>&1 | tee /tmp/candidate-api-3.log'
-      env:
-        APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
-        DB_CONNECTION: pgsql
-        DB_HOST: 127.0.0.1
-        DB_PORT: 5432
-        DB_DATABASE: sanjaal_test
-        DB_USERNAME: sanjaal
-        DB_PASSWORD: local-fixture-only
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-      if: always()
-      with:
-        name: exact-candidate-api-verification
-        path: /tmp/candidate-api-*.log
-        retention-days: 3
-    timeout-minutes: 30
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: a4b99e2385add30b159cd7edb3c04b827a387cb2
+          persist-credentials: false
+      - name: Freeze reviewed exact source, dependencies and native configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a4b99e2385add30b159cd7edb3c04b827a387cb2
+          test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
+          test "$(git rev-parse HEAD:app/test)" = b04141afe37800b1d1a86b783945eeaba2403c34
+          test "$(git rev-parse HEAD:app/android)" = a3f429356827215a6ddab042ea942e278e7e2a51
+          test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
+          test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
+          test "$(git rev-parse HEAD:app/assets)" = daf7981198d3e7e573641287c613da1500a46d50
+          test "$(git rev-parse HEAD:api)" = f8da760fa1c6513548f1479ca5b6c4c6db527b5d
+          test "$(git rev-parse HEAD:.github/ci/finalize_phone_preview.py)" = e6b12535911addaf9daccc971dc2f64b7a0e862e
+          test "$(sha256sum .github/ci/finalize_phone_preview.py | cut -d' ' -f1)" = cf72d9b1762bc49b3ad151dc40927a680e3c1e5c287ee125ff03814e9eb374b1
+          git diff --exit-code
+          mkdir -p /tmp/private-android
+          git rev-parse HEAD HEAD:app/lib HEAD:app/test HEAD:app/android HEAD:app/ios HEAD:app/assets HEAD:app/pubspec.yaml HEAD:app/pubspec.lock HEAD:api HEAD:api/composer.lock > /tmp/private-android/source-identities.txt
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+          cache: true
+      - name: Resolve locked dependencies and bind actual toolchain
+        working-directory: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version --machine > /tmp/private-android/flutter-version.json
+          python3 - <<'PY'
+          import json
+          v=json.load(open('/tmp/private-android/flutter-version.json'))
+          assert v['frameworkVersion']=='3.50.0'
+          assert v['frameworkRevision']=='ab2912035e160d9cad6306df307576da6128ebdb'
+          assert v['engineRevision']=='371f77202a73e8dff57a8b3bff75bca55c090aee'
+          assert v['dartSdkVersion']=='3.14.0'
+          PY
+          java -version 2> /tmp/private-android/java-version.txt
+          flutter pub get
+          git diff --exit-code -- pubspec.yaml pubspec.lock android
+          sha256sum pubspec.yaml pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties android/gradle.properties > /tmp/private-android/platform-config-sha256.txt
+      - name: Compile one production-endpoint ARM64 release engineering input, no private signer
+        working-directory: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib
+          command=['flutter','build','apk','--release','--target-platform','android-arm64','--split-per-abi','--no-pub','--obfuscate','--split-debug-info=build/debug-info','--build-name=0.5.9','--build-number=2014','--dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1']
+          disallowed=['SANJAAL_UNSIGNED_BUNDLE','E2E_TOKEN','E2E_TOKEN_BASE','DART_DEFINES','ORG_GRADLE_PROJECT_MYAPP_UPLOAD_STORE_FILE','ANDROID_KEYSTORE']
+          assert not any(os.environ.get(k) for k in disallowed),'Unexpected build/signing environment'
+          pathlib.Path('/tmp/private-android/build-command.json').write_text(json.dumps(command,indent=2))
+          import subprocess
+          with open('/tmp/private-android/build.log','w') as log:
+              subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,check=True)
+          PY
+          git diff --exit-code -- pubspec.yaml pubspec.lock android
+      - name: Inspect exact output payload before preserving engineering artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools_dir=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1 | xargs dirname)
+          export ANDROID_BUILD_TOOLS="$tools_dir"
+          python3 - <<'PY'
+          import pathlib,json,hashlib,sys,os,subprocess
+          sys.path.insert(0,'.github/ci')
+          from finalize_phone_preview import check_payload
+          apks=list(pathlib.Path('app/build/app/outputs/flutter-apk').glob('*.apk'))
+          assert len(apks)==1, 'Expected exactly one ARM64 APK'
+          apk=apks[0]
+          badging=check_payload(apk,pathlib.Path(os.environ['ANDROID_BUILD_TOOLS']),'0.5.9',2014)
+          pathlib.Path('/tmp/private-android/payload-badging.txt').write_text(badging)
+          report={'schema':1,'purpose':'PRIVATE_ANDROID_ENGINEERING_INPUT_NOT_DISTRIBUTION','source_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'orchestration_commit':os.environ['GITHUB_SHA'],'provider_run_id':int(os.environ['GITHUB_RUN_ID']),'provider_attempt':int(os.environ['GITHUB_RUN_ATTEMPT']),'sha256':hashlib.sha256(apk.read_bytes()).hexdigest(),'apk_filename':apk.name,'bytes':apk.stat().st_size,'command':json.load(open('/tmp/private-android/build-command.json')),'flutter':json.load(open('/tmp/private-android/flutter-version.json')),'private_stable_signed':False,'device_accepted':False,'distribution_approved':False}
+          pathlib.Path('/tmp/private-android/compile-manifest.json').write_text(json.dumps(report,indent=2))
+          import shutil
+          shutil.copy2(apk,'/tmp/private-android/'+apk.name)
+          # Debug symbols and raw compile logs are not retained in repository artifacts.
+          # The allowlist below contains no user data, secrets or private key material.
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: private-android-engineering-input-NOT-FOR-INSTALL
+          path: |
+            /tmp/private-android/*.apk
+            /tmp/private-android/compile-manifest.json
+            /tmp/private-android/source-identities.txt
+            /tmp/private-android/flutter-version.json
+            /tmp/private-android/java-version.txt
+            /tmp/private-android/platform-config-sha256.txt
+            /tmp/private-android/build-command.json
+            /tmp/private-android/payload-badging.txt
+          retention-days: 1
+          if-no-files-found: error

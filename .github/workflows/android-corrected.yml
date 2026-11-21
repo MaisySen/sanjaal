@@ -212,7 +212,13 @@ jobs:
         api-level: 34
         arch: x86_64
         target: google_apis
-        script: sh .github/ci/emulator.sh
+        script: |
+          cp .github/ci/emulator.sh /tmp/emulator-original.sh
+          python3 - <<'PY_SAFE'
+          from pathlib import Path
+          p=Path('.github/ci/emulator.sh');s=p.read_text();s=s.replace('extra=""', 'extra="--dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1"');p.write_text(s)
+          PY_SAFE
+          sh .github/ci/emulator.sh
     - uses: actions/upload-artifact@v4
       if: always()
       with:

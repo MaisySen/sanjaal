@@ -71,7 +71,7 @@ void main(){
    s.response=(m,p)=>pending.future;
    final home=switch(page){
     'calls'=>CallsPage(session:s),'rooms'=>RoomsPage(session:s),
-    'incoming'=>IncomingCallPage(session:s,call:{'public_id':'old-call','conversation_id':'old-convo','caller':{'name':'Private caller'},'kind':'voice'}),
+    'incoming'=>IncomingCallPage(session:s,call:{'public_id':'old-call','conversation_id':'old-convo','caller':{'name':'Private caller'},'kind':'voice','status':'ringing','ring_expires_at':DateTime.now().add(const Duration(seconds:40)).toIso8601String()}),
     'call'=>CallPage(session:s,conversationId:'old-convo',title:'Private call',video:true),
     _=>RoomPage(session:s,roomId:'old-room'),
    };

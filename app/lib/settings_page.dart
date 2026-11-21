@@ -1,5 +1,5 @@
-import 'glass/glass_settings.dart';
 import 'language_settings_page.dart';
+import 'appearance_settings_page.dart';
 import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'session_recovery.dart';
@@ -55,7 +55,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
         ('Blocked people privacy', option('Blocked people', 'prohibit', () => open(BlockedPage(session: session)))),
       ],
       'Your app and media': [
-        ('Appearance theme light dark', option('Appearance', 'moon', () => open(const _AppearanceSettings()))),
+        ('Appearance theme light dark', option('Appearance', 'moon', () => open(const AppearanceSettingsPage()))),
         ('Language translations English Nepali', option('Language', 'translate', () => open(const LanguageSettingsPage()))),
       ],
       'Your balance and activity': [
@@ -101,22 +101,6 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
       ]),
     );
   }
-}
-class _AppearanceSettings extends StatelessWidget {
-  const _AppearanceSettings();
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => Scaffold(
-    appBar: ReviewedAppBar(title: Text(t_('Appearance'))), body: ListView(children: [
-      for (final item in [(ThemeMode.system, 'System'), (ThemeMode.light, 'Light'), (ThemeMode.dark, 'Dark')])
-        ListTile(title: Text(t_(item.$2)), trailing: prefs.mode == item.$1 ? const PhIcon('check') : null, onTap: () => prefs.setMode(item.$1)),
-      ListenableBuilder(listenable: glassSettings, builder: (context, _) => Column(children: [
-        const Divider(height: 24),
-        ListTile(title: Text(t_('Transparency')), subtitle: Slider(value: glassSettings.transparency, onChanged: glassSettings.setTransparency, semanticFormatterCallback: (v) => '${(v * 100).round()}%')),
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(t_('Ultra clear')), Text(t_('Fully tinted'))])),
-        SwitchListTile(title: Text(t_('Reduce glass')), subtitle: Text(t_('Solid surfaces instead of glass')), value: glassSettings.reduced, onChanged: glassSettings.setReduced),
-      ])),
-    ]),
-  ));
 }
 class _NotificationSettings extends StatefulWidget {
   const _NotificationSettings({required this.session});

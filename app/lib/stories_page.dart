@@ -31,11 +31,13 @@ class StoriesBar extends StatefulWidget {
 
 class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMixin, SessionBoundState<StoriesBar> {
   @override Session get viewSession=>widget.session;
-  @override void sessionRetired(){++_loadVersion;groups=[];loaded=false;}
+  @override void sessionRetired(){++_loadVersion;groups=[];loaded=false;loadFailed=false;loading=false;}
   @override
   bool get wantKeepAlive => true;
   List<Map<String, dynamic>> groups = [];
   bool loaded = false;
+  bool loadFailed = false;
+  bool loading = false;
   int _loadVersion = 0;
   late final uploads = UploadCenter.of(widget.session);
   int _uploadRevision = -1;
@@ -73,6 +75,7 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
   Future<void> _load() async {
     if(!sessionActive)return;
     final version = ++_loadVersion;
+    setState(() { loading = true; loadFailed = false; });
     try {
       final bundled = version == 1 ? await widget.session.takeHome('stories') : null;
       if(!mounted || !sessionActive || version!=_loadVersion)return;
@@ -82,10 +85,13 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
           groups = (j['data'] as List).cast<Map<String, dynamic>>();
           _mergeLocal();
           loaded = true;
+          loading = false;
         });
       }
     } catch (_) {
-      if (mounted && sessionActive && version == _loadVersion) setState(() => loaded = true);
+      if (mounted && sessionActive && version == _loadVersion) {
+        setState(() { loaded = true; loading = false; loadFailed = true; });
+      }
     }
   }
 
@@ -131,7 +137,7 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
       for (final g in others) ring((g['author'] as Map).cast<String, dynamic>(), '${(g['author'] as Map)['username']}', () => _open(g), seen: g['all_viewed'] == true),
     ];
 
-    return SizedBox(
+    final stories = SizedBox(
       height: 94 + MediaQuery.textScalerOf(context).scale(12) * (MediaQuery.textScalerOf(context).scale(12) > 18 ? 2.5 : 1.25),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -147,6 +153,21 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
         },
       ),
     );
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      stories,
+      if (loadFailed)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(t_('Stories could not be loaded.'),
+                style: Theme.of(context).textTheme.bodySmall),
+            Align(alignment: Alignment.centerRight,
+              child: TextButton(onPressed: loading ? null : _load,
+                  child: Text(t_('Try again'), textAlign: TextAlign.end))),
+          ]),
+        ),
+      if (loading) const LinearProgressIndicator(minHeight: 2),
+    ]);
   }
 
   Future<void> _open(Map<String, dynamic> group) async {

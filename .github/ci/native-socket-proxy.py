@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Loopback fixture socket gate. Never use against a production upstream."""
-import argparse, http.client, http.server, json, socket, threading, time
+import argparse, http.client, http.server, json, socket, socketserver, threading, time
 from urllib.parse import urlsplit
 
 class State:
@@ -95,6 +95,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
+    def server_bind(self):
+        # Fixed numeric loopback fixture. HTTPServer's default reverse DNS is
+        # unnecessary here and can block before the listener starts on macOS.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = 'loopback-fixture'
+        self.server_port = self.server_address[1]
     def __init__(self, address, state):
         self.state = state
         super().__init__(address, Handler)

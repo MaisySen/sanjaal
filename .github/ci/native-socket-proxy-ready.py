@@ -24,6 +24,10 @@ while True:
         break
     except (OSError, ValueError, AssertionError) as error:
         last_failure = type(error).__name__
+        if isinstance(error, urllib.error.URLError):
+            last_failure += ' reason=' + type(error.reason).__name__
+            if isinstance(error.reason, OSError):
+                last_failure += ' errno=' + str(error.reason.errno)
         if isinstance(error, urllib.error.HTTPError):
             last_failure += ' status=' + str(error.code)
         if time.monotonic() > deadline:

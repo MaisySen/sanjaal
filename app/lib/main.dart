@@ -8,6 +8,7 @@ import 'media_visibility.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -160,13 +161,35 @@ class SanjaalApp extends StatefulWidget {
 class _SanjaalAppState extends State<SanjaalApp> {
   final session = Session();
   bool _createAccount = false;
+  bool _preferencesLoading = true;
+  bool _preferencesFailed = false;
+  bool _preferencesReading = false;
 
   @override
   void initState() {
     super.initState();
-    prefs.load();
-    glassSettings.load();
+    _loadPreferences();
     session.restore();
+  }
+
+  Future<void> _loadPreferences() async {
+    if (_preferencesReading) return;
+    _preferencesReading = true;
+    final reload = _preferencesFailed;
+    if (!_preferencesLoading) {
+      setState(() { _preferencesLoading = true; _preferencesFailed = false; });
+    }
+    try {
+      // Wait for both reads before presenting any account. Neither failure
+      // clears storage or authorizes silently replacing a saved preference.
+      if (reload) await (await SharedPreferences.getInstance()).reload();
+      await Future.wait([prefs.load(), glassSettings.load()]);
+      if (mounted) setState(() { _preferencesLoading = false; _preferencesFailed = false; });
+    } catch (_) {
+      if (mounted) setState(() { _preferencesLoading = false; _preferencesFailed = true; });
+    } finally {
+      _preferencesReading = false;
+    }
   }
 
   @override
@@ -185,7 +208,16 @@ class _SanjaalAppState extends State<SanjaalApp> {
           child: ListenableBuilder(
             listenable: session,
             builder: (context, _) {
-              if (session.loading || !prefs.ready || session.recoveringAccount || (session.authenticating && session.user!=null)) {
+              if (_preferencesFailed) {
+                return Scaffold(body: SafeArea(child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal:24, vertical:56),
+                  child: EmptyState(icon:Ph.error_outline,
+                    title:t_('Device preferences could not be loaded.'),
+                    hint:t_('Your saved settings were not reset. Try again. If this continues, close and reopen Sanjaal.'),
+                    action:OutlinedButton(onPressed:_preferencesLoading ? null : _loadPreferences, child:Text(t_('Try again')))),
+                )));
+              }
+              if (_preferencesLoading || session.loading || !prefs.ready || session.recoveringAccount || (session.authenticating && session.user!=null)) {
                 return const Scaffold(body: Center(child: Logo(size: 96)));
               }
               if (session.restoreError != null) {

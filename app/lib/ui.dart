@@ -87,14 +87,18 @@ class AppPrefs extends ChangeNotifier {
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
-    mode = switch (p.getString('theme')) {
+    final nextMode = switch (p.getString('theme')) {
       'dark' => ThemeMode.dark,
       'light' => ThemeMode.light,
       'system' => ThemeMode.system,
       _ => ThemeMode.dark,
     };
-    lang = p.getString('lang') ?? 'en';
-    seenOnboarding = p.getBool('onboarded') ?? false;
+    final nextLang = p.getString('lang') ?? 'en';
+    final nextOnboarding = p.getBool('onboarded') ?? false;
+    // Publish a complete snapshot only after every field was read successfully.
+    mode = nextMode;
+    lang = nextLang;
+    seenOnboarding = nextOnboarding;
     ready = true;
     notifyListeners();
   }
@@ -124,6 +128,8 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Device preferences could not be loaded.': 'यन्त्रमा सुरक्षित सेटिङहरू खोल्न सकिएन।',
+  'Your saved settings were not reset. Try again. If this continues, close and reopen Sanjaal.': 'तपाईंका सुरक्षित सेटिङहरू मेटाइएका छैनन्। फेरि प्रयास गर्नुहोस्। समस्या रहिरहेमा सञ्जाल बन्द गरेर फेरि खोल्नुहोस्।',
   'Transparency': 'पारदर्शिता',
   'Ultra clear': 'धेरै पारदर्शी',
   'Fully tinted': 'गाढा रङ',

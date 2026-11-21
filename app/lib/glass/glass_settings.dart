@@ -7,8 +7,10 @@ class GlassSettings extends ChangeNotifier {
   bool reduced = false;
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
-    transparency = (p.getDouble('glass_transparency') ?? .5).clamp(0, 1);
-    reduced = p.getBool('glass_reduced') ?? false;
+    final nextTransparency = (p.getDouble('glass_transparency') ?? .5).clamp(0, 1).toDouble();
+    final nextReduced = p.getBool('glass_reduced') ?? false;
+    transparency = nextTransparency;
+    reduced = nextReduced;
     notifyListeners();
   }
   Future<void> setTransparency(double value) async {

@@ -48,6 +48,7 @@ jobs:
         env:
           SIGNING_P12_B64: ${{ secrets.SANJAAL_SIGNING_P12_B64 }}
           SIGNING_PROFILE_B64: ${{ secrets.SANJAAL_SIGNING_PROFILE_B64 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.SANJAAL_SIGNING_P12_PASSWORD }}
         run: |
           set -euo pipefail
           umask 077
@@ -74,7 +75,7 @@ jobs:
               ['security','create-keychain','-p',password,keychain],
               ['security','set-keychain-settings','-lut','21600',keychain],
               ['security','unlock-keychain','-p',password,keychain],
-              ['security','import',str(r/'identity.p12'),'-P','','-A','-t','cert','-f','pkcs12','-k',keychain],
+              ['security','import',str(r/'identity.p12'),'-P',os.environ['SIGNING_P12_PASSWORD'],'-A','-k',keychain],
               ['security','list-keychains','-d','user','-s',keychain],
               ['security','set-key-partition-list','-S','apple-tool:,apple:,codesign:','-k',password,keychain],
           ]: subprocess.run(cmd,check=True,stdout=subprocess.DEVNULL)

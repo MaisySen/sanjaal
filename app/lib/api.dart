@@ -3,7 +3,6 @@ import 'push.dart';
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:flutter/foundation.dart';
@@ -636,7 +635,9 @@ class Session extends ChangeNotifier {
     if (replaySafe) req.fields['upload_intent'] = intent;
     if (body.isNotEmpty) req.fields['body'] = body;
     if (pollOptions != null) {
-      for (var i = 0; i < pollOptions.length; i++) req.fields['poll_options[$i]'] = pollOptions[i];
+      for (var i = 0; i < pollOptions.length; i++) {
+        req.fields['poll_options[$i]'] = pollOptions[i];
+      }
     }
     for (var i = 0; i < files.length; i++) {
       final f = files[i];

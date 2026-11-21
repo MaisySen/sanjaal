@@ -62,7 +62,7 @@ void main(){
    expect(session.submissions,1);
    final saves=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext'&&c.arguments==true);
    expect(saves.length,fail?0:1);
-   if(fail)expect(find.text('Fixture rejected'),findsOneWidget);
+   if(fail)expect(find.text('Sign in failed. Try again.'),findsOneWidget);
    t.testTextInput.log.clear();
    await t.pumpWidget(const SizedBox());await flush(t);
    final finishes=t.testTextInput.log.where((c)=>c.method=='TextInput.finishAutofillContext');
@@ -79,7 +79,7 @@ void main(){
    await t.enterText(find.byType(TextFormField).first,'fixture');await t.enterText(find.byType(TextFormField).last,'fixture-value');await tap(t,find.widgetWithText(FilledButton,'Sign in'));
    expect(requests,1);expect(t.widgetList<TextFormField>(find.byType(TextFormField)).every((w)=>w.enabled==false),isTrue);expect(t.widget<FilledButton>(find.byType(FilledButton)).onPressed,isNull);
    t.widget<EditableText>(find.byType(EditableText).last).onSubmitted!('');await flush(t);expect(requests,1);expect(t.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,isNull);
-   pending.complete(http.Response(jsonEncode({'error_description':'Fixture rejected'}),400));await flush(t);expect(find.text('Fixture rejected'),findsOneWidget);expect(t.widgetList<TextFormField>(find.byType(TextFormField)).every((w)=>w.enabled==true),isTrue);
+   pending.complete(http.Response(jsonEncode({'error_description':'Fixture rejected'}),400));await flush(t);expect(find.text('Sign in failed. Try again.'),findsOneWidget);expect(t.widgetList<TextFormField>(find.byType(TextFormField)).every((w)=>w.enabled==true),isTrue);
   },response:(r)async{requests++;expect(Uri.splitQueryString(r.body)['username'],'fixture');return pending.future;});
  });
  testWidgets('password visibility is explicit and hides again after switching forms',(t)async{

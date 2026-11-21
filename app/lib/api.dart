@@ -14,7 +14,7 @@ const apiBase = String.fromEnvironment('API_BASE_URL',
     defaultValue: 'https://sanjaal-api.onrender.com/api/v1');
 const auth0Domain = 'dev-rymtbo3wlo3tzsxv.us.auth0.com';
 
-/// Test builds only: a base URL that answers the token request instead of Auth0 (the emulator test uses a
+/// Test builds only: a base URL that answers auth requests instead of Auth0 (the emulator test uses a
 /// local fixture). Empty in every normal and release build. It is a client setting; the API still checks
 /// every token's signature, issuer, audience and expiry.
 const _tokenBase = String.fromEnvironment('E2E_TOKEN_BASE');
@@ -68,7 +68,10 @@ String socialCallbackCode(String result, String expectedState) {
     throw ApiError('Sign in failed. Try again.');
   }
   final error = back.queryParameters['error_description'] ?? back.queryParameters['error'];
-  if (error != null) throw ApiError(error);
+  if (error != null) {
+    throw ApiError(back.queryParameters['error'] == 'access_denied'
+        ? 'Sign in was cancelled.' : 'Sign in failed. Try again.');
+  }
   final code = back.queryParameters['code'];
   if (code == null || code.trim().isEmpty) throw ApiError('Sign in failed. Try again.');
   return code;
@@ -309,9 +312,12 @@ class Session extends ChangeNotifier {
           }
         } on _RejectedRefresh { rethrow; } catch (_) {}
       }
-      var msg = _errorText(r);
-      if (msg.toLowerCase().contains('wrong email or password')) msg = 'Wrong email or password.';
-      throw ApiError(msg, r.statusCode);
+      String? code;
+      try { code = (jsonDecode(r.body) as Map)['error'] as String?; } catch (_) {}
+      throw ApiError(
+        r.statusCode == 429 ? 'Too many attempts. Wait a moment, then try again.'
+            : code == 'invalid_grant' ? 'Wrong email or password.'
+            : 'Sign in failed. Try again.', r.statusCode);
     }
     // Validate the whole grant before touching Keychain/Keystore. A malformed
     // HTTP 200 must not clear or replace a previously saved credential.
@@ -433,13 +439,67 @@ class Session extends ChangeNotifier {
     _checkSession(epoch);
     if (attempt != _registrationAttempt) throw ApiError('Please sign in again.', 401);
     if (r.statusCode != 200) {
-      var msg = _errorText(r);
-      if (msg.contains('user already exists') || msg.contains('already exists')) {
-        msg = 'That email or username is already taken.';
-      }
-      throw ApiError(msg, r.statusCode);
+      String? code;
+      try { code = (jsonDecode(r.body) as Map)['code'] as String?; } catch (_) {}
+      throw ApiError(
+        r.statusCode == 429 ? 'Too many attempts. Wait a moment, then try again.'
+            : code == 'user_exists' || code == 'username_exists'
+                ? 'That email or username is already taken.'
+            : code == 'invalid_password' || code == 'password_strength_error'
+                ? 'Your password does not meet the account security rules. Choose a stronger password.'
+            : 'Could not create your account. Try again.', r.statusCode);
     }
-    await login(email, password);
+    try {
+      await login(email, password);
+    } catch (_) {
+      throw ApiError('Your account was created. Sign in to continue.');
+    }
+  }
+
+  DateTime? _resetRequestedAt;
+  bool _resetPending = false;
+
+  Future<void> requestPasswordReset(String email) async {
+    if (_tokenBase.isNotEmpty && _isProductBuild) {
+      throw ApiError('This build is not allowed to use a test token endpoint.');
+    }
+    final clean = email.trim();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(clean)) {
+      throw ApiError('Enter a valid email');
+    }
+    if (_resetPending || (_resetRequestedAt != null &&
+        DateTime.now().difference(_resetRequestedAt!) < const Duration(minutes: 1))) {
+      throw ApiError('Wait a minute before requesting another reset link.');
+    }
+    _resetPending = true;
+    _resetRequestedAt = DateTime.now();
+    try {
+      final response = await http.post(
+        _tokenBase.isEmpty
+            ? Uri.https(auth0Domain, '/dbconnections/change_password')
+            : Uri.parse('$_tokenBase/dbconnections/change_password'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({
+          'client_id': auth0ClientId,
+          'email': clean,
+          'connection': 'Username-Password-Authentication',
+        }),
+      ).timeout(_wait);
+      // The documented not-found response gets the same neutral UI. Never
+      // disclose account existence or treat provider response prose as UI copy.
+      if (response.statusCode == 200 || response.statusCode == 404) return;
+      throw ApiError(response.statusCode == 429
+          ? 'Too many attempts. Wait a moment, then try again.'
+          : 'Could not send the reset link. Try again.', response.statusCode);
+    } on TimeoutException {
+      throw ApiError('The server took too long. Try again.');
+    } on ApiError {
+      rethrow;
+    } catch (_) {
+      throw ApiError('No connection. Check your internet and try again.');
+    } finally {
+      _resetPending = false;
+    }
   }
 
   Future<void> _loadMe() async {

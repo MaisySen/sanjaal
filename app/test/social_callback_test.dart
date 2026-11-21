@@ -27,7 +27,7 @@ void main(){
   });
  }
  test('provider rejection on expected callback remains an error not a code',(){
-  expect(()=>socialCallbackCode('$socialRedirect?state=fixture-state&error=access_denied','fixture-state'),throwsA(isA<ApiError>().having((e)=>e.message,'message','access_denied')));
+  expect(()=>socialCallbackCode('$socialRedirect?state=fixture-state&error=access_denied','fixture-state'),throwsA(isA<ApiError>().having((e)=>e.message,'message','Sign in was cancelled.')));
  });
  test('empty expected state cannot authorize a callback',(){
   expect(()=>socialCallbackCode('$socialRedirect?state=&code=fixture',''),throwsA(isA<ApiError>()));

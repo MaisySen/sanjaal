@@ -96,6 +96,24 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Account recovery': 'खाता पुनःप्राप्ति',
+  'Forgot password?': 'पासवर्ड बिर्सनुभयो?',
+  'Check your inbox': 'आफ्नो इमेल जाँच्नुहोस्',
+  'If an account uses that email, you will receive a link to reset your password.': 'यो इमेलमा खाता छ भने पासवर्ड बदल्ने लिङ्क प्राप्त गर्नुहुनेछ।',
+  'Check your spam folder too. Only the newest reset link can be used.': 'स्प्याम फोल्डर पनि जाँच्नुहोस्। सबैभन्दा नयाँ लिङ्क मात्र प्रयोग गर्न सकिन्छ।',
+  'Back to sign in': 'साइन इनमा फर्कनुहोस्',
+  'Use a different email': 'अर्को इमेल प्रयोग गर्नुहोस्',
+  'Enter the email you use for Sanjaal.': 'सञ्जालमा प्रयोग गर्ने इमेल लेख्नुहोस्।',
+  'Send reset link': 'पासवर्ड बदल्ने लिङ्क पठाउनुहोस्',
+  'Sending reset link': 'लिङ्क पठाइँदै छ',
+  'Used a sign-in provider instead? Reset your password with that provider.': 'अर्को सेवाबाट साइन इन गर्नुभएको हो? त्यही सेवाबाट पासवर्ड बदल्नुहोस्।',
+  'Too many attempts. Wait a moment, then try again.': 'धेरै पटक प्रयास भयो। केही समयपछि फेरि प्रयास गर्नुहोस्।',
+  'Could not create your account. Try again.': 'खाता बनाउन सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Your account was created. Sign in to continue.': 'खाता बन्यो। अगाडि बढ्न साइन इन गर्नुहोस्।',
+  'Your password does not meet the account security rules. Choose a stronger password.': 'यो पासवर्डले खाताको सुरक्षा नियम पूरा गर्दैन। अझ सुरक्षित पासवर्ड छान्नुहोस्।',
+  'Could not send the reset link. Try again.': 'पासवर्ड बदल्ने लिङ्क पठाउन सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Wait a minute before requesting another reset link.': 'अर्को लिङ्क माग्नुअघि एक मिनेट पर्खनुहोस्।',
+
   'Media controls failed. Leave this call. Microphone or camera state could not be confirmed.': 'मिडिया नियन्त्रणमा समस्या आयो। यो कलबाट बाहिर निस्कनुहोस्। माइक्रोफोन वा क्यामेराको अवस्था पुष्टि गर्न सकिएन।',
   'Microphone state could not be confirmed. Leave this room.': 'माइक्रोफोनको अवस्था पुष्टि गर्न सकिएन। यो कोठाबाट बाहिर निस्कनुहोस्।',
   'Could not start the call. Check your connection and microphone permission.': 'कल सुरु गर्न सकिएन। आफ्नो जडान र माइक्रोफोनको अनुमति जाँच्नुहोस्।',

@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show TextInput;
 import 'api.dart';
+import 'auth_failure.dart';
+import 'password_recovery_page.dart';
 import 'ui.dart';
 
 class AuthPage extends StatefulWidget {
@@ -47,7 +49,7 @@ class _AuthPageState extends State<AuthPage> {
       // Leaving a failed or abandoned form must cancel its autofill context.
       TextInput.finishAutofillContext(shouldSave: true);
     } catch (e) {
-      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Sign in failed. Try again.'));
+      if (mounted) setState(() => error = t_(authFailureMessage(e, registering: creating)));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -62,7 +64,7 @@ class _AuthPageState extends State<AuthPage> {
     try {
       await widget.session.loginSocial(connection);
     } catch (e) {
-      if (mounted) setState(() => error = e is ApiError ? e.message : t_('Sign in failed. Try again.'));
+      if (mounted) setState(() => error = t_(authFailureMessage(e)));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -133,12 +135,23 @@ class _AuthPageState extends State<AuthPage> {
                       obscureText: !showPassword,
                       autofillHints: [register ? AutofillHints.newPassword : AutofillHints.password],
                       decoration: InputDecoration(labelText: t_('Password'), errorMaxLines: 4, floatingLabelBehavior: FloatingLabelBehavior.always, border: const OutlineInputBorder(), suffixIcon: IconButton(onPressed: busy ? null : () => setState(() => showPassword = !showPassword), tooltip: t_(showPassword ? 'Hide password' : 'Show password'), icon: Icon(showPassword ? Icons.visibility_off : Icons.visibility))),
-                      validator: (v) => (v ?? '').length < 8 ? t_('At least 8 characters') : null,
+                      validator: (v) => register
+                          ? ((v ?? '').length < 8 ? t_('At least 8 characters') : null)
+                          : ((v ?? '').isEmpty ? t_('Required') : null),
                       onFieldSubmitted: (_) => busy ? null : _submit(),
+                    ),
+                    if (!register) Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: busy ? null : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                          builder: (_) => PasswordRecoveryPage(session: widget.session, initialEmail: _email.text),
+                        )),
+                        child: Text(t_('Forgot password?')),
+                      ),
                     ),
                     if (error != null) ...[
                       const SizedBox(height: 12),
-                      Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                      Semantics(liveRegion: true, child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
                     ],
                     const SizedBox(height: 20),
                     FilledButton(

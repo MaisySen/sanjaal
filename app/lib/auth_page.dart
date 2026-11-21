@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'glass/glass_button.dart';
 import 'ui.dart';
 
 class AuthPage extends StatefulWidget {
@@ -106,11 +107,10 @@ class _AuthPageState extends State<AuthPage> {
                       Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                     ],
                     const SizedBox(height: 20),
-                    FilledButton(
-                      onPressed: busy ? null : _submit,
-                      child: busy
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text(register ? t_('Create account') : t_('Sign in')),
+                    SizedBox(
+                      height: 52,
+                      width: double.infinity,
+                      child: GlassButton(label: busy ? 'Signing in' : (register ? t_('Create account') : t_('Sign in')), onPressed: busy ? null : _submit),
                     ),
                     TextButton(
                       onPressed: busy ? null : () => setState(() {
@@ -121,7 +121,11 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                     const SizedBox(height: 8),
                     const Divider(),
-                    OutlinedButton(onPressed: busy ? null : () => _social('google-oauth2'), child: const Text('Continue with Google')),
+                    SizedBox(
+                      height: 52,
+                      width: double.infinity,
+                      child: GlassButton(label: 'Continue with Google', primary: false, onPressed: busy ? null : () => _social('google-oauth2')),
+                    ),
                     const Padding(
                       padding: EdgeInsets.only(top: 6),
                       child: Text('Social sign in is in testing.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),

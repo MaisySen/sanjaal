@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
 import 'api.dart';
+import 'glass/glass_sheet.dart';
 import 'ui.dart';
 
 /// Row of story rings above the feed. First tile adds your own story.
@@ -41,14 +42,12 @@ class _StoriesBarState extends State<StoriesBar> {
 
   Future<void> _add() async {
     final picker = ImagePicker();
-    final source = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.photo_outlined), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
-          ListTile(leading: const Icon(Icons.videocam_outlined), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
-        ]),
-      ),
+    final source = await showGlassSheet<String>(
+      context,
+      builder: (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.photo_outlined), title: Text(t_('Photo')), onTap: () => Navigator.pop(ctx, 'photo')),
+        ListTile(leading: const Icon(Icons.videocam_outlined), title: Text(t_('Video')), onTap: () => Navigator.pop(ctx, 'video')),
+      ]),
     );
     if (source == null) return;
     final x = source == 'photo'
@@ -72,25 +71,48 @@ class _StoriesBarState extends State<StoriesBar> {
     final me = widget.session.user?['username'];
     final mine = groups.where((g) => (g['author'] as Map)['username'] == me).toList();
     final others = groups.where((g) => (g['author'] as Map)['username'] != me).toList();
-    Widget ring(Map<String, dynamic>? user, String label, VoidCallback onTap, {bool seen = false, bool plus = false}) => InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            width: 72,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Stack(alignment: Alignment.bottomRight, children: [
-                Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: seen ? scheme.outlineVariant : scheme.primary, width: 2.5)),
-                  child: Avatar(user: user, radius: 24),
+    // Instagram rings: unseen is a 2px gradient ring, seen is a 1px grey ring.
+    // Avatar is 60px, name is 12px.
+    Widget ring(Map<String, dynamic>? user, String label, VoidCallback onTap, {bool seen = false, bool plus = false}) {
+      final inner = Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(shape: BoxShape.circle, color: scheme.surface),
+        child: Avatar(user: user, radius: 30),
+      );
+      final circled = seen
+          ? Container(
+              padding: const EdgeInsets.all(1),
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: scheme.outlineVariant, width: 1)),
+              child: inner,
+            )
+          : Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF515BD4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                if (plus)
-                  CircleAvatar(radius: 10, backgroundColor: scheme.primary, child: Icon(Icons.add, size: 14, color: scheme.onPrimary)),
-              ]),
-              const SizedBox(height: 4),
-              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+              ),
+              child: inner,
+            );
+      return InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 76,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Stack(alignment: Alignment.bottomRight, children: [
+              circled,
+              if (plus)
+                CircleAvatar(radius: 10, backgroundColor: brandRed, child: Icon(Icons.add, size: 14, color: scheme.onPrimary)),
             ]),
-          ),
-        );
+            const SizedBox(height: 4),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+          ]),
+        ),
+      );
+    }
     final tiles = <Widget>[
       if (mine.isEmpty)
         ring(widget.session.user, t_('Your story'), _add, seen: true, plus: true)
@@ -100,12 +122,12 @@ class _StoriesBarState extends State<StoriesBar> {
     ];
     if (!loaded && groups.isEmpty) return const SizedBox(height: 8);
     return SizedBox(
-      height: 98,
+      height: 106,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
         itemCount: tiles.length + (mine.isNotEmpty ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           if (mine.isNotEmpty && i == 1) {
             return InkWell(onTap: _add, child: SizedBox(width: 56, child: Center(child: Icon(Icons.add_circle_outline, color: scheme.primary, size: 32))));
@@ -233,12 +255,13 @@ class _StoryViewerState extends State<StoryViewer> {
       final j = await widget.session.call('GET', '/stories/${items[index]['public_id']}/viewers') as Map<String, dynamic>;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        builder: (ctx) => SafeArea(
+      await showGlassSheet<void>(
+        context,
+        builder: (ctx) => Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
           child: list.isEmpty
               ? Padding(padding: const EdgeInsets.all(32), child: Text(t_('No views yet')))
-              : ListView(shrinkWrap: true, children: [
+              : Column(mainAxisSize: MainAxisSize.min, children: [
                   for (final u in list) ListTile(leading: Avatar(user: u), title: Text('${u['name'] ?? u['username']}'), subtitle: Text('@${u['username']}')),
                 ]),
         ),
@@ -265,7 +288,7 @@ class _StoryViewerState extends State<StoryViewer> {
           item['url'] as String,
           fit: BoxFit.contain,
           loadingBuilder: (_, child, p) => p == null ? child : const Center(child: CircularProgressIndicator()),
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48),
+          errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48),
         ),
       );
     }
@@ -297,6 +320,7 @@ class _StoryViewerState extends State<StoryViewer> {
                       child: LinearProgressIndicator(
                         value: i < index ? 1 : (i == index ? progress.clamp(0, 1).toDouble() : 0),
                         minHeight: 3,
+                        borderRadius: BorderRadius.circular(999),
                         backgroundColor: Colors.white24,
                         color: Colors.white,
                       ),

@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
+import 'glass/glass_card.dart';
+import 'glass/glass_sheet.dart';
 import 'ui.dart';
 
 const _giftIcons = <String, IconData>{
@@ -13,9 +15,8 @@ const _giftIcons = <String, IconData>{
 
 /// Bottom sheet that lists gifts and sends one to the creator of a post or reel.
 Future<void> showGiftSheet(BuildContext context, Session session, String postId, String username, {String? path, void Function(Map<String, dynamic> gift)? onSent}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
+  return showGlassSheet<void>(
+    context,
     builder: (_) => _GiftSheet(session: session, postId: postId, username: username, path: path ?? '/posts/$postId/gifts', onSent: onSent),
   );
 }
@@ -107,18 +108,17 @@ class _GiftSheetState extends State<_GiftSheet> {
                 for (final g in gifts)
                   Opacity(
                     opacity: _affords(g) ? 1 : 0.45,
-                    child: Card(
-                    child: InkWell(
-                      onTap: _affords(g) ? () => _send(g) : () => _short(g),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        sending == g['key']
-                            ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(_giftIcons[g['key']] ?? Icons.card_giftcard, size: 32),
-                        const SizedBox(height: 4),
-                        Text(g['name'].toString()),
-                        Text('${g['coins']} coins', style: Theme.of(context).textTheme.bodySmall),
-                      ]),
-                    ),
+                    child: GlassCard(
+                    padding: const EdgeInsets.all(8),
+                    onTap: _affords(g) ? () => _send(g) : () => _short(g),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      sending == g['key']
+                          ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(_giftIcons[g['key']] ?? Icons.card_giftcard, size: 28),
+                      const SizedBox(height: 4),
+                      Text(g['name'].toString()),
+                      Text('${g['coins']} coins', style: Theme.of(context).textTheme.bodySmall),
+                    ]),
                   ),
                   ),
               ],

@@ -1,4 +1,6 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'glass/glass_button.dart';
 import 'ui.dart';
 
 class OnboardingPage extends StatefulWidget {
@@ -31,7 +33,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
           Expanded(
             child: PageView(
               controller: pager,
-              onPageChanged: (i) => setState(() => page = i),
+              onPageChanged: (i) {
+                HapticFeedback.selectionClick();
+                setState(() => page = i);
+              },
               children: [
                 for (final s in _slides)
                   Padding(
@@ -40,7 +45,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       Container(
                         width: 140,
                         height: 140,
-                        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [brandRed, Color(0xFF8A0B20)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
+                        decoration: const BoxDecoration(shape: BoxShape.circle, color: brandRed),
                         child: Icon(s.$1, size: 64, color: Colors.white),
                       ),
                       const SizedBox(height: 36),
@@ -67,9 +72,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
             child: SizedBox(
               width: double.infinity,
               height: 52,
-              child: FilledButton(
+              child: GlassButton(
+                label: last ? t_('Get started') : t_('Next'),
                 onPressed: () => last ? prefs.finishOnboarding() : pager.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
-                child: Text(last ? t_('Get started') : t_('Next')),
               ),
             ),
           ),

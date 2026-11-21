@@ -3,7 +3,6 @@
 // SDK so text and icons are readable. Network images are not fetched in tests, so avatars and
 // photos show their fallback.
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -176,12 +175,12 @@ class EmptyState extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 30, color: s.colorScheme.onSurfaceVariant),
-          const SizedBox(height: 10),
-          Text(title, textAlign: TextAlign.center, style: s.textTheme.titleMedium?.copyWith(fontSize: 16)),
+          Icon(icon, size: 48, color: s.colorScheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(title, textAlign: TextAlign.center, style: s.textTheme.titleMedium?.copyWith(fontSize: 17, fontWeight: FontWeight.w700)),
           if (hint != null) ...[
             const SizedBox(height: 6),
-            Text(hint!, textAlign: TextAlign.center, style: s.textTheme.bodyMedium?.copyWith(color: s.colorScheme.outline)),
+            Text(hint!, textAlign: TextAlign.center, style: s.textTheme.bodyMedium?.copyWith(color: s.colorScheme.onSurfaceVariant)),
           ],
           if (action != null) ...[const SizedBox(height: 16), action!],
         ]),

@@ -20,8 +20,8 @@ String shortCount(int v) {
 }
 
 Widget _stat(BuildContext context, String n, String label) => Column(children: [
-      Text(n, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
+      Text(n, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+      Text(label, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
     ]);
 
 class ProfileHeader extends StatelessWidget {
@@ -35,22 +35,26 @@ class ProfileHeader extends StatelessWidget {
     final bio = (user['bio'] ?? '').toString();
     String n(String k) => shortCount((user[k] as num?)?.toInt() ?? 0);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      child: Column(children: [
-        GestureDetector(
-          onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()),
-          child: Avatar(user: user, radius: 46),
-        ),
-        const SizedBox(height: 12),
-        if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-        Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.outline)),
-        if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(bio, textAlign: TextAlign.center)),
-        const SizedBox(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-          _stat(context, n('posts_count'), t_('Posts')),
-          _stat(context, n('followers_count'), t_('Followers')),
-          _stat(context, n('following_count'), t_('Following')),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          GestureDetector(
+            onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()),
+            child: Avatar(user: user, radius: 55),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              _stat(context, n('posts_count'), t_('Posts')),
+              _stat(context, n('followers_count'), t_('Followers')),
+              _stat(context, n('following_count'), t_('Following')),
+            ]),
+          ),
         ]),
+        const SizedBox(height: 12),
+        if (name.isNotEmpty) Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(bio)),
         const SizedBox(height: 16),
         actions,
         const Divider(height: 28),
@@ -299,7 +303,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         child: ListView(padding: const EdgeInsets.all(20), children: [
           Center(
             child: Stack(children: [
-              ListenableBuilder(listenable: widget.session, builder: (_, __) => Avatar(user: widget.session.user, radius: 52)),
+              ListenableBuilder(listenable: widget.session, builder: (_, _) => Avatar(user: widget.session.user, radius: 52)),
               Positioned(
                 right: 0,
                 bottom: 0,

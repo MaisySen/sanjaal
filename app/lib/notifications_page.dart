@@ -43,7 +43,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         onRefresh: _load,
         child: ListView.separated(
           itemCount: items!.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, i) {
             final n = items![i];
             final type = n['type'];
@@ -54,7 +54,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               _ => (Icons.person_add, const Color(0xFF3F5B45), '$who started following you'),
             };
             return ListTile(
-              leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color, size: 20)),
+              leading: CircleAvatar(radius: 22, backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color, size: 20)),
               title: Text(text, maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(type == 'like' && (n['text'] ?? '').toString().isNotEmpty ? '${n['text']}  ·  ${ago(n['created_at'].toString())}' : ago(n['created_at'].toString())),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: n['actor'].toString()))),

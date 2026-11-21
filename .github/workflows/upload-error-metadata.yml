@@ -1,0 +1,23 @@
+name: Upload error metadata hardening
+on:
+  push:
+    branches: [hardening-upload-error-metadata]
+permissions:
+  contents: read
+jobs:
+  isolated-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: false
+      - working-directory: app
+        run: |
+          flutter pub get
+          flutter test test/upload_center_test.dart test/upload_session_test.dart test/upload_pending_store_test.dart

@@ -175,6 +175,37 @@ void main(){
    expect(c.canRetry,isTrue);expect(c.confirmedPosts,isEmpty);c.retry();await flush(t);expect(writes,2);expect(c.confirmedPosts.single['public_id'],'same');expect(bodies.every((b)=>b.contains(intent)&&b.contains('original')),isTrue);
   },respond:(r)async{bodies.add(r.body);if(++writes==1)throw http.ClientException('fixture reply lost');return json({'post':post('same')});});
  });
+ for(final kind in ['post','story']){
+ for(final metadata in <Map<String,dynamic>>[
+  {'code':17,'resource_id':['not-an-id']},
+  {'code':{'unexpected':'object'},'resource_id':false},
+  {'code':'backend_failure','resource_id':42},
+ ]){
+ testWidgets('malformed $kind failure metadata never enables unsafe legacy retry $metadata',(t)async{
+  var writes=0;
+  await fixture(t,(s,c)async{
+   final intent=newUploadIntent();
+   c.start(kind,()=>kind=='post'?s.createPost('original',intent:intent):s.upload('/stories',intent:intent).then((v)=>(v['story'] as Map).cast<String,dynamic>()));
+   await flush(t);
+   expect(c.error,isA<UploadError>());
+   expect((c.error as UploadError).uncertain,isTrue);
+   expect(c.canRetry,isFalse);
+   c.retry();await flush(t);expect(writes,1);
+  },safe:false,respond:(r)async{writes++;return json({'message':'Fixture server failure',...metadata},500);});
+ });
+ }
+ testWidgets('malformed $kind resource ID preserves terminal intent conflict',(t)async{
+  var writes=0;
+  await fixture(t,(s,c)async{
+   final intent=newUploadIntent();
+   c.start(kind,()=>kind=='post'?s.createPost('original',intent:intent):s.upload('/stories',intent:intent).then((v)=>(v['story'] as Map).cast<String,dynamic>()));
+   await flush(t);expect(c.error,isA<UploadError>());
+   expect((c.error as UploadError).code,'upload_intent_conflict');
+   expect((c.error as UploadError).resourceId,isNull);expect(c.canRetry,isFalse);
+   c.retry();await flush(t);expect(writes,1);
+  },respond:(r)async{writes++;return json({'code':'upload_intent_conflict','resource_id':42},409);});
+ });
+ }
  testWidgets('legacy unknown result offers no retry and never resends on tab changes',(t)async{
   var writes=0;await fixture(t,(s,c)async{c.start('post',()=>s.createPost('legacy',intent:newUploadIntent()));await flush(t);expect(c.error,isA<UploadError>());expect(c.canRetry,isFalse);c.retry();await flush(t);expect(writes,1);},safe:false,respond:(r)async{writes++;throw http.ClientException('lost');});
  });

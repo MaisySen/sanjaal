@@ -6,6 +6,7 @@ use App\Models\User;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Request;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -26,6 +27,7 @@ class Auth0Guard
 
         try {
             $claims = $this->claimsFor($token);
+            if (! is_string($claims['sub'] ?? null) || trim($claims['sub']) === '' || strlen($claims['sub']) > 255) return null;
         } catch (Throwable) {
             return null;
         }
@@ -94,27 +96,35 @@ class Auth0Guard
             return $user;
         }
 
-        $info = Http::timeout(10)->withToken($token)
-            ->get('https://'.config('services.auth0.domain').'/userinfo');
-        if (! $info->ok() || ! $info->json('email')) {
+        try {
+            $info = Http::timeout(10)->withToken($token)
+                ->get('https://'.config('services.auth0.domain').'/userinfo');
+        } catch (ConnectionException) {
             return null;
         }
-        $email = Str::lower($info->json('email'));
+        $profile = $info->json();
+        if (! $info->ok() || ! is_array($profile) || ($profile['sub'] ?? null) !== $sub) return null;
+        $email = $profile['email'] ?? null;
+        if (! is_string($email) || strlen($email) > 255 || ! filter_var(trim($email), FILTER_VALIDATE_EMAIL)) return null;
+        $email = Str::lower(trim($email));
 
-        // Same email already known locally: link it rather than duplicate.
-        $user = User::where('email', $email)->first();
-        if ($user) {
-            $user->forceFill(['auth0_sub' => $sub])->save();
-
-            return $user;
+        // Email, including verified email, is not authority to replace another
+        // subject. Legacy/imported rows also need deliberate account linking.
+        if (User::whereRaw('LOWER(email) = ?', [$email])->exists()) return User::where('auth0_sub', $sub)->first();
+        $name = is_string($profile['name'] ?? null) ? $profile['name'] : null;
+        $nickname = is_string($profile['nickname'] ?? null) ? $profile['nickname'] : Str::before($email, '@');
+        try {
+            return User::create([
+                'name' => Str::limit(User::safeName($name ?: $nickname, $nickname), 80, ''),
+                'username' => $this->freshUsername($nickname),
+                'email' => $email,
+                'auth0_sub' => $sub,
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            // Concurrent first sign-in may have created this exact subject.
+            // Never resolve a collision by taking the row with matching email.
+            return User::where('auth0_sub', $sub)->first();
         }
-
-        return User::create([
-            'name' => Str::limit(\App\Models\User::safeName($info->json('name') ?: $info->json('nickname'), $info->json('nickname') ?: Str::before($email, '@')), 80, ''),
-            'username' => $this->freshUsername($info->json('nickname') ?: Str::before($email, '@')),
-            'email' => $email,
-            'auth0_sub' => $sub,
-        ]);
     }
 
     private function freshUsername(string $seed): string

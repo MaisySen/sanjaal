@@ -1,5 +1,9 @@
 import json,hashlib,gzip,io,tarfile,os,sys,urllib.request,urllib.parse,base64
-USER='sanjaalapp'; REPO='sanjaalapp/sanjaal-api'; TAG=sys.argv[1]; BASE_TAG='v26'
+from security_floor import check_prepared_root, check_app_layer, REVIEWED_IMAGE
+root=os.environ.get('SANJAAL_PREPARED_ROOT', '/tmp/nb/final')
+# Enforce before reading any credential or making a network request.
+check_prepared_root(root)
+USER='sanjaalapp'; REPO='sanjaalapp/sanjaal-api'; TAG=sys.argv[1]; BASE_TAG=REVIEWED_IMAGE
 PAT=open('/tmp/pat.keep').read().strip()
 def req(url, method='GET', data=None, headers=None, tok=None):
     h=dict(headers or {})
@@ -15,7 +19,6 @@ REG='https://registry-1.docker.io/v2/'
 ACC='application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'
 s,h,b=req(REG+f'{REPO}/manifests/{BASE_TAG}',headers={'Accept':ACC},tok=tok); assert s==200
 base=json.loads(b); s,h,cb=req(REG+f'{REPO}/blobs/'+base['config']['digest'],tok=tok); cfg=json.loads(cb)
-root='/tmp/nb/final'
 def mk(filt):
     buf=io.BytesIO()
     with tarfile.open(fileobj=buf,mode='w') as t:
@@ -38,6 +41,8 @@ def push_blob(data,dig):
     print('blob',dig[:19],len(data),s); assert s==201,(s,b[:200])
 isapp=lambda a: a=='app' or a.startswith('app/')
 L1=mk(lambda a: not isapp(a)); L2=mk(isapp)
+# Check the exact serialized bytes, not just the earlier source read.
+check_app_layer(L2[2])
 push_blob(L1[2],L1[1]); push_blob(L2[2],L2[1])
 cfg['rootfs']['diff_ids']=[L1[0],L2[0]]
 cfg['history']=[{'created_by':'sanjaal alpine 3.24.4 + php 8.4.27 (alpine packages) + caddy + php-fpm'},{'created_by':'sanjaal app'}]

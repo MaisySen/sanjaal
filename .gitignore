@@ -6,3 +6,6 @@ app/.dart_tool/
 api/vendor/
 api/storage/*.key
 api/bootstrap/cache/*.php
+
+__pycache__/
+*.pyc

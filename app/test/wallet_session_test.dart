@@ -56,7 +56,8 @@ void main(){
    expect(writes,0);expect(find.textContaining('private_recipient'),findsNothing);
    expect(find.text('1200'),findsNothing);
    expect(t.takeException(),isNull);
-   await t.tap(find.widgetWithText(TextButton,'Close'));await t.pumpAndSettle();
+   // The adversarial captured confirmation already dismissed its dialog.
+   expect(find.byType(AlertDialog),findsNothing);
    if(replacement=='logout'){
     expect(find.widgetWithText(FilledButton,'Open current wallet'),findsNothing);
    }else{

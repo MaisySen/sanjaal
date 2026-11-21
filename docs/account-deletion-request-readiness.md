@@ -12,7 +12,7 @@ Base product source: `a4b99e2385add30b159cd7edb3c04b827a387cb2`.
 - Retires the page on account/session change. Local interface text supports English and Nepali. Processing and retention notices are displayed as supplied, not silently translated or invented.
 - Defaults intake OFF. No environment-only switch. `enabled`, `completion_mechanism_verified`, a policy version and nonempty processing/retention notices must all be set in reviewed source before intake can open.
 
-A read-only `php artisan accounts:deletion-plan <existing-request-uuid>` command now returns member-scoped dependency counts and operational holds without personal content, provider calls or writes. It has no apply mode and always reports deletion not allowed and inventory incomplete. This is not a consistent database snapshot or exhaustive media inventory. Three additional planner tests pass (41 assertions), including a SQL listener requiring every planner query to be SELECT and HTTP fakes proving no provider calls.
+A read-only `php artisan accounts:deletion-plan <existing-request-uuid>` command now returns member-scoped dependency counts and operational holds without personal content, provider calls or writes. It has no apply mode and always reports deletion not allowed and inventory incomplete. Its media sample is bounded at 250 UUID candidates, reads no blob bytes, never follows external paths or contacts a bucket, and flags shared references, missing DB rows, unknown path shapes and truncated samples. This is not a consistent database snapshot or exhaustive media inventory. Six additional planner/media tests pass (79 assertions), including a SQL listener requiring every planner query to be SELECT and HTTP fakes proving no provider calls.
 
 There is no account deletion worker, remote identity deletion, data erasure, deployment or activation in this change. Request intake by itself does not satisfy completed account deletion. No real requests were submitted while developing it. Screenshots use synthetic notices explicitly identified as non-production.
 
@@ -42,6 +42,6 @@ These remain rollout blockers, not reasons to stop implementing the independent 
 
 ## Local evidence
 
-- Request controller + auth tests: 17 tests, 57 assertions, SQLite fixtures only. Not a PostgreSQL concurrency proof.
+- Request controller + auth tests: 17 tests, 57 assertions, SQLite fixtures only. Separate private local PostgreSQL 14.24 concurrency evidence queued two PHP controller requests behind a held member-row lock. They returned HTTP 201/200 with the same request UUID and one final request row. This is not exact production PostgreSQL 18.7 or end-to-end authentication evidence.
 - New UI: 16 focused widget/renderer tests, including settings navigation, same-member reauthentication, English/Nepali, light/dark, 320px/1.5 text scale with routed back navigation. Actual screenshots inspected.
 - No native/product build was run for this change. The branch is excluded from the general build workflow to avoid an unreviewed full build. There is no new secret-consuming or deployment workflow.

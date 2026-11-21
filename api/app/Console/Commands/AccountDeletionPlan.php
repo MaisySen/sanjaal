@@ -49,6 +49,7 @@ class AccountDeletionPlan extends Command
             'request_reference' => $request->public_id, 'request_status' => $request->status,
             'scope' => 'One member request; counts only, not a consistent snapshot or complete media inventory',
             'counts' => $counts, 'operational_holds' => $holds,
+            'media_sample' => \App\Support\AccountDeletionMediaInventory::inspect($id),
             'unresolved' => ['identity revocation and anti-recreation', 'financial retention and reconciliation', 'associated media and shared references',
                 'in-flight work and replay barriers', 'backup lifecycle and completion confirmation'],
             'inventory_complete' => false, 'deletion_allowed' => false, 'account_deleted' => false,

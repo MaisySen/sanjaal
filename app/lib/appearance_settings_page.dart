@@ -29,6 +29,13 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
     }
   }
 
+  Future<void> saveGlass(Future<void> operation) async {
+    // Store-owned status survives leaving and returning to Appearance.
+    try {
+      await operation;
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: prefs,
@@ -64,11 +71,37 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
             builder: (context, _) => Column(
               children: [
                 const Divider(height: 24),
+                if (glassSettings.saving) const LinearProgressIndicator(),
+                if (glassSettings.saveFailed)
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            t_(
+                              'Glass changed for now, but could not be saved.',
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: glassSettings.saving
+                              ? null
+                              : () => saveGlass(glassSettings.save()),
+                          child: Text(t_('Try again')),
+                        ),
+                      ],
+                    ),
+                  ),
                 ListTile(
                   title: Text(t_('Transparency')),
                   subtitle: Slider(
                     value: glassSettings.transparency,
-                    onChanged: glassSettings.setTransparency,
+                    onChanged: glassSettings.previewTransparency,
+                    onChangeEnd: (value) =>
+                        saveGlass(glassSettings.setTransparency(value)),
                     semanticFormatterCallback: (v) => '${(v * 100).round()}%',
                   ),
                 ),
@@ -86,7 +119,8 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
                   title: Text(t_('Reduce glass')),
                   subtitle: Text(t_('Solid surfaces instead of glass')),
                   value: glassSettings.reduced,
-                  onChanged: glassSettings.setReduced,
+                  onChanged: (value) =>
+                      saveGlass(glassSettings.setReduced(value)),
                 ),
               ],
             ),

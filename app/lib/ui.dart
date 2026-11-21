@@ -130,6 +130,7 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Glass changed for now, but could not be saved.': 'अहिलेका लागि ग्लास फेरिएको छ, तर सुरक्षित गर्न सकिएन।',
   'Appearance changed for now, but could not be saved. Choose it again to retry.': 'अहिलेका लागि रूप फेरिएको छ, तर सुरक्षित गर्न सकिएन। फेरि प्रयास गर्न उही विकल्प छान्नुहोस्।',
   'Language changed for now, but could not be saved. Choose it again to retry.': 'अहिलेका लागि भाषा फेरिएको छ, तर सुरक्षित गर्न सकिएन। फेरि प्रयास गर्न उही भाषा छान्नुहोस्।',
   'Device preferences could not be loaded.': 'यन्त्रमा सुरक्षित सेटिङहरू खोल्न सकिएन।',

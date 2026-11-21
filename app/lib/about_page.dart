@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'ui.dart' show t_;
+import 'ui.dart' show Logo, t_;
 
 const appVersion = '0.3.0';
 
@@ -13,11 +13,13 @@ class AboutPage extends StatelessWidget {
     Widget h(String s) => Padding(padding: const EdgeInsets.only(top: 20, bottom: 6), child: Text(s, style: t.titleMedium));
     return Scaffold(
       appBar: AppBar(title: Text(t_('About Sanjaal'))),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        Text('Sanjaal', style: t.headlineSmall),
-        const Text('Version $appVersion'),
+      body: ListView(padding: const EdgeInsets.all(20), children: [
+        const Center(child: Logo(size: 72)),
+        const SizedBox(height: 16),
+        Text('Sanjaal', textAlign: TextAlign.center, style: t.headlineSmall),
+        const Text('Version $appVersion', textAlign: TextAlign.center),
         const SizedBox(height: 8),
-        const Text('A community app for Nepalis: a feed, short videos, chat, calls and a coin wallet.'),
+        const Text('A community app for Nepalis: a feed, short videos, chat, calls and a coin wallet.', textAlign: TextAlign.center),
         h('Publisher'),
         const Text('Fintex Australia Pty Ltd\nABN 60 688 406 108\ncontact@fintex.au'),
         h('Privacy'),

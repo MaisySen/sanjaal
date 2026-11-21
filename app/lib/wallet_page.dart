@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
+import 'glass/glass_button.dart';
+import 'glass/glass_card.dart';
 import 'ui.dart';
 
 /// Coin wallet. 1 coin = NPR 1 of verified top up. Coins move between members. There is no cash out.
@@ -162,37 +164,51 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _load,
-              child: ListView(padding: const EdgeInsets.all(16), children: [
+              child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
                 if (error != null) Text(error!),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 20),
-                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant))),
+                GlassCard(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(t_('Balance'), style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, letterSpacing: 0.6)),
                     const SizedBox(height: 4),
                     Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-                      Text('$balance', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w800, letterSpacing: -1.5, height: 1.1)),
+                      Text('$balance', style: const TextStyle(fontSize: 56, fontWeight: FontWeight.w800, letterSpacing: -1.5, height: 1.1)),
                       const SizedBox(width: 8),
                       Text('coins', style: Theme.of(context).textTheme.titleMedium),
                     ]),
                     const SizedBox(height: 16),
                     Row(children: [
-                      FilledButton.icon(onPressed: esewa ? _topup : null, icon: const Icon(Icons.add, size: 18), label: Text(t_('Add coins'))),
+                      GlassButton(label: t_('Add coins'), icon: Icons.add, onPressed: esewa ? _topup : null),
                       const SizedBox(width: 10),
-                      OutlinedButton.icon(onPressed: balance > 0 ? _send : null, icon: const Icon(Icons.north_east, size: 18), label: Text(t_('Send'))),
+                      GlassButton(label: t_('Send'), icon: Icons.north_east, primary: false, onPressed: balance > 0 ? _send : null),
                     ]),
                     if (!esewa) const Padding(padding: EdgeInsets.only(top: 10), child: Text('Adding coins is not switched on yet.')),
                     const Padding(padding: EdgeInsets.only(top: 6), child: Text('Cash out is not available.', style: TextStyle(fontSize: 12))),
                   ]),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Text('History', style: Theme.of(context).textTheme.titleMedium),
                 if (entries.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('No activity yet.')),
                 for (final e in entries)
                   ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: (e['amount'] as num) > 0 ? brandRed.withValues(alpha: 0.12) : Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        switch (e['kind']) {
+                          'topup' => Icons.add,
+                          'transfer_in' || 'gift_in' => Icons.south_west,
+                          _ => Icons.north_east,
+                        },
+                        size: 20,
+                        color: (e['amount'] as num) > 0 ? brandRed : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                     title: Text(_label(e)),
                     subtitle: Text([ago((e['created_at'] ?? '').toString()), if (e['note'] != null) e['note']].join('  ')),
-                    trailing: Text('${(e['amount'] as num) > 0 ? '+' : ''}${e['amount']}'),
+                    trailing: Text(
+                      '${(e['amount'] as num) > 0 ? '+' : ''}${e['amount']}',
+                      style: TextStyle(fontWeight: FontWeight.w700, color: (e['amount'] as num) > 0 ? brandRed : Theme.of(context).colorScheme.onSurface),
+                    ),
                   ),
               ]),
             ),

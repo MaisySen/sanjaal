@@ -70,13 +70,22 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
-          controller: input,
-          autofocus: true,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(hintText: 'Search people and #tags', border: InputBorder.none, suffixIcon: loading ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null),
-          onChanged: _changed,
-          onSubmitted: (_) => _run(),
+        title: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          alignment: Alignment.center,
+          child: TextField(
+            controller: input,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(hintText: 'Search people and #tags', border: InputBorder.none, suffixIcon: loading ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null),
+            onChanged: _changed,
+            onSubmitted: (_) => _run(),
+          ),
         ),
       ),
       body: error != null
@@ -88,13 +97,13 @@ class _SearchPageState extends State<SearchPage> {
                   : ListView(children: [
                       for (final tg in tags)
                         ListTile(
-                          leading: const CircleAvatar(child: Icon(Icons.tag)),
+                          leading: CircleAvatar(radius: 22, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, child: Icon(Icons.tag, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           title: Text('#$tg'),
                           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tg))),
                         ),
                       for (final u in users)
                         ListTile(
-                          leading: Avatar(user: u),
+                          leading: Avatar(user: u, radius: 22),
                           title: Text((u['name'] ?? '').toString().isEmpty ? '@${u['username']}' : u['name'].toString()),
                           subtitle: Text('@${u['username']}${u['following'] == true ? '  ·  Following' : ''}'),
                           onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u['username'].toString()))),

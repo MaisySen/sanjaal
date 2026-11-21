@@ -3,6 +3,7 @@ import 'package:livekit_client/livekit_client.dart' hide Session;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'gifts.dart';
+import 'glass/glass_card.dart';
 import 'ui.dart';
 
 /// Live audio rooms: a list of rooms that are on now, and a button to start your own.
@@ -91,7 +92,15 @@ class _RoomsPageState extends State<RoomsPage> {
                         leading: const CircleAvatar(child: Icon(Icons.graphic_eq)),
                         title: Text('${r['title']}'),
                         subtitle: Text('Hosted by ${r['host_name'] ?? r['host_username']}'),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: brandRed, borderRadius: BorderRadius.circular(999)),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                            const SizedBox(width: 4),
+                            const Text('Live', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                          ]),
+                        ),
                         onTap: () => _open(r['public_id'] as String),
                       );
                     },
@@ -409,20 +418,23 @@ class RoomView extends StatelessWidget {
                 ]),
               ),
               if (isHost && hands.isNotEmpty)
-                Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Column(children: [
-                    for (final h in hands.entries)
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.back_hand_outlined),
-                        title: Text(h.value.isEmpty ? 'Member' : h.value),
-                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                          TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
-                          FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
-                        ]),
-                      ),
-                  ]),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: GlassCard(
+                    padding: const EdgeInsets.all(4),
+                    child: Column(children: [
+                      for (final h in hands.entries)
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.back_hand_outlined),
+                          title: Text(h.value.isEmpty ? 'Member' : h.value),
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            TextButton(onPressed: () => onDismissHand(h.key), child: Text(t_('Dismiss'))),
+                            FilledButton(onPressed: () => onAllow(h.key, true), child: Text(t_('Let speak'))),
+                          ]),
+                        ),
+                    ]),
+                  ),
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -431,20 +443,42 @@ class RoomView extends StatelessWidget {
               if (stage.isEmpty)
                 const Padding(padding: EdgeInsets.fromLTRB(16, 8, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text('Nobody is speaking yet.')))
               else
-                for (final m in stage)
-                  ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: m.speaking ? scheme.primary : scheme.surfaceContainerHighest,
-                      child: Icon(m.muted ? Icons.mic_off : Icons.mic, size: 16, color: m.speaking ? scheme.onPrimary : scheme.onSurfaceVariant),
-                    ),
-                    title: Text([m.name, if (m.host) '(host)', if (m.you) '(you)'].join(' ')),
-                    subtitle: Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on')),
-                    trailing: isHost && !m.you && !m.host
-                        ? TextButton(onPressed: () => onAllow(m.id, false), child: Text(t_('Move to listeners')))
-                        : null,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final m in stage)
+                        SizedBox(
+                          width: 76,
+                          child: Column(children: [
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: m.speaking ? scheme.primary : Colors.transparent, width: 2),
+                              ),
+                              child: CircleAvatar(
+                                radius: 28,
+                                backgroundColor: m.speaking ? scheme.primary : scheme.surfaceContainerHighest,
+                                child: Icon(m.muted ? Icons.mic_off : Icons.mic, size: 22, color: m.speaking ? scheme.onPrimary : scheme.onSurfaceVariant),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text([m.name, if (m.host) '(host)', if (m.you) '(you)'].join(' '), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                            Text(m.muted ? 'Muted' : (m.speaking ? 'Speaking' : 'Mic on'), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                            if (isHost && !m.you && !m.host)
+                              TextButton(
+                                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(76, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                onPressed: () => onAllow(m.id, false),
+                                child: Text(t_('Move to listeners'), maxLines: 2, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
+                              ),
+                          ]),
+                        ),
+                    ],
                   ),
+                ),
               const Divider(height: 16),
               Expanded(
                 child: messages.isEmpty
@@ -469,7 +503,7 @@ class RoomView extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                   child: Row(children: [
-                    Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: const InputDecoration(hintText: 'Say something'), onSubmitted: (_) => onSend())),
+                    Expanded(child: TextField(controller: chat, maxLength: 300, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, decoration: InputDecoration(hintText: 'Say something', border: OutlineInputBorder(borderRadius: BorderRadius.circular(999))), onSubmitted: (_) => onSend())),
                     const SizedBox(width: 8),
                     IconButton.filled(onPressed: onSend, icon: const Icon(Icons.send)),
                   ]),

@@ -58,7 +58,7 @@ class _CallsPageState extends State<CallsPage> {
                 ? ListView(children: [EmptyState(icon: Icons.call_outlined, title: error ?? 'No calls yet', hint: 'Start a call from any chat.')])
                 : ListView.separated(
                     itemCount: calls.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final c = calls[i];
                       final incoming = c['direction'] == 'incoming';
@@ -66,7 +66,7 @@ class _CallsPageState extends State<CallsPage> {
                       final video = c['kind'] == 'video';
                       final who = incoming ? (c['caller'] as Map)['name'] ?? (c['caller'] as Map)['username'] : c['title'];
                       return ListTile(
-                        leading: Avatar(user: (c['caller'] as Map).cast<String, dynamic>()),
+                        leading: Avatar(user: (c['caller'] as Map).cast<String, dynamic>(), radius: 22),
                         title: Text('${c['title'] ?? who}', style: TextStyle(color: missed ? scheme.error : null)),
                         subtitle: Row(children: [
                           Icon(incoming ? Icons.call_received : Icons.call_made, size: 14, color: missed ? scheme.error : scheme.outline),

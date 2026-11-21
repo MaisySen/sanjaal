@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'about_page.dart';
 import 'api.dart';
+import 'glass/glass.dart';
 
 import 'push.dart';
 import 'ui.dart';
@@ -22,6 +23,11 @@ class SettingsPage extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SegmentedButton<ThemeMode>(
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: brandRed.withValues(alpha: 0.14),
+                selectedForegroundColor: brandRed,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               segments: [
                 ButtonSegment(value: ThemeMode.system, label: Text(t_('System'))),
                 ButtonSegment(value: ThemeMode.light, label: Text(t_('Light'))),
@@ -35,12 +41,19 @@ class SettingsPage extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SegmentedButton<String>(
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: brandRed.withValues(alpha: 0.14),
+                selectedForegroundColor: brandRed,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
               segments: const [ButtonSegment(value: 'en', label: Text('English')), ButtonSegment(value: 'ne', label: Text('नेपाली'))],
               selected: {prefs.lang},
               onSelectionChanged: (s) => prefs.setLang(s.first),
             ),
           ),
           const SizedBox(height: 12),
+          const Divider(),
+          const GlassSettingsRow(),
           const Divider(),
           ValueListenableBuilder<String>(
             valueListenable: Push.status,

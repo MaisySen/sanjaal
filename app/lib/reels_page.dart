@@ -1,8 +1,10 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'api.dart';
 import 'feed_page.dart' show CommentsSheet;
 import 'gifts.dart';
+import 'glass/glass_sheet.dart';
 import 'profile_pages.dart';
 import 'reactions.dart';
 import 'ui.dart';
@@ -69,11 +71,14 @@ class _ReelsPageState extends State<ReelsPage> {
         appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, title: Text(t_('Reels'))),
         body: loading
             ? const Center(child: CircularProgressIndicator())
-            : EmptyState(
-                icon: Icons.movie_outlined,
-                title: error ?? 'No reels yet',
-                hint: error == null ? 'Tap + on Home, add a video and it shows up here.' : null,
-                action: OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Refresh'))),
+            : Theme(
+                data: ThemeData.dark(),
+                child: EmptyState(
+                  icon: Icons.movie_outlined,
+                  title: error ?? 'No reels yet',
+                  hint: error == null ? 'Tap + on Home, add a video and it shows up here.' : null,
+                  action: OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Refresh'))),
+                ),
               ),
       );
     }
@@ -101,11 +106,13 @@ class _ReelsPageState extends State<ReelsPage> {
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(children: [
-              Text(t_('Reels'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
-              const Spacer(),
-              IconButton(color: Colors.white, tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: () => _load(refresh: true)),
-            ]),
+            child: SizedBox(
+              height: 48,
+              child: Stack(children: [
+                Align(alignment: Alignment.center, child: Text(t_('Reels'), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700))),
+                Align(alignment: Alignment.centerRight, child: IconButton(color: Colors.white, tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: () => _load(refresh: true))),
+              ]),
+            ),
           ),
         ),
       ]),
@@ -131,6 +138,16 @@ class _ReelItemState extends State<ReelItem> {
   late int comments = (widget.reel['comments_count'] as num?)?.toInt() ?? 0;
   late bool following = (widget.reel['author'] as Map)['following'] == true;
   bool followBusy = false;
+  final reactionKey = GlobalKey<ReactionButtonState>();
+  bool _heartVisible = false;
+
+  /// Double tap on the video likes, the TikTok rule.
+  void _doubleTap() {
+    HapticFeedback.mediumImpact();
+    setState(() => _heartVisible = true);
+    reactionKey.currentState?.like();
+    Future.delayed(const Duration(milliseconds: 700), () => mounted ? setState(() => _heartVisible = false) : null);
+  }
 
   Map<String, dynamic> get author => (widget.reel['author'] as Map).cast<String, dynamic>();
   String get id => widget.reel['public_id'] as String;
@@ -175,10 +192,8 @@ class _ReelItemState extends State<ReelItem> {
   }
 
   void _comments() async {
-    final added = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
+    final added = await showGlassSheet<int>(
+      context,
       builder: (_) => CommentsSheet(session: widget.session, postId: id, postAuthorId: author['public_id'].toString()),
     );
     if (added != null && added != 0 && mounted) setState(() => comments += added);
@@ -206,9 +221,9 @@ class _ReelItemState extends State<ReelItem> {
   bool get _mine => widget.session.user?['username'] == author['username'];
 
   Widget _side(IconData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
-        padding: const EdgeInsets.only(bottom: 18),
+        padding: const EdgeInsets.only(bottom: 20),
         child: Column(children: [
-          IconButton(iconSize: 34, color: color, icon: Icon(icon), onPressed: onTap),
+          IconButton(iconSize: 32, color: color, icon: Icon(icon), onPressed: onTap),
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
         ]),
       );
@@ -225,12 +240,24 @@ class _ReelItemState extends State<ReelItem> {
       else
         GestureDetector(
           onTap: () => ctl.value.isPlaying ? ctl.pause() : ctl.play(),
+          onDoubleTap: _doubleTap,
           child: ColoredBox(
             color: Colors.black,
             child: Center(child: AspectRatio(aspectRatio: ctl.value.aspectRatio, child: VideoPlayer(ctl))),
           ),
         ),
       if (ready && ctl != null && !ctl.value.isPlaying) const Center(child: IgnorePointer(child: Icon(Icons.play_arrow_rounded, size: 88, color: Colors.white54))),
+      if (_heartVisible)
+        Center(
+          child: IgnorePointer(
+            child: AnimatedScale(
+              scale: _heartVisible ? 1.0 : 0.6,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: const Icon(Icons.favorite, size: 96, color: Colors.white, shadows: [Shadow(blurRadius: 12, color: Colors.black45)]),
+            ),
+          ),
+        ),
       if (ready && ctl != null)
         Positioned(left: 0, right: 0, bottom: 0, child: VideoProgressIndicator(ctl, allowScrubbing: true, padding: EdgeInsets.zero, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
       const Positioned(left: 0, right: 0, bottom: 0, height: 220, child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0xCC000000), Color(0x00000000)]))))),
@@ -250,21 +277,30 @@ class _ReelItemState extends State<ReelItem> {
           if (!_mine)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: SizedBox(
-                height: 32,
-                child: following
-                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 32), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: const Text('Following'))
-                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 32)), onPressed: _follow, child: const Text('Follow')),
+              child: GestureDetector(
+                onTap: followBusy ? null : _follow,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: following ? Colors.transparent : brandRed,
+                    border: following ? Border.all(color: Colors.white70) : null,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(following ? 'Following' : 'Follow', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                ),
               ),
             ),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white))),
         ]),
       ),
       Positioned(
-        right: 4,
+        right: 8,
         bottom: 24,
         child: Column(children: [
-          ReactionButton(session: widget.session, post: widget.reel, dark: true),
+          ReactionButton(key: reactionKey, session: widget.session, post: widget.reel, dark: true),
           _side(Icons.mode_comment_outlined, '$comments', _comments),
           _side(Icons.card_giftcard, 'Gift', () => showGiftSheet(context, widget.session, id, author['username'].toString())),
           _side(widget.muted ? Icons.volume_off : Icons.volume_up, widget.muted ? 'Muted' : 'Sound', widget.onToggleMute),

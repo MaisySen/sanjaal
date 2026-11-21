@@ -6,9 +6,11 @@ import 'auth_page.dart';
 import 'calls_page.dart';
 import 'chat_pages.dart';
 import 'feed_page.dart';
+import 'glass/glass.dart';
 import 'onboarding_page.dart';
 import 'profile_pages.dart';
 import 'reels_page.dart';
+import 'search_page.dart';
 import 'ui.dart';
 import 'wallet_page.dart';
 
@@ -38,8 +40,10 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
     outline: light ? const Color(0xFF7A7469) : const Color(0xFF8B857A),
     outlineVariant: light ? const Color(0xFFD9D2C5) : const Color(0xFF3A372F),
   );
-  const r = BorderRadius.all(Radius.circular(10));
-  const shape = RoundedRectangleBorder(borderRadius: r);
+  const cardR = BorderRadius.all(Radius.circular(20));
+  const buttonR = BorderRadius.all(Radius.circular(8));
+  const inputR = BorderRadius.all(Radius.circular(12));
+  const shape = RoundedRectangleBorder(borderRadius: buttonR);
   final labelStyle = TextStyle(fontFamily: fontFamily, fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.1);
   final base = ThemeData(brightness: b, fontFamily: fontFamily, useMaterial3: true).textTheme;
   final text = base.copyWith(
@@ -64,31 +68,12 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
       surfaceTintColor: Colors.transparent,
       titleTextStyle: TextStyle(fontFamily: fontFamily, color: scheme.onSurface, fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.3),
     ),
-    tabBarTheme: TabBarThemeData(
-      labelColor: scheme.onSurface,
-      unselectedLabelColor: scheme.onSurfaceVariant,
-      indicatorColor: scheme.primary,
-      indicatorSize: TabBarIndicatorSize.label,
-      dividerColor: scheme.outlineVariant,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-    ),
     cardTheme: CardThemeData(
       elevation: 0,
       color: scheme.surfaceContainerLowest,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: r, side: BorderSide(color: scheme.outlineVariant)),
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      height: 60,
-      elevation: 0,
-      backgroundColor: scheme.surface,
-      surfaceTintColor: Colors.transparent,
-      indicatorColor: Colors.transparent,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(size: 24, color: s.contains(WidgetState.selected) ? scheme.primary : scheme.onSurfaceVariant)),
-      labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(fontSize: 11, fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500, color: s.contains(WidgetState.selected) ? scheme.primary : scheme.onSurfaceVariant)),
+      shape: RoundedRectangleBorder(borderRadius: cardR, side: BorderSide(color: scheme.outlineVariant)),
     ),
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: scheme.primary,
@@ -103,9 +88,9 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerLow,
-      border: OutlineInputBorder(borderRadius: r, borderSide: BorderSide(color: scheme.outlineVariant)),
-      enabledBorder: OutlineInputBorder(borderRadius: r, borderSide: BorderSide(color: scheme.outlineVariant)),
-      focusedBorder: OutlineInputBorder(borderRadius: r, borderSide: BorderSide(color: scheme.primary, width: 1.5)),
+      border: OutlineInputBorder(borderRadius: inputR, borderSide: BorderSide(color: scheme.outlineVariant)),
+      enabledBorder: OutlineInputBorder(borderRadius: inputR, borderSide: BorderSide(color: scheme.outlineVariant)),
+      focusedBorder: OutlineInputBorder(borderRadius: inputR, borderSide: BorderSide(color: scheme.primary, width: 1.5)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     ),
     chipTheme: ChipThemeData(shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(8))), side: BorderSide(color: scheme.outlineVariant), backgroundColor: Colors.transparent),
@@ -114,9 +99,9 @@ ThemeData buildTheme(Brightness b, {String? fontFamily}) {
       showDragHandle: true,
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     ),
-    dialogTheme: DialogThemeData(backgroundColor: scheme.surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+    dialogTheme: DialogThemeData(backgroundColor: scheme.surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, space: 1, thickness: 1),
     listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16)),
   );
@@ -135,6 +120,7 @@ class _SanjaalAppState extends State<SanjaalApp> {
   void initState() {
     super.initState();
     prefs.load();
+    glassSettings.load();
     session.restore();
   }
 
@@ -243,23 +229,34 @@ class _HomeShellState extends State<HomeShell> {
       MePage(session: s),
     ];
     return Scaffold(
-      body: IndexedStack(index: tab, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        onDestinationSelected: (i) {
-          setState(() => tab = i);
-          _refreshUnread();
-        },
-        destinations: [
-          NavigationDestination(icon: const Icon(Icons.home_outlined), selectedIcon: const Icon(Icons.home), label: t_('Home')),
-          NavigationDestination(icon: const Icon(Icons.play_circle_outline), selectedIcon: const Icon(Icons.play_circle), label: t_('Reels')),
-          NavigationDestination(
-            icon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble_outline)),
-            selectedIcon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.chat_bubble)),
-            label: t_('Chats'),
+      body: Stack(
+        children: [
+          IndexedStack(index: tab, children: pages),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 12 + MediaQuery.of(context).padding.bottom,
+            child: GlassTabBar(
+              selectedIndex: tab,
+              onSelected: (i) {
+                setState(() => tab = i);
+                _refreshUnread();
+              },
+              onSearch: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: s))),
+              destinations: [
+                GlassTabDestination(label: t_('Home'), icon: Icons.home_outlined, selectedIcon: Icons.home),
+                GlassTabDestination(label: t_('Reels'), icon: Icons.play_circle_outline, selectedIcon: Icons.play_circle),
+                GlassTabDestination(
+                  label: t_('Chats'),
+                  icon: Icons.chat_bubble_outline,
+                  selectedIcon: Icons.chat_bubble,
+                  badgeCount: unread,
+                ),
+                GlassTabDestination(label: t_('Wallet'), icon: Icons.account_balance_wallet_outlined, selectedIcon: Icons.account_balance_wallet),
+                GlassTabDestination(label: t_('Me'), icon: Icons.person_outline, selectedIcon: Icons.person),
+              ],
+            ),
           ),
-          NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: t_('Wallet')),
-          NavigationDestination(icon: const Icon(Icons.person_outline), selectedIcon: const Icon(Icons.person), label: t_('Me')),
         ],
       ),
     );

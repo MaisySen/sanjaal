@@ -106,32 +106,43 @@ class _CallPageState extends State<CallPage> {
               : GridView.count(crossAxisCount: tiles.length > 1 ? 2 : 1, children: tiles),
         ),
         if (me != null && camOn && _videoOf(me) != null)
-          SizedBox(height: 120, width: 90, child: VideoTrackRenderer(_videoOf(me)!)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ClipRRect(borderRadius: BorderRadius.circular(20), child: SizedBox(height: 120, width: 90, child: VideoTrackRenderer(_videoOf(me)!))),
+          ),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              IconButton.filledTonal(
-                onPressed: failed ? null : () async {
-                  muted = !muted;
-                  await room.localParticipant?.setMicrophoneEnabled(!muted);
-                  _changed();
-                },
-                icon: Icon(muted ? Icons.mic_off : Icons.mic),
+              _control(
+                onPressed: failed
+                    ? null
+                    : () async {
+                        muted = !muted;
+                        await room.localParticipant?.setMicrophoneEnabled(!muted);
+                        _changed();
+                      },
+                icon: muted ? Icons.mic_off : Icons.mic,
               ),
               if (widget.video)
-                IconButton.filledTonal(
-                  onPressed: failed ? null : () async {
-                    camOn = !camOn;
-                    await room.localParticipant?.setCameraEnabled(camOn);
-                    _changed();
-                  },
-                  icon: Icon(camOn ? Icons.videocam : Icons.videocam_off),
+                _control(
+                  onPressed: failed
+                      ? null
+                      : () async {
+                          camOn = !camOn;
+                          await room.localParticipant?.setCameraEnabled(camOn);
+                          _changed();
+                        },
+                  icon: camOn ? Icons.videocam : Icons.videocam_off,
                 ),
-              IconButton.filled(
-                style: IconButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.call_end),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.call_end, color: Colors.white, size: 28),
+                ),
               ),
             ]),
           ),
@@ -140,12 +151,30 @@ class _CallPageState extends State<CallPage> {
     );
   }
 
-  Widget _tile(String name, VideoTrack? v) => Container(
-        margin: const EdgeInsets.all(4),
-        color: Colors.grey.shade900,
-        child: Stack(children: [
-          if (v != null) Positioned.fill(child: VideoTrackRenderer(v)) else const Center(child: Icon(Icons.person, size: 64, color: Colors.white54)),
-          Positioned(left: 8, bottom: 8, child: Text(name, style: const TextStyle(color: Colors.white))),
-        ]),
+  Widget _control({required VoidCallback? onPressed, required IconData icon}) => Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), shape: BoxShape.circle),
+        child: IconButton(onPressed: onPressed, icon: Icon(icon, color: Colors.white)),
+      );
+
+  Widget _tile(String name, VideoTrack? v) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          margin: const EdgeInsets.all(4),
+          color: const Color(0xFF1C1C1E),
+          child: Stack(children: [
+            if (v != null) Positioned.fill(child: VideoTrackRenderer(v)) else const Center(child: Icon(Icons.person, size: 64, color: Colors.white54)),
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(999)),
+                child: Text(name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ]),
+        ),
       );
 }

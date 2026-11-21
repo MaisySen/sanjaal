@@ -4,6 +4,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'glass/glass_material.dart';
+import 'glass/glass_tokens.dart';
 
 const int maxVoiceSeconds = 120;
 
@@ -103,22 +105,31 @@ class _VoiceRecorderBarState extends State<VoiceRecorderBar> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(children: [
-      IconButton(onPressed: _discard, icon: Icon(Icons.delete_outline, color: scheme.error), tooltip: 'Discard'),
-      Icon(Icons.fiber_manual_record, size: 14, color: _ready ? scheme.error : scheme.outline),
-      const SizedBox(width: 8),
-      Text(_ready ? _clock(_elapsed) : 'Starting', style: const TextStyle(fontWeight: FontWeight.w600)),
-      const SizedBox(width: 8),
-      Expanded(child: Text('Recording', style: TextStyle(color: scheme.onSurfaceVariant))),
-      IconButton.filled(onPressed: _ready ? _send : null, icon: const Icon(Icons.send), tooltip: 'Send voice message'),
-    ]);
+    return GlassMaterial(
+      radius: GlassTokens.radiusPill,
+      blur: GlassTokens.blurLight,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(children: [
+          IconButton(onPressed: _discard, icon: Icon(Icons.delete_outline, color: scheme.error), tooltip: 'Discard'),
+          Icon(Icons.fiber_manual_record, size: 14, color: _ready ? scheme.error : scheme.outline),
+          const SizedBox(width: 8),
+          Text(_ready ? _clock(_elapsed) : 'Starting', style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Recording', style: TextStyle(color: scheme.onSurfaceVariant))),
+          IconButton.filled(onPressed: _ready ? _send : null, icon: const Icon(Icons.send), tooltip: 'Send voice message'),
+        ]),
+      ),
+    );
   }
 }
 
-/// Play and pause a received or sent voice message.
+/// Play and pause a received or sent voice message. [dark] is true inside an
+/// own message bubble, where the icon and progress are white on crimson.
 class VoiceBubble extends StatefulWidget {
-  const VoiceBubble({super.key, required this.url});
+  const VoiceBubble({super.key, required this.url, this.dark = false});
   final String url;
+  final bool dark;
   @override
   State<VoiceBubble> createState() => _VoiceBubbleState();
 }
@@ -183,15 +194,16 @@ class _VoiceBubbleState extends State<VoiceBubble> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final progress = _total.inMilliseconds == 0 ? 0.0 : (_pos.inMilliseconds / _total.inMilliseconds).clamp(0.0, 1.0);
+    final accent = widget.dark ? Colors.white : scheme.primary;
     return SizedBox(
       width: 210,
       child: Row(children: [
-        IconButton(onPressed: _toggle, icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36, color: scheme.primary)),
+        IconButton(onPressed: _toggle, icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_fill, size: 36, color: accent)),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2), backgroundColor: scheme.onSurface.withOpacity(0.28), color: scheme.primary),
+            LinearProgressIndicator(value: progress, minHeight: 4, borderRadius: BorderRadius.circular(2), backgroundColor: accent.withValues(alpha: 0.28), color: accent),
             const SizedBox(height: 4),
-            Text(_total == Duration.zero ? 'Voice message' : '${_clock(_playing || _pos > Duration.zero ? _pos : _total)} / ${_clock(_total)}', style: const TextStyle(fontSize: 11)),
+            Text(_total == Duration.zero ? 'Voice message' : '${_clock(_playing || _pos > Duration.zero ? _pos : _total)} / ${_clock(_total)}', style: TextStyle(fontSize: 11, color: widget.dark ? Colors.white70 : null)),
           ]),
         ),
       ]),

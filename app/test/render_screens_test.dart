@@ -3,7 +3,6 @@
 // publishes them. This checks layout with realistic data, not behaviour on a device.
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';

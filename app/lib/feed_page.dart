@@ -1,9 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'actions.dart';
 import 'gifts.dart';
 import 'api.dart';
+import 'glass/glass.dart';
 import 'notifications_page.dart';
 import 'profile_pages.dart';
 import 'search_page.dart';
@@ -12,44 +14,81 @@ import 'stories_page.dart';
 import 'ui.dart';
 
 /// Home tab: For you and Following, with search and notifications on top.
-class FeedPage extends StatelessWidget {
+///
+/// The feed is the Instagram post layout: a header row with a 32px avatar,
+/// name and time, the caption, full bleed media, then the action row. Double
+/// tap on the media likes with a spring heart, the TikTok rule. Comments open
+/// in a glass sheet at 60 percent of the viewport, the TikTok comments height.
+class FeedPage extends StatefulWidget {
   const FeedPage({super.key, required this.session, required this.onCompose});
   final Session session;
   final Future<void> Function() onCompose;
+  @override
+  State<FeedPage> createState() => _FeedPageState();
+}
+
+class _FeedPageState extends State<FeedPage> {
+  bool _scrolledUnder = false;
 
   @override
   Widget build(BuildContext context) {
+    final session = widget.session;
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Row(children: [const Logo(size: 26), const SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, color: Theme.of(context).colorScheme.onSurface))]),
-          actions: [
-            IconButton(tooltip: t_('Post'), icon: const Icon(Icons.add_box_outlined), onPressed: onCompose),
-            IconButton(tooltip: t_('Search'), icon: const Icon(Icons.search), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
-            IconButton(tooltip: t_('Notifications'), icon: const Icon(Icons.notifications_none), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
-          ],
-          bottom: TabBar(tabs: [Tab(text: t_('For you')), Tab(text: t_('Following'))]),
-        ),
-        body: TabBarView(children: [
-          FeedList(
-            key: const PageStorageKey('forYou'),
-            session: session,
-            query: const {'kind': 'post'},
-            header: StoriesBar(session: session),
-            emptyIcon: Icons.dynamic_feed_outlined,
-            emptyTitle: 'Nothing here yet',
-            emptyHint: 'Be the first. Tap + to share a photo or a thought.',
-          ),
-          FeedList(
-            key: const PageStorageKey('following'),
-            session: session,
-            query: const {'scope': 'following', 'kind': 'post'},
-            emptyIcon: Icons.group_add_outlined,
-            emptyTitle: 'Follow people to fill this tab',
-            emptyHint: 'Use search to find members and tap Follow.',
-          ),
-        ]),
+      child: Builder(
+        builder: (context) {
+          final tabController = DefaultTabController.of(context);
+          return NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.axis != Axis.vertical) return false;
+              final under = n.metrics.pixels > 8;
+              if (under != _scrolledUnder) setState(() => _scrolledUnder = under);
+              return false;
+            },
+            child: Scaffold(
+              appBar: GlassAppBar(
+                title: Row(children: [const Logo(size: 26), const SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, fontSize: 17, color: Theme.of(context).colorScheme.onSurface))]),
+                largeTitle: Row(children: [const Logo(size: 32), const SizedBox(width: 10), Text('Sanjaal', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, fontSize: 28, color: Theme.of(context).colorScheme.onSurface))]),
+                actions: [
+                  IconButton(tooltip: t_('Post'), icon: const Icon(Icons.add_box_outlined), onPressed: widget.onCompose),
+                  IconButton(tooltip: t_('Search'), icon: const Icon(Icons.search), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
+                  IconButton(tooltip: t_('Notifications'), icon: const Icon(Icons.notifications_none), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(44),
+                  child: AnimatedBuilder(
+                    animation: tabController,
+                    builder: (context, _) => GlassSegmentedControl(
+                      labels: [t_('For you'), t_('Following')],
+                      selectedIndex: tabController.index,
+                      onSelected: (i) => tabController.animateTo(i),
+                    ),
+                  ),
+                ),
+                collapsed: _scrolledUnder,
+              ),
+              body: TabBarView(children: [
+                FeedList(
+                  key: const PageStorageKey('forYou'),
+                  session: session,
+                  query: const {'kind': 'post'},
+                  header: StoriesBar(session: session),
+                  emptyIcon: Icons.dynamic_feed_outlined,
+                  emptyTitle: 'Nothing here yet',
+                  emptyHint: 'Be the first. Tap + to share a photo or a thought.',
+                ),
+                FeedList(
+                  key: const PageStorageKey('following'),
+                  session: session,
+                  query: const {'scope': 'following', 'kind': 'post'},
+                  emptyIcon: Icons.group_add_outlined,
+                  emptyTitle: 'Follow people to fill this tab',
+                  emptyHint: 'Use search to find members and tap Follow.',
+                ),
+              ]),
+            ),
+          );
+        },
       ),
     );
   }
@@ -179,6 +218,17 @@ class PostCard extends StatefulWidget {
 
 class _PostCardState extends State<PostCard> {
   late int comments = (widget.post['comments_count'] as num?)?.toInt() ?? 0;
+  final reactionKey = GlobalKey<ReactionButtonState>();
+  bool _heartVisible = false;
+
+  /// Double tap on the media likes, the TikTok and Instagram rule. The heart
+  /// pops at the centre of the media and fades after 700ms.
+  void _doubleTap() {
+    HapticFeedback.mediumImpact();
+    setState(() => _heartVisible = true);
+    reactionKey.currentState?.like();
+    Future.delayed(const Duration(milliseconds: 700), () => mounted ? setState(() => _heartVisible = false) : null);
+  }
 
   String get id => widget.post['public_id'] as String;
   Map<String, dynamic> get author => (widget.post['author'] as Map).cast<String, dynamic>();
@@ -212,10 +262,8 @@ class _PostCardState extends State<PostCard> {
   }
 
   void _comments() async {
-    final added = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
+    final added = await showGlassSheet<int>(
+      context,
       builder: (_) => CommentsSheet(session: widget.session, postId: id, postAuthorId: author['public_id'].toString()),
     );
     if (added != null && added != 0 && mounted) setState(() => comments += added);
@@ -240,60 +288,85 @@ class _PostCardState extends State<PostCard> {
     final scheme = Theme.of(context).colorScheme;
     final name = (author['name'] ?? '').toString().isEmpty ? '@${author['username']}' : author['name'].toString();
     final muted = Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
-    return Container(
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
-      padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(onTap: _openAuthor, child: Avatar(user: author, radius: 19)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Expanded(child: GestureDetector(onTap: _openAuthor, child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)))),
-                  const SizedBox(width: 6),
-                  Text(ago((p['created_at'] ?? '').toString()), style: muted),
-                  SizedBox(width: 32, height: 28, child: PopupMenuButton<String>(
-                    padding: EdgeInsets.zero,
-                    iconSize: 20,
-                    icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
-                    onSelected: _menu,
-                    itemBuilder: (_) => mine
-                        ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
-                        : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
-                  )),
+    final mediaWidgets = <Widget>[
+      if (images.length == 1) _image(images.first['url'] as String, 300),
+      if (images.length > 1) SizedBox(height: 300, child: PageView(children: [for (final m in images) _image(m['url'] as String, 300)])),
+      for (final v in videos) VideoTile(url: v['url'] as String),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+          child: Row(children: [
+            GestureDetector(onTap: _openAuthor, child: Avatar(user: author, radius: 16)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: _openAuthor,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text('@${author['username']}  ${ago((p['created_at'] ?? '').toString())}', style: muted),
                 ]),
-                if (name != '@${author['username']}') Text('@${author['username']}', style: muted),
-                if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6, right: 8), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
-                if (tags.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
-                if (images.length == 1) Padding(padding: const EdgeInsets.only(top: 10, right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: _image(images.first['url'] as String, 280))),
-                if (images.length > 1)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10, right: 8),
-                    child: ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(height: 240, child: PageView(children: [for (final m in images) _image(m['url'] as String, 240)]))),
-                  ),
-                if (images.length > 1) Padding(padding: const EdgeInsets.only(top: 4), child: Text('1 of ${images.length}, swipe', style: muted)),
-                for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10, right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: VideoTile(url: v['url'] as String))),
-                Row(
-                  children: [
-                    ReactionButton(session: widget.session, post: widget.post),
-                    TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined, size: 20), label: Text('$comments')),
-                    if (!mine)
-                      TextButton.icon(
-                        onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
-                        icon: const Icon(Icons.card_giftcard, size: 20),
-                        label: Text(t_('Gift')),
-                      ),
-                  ],
-                ),
-              ],
+              ),
             ),
+            SizedBox(
+              width: 32,
+              height: 28,
+              child: PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+                icon: Icon(Icons.more_horiz, color: scheme.onSurfaceVariant),
+                onSelected: _menu,
+                itemBuilder: (_) => mine
+                    ? [PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                    : [PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
+              ),
+            ),
+          ]),
+        ),
+        if (body.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 0), child: Text(body, style: Theme.of(context).textTheme.bodyLarge)),
+        if (tags.isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0), child: Wrap(spacing: 10, children: [for (final tg in tags.take(4)) _tag(tg)])),
+        if (mediaWidgets.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Stack(children: [
+              GestureDetector(
+                onDoubleTap: _doubleTap,
+                child: Column(mainAxisSize: MainAxisSize.min, children: mediaWidgets),
+              ),
+              if (_heartVisible)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: AnimatedScale(
+                        scale: _heartVisible ? 1.0 : 0.6,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        child: const Icon(Icons.favorite, size: 88, color: Colors.white, shadows: [Shadow(blurRadius: 12, color: Colors.black45)]),
+                      ),
+                    ),
+                  ),
+                ),
+            ]),
           ),
-        ],
-      ),
+        if (images.length > 1) Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0), child: Text('1 of ${images.length}, swipe', style: muted)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 2, 8, 2),
+          child: Row(children: [
+            ReactionButton(key: reactionKey, session: widget.session, post: widget.post),
+            TextButton.icon(onPressed: _comments, icon: const Icon(Icons.mode_comment_outlined, size: 22), label: Text('$comments')),
+            if (!mine)
+              TextButton.icon(
+                onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
+                icon: const Icon(Icons.card_giftcard, size: 22),
+                label: Text(t_('Gift')),
+              ),
+          ]),
+        ),
+        const SizedBox(height: 6),
+        Divider(height: 1, thickness: 1, color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ],
     );
   }
 
@@ -338,6 +411,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
     try {
       String? cur;
       do {
+        // ignore: use_null_aware_elements - the ? entry form is a type error here, the map value type is String not String?
         final j = await widget.session.call('GET', '/posts/${widget.postId}/comments', query: {if (cur != null) 'cursor': cur}) as Map<String, dynamic>;
         items.addAll((j['data'] as List).cast<Map<String, dynamic>>());
         cur = j['next_cursor'] as String?;
@@ -385,17 +459,23 @@ class _CommentsSheetState extends State<CommentsSheet> {
       final a = (c['author'] as Map).cast<String, dynamic>();
       final canDelete = a['public_id'] == me || widget.postAuthorId == me;
       return Padding(
-        padding: EdgeInsets.only(left: reply ? 40 : 0),
-        child: ListTile(
-          dense: true,
-          leading: Avatar(user: a, radius: reply ? 12 : 16),
-          title: Text('@${a['username']}  ·  ${ago(c['created_at'].toString())}', style: const TextStyle(fontSize: 12)),
-          subtitle: Text(c['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (!reply) IconButton(tooltip: t_('Reply'), icon: const Icon(Icons.reply, size: 18), onPressed: () => setState(() => replyTo = c)),
-            if (canDelete) IconButton(tooltip: t_('Delete'), icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _delete(c)),
-          ]),
-        ),
+        padding: EdgeInsets.fromLTRB(16, 8, 8, 8).copyWith(left: reply ? 56 : 16),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Avatar(user: a, radius: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text.rich(TextSpan(children: [
+                TextSpan(text: '@${a['username']}  ', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                TextSpan(text: ago(c['created_at'].toString()), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ])),
+              const SizedBox(height: 2),
+              Text(c['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
+            ]),
+          ),
+          if (!reply) IconButton(tooltip: t_('Reply'), icon: const Icon(Icons.reply, size: 18), onPressed: () => setState(() => replyTo = c)),
+          if (canDelete) IconButton(tooltip: t_('Delete'), icon: const Icon(Icons.delete_outline, size: 18), onPressed: () => _delete(c)),
+        ]),
       );
     }
 
@@ -407,7 +487,7 @@ class _CommentsSheetState extends State<CommentsSheet> {
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.65,
+          height: MediaQuery.of(context).size.height * 0.6,
           child: Column(
             children: [
               Text(t_('Comments'), style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -430,11 +510,12 @@ class _CommentsSheetState extends State<CommentsSheet> {
                   trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => replyTo = null)),
                 ),
               Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 child: Row(
                   children: [
-                    Expanded(child: TextField(controller: input, maxLength: 1000, decoration: const InputDecoration(hintText: 'Add a comment', counterText: '', border: OutlineInputBorder()), onSubmitted: (_) => _send())),
-                    IconButton(onPressed: sending ? null : _send, icon: const Icon(Icons.send)),
+                    Expanded(child: TextField(controller: input, maxLength: 1000, decoration: InputDecoration(hintText: 'Add a comment', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(999))), onSubmitted: (_) => _send())),
+                    const SizedBox(width: 8),
+                    IconButton.filled(onPressed: sending ? null : _send, icon: const Icon(Icons.send)),
                   ],
                 ),
               ),
@@ -521,7 +602,7 @@ class _ComposePageState extends State<ComposePage> {
       appBar: AppBar(title: Text(t_('New post')), actions: [
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton(onPressed: busy ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
+          child: Center(child: GlassButton(label: busy ? 'Posting' : t_('Post'), onPressed: busy ? null : _post)),
         ),
       ]),
       body: ListView(
@@ -533,7 +614,7 @@ class _ComposePageState extends State<ComposePage> {
             Expanded(child: TextField(controller: text, maxLines: 6, maxLength: 2000, decoration: const InputDecoration(hintText: 'What is happening? Use #hashtags', border: InputBorder.none))),
           ]),
           if (video != null)
-            Card(child: ListTile(leading: const Icon(Icons.videocam), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
+            GlassCard(child: ListTile(leading: const Icon(Icons.videocam), title: Text(video!.name, overflow: TextOverflow.ellipsis), subtitle: const Text('Posts as a reel'))),
           if (images.isNotEmpty)
             SizedBox(
               height: 140,

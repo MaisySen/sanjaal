@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_page.dart';
 import 'calls_page.dart';
+import 'glass/glass_app_bar.dart';
+import 'glass/glass_sheet.dart';
 import 'rooms_page.dart';
 import 'ui.dart';
 import 'voice.dart';
@@ -79,15 +81,13 @@ class _ChatsPageState extends State<ChatsPage> {
       }
     }
 
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: Icon(c['pinned'] == true ? Icons.push_pin : Icons.push_pin_outlined), title: Text(c['pinned'] == true ? 'Unpin' : 'Pin to top'), onTap: () => set({'pinned': c['pinned'] != true})),
-          ListTile(leading: Icon(c['muted'] == true ? Icons.notifications_off : Icons.notifications_off_outlined), title: Text(c['muted'] == true ? 'Unmute' : 'Mute'), onTap: () => set({'muted': c['muted'] != true})),
-          ListTile(leading: Icon(c['archived'] == true ? Icons.unarchive_outlined : Icons.archive_outlined), title: Text(c['archived'] == true ? 'Unarchive' : 'Archive'), onTap: () => set({'archived': c['archived'] != true})),
-        ]),
-      ),
+    await showGlassSheet<void>(
+      context,
+      builder: (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: Icon(c['pinned'] == true ? Icons.push_pin : Icons.push_pin_outlined), title: Text(c['pinned'] == true ? 'Unpin' : 'Pin to top'), onTap: () => set({'pinned': c['pinned'] != true})),
+        ListTile(leading: Icon(c['muted'] == true ? Icons.notifications_off : Icons.notifications_off_outlined), title: Text(c['muted'] == true ? 'Unmute' : 'Mute'), onTap: () => set({'muted': c['muted'] != true})),
+        ListTile(leading: Icon(c['archived'] == true ? Icons.unarchive_outlined : Icons.archive_outlined), title: Text(c['archived'] == true ? 'Unarchive' : 'Archive'), onTap: () => set({'archived': c['archived'] != true})),
+      ]),
     );
   }
 
@@ -106,10 +106,17 @@ class _ChatsPageState extends State<ChatsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(showArchived ? 'Archived' : t_('Chats')),
+      appBar: GlassAppBar(
+        title: Text(showArchived ? 'Archived' : t_('Chats'), style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.5, fontSize: 17)),
+        collapsed: true,
         actions: [
+          IconButton(
+            tooltip: t_('New chat'),
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: _new,
+          ),
           IconButton(
             tooltip: 'Live rooms',
             icon: const Icon(Icons.podcasts),
@@ -133,7 +140,6 @@ class _ChatsPageState extends State<ChatsPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.add_comment), label: Text(t_('New chat'))),
       body: RefreshIndicator(
         onRefresh: _load,
         child: loading
@@ -149,17 +155,17 @@ class _ChatsPageState extends State<ChatsPage> {
                       final unread = (c['unread'] as num?)?.toInt() ?? 0;
                       final title = (c['title'] ?? 'Chat').toString();
                       return ListTile(
-                        leading: CircleAvatar(child: Icon(c['type'] == 'group' ? Icons.groups : Icons.person)),
+                        leading: CircleAvatar(radius: 28, backgroundColor: scheme.surfaceContainerHighest, child: Icon(c['type'] == 'group' ? Icons.groups : Icons.person, size: 26, color: scheme.onSurfaceVariant)),
                         title: Row(children: [
-                          Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: unread > 0 ? FontWeight.bold : null))),
+                          Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w500))),
                           if (c['pinned'] == true) const Padding(padding: EdgeInsets.only(left: 6), child: Icon(Icons.push_pin, size: 14)),
                           if (c['muted'] == true) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.notifications_off, size: 14)),
                         ]),
-                        subtitle: Text(_preview(last), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(_preview(last), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)),
                         onLongPress: () => _menu(c),
                         trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          if (last != null) Text(ago(last['created_at'].toString()), style: const TextStyle(fontSize: 12)),
-                          if (unread > 0) Badge(label: Text('$unread'), backgroundColor: c['muted'] == true ? Colors.grey : null),
+                          if (last != null) Text(ago(last['created_at'].toString()), style: TextStyle(fontSize: 12, color: unread > 0 ? scheme.primary : scheme.onSurfaceVariant)),
+                          if (unread > 0) Badge(label: Text('$unread'), backgroundColor: c['muted'] == true ? Colors.grey : brandRed),
                         ]),
                         onTap: () => _open(c),
                       );
@@ -285,7 +291,7 @@ class _NewChatPageState extends State<NewChatPage> {
                   : ListView(children: [
                       for (final u in results)
                         ListTile(
-                          leading: Avatar(user: u),
+                          leading: Avatar(user: u, radius: 22),
                           title: Text((u['name'] ?? '').toString().isEmpty ? '@${u['username']}' : u['name'].toString()),
                           subtitle: Text('@${u['username']}'),
                           trailing: group ? Checkbox(value: picked.containsKey(u['username'].toString()), onChanged: (_) => _tap(u)) : null,
@@ -424,6 +430,7 @@ class _ChatPageState extends State<ChatPage> {
     setState(() => msgs.add(local));
     _toEnd();
     try {
+      // ignore: use_null_aware_elements - the ? entry form is a type error here, the map value type is String not String?
       final j = await widget.session.call('POST', '/conversations/$id/messages', body: {'body': t, 'client_id': cid, if (replyId != null) 'reply_to': replyId}) as Map<String, dynamic>;
       final server = (j['message'] as Map).cast<String, dynamic>();
       if (!mounted) return;
@@ -480,30 +487,28 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _messageMenu(Map<String, dynamic> m) async {
     if (m['pending'] == true || m['failed'] == true) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
+    await showGlassSheet<void>(
+      context,
+      builder: (ctx) => Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(
+          leading: const Icon(Icons.reply),
+          title: const Text('Reply'),
+          onTap: () {
+            Navigator.pop(ctx);
+            setState(() => replyTo = m);
+          },
+        ),
+        if ((m['body'] ?? '').toString().isNotEmpty)
           ListTile(
-            leading: const Icon(Icons.reply),
-            title: const Text('Reply'),
+            leading: const Icon(Icons.copy),
+            title: Text(t_('Copy')),
             onTap: () {
               Navigator.pop(ctx);
-              setState(() => replyTo = m);
+              Clipboard.setData(ClipboardData(text: m['body'].toString()));
+              showInfo(context, 'Copied');
             },
           ),
-          if ((m['body'] ?? '').toString().isNotEmpty)
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: Text(t_('Copy')),
-              onTap: () {
-                Navigator.pop(ctx);
-                Clipboard.setData(ClipboardData(text: m['body'].toString()));
-                showInfo(context, 'Copied');
-              },
-            ),
-        ]),
-      ),
+      ]),
     );
   }
 
@@ -523,11 +528,18 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text((widget.convo['title'] ?? 'Chat').toString()),
-          if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal)),
+        title: Row(children: [
+          CircleAvatar(radius: 16, backgroundColor: scheme.surfaceContainerHighest, child: Icon(group ? Icons.groups : Icons.person, size: 18, color: scheme.onSurfaceVariant)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text((widget.convo['title'] ?? 'Chat').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: scheme.primary)),
+            ]),
+          ),
         ]),
         actions: [
           IconButton(tooltip: 'Voice call', icon: const Icon(Icons.call), onPressed: () => _call(false)),
@@ -548,7 +560,8 @@ class _ChatPageState extends State<ChatPage> {
                         final m = msgs[i];
                         final mine = (m['sender'] as Map)['public_id'] == myId;
                         final failed = m['failed'] == true;
-                        final scheme = Theme.of(context).colorScheme;
+                        final bubbleText = mine ? Colors.white : scheme.onSurface;
+                        final bubbleMuted = mine ? Colors.white70 : scheme.onSurfaceVariant;
                         return Align(
                           alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                           child: GestureDetector(
@@ -558,17 +571,28 @@ class _ChatPageState extends State<ChatPage> {
                               margin: const EdgeInsets.symmetric(vertical: 3),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                              decoration: BoxDecoration(color: mine ? scheme.primaryContainer : scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)),
+                              decoration: BoxDecoration(
+                                color: mine ? brandRed : scheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(18),
+                                  topRight: const Radius.circular(18),
+                                  bottomLeft: Radius.circular(mine ? 18 : 4),
+                                  bottomRight: Radius.circular(mine ? 4 : 18),
+                                ),
+                              ),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: scheme.primary)),
                                 if (m['reply_to'] is Map)
                                   Container(
                                     margin: const EdgeInsets.only(bottom: 4),
                                     padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                                    decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
+                                    decoration: BoxDecoration(
+                                      border: Border(left: BorderSide(color: mine ? Colors.white : scheme.primary, width: 3)),
+                                      color: mine ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.06),
+                                    ),
                                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                      Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                                      Text('${(m['reply_to'] as Map)['sender']}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: bubbleText)),
+                                      Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: bubbleMuted)),
                                     ]),
                                   ),
                                 if (m['kind'] == 'image' && m['media_url'] != null)
@@ -576,12 +600,12 @@ class _ChatPageState extends State<ChatPage> {
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: GestureDetector(
                                       onTap: () => openImage(context, m['media_url'] as String),
-                                      child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))),
+                                      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(m['media_url'] as String, width: 220, fit: BoxFit.cover, errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined))),
                                     ),
                                   ),
-                                if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String),
-                                if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? scheme.error : null)),
+                                if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, dark: mine),
+                                if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString(), style: TextStyle(color: bubbleText)),
+                                Text(failed ? 'Not sent. Tap to retry.' : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 10, color: failed ? (mine ? Colors.white : scheme.error) : bubbleMuted)),
                               ]),
                             ),
                           ),
@@ -617,9 +641,10 @@ class _ChatPageState extends State<ChatPage> {
               else
               Row(children: [
                 IconButton(onPressed: _attach, icon: const Icon(Icons.image_outlined)),
-                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder()))),
+                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', counterText: '', border: OutlineInputBorder(borderRadius: BorderRadius.circular(999))))),
                 IconButton(onPressed: () => setState(() => recording = true), icon: const Icon(Icons.mic_none), tooltip: 'Voice message'),
-                IconButton(onPressed: _send, icon: const Icon(Icons.send)),
+                const SizedBox(width: 4),
+                IconButton.filled(onPressed: _send, icon: const Icon(Icons.send)),
               ]),
             ]),
           ),

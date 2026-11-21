@@ -224,6 +224,7 @@ class Session extends ChangeNotifier {
   bool uploadIntentsEnabled = false;
   bool interactionControlsEnabled = false;
   bool protectedStoriesEnabled = false;
+  bool storyRepliesEnabled = false;
   bool groupMemberRefsEnabled = false;
   bool videoPostersEnabled = false;
   bool discoveryEnabled = false;
@@ -564,6 +565,7 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
     protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
+    storyRepliesEnabled = (j['features'] as Map?)?['story_replies'] == true;
     groupMemberRefsEnabled = (j['features'] as Map?)?['group_member_refs'] == true;
     videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
     discoveryEnabled = (j['features'] as Map?)?['discovery_v1'] == true;
@@ -616,6 +618,7 @@ class Session extends ChangeNotifier {
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
     protectedStoriesEnabled = false;
+    storyRepliesEnabled = false;
     groupMemberRefsEnabled = false;
     videoPostersEnabled = false;
     discoveryEnabled = false;

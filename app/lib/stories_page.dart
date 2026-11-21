@@ -1,3 +1,4 @@
+import 'story_reply_page.dart';
 import 'glass/glass_sheet.dart';
 import 'memory_video_preview.dart';
 import 'session_bound_state.dart';
@@ -318,6 +319,15 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
     _start();
   }
 
+  Future<void> _reply() async {
+    if (!sessionActive || isMine || !widget.session.storyRepliesEnabled || mediaLoading || mediaError != null) return;
+    final version = _startVersion;
+    final item = items[index];
+    _pause(true);
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryReplyPage(session: widget.session, storyId: item['public_id'] as String, authorName: '@${author['username']}')));
+    if (mounted && sessionActive && version == _startVersion) _pause(false);
+  }
+
   Future<void> _delete() async {
     if(!sessionActive)return;
     final version=_startVersion;
@@ -454,7 +464,13 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
               ]),
             ),
             if (caption.isNotEmpty)
-              Positioned(left: 16, right: 16, bottom: 28, child: Text(caption, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(blurRadius: 6)]))),
+              Positioned(left: 16, right: 16, bottom: !isMine && widget.session.storyRepliesEnabled ? 92 : 28, child: Text(caption, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(blurRadius: 6)]))),
+            if (!isMine && widget.session.storyRepliesEnabled)
+              Positioned(left: 16, right: 16, bottom: 12, child: OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, backgroundColor: Colors.black54, side: const BorderSide(color: Colors.white70), minimumSize: const Size(44, 48)),
+                onPressed: mediaLoading || mediaError != null ? null : _reply,
+                child: Text(t_('Reply to story')),
+              )),
           ]),
         ),
       ),

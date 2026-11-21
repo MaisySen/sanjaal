@@ -60,6 +60,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/stories/{id}/media', [\App\Http\Controllers\MediaController::class, 'story'])->whereUuid('id');
     Route::get('/stories', [$x, 'stories']);
     Route::post('/stories', [$x, 'storeStory'])->middleware('throttle:20,1');
+    Route::post('/stories/{id}/reply', [\App\Http\Controllers\StoryReplyController::class, 'reply'])->whereUuid('id')->middleware('throttle:30,1');
     Route::post('/stories/{id}/view', [$x, 'viewStory']);
     Route::get('/stories/{id}/viewers', [$x, 'storyViewers']);
     Route::delete('/stories/{id}', [$x, 'destroyStory']);

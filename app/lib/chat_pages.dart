@@ -865,6 +865,7 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             if (m['kind'] == 'image' && m['media_url'] != null && (m['media_url'] is! String || !widget.session.supportsPrivateMedia(m['media_url'] as String))) Text(t_('This photo is unavailable.')),
+            if (m['kind'] == 'storyreply') Text(t_('Story reply'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
             if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
             if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),

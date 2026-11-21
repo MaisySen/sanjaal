@@ -30,10 +30,11 @@ void main(){
    final f=File(p.$2);if(f.existsSync()){final font=FontLoader(p.$1)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));await font.load();}
   }
  });
- setUp((){debugDefaultTargetPlatformOverride=TargetPlatform.iOS;SharedPreferences.setMockInitialValues({});FlutterSecureStorage.setMockInitialValues({});});
- tearDown((){debugDefaultTargetPlatformOverride=null;});
+ setUp((){SharedPreferences.setMockInitialValues({});FlutterSecureStorage.setMockInitialValues({});});
  for(final replacement in ['same member','other member','logout']){
  testWidgets('old wallet transfer confirmation cannot borrow $replacement session',(t)async{
+  debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
+  addTearDown(()=>debugDefaultTargetPlatformOverride=null);
   var account='me',writes=0;
   await http.runWithClient(()async{
    final s=Session();await s.login('fixture','not-a-password');
@@ -62,6 +63,8 @@ void main(){
  }
  for(final language in ['en','ne']){
  testWidgets('retired wallet dialog protects private text at large scale $language',(t)async{
+  debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
+  addTearDown(()=>debugDefaultTargetPlatformOverride=null);
   prefs.lang=language;addTearDown(()=>prefs.lang='en');
   t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
   await http.runWithClient(()async{
@@ -83,6 +86,8 @@ void main(){
  },timeout:const Timeout(Duration(seconds:60)));
  }
  testWidgets('delayed transfer persistence cannot send after same-member replacement login',(t)async{
+  debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
+  addTearDown(()=>debugDefaultTargetPlatformOverride=null);
   final gate=Completer<void>();var writes=0;
   await http.runWithClient(()async{
    final s=Session();await s.login('fixture','not-a-password');

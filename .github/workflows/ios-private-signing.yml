@@ -24,11 +24,16 @@ jobs:
           set -euo pipefail
           umask 077
           python3 - <<'UPLOAD'
-          import pathlib,os,json,urllib.request,zipfile,subprocess,hashlib,shutil
+          import pathlib,os,json,urllib.request,zipfile,subprocess,hashlib,shutil,time
           r=pathlib.Path(os.environ['RUNNER_TEMP'])/'sanjaal-upload';r.mkdir(mode=0o700)
           try:
-           req=urllib.request.Request('https://api.github.com/repos/MaisySen/sanjaal/actions/artifacts/14693100640/zip',headers={'Authorization':'Bearer '+os.environ['GH_ARTIFACT_TOKEN'],'Accept':'application/vnd.github+json'})
-           with urllib.request.urlopen(req) as response: (r/'artifact.zip').write_bytes(response.read())
+           req=urllib.request.Request('https://api.github.com/repos/MaisySen/sanjaal/actions/artifacts/14693100640/zip?fresh='+str(time.time_ns()),headers={'Authorization':'Bearer '+os.environ['GH_ARTIFACT_TOKEN'],'Accept':'application/vnd.github+json'})
+           class SignedDownloadRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,req,fp,code,msg,headers,newurl):
+             redirected=super().redirect_request(req,fp,code,msg,headers,newurl)
+             if redirected: redirected.remove_header('Authorization')
+             return redirected
+           with urllib.request.build_opener(SignedDownloadRedirect()).open(req) as response: (r/'artifact.zip').write_bytes(response.read())
            with zipfile.ZipFile(r/'artifact.zip') as z:
             assert z.namelist()==['sanjaal-private-archive.cms']
             z.extractall(r)

@@ -26,4 +26,19 @@ class Read(unittest.TestCase):
   c=self.client([{'data':[],'links':{}}]);self.assertFalse(c.audience_groups()['complete_groups_and_testers'])
  def test_empty_jwt(self):
   with self.assertRaises(ValueError):a.AppleReadOnly('')
+ def test_only_enumerated_groups_can_be_read(self):
+  c=self.client([])
+  with self.assertRaises(ValueError):c.collection('/v1/betaGroups/unknown/betaTesters')
+ def test_group_membership_not_owner_identity(self):
+  c=self.client([{'data':[{'type':'betaGroups','id':'group1','attributes':{'isInternalGroup':True}}],'links':{}},{'data':[{'type':'betaTesters','id':'tester1','attributes':{'email':'unknown@example.invalid'}}],'links':{}}])
+  result=c.audience_groups();self.assertTrue(result['group_membership_enumeration_complete']);self.assertFalse(result['complete_groups_and_testers']);self.assertEqual(result['unverified_tester_identifiers'],['unknown@example.invalid']);self.assertEqual(len(self.calls),2)
+ def test_untrusted_group_path_rejected(self):
+  c=self.client([{'data':[{'type':'betaGroups','id':'../users'}],'links':{}}])
+  with self.assertRaises(ValueError):c.audience_groups()
+  self.assertEqual(len(self.calls),1)
+ def test_build_numbers_normalize_only_expected_shape(self):
+  c=self.client([{'data':[{'type':'builds','attributes':{'version':'2013'}}],'links':{}}]);self.assertEqual(c.build_number_snapshot()['build_numbers'],[2013])
+ def test_build_number_does_not_truncate_dotted_value(self):
+  c=self.client([{'data':[{'type':'builds','attributes':{'version':'2013.1'}}],'links':{}}])
+  with self.assertRaises(ValueError):c.build_number_snapshot()
 if __name__=='__main__':unittest.main()

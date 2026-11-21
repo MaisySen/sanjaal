@@ -7,6 +7,7 @@ This module cannot grant permission, answer legal questions, upload or distribut
 """
 from pathlib import Path
 import datetime,hashlib,json,re,subprocess,zipfile,plistlib,tempfile
+from ios_privacy_audit import audit_packaged_manifests
 PACKAGE='au.fintex.sanjaal';TEAM='B85KQRQZW7';APP='6837257828'
 ENDPOINT=b'https://sanjaal-api.onrender.com/api/v1'
 FORBIDDEN=(b'E2E_TOKEN',b'trycloudflare',b'local-e2e',b'10.0.2.2')
@@ -72,11 +73,13 @@ def check_provenance(p,archive,ipa,policy,log,repo):
 
 def check_archive(path,build,app_version):
  with zipfile.ZipFile(path) as z:
-  require(z.testzip() is None,'IPA CRC failure');names=z.namelist()
+  names=z.namelist()
   require(len(names)<=10000 and sum(x.file_size for x in z.infolist())<=500*1024*1024,'IPA exceeds audit limits')
   require(all((x.external_attr>>16)&0o170000!=0o120000 for x in z.infolist()),'Symlinks require separate archive review')
   require(len(names)==len(set(names)),'Duplicate IPA members')
   require(all(not Path(n).is_absolute() and '..' not in Path(n).parts for n in names),'Unsafe IPA path')
+  require(z.testzip() is None,'IPA CRC failure')
+  privacy=audit_packaged_manifests(z)
   root='Payload/Runner.app/';pl=plistlib.loads(z.read(root+'Info.plist'))
   require(pl['CFBundleIdentifier']==PACKAGE and pl['CFBundleVersion']==str(build) and pl['CFBundleShortVersionString']==app_version,'Wrong app/version')
   require(version(pl['MinimumOSVersion'])>=(15,0,0),'Wrong deployment minimum')
@@ -88,7 +91,7 @@ def check_archive(path,build,app_version):
   require(ENDPOINT in z.read(root+'Frameworks/App.framework/App'),'Production endpoint missing')
   for name in names:
    if not name.endswith('/'):require(not any(v in z.read(name) for v in FORBIDDEN),'Test marker in IPA')
- return {'ipa_sha256':sha(path),'build':build,'version':app_version,'privacy_completeness_reviewed':False}
+ return {'ipa_sha256':sha(path),'build':build,'version':app_version,'privacy_completeness_reviewed':False,'packaged_privacy':privacy}
 
 def verify_signatures(app,expected_cert_sha256):
  """Real macOS read-only codesign/profile checks, no signing credential needed."""

@@ -63,6 +63,14 @@ class Archive(unittest.TestCase):
   with zipfile.ZipFile(self.envelope,'w') as z:z.writestr('compile-manifest.json',json.dumps(self.manifest));z.writestr('archive.cms',b'fake-encrypted-container')
  def check(self):return g.check_provenance(self.p,self.envelope,self.ipa,self.policy,self.log,self.repo)
  def test_synthetic_archive_structure(self):self.assertFalse(g.check_archive(self.ipa,2014,'0.5.9')['privacy_completeness_reviewed'])
+ def test_nested_sdk_privacy_is_validated(self):
+  self.repack({'Payload/Runner.app/Frameworks/SDK.framework/PrivacyInfo.xcprivacy':plistlib.dumps({'NSPrivacyTracking':'false'})})
+  with self.assertRaises(ValueError):g.check_archive(self.ipa,2014,'0.5.9')
+ def test_oversize_archive_rejected_before_decompression(self):
+  member=zipfile.ZipInfo('Payload/Runner.app/oversize');member.file_size=501*1024*1024
+  with patch.object(zipfile.ZipFile,'infolist',return_value=[member]),patch.object(zipfile.ZipFile,'testzip') as decompress:
+   with self.assertRaises(ValueError):g.check_archive(self.ipa,2014,'0.5.9')
+   decompress.assert_not_called()
  def test_version_rejected(self):
   self.pl['CFBundleVersion']='2013';self.repack()
   with self.assertRaises(ValueError):g.check_archive(self.ipa,2014,'0.5.9')

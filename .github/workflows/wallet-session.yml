@@ -20,11 +20,48 @@ jobs:
       - working-directory: app
         run: |
           flutter pub get
-          timeout 180 flutter test --concurrency=1 --reporter expanded test/wallet_disabled_session_test.dart test/wallet_session_test.dart test/wallet_journey_test.dart test/wallet_transfer_store_test.dart
-          flutter analyze lib/wallet_page.dart test/wallet_session_test.dart
+          timeout 300 flutter test --concurrency=1 --reporter expanded test/wallet_disabled_session_test.dart test/wallet_session_test.dart test/wallet_journey_test.dart test/wallet_transfer_store_test.dart test/upload_center_test.dart test/upload_session_test.dart test/upload_pending_store_test.dart test/session_restore_test.dart test/session_restore_ui_test.dart test/auth_journey_test.dart test/registration_session_test.dart test/api_keepalive_test.dart
+          flutter analyze lib/wallet_page.dart lib/api.dart test/wallet_session_test.dart test/wallet_disabled_session_test.dart test/upload_center_test.dart
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: wallet-session-synthetic-renders
           path: app/test/renders/wallet_retired_*.png
           retention-days: 2
+  ios-compile:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: false
+      - working-directory: app
+        run: |
+          flutter pub get
+          python3 ../.github/ci/test_ios_export_declaration.py
+          flutter build ios --release --no-codesign --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1
+  android-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+          cache: false
+      - working-directory: app
+        run: |
+          flutter pub get
+          flutter build apk --debug --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1

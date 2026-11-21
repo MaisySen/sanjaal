@@ -1,3 +1,4 @@
+import 'session_bound_state.dart';
 import 'dart:convert';
 import 'wallet_transfer_store.dart';
 import 'ph.dart';
@@ -16,7 +17,17 @@ class WalletPage extends StatefulWidget {
   State<WalletPage> createState() => _WalletPageState();
 }
 
-class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
+class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, SessionBoundState<WalletPage> {
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() {
+    loadGeneration++; withdrawalGeneration++;
+    entries = []; withdrawals = []; pendingTransfer = null;
+    balance = 0; topup = {}; cashout = {}; pendingTopup = null;
+    cashoutId = null; cashoutCoins = null;
+    transferReplay = false; transferStoreReady = false;
+  }
   int balance = 0;
   List<Map<String, dynamic>> entries = [];
   Map<String, dynamic> topup = {};
@@ -41,7 +52,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   int loadGeneration = 0;
   int withdrawalGeneration = 0;
 
-  bool get canAct => widget.session.user?['public_id'] == transferOwner && loaded && !loading && !refreshing && !operationBusy && error == null;
+  bool get canAct => sessionActive && widget.session.user?['public_id'] == transferOwner && loaded && !loading && !refreshing && !operationBusy && error == null;
 
   Future<void> _runOperation(Future<void> Function() operation) async {
     if (!canAct) return;
@@ -49,7 +60,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
     try {
       await operation();
     } finally {
-      if (mounted) setState(() => operationBusy = false);
+      if (mounted && sessionActive) setState(() => operationBusy = false);
     }
   }
 
@@ -70,10 +81,11 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Back from the payment page in the browser.
-    if (state == AppLifecycleState.resumed && pendingTopup != null) _checkTopup();
+    if (sessionActive && state == AppLifecycleState.resumed && pendingTopup != null) _checkTopup();
   }
 
   Future<void> _restoreTransfer() async {
+    if (!sessionActive) return;
     try {
       final key = transferStoreKey;
       if (key == null) throw const FormatException('Missing member identity');
@@ -81,14 +93,14 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       final raw = await store.read(key);
       final data = raw == null ? null : (jsonDecode(raw) as Map).cast<String, dynamic>();
       if (data != null && (data['client_id'] is! String || !RegExp(r'^[A-Za-z0-9_-]{16,80}$').hasMatch(data['client_id']) || data['username'] is! String || data['amount'] is! int || data['amount'] < 1 || data['amount'] > 100000 || (data['note'] != null && data['note'] is! String))) throw const FormatException('Invalid pending transfer');
-      if (mounted) setState(() { pendingTransfer = data; transferStoreReady = true; transferStoreError = null; });
+      if (mounted && sessionActive) setState(() { pendingTransfer = data; transferStoreReady = true; transferStoreError = null; });
     } catch (_) {
-      if (mounted) setState(() { transferStoreError = t_('Pending transfer could not be read. Sending is paused.'); transferStoreReady = false; });
+      if (mounted && sessionActive) setState(() { transferStoreError = t_('Pending transfer could not be read. Sending is paused.'); transferStoreReady = false; });
     }
   }
 
   Future<void> _submitTransfer(Map<String, dynamic> body) async {
-    if (!mounted || !transferReplay || widget.session.user?['public_id'] != transferOwner) return;
+    if (!mounted || !sessionActive || !transferReplay || widget.session.user?['public_id'] != transferOwner) return;
     setState(() { pendingTransfer = Map.unmodifiable(body); transferStoreError = null; });
     var saved = false;
     try {
@@ -103,28 +115,30 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       }
       await store.write(key, jsonEncode(body));
       saved = true;
-      if (!mounted || widget.session.user?['public_id'] != transferOwner) return;
+      if (!mounted || !sessionActive || widget.session.user?['public_id'] != transferOwner) return;
       final result = await widget.session.call('POST', '/wallet/transfer', body: body) as Map;
       final receipt = result['transfer'] as Map;
       if (receipt['status'] != 'completed' || receipt['client_id'] != body['client_id'] || receipt['amount'] != body['amount'] || receipt['public_id'] is! String) throw const FormatException('Unconfirmed transfer receipt');
+      if (!mounted || !sessionActive) return;
       await store.remove(key);
-      if (mounted) {
+      if (mounted && sessionActive) {
         setState(() => pendingTransfer = null);
         await _load();
-        if (mounted) showInfo(context, t_('Transfer confirmed.'));
+        if (mounted && sessionActive) showInfo(context, t_('Transfer confirmed.'));
       }
     } catch (e) {
+      if (!mounted || !sessionActive) return;
       final rejected = saved && e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500 && e.status != 408 && e.status != 409;
       if (rejected) {
         try {
           final store = widget.transferStore;
           await store.remove(transferStoreKey!);
-          if (mounted) setState(() => pendingTransfer = null);
+          if (mounted && sessionActive) setState(() => pendingTransfer = null);
         } catch (_) {
-          if (mounted) setState(() => transferStoreError = t_('Pending transfer could not be saved. Sending is paused.'));
+          if (mounted && sessionActive) setState(() => transferStoreError = t_('Pending transfer could not be saved. Sending is paused.'));
         }
       }
-      if (mounted) {
+      if (mounted && sessionActive) {
         showError(context, rejected ? e : saved ? t_('Transfer result unconfirmed. Retry only this original transfer.') : t_('Transfer was not sent because its details could not be saved.'));
         await _load();
       }
@@ -132,7 +146,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   }
 
   Future<void> _load() async {
-    if (!mounted) return;
+    if (!mounted || !sessionActive) return;
     final generation = ++loadGeneration;
     withdrawalGeneration++;
     setState(() => refreshing = true);
@@ -142,7 +156,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       final nextEntries = (j['entries'] as List).cast<Map<String, dynamic>>();
       final nextTopup = (j['topup'] as Map).cast<String, dynamic>();
       final nextCashout = ((j['cashout'] as Map?) ?? const {}).cast<String, dynamic>();
-      if (!mounted || generation != loadGeneration) return;
+      if (!mounted || !sessionActive || generation != loadGeneration) return;
       setState(() {
         balance = nextBalance;
         entries = nextEntries;
@@ -156,7 +170,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       });
       _loadWithdrawals();
     } catch (e) {
-      if (mounted && generation == loadGeneration) {
+      if (mounted && sessionActive && generation == loadGeneration) {
         setState(() {
           error = e is ApiError ? e.message : t_('Wallet could not be loaded.');
           loading = false;
@@ -168,11 +182,11 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
 
   Future<void> _checkTopup() async {
     final id = pendingTopup;
-    if (id == null || checkingTopup) return;
+    if (!sessionActive || id == null || checkingTopup) return;
     checkingTopup = true;
     try {
       final j = await widget.session.call('GET', '/wallet/topups/$id') as Map<String, dynamic>;
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       if (j['status'] == 'completed') {
         pendingTopup = null;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Added {amount} coins.').replaceAll('{amount}', '${j['amount']}'))));
@@ -189,9 +203,10 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
   }
 
   Future<void> _topup() async {
+    if (!sessionActive) return;
     final amount = await showDialog<int>(
       context: context,
-      builder: (ctx) => _WalletDialog(initial: const ['100'], builder: (ctx, fields) {
+      builder: (ctx) => _WalletDialog(session: widget.session, initial: const ['100'], builder: (ctx, fields) {
         final c = fields[0];
         return AlertDialog(
         title: Text(t_('Add coins'), style: Theme.of(ctx).textTheme.titleMedium),
@@ -209,23 +224,24 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         ],
       ); }),
     );
-    if (!mounted || amount == null) return;
+    if (!mounted || !sessionActive || amount == null) return;
     try {
       final j = await widget.session.call('POST', '/wallet/topups', body: {'amount': amount}) as Map<String, dynamic>;
+      if (!mounted || !sessionActive) return;
       pendingTopup = j['topup_id'] as String;
       final ok = await launchUrl(Uri.parse(j['pay_url'] as String), mode: LaunchMode.externalApplication);
-      if (!ok && mounted) showError(context, t_('Could not open the browser.'));
+      if (!ok && mounted && sessionActive) showError(context, t_('Could not open the browser.'));
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     }
   }
 
   Future<void> _send() async {
-    if (pendingTransfer != null || !transferReplay || !transferStoreReady || widget.session.user?['public_id'] != transferOwner) return;
+    if (!sessionActive || pendingTransfer != null || !transferReplay || !transferStoreReady || widget.session.user?['public_id'] != transferOwner) return;
     final form = GlobalKey<FormState>();
     final body = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => _WalletDialog(initial: const ['', '', ''], builder: (ctx, fields) {
+      builder: (ctx) => _WalletDialog(session: widget.session, initial: const ['', '', ''], builder: (ctx, fields) {
         final user = fields[0], amt = fields[1], note = fields[2];
         return AlertDialog(
         title: Text(t_('Send coins'), style: Theme.of(ctx).textTheme.titleMedium),
@@ -240,37 +256,39 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         ],
       ); }),
     );
-    if (!mounted || body == null) return;
-    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+    if (!mounted || !sessionActive || body == null) return;
+    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => _WalletDialog(session: widget.session, initial: const [], builder: (ctx, fields) => AlertDialog(
       title: Text(t_('Review transfer'), style: Theme.of(ctx).textTheme.titleMedium),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(t_('{amount} coins to @{member}').replaceAll('{amount}', '${body['amount']}').replaceAll('{member}', '${body['username']}')),
         if (body['note'] != null) ...[const SizedBox(height: 12), Text('${body['note']}')],
       ])),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t_('Cancel'))), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t_('Confirm send')))],
-    ));
-    if (!mounted || confirmed != true) return;
+    )));
+    if (!mounted || !sessionActive || confirmed != true) return;
     await _submitTransfer(body);
   }
 
   Future<void> _loadWithdrawals() async {
+    if (!sessionActive) return;
     final generation = ++withdrawalGeneration;
     try {
       final j = await widget.session.call('GET', '/wallet/withdrawals') as Map<String, dynamic>;
       final rows = ((j['data'] as List?) ?? const []).cast<Map<String, dynamic>>();
-      if (mounted && generation == withdrawalGeneration) setState(() { withdrawals = rows; withdrawalError = null; });
+      if (mounted && sessionActive && generation == withdrawalGeneration) setState(() { withdrawals = rows; withdrawalError = null; });
     } catch (_) {
-      if (mounted && generation == withdrawalGeneration) setState(() => withdrawalError = t_('Cash-out history could not be loaded.'));
+      if (mounted && sessionActive && generation == withdrawalGeneration) setState(() => withdrawalError = t_('Cash-out history could not be loaded.'));
     }
   }
 
   Future<void> _cancelWithdrawal(String id) async {
+    if (!sessionActive) return;
     try {
       await widget.session.call('POST', '/wallet/withdrawals/$id/cancel');
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Cash out canceled.'))));
+      if (mounted && sessionActive) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Cash out canceled.'))));
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
       await _loadWithdrawals();
     }
   }
@@ -286,10 +304,11 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       };
 
   Future<void> _cashout() async {
+    if (!sessionActive) return;
     final min = (cashout['min'] as num?)?.toInt() ?? 500;
     final coins = await showDialog<int>(
       context: context,
-      builder: (ctx) => _WalletDialog(initial: [cashoutCoins?.toString() ?? ''], builder: (ctx, fields) {
+      builder: (ctx) => _WalletDialog(session: widget.session, initial: [cashoutCoins?.toString() ?? ''], builder: (ctx, fields) {
         final amt = fields[0];
         return AlertDialog(
         title: Text(t_('Cash out'), style: Theme.of(ctx).textTheme.titleMedium),
@@ -304,7 +323,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
         ],
       ); }),
     );
-    if (!mounted || coins == null) return;
+    if (!mounted || !sessionActive || coins == null) return;
     if (cashoutId == null || cashoutCoins != coins) {
       cashoutId = 'co-${DateTime.now().microsecondsSinceEpoch}-$coins';
       cashoutCoins = coins;
@@ -314,16 +333,17 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
       cashoutId = null;
       cashoutCoins = null;
       await _load();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Cash out requested.'))));
+      if (mounted && sessionActive) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Cash out requested.'))));
     } on ApiError catch (e) {
+      if (!mounted || !sessionActive) return;
       // A refusal means nothing was held: the next try is a new request. Anything else may have landed: keep the id.
       if (e.status != null && e.status! >= 400 && e.status! < 500 && e.status != 408) {
         cashoutId = null;
         cashoutCoins = null;
       }
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     } catch (e) {
-      if (mounted) showError(context, e);
+      if (mounted && sessionActive) showError(context, e);
     }
   }
 
@@ -343,6 +363,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (!sessionActive) return retiredSessionView();
     final esewa = topup['esewa'] == true;
     final canCash = cashout['available'] == true && balance >= ((cashout['min'] as num?)?.toInt() ?? 500);
     final scheme = Theme.of(context).colorScheme;
@@ -469,16 +490,24 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver {
 
 // The route owns controllers until its closing animation actually disposes it.
 class _WalletDialog extends StatefulWidget {
-  const _WalletDialog({required this.initial, required this.builder});
+  const _WalletDialog({required this.session, required this.initial, required this.builder});
+  final Session session;
   final List<String> initial;
   final Widget Function(BuildContext, List<TextEditingController>) builder;
   @override
   State<_WalletDialog> createState() => _WalletDialogState();
 }
-class _WalletDialogState extends State<_WalletDialog> {
+class _WalletDialogState extends State<_WalletDialog> with SessionBoundState<_WalletDialog> {
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() { for (final field in fields) { field.clear(); } }
   late final fields = widget.initial.map((s) => TextEditingController(text: s)).toList();
   @override
   void dispose() { for (final c in fields) { c.dispose(); } super.dispose(); }
   @override
-  Widget build(BuildContext context) => widget.builder(context, fields);
+  Widget build(BuildContext context) => sessionActive ? widget.builder(context, fields) : AlertDialog(
+    scrollable: true, content: Text(t_('This screen belongs to another signed-in session. Close it and sign in again to continue.')),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(t_('Close')))],
+  );
 }

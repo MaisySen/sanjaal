@@ -20,4 +20,11 @@ jobs:
       - working-directory: app
         run: |
           flutter pub get
-          flutter test test/wallet_session_test.dart test/wallet_journey_test.dart test/wallet_transfer_store_test.dart
+          flutter test --reporter expanded test/wallet_session_test.dart test/wallet_journey_test.dart test/wallet_transfer_store_test.dart
+          flutter analyze lib/wallet_page.dart test/wallet_session_test.dart
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: wallet-session-synthetic-renders
+          path: app/test/renders/wallet_retired_*.png
+          retention-days: 2

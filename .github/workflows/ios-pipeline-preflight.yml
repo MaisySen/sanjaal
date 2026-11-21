@@ -1,0 +1,45 @@
+name: iOS pipeline preflight only
+'on':
+  push:
+    branches: [ios-pipeline-preflight]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sanjaal-ios-toolchain-preflight
+  cancel-in-progress: false
+jobs:
+  inventory:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inventory installed Xcode and iOS SDKs without app build or signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,subprocess,json,os
+          records=[]
+          for app in sorted(pathlib.Path('/Applications').glob('Xcode*.app')):
+              developer=app/'Contents/Developer'
+              if not developer.is_dir():continue
+              env={**os.environ,'DEVELOPER_DIR':str(developer)}
+              v=subprocess.run(['xcodebuild','-version'],env=env,capture_output=True,text=True,timeout=20)
+              sdk=subprocess.run(['xcrun','--sdk','iphoneos','--show-sdk-version'],env=env,capture_output=True,text=True,timeout=20)
+              records.append({'path':str(app),'xcode':v.stdout.strip(),'sdk':sdk.stdout.strip(),'version_rc':v.returncode,'sdk_rc':sdk.returncode})
+          assert records, 'No installed Xcode available'
+          print(json.dumps({'purpose':'TOOLCHAIN_INVENTORY_ONLY_NOT_PLUGIN_COMPATIBILITY','runner_image':os.environ.get('ImageVersion'),'installed':records},indent=2))
+          PY
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fail-closed release/audience/toolchain contracts
+        run: |
+          python3 .github/ci/test_ios_release_gate.py
+          python3 -O .github/ci/test_ios_release_gate.py
+# No build, archive, certificate, upload password, API key, TestFlight assignment,
+# export declaration, App Store submission or billing change can run here.

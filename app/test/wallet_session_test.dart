@@ -77,6 +77,9 @@ void main(){
    expect(find.textContaining('private_recipient'),findsNothing);expect(find.text('1200'),findsNothing);
    expect(find.byType(TextFormField),findsNothing);expect(t.takeException(),isNull);
    await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('wallet-retired')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/wallet_retired_${language}_1.8.png').writeAsBytesSync(bytes!.buffer.asUint8List());});
+   await t.tap(find.widgetWithText(TextButton,language=='ne'?'बन्द गर्नुहोस्':'Close'));await t.pumpAndSettle();
+   await t.ensureVisible(find.byType(FilledButton).first);await t.tap(find.byType(FilledButton).first);await flush(t);await t.pumpAndSettle();
+   expect(find.text('1200'),findsOneWidget);expect(find.byType(TextFormField),findsNothing);expect(t.takeException(),isNull);
    await t.pumpWidget(const SizedBox());await t.pump(const Duration(seconds:1));
   },()=>MockClient((r)async{
    if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});

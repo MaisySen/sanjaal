@@ -363,7 +363,21 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
 
   @override
   Widget build(BuildContext context) {
-    if (!sessionActive) return retiredSessionView();
+    if (!sessionActive) return Scaffold(
+      appBar: AppBar(title: Text(t_('Wallet'))),
+      body: ModalRoute.of(context)?.isCurrent == false ? const SizedBox.shrink() : SingleChildScrollView(
+        padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(t_('Your sign-in changed. This wallet has been closed.')),
+          if (widget.session.user != null) ...[
+            const SizedBox(height: 16),
+            FilledButton(onPressed: () {
+              if (widget.session.user == null) return;
+              Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => WalletPage(session: widget.session, transferStore: widget.transferStore)));
+            }, child: Text(t_('Open current wallet'))),
+          ],
+        ]),
+      ),
+    );
     final esewa = topup['esewa'] == true;
     final canCash = cashout['available'] == true && balance >= ((cashout['min'] as num?)?.toInt() ?? 500);
     final scheme = Theme.of(context).colorScheme;
@@ -507,7 +521,7 @@ class _WalletDialogState extends State<_WalletDialog> with SessionBoundState<_Wa
   void dispose() { for (final c in fields) { c.dispose(); } super.dispose(); }
   @override
   Widget build(BuildContext context) => sessionActive ? widget.builder(context, fields) : AlertDialog(
-    scrollable: true, content: Text(t_('This screen belongs to another signed-in session. Close it and sign in again to continue.')),
+    scrollable: true, content: Text(t_('Your sign-in changed. Close this dialog to open your current wallet.')),
     actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(t_('Close')))],
   );
 }

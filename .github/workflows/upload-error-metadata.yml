@@ -20,4 +20,5 @@ jobs:
       - working-directory: app
         run: |
           flutter pub get
-          flutter test test/upload_center_test.dart test/upload_session_test.dart test/upload_pending_store_test.dart
+          flutter test test/upload_center_test.dart test/upload_session_test.dart test/upload_pending_store_test.dart test/session_restore_test.dart test/session_restore_ui_test.dart test/auth_journey_test.dart test/registration_session_test.dart test/api_keepalive_test.dart
+          flutter analyze lib/api.dart test/upload_center_test.dart

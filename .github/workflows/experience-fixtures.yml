@@ -8,6 +8,17 @@ jobs:
   api-fixtures:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015
+        env:
+          POSTGRES_USER: sanjaal_fixture
+          POSTGRES_PASSWORD: local-fixture-only
+          POSTGRES_DB: sanjaal_fixture
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U sanjaal_fixture -d sanjaal_fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     defaults:
       run:
         working-directory: api
@@ -29,7 +40,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, gd
+          extensions: mbstring, pdo_sqlite, sqlite3, pdo_pgsql, bcmath, gd
           coverage: none
       - run: composer install --no-interaction --prefer-dist --no-progress --no-plugins
       - name: Synthetic SQLite call and existing regression fixtures
@@ -39,3 +50,12 @@ jobs:
           php artisan route:cache
           php artisan event:cache
           php artisan test tests/Feature/CallReconciliationTest.php
+      - name: Same exact-call behavior against disposable PostgreSQL 18
+        run: php artisan test tests/Feature/CallReconciliationTest.php
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: sanjaal_fixture
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_USERNAME: sanjaal_fixture
+          DB_PASSWORD: local-fixture-only

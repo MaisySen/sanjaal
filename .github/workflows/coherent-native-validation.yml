@@ -1,4 +1,4 @@
-name: Reviewed coherent candidate native validation
+name: Reviewed candidate API verification only
 'on':
   push:
     branches:
@@ -9,151 +9,96 @@ concurrency:
   group: coherent-native-validation
   cancel-in-progress: false
 jobs:
-  ios-flows:
-    runs-on: macos-latest
-    timeout-minutes: 45
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:b6972e1115a4ff8eba5d7f7d19184926d1e16d7d1136ae1e1a7ebf286da0f015
+        env:
+          POSTGRES_USER: sanjaal
+          POSTGRES_PASSWORD: local-fixture-only
+          POSTGRES_DB: sanjaal_test
+        ports:
+        - 5432:5432
+        options: --health-cmd "pg_isready -U sanjaal -d sanjaal_test" --health-interval 5s --health-timeout 5s --health-retries
+          10
+    defaults:
+      run:
+        working-directory: api
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       with:
+        ref: 4ccd751ff585271f1dede4b3a4ddd4d559e60ae6
         persist-credentials: false
-    - name: Verify frozen reviewed runtime and private fixture scope
-      run: 'test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
+    - name: Verify frozen candidate API dependency and platform identity
+      working-directory: .
+      run: 'test "$(git rev-parse HEAD:api)" = f8da760fa1c6513548f1479ca5b6c4c6db527b5d
 
-        test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
+        test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
 
-        test "$(git rev-parse HEAD:app/android)" = a3f429356827215a6ddab042ea942e278e7e2a51
+        git rev-parse HEAD HEAD:api HEAD:app/lib HEAD:app/android HEAD:app/ios HEAD:app/pubspec.lock HEAD:api/composer.lock
 
-        test "$(git rev-parse HEAD:app/pubspec.yaml)" = 86e457493142bdf716804d12193e286efcc5ef5e
-
-        test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
-
-        '
-    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
-      with:
-        channel: stable
-        flutter-version: 3.50.0
-        cache: true
+        git diff --exit-code'
     - uses: shivammathur/setup-php@v2
       with:
         php-version: '8.4'
-        extensions: mbstring,pdo_sqlite,sqlite3,bcmath,gd
+        extensions: mbstring, pdo_sqlite, sqlite3, pdo_pgsql, bcmath, gd
         coverage: none
-    - name: Disposable local API, no production data or services
-      working-directory: api
+    - run: composer install --no-interaction --prefer-dist --no-progress
+    - run: 'set -euo pipefail
+
+        {
+
+        touch .env && php artisan test
+
+        } 2>&1 | tee /tmp/candidate-api-1.log'
       env:
         APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
-        APP_ENV: local
-        DB_CONNECTION: sqlite
-        DB_DATABASE: /tmp/ios-e2e/db.sqlite
-        CACHE_STORE: file
-        SESSION_DRIVER: array
-        QUEUE_CONNECTION: sync
-      run: "composer install --no-interaction --prefer-dist --no-progress\nmkdir -p /tmp/ios-e2e;touch /tmp/ios-e2e/db.sqlite\
-        \ .env\nphp artisan migrate --force\nphp tests/E2E/prepare.php /tmp/ios-e2e\ncp ../app/test/fixtures/ios_synthetic_video.mp4\
-        \ public/ios-native-fixture.mp4\necho \"::add-mask::$(cat /tmp/ios-e2e/token.txt)\"\nE2E_FAULT_AFTER_COMMIT=1\
-        \ UPLOAD_INTENTS_ENABLED=true E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public\
-        \ tests/E2E/server.php > /tmp/ios-api.log 2>&1 &\ncurl --retry 5 --retry-connrefused --retry-delay\
-        \ 1 -s http://localhost:8000/api/v1/auth/me -H 'Accept: application/json'\n\npython3 ../.github/ci/native-bind-probe.py\n\
-        python3 ../.github/ci/native-socket-proxy-contract.py\nnohup python3 ../.github/ci/native-socket-proxy.py\
-        \ --port 8002 --upstream http://127.0.0.1:8000 --token-file /tmp/ios-e2e/token.txt > /tmp/ios-socket-gate.log\
-        \ 2>&1 &\nGATE_PID=$!\npython3 ../.github/ci/native-socket-proxy-ready.py /tmp/ios-e2e/token.txt ||\
-        \ {\n  ps -p \"$GATE_PID\" -o pid,ppid,state,etime,comm || true\n  lsof -nP -iTCP:8002 -sTCP:LISTEN\
-        \ || true\n  cat /tmp/ios-socket-gate.log\n  exit 1\n}\n"
-    - name: Select and boot available iPhone simulator
-      run: 'defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+    - run: 'set -euo pipefail
 
-        xcrun simctl list devices available --json > /tmp/ios-devices.json
+        {
 
-        python3 - <<''PY''
+        touch .env
 
-        import json,os
+        php artisan route:cache && php artisan event:cache
 
-        d=json.load(open(''/tmp/ios-devices.json''))
+        php artisan test
 
-        eligible=[x for runtime,rows in d[''devices''].items() if ''iOS'' in runtime for x in rows if x[''isAvailable'']
-        and ''iPhone'' in x[''name'']]
+        php artisan route:clear && php artisan event:clear
 
-        assert eligible,''No installed iPhone simulator runtime''
 
-        chosen=eligible[0]
+        } 2>&1 | tee /tmp/candidate-api-2.log'
+      env:
+        APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+    - name: PostgreSQL 18 API and concurrent invariant checks (throwaway service only)
+      run: 'set -euo pipefail
 
-        with open(os.environ[''GITHUB_ENV''],''a'') as f:f.write(''IOS_DEVICE=''+chosen[''udid'']+''\n'')
+        {
 
-        print(chosen)
+        php artisan test
 
-        PY
+        php artisan route:cache && php artisan event:cache
 
-        '
-    - name: Run actual iOS simulator application and native storage plugins
-      working-directory: app
-      run: "flutter pub get\nmkdir -p build/screenshots\nxcrun simctl boot \"$IOS_DEVICE\" || true\nxcrun simctl\
-        \ bootstatus \"$IOS_DEVICE\" -b\nxcrun simctl io \"$IOS_DEVICE\" recordVideo build/screenshots/ios-flows.mp4\
-        \ > /tmp/ios-record.log 2>&1 &\nREC=$!\n# Compile once, then launch explicitly. Do not depend on the\
-        \ failed\n# Flutter simulator log-reader discovery path to find its VM service.\nflutter build ios\
-        \ --simulator --debug --target=integration_test/ios_flows_test.dart --no-pub --dart-define=API_BASE_URL=http://localhost:8002/api/v1\
-        \ --dart-define=E2E_TOKEN_BASE=http://localhost:8002 --dart-define=E2E_TOKEN=\"$(cat /tmp/ios-e2e/token.txt)\"\
-        \ > ios-build.log 2>&1\nxcrun simctl install \"$IOS_DEVICE\" build/ios/iphonesimulator/Runner.app\n\
-        # Debug-only simulator fixture, bind a fixed localhost port. Nothing\n# listens remotely and these\
-        \ arguments never enter a release build.\nxcrun simctl launch --console \"$IOS_DEVICE\" au.fintex.sanjaal\
-        \ --vm-service-host=127.0.0.1 --vm-service-port=57321 --disable-service-auth-codes > ios-native-console.log\
-        \ 2>&1 &\nLAUNCH=$!\ntrap 'kill -INT \"$REC\" 2>/dev/null || true; kill \"$LAUNCH\" 2>/dev/null ||\
-        \ true' EXIT\nset +e\npython3 - <<'PYDRIVE'\nimport os,subprocess,signal,time,json,urllib.request,pathlib\n\
-        endpoint='http://127.0.0.1:57321/'\ndeadline=time.monotonic()+90\nwhile True:\n  try:\n    with urllib.request.urlopen(endpoint+'getVM',timeout=2)\
-        \ as response:\n      state=json.load(response)\n    assert state.get('result',{}).get('type')=='VM',state\n\
-        \    pathlib.Path('ios-vm-probe.json').write_text(json.dumps(state,indent=2))\n    print('Direct simulator\
-        \ VM service verified',flush=True)\n    break\n  except Exception as error:\n    if time.monotonic()>deadline:\n\
-        \      print('Direct VM service unavailable within90s: '+str(error),flush=True)\n      subprocess.run(['xcrun','simctl','spawn',os.environ['IOS_DEVICE'],'launchctl','list'])\n\
-        \      raise SystemExit(125)\n    time.sleep(1)\nimport threading\nstop=threading.Event()\ndef native_evidence():\n\
-        \  seen=set()\n  while not stop.wait(0.4):\n    result=subprocess.run(['xcrun','simctl','get_app_container',os.environ['IOS_DEVICE'],'au.fintex.sanjaal','data'],capture_output=True,text=True)\n\
-        \    if result.returncode:continue\n    container=pathlib.Path(result.stdout.strip())\n    for pending\
-        \ in container.rglob('*.native-pending'):\n      if str(pending) in seen:continue\n      seen.add(str(pending))\n\
-        \      name=pending.stem\n      subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/native_'+name+'.png'],check=True)\n\
-        \      pending.with_suffix('.native-done').write_text('captured')\nmonitor=threading.Thread(target=native_evidence,daemon=True);monitor.start()\n\
-        args=['flutter','drive','-d',os.environ['IOS_DEVICE'],'--driver=test_driver/integration_test.dart','--use-existing-app='+endpoint,'--no-pub']\n\
-        with open('ios-driver-output.log','w') as log:\n  child=subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)\n\
-        \  try:code=child.wait(timeout=600)\n  except subprocess.TimeoutExpired:\n    print('Existing-app iOS\
-        \ driver exceeded10-minute diagnostic bound',flush=True)\n    subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/ios-timeout-native.png'])\n\
-        \    os.killpg(child.pid,signal.SIGTERM)\n    try:child.wait(timeout=15)\n    except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL)\n\
-        \    code=124\nstop.set();monitor.join(timeout=5)\npathlib.Path('ios-driver-exit.txt').write_text(str(code))\n\
-        raise SystemExit(code)\nPYDRIVE\nRC=$?\nkill -INT \"$REC\";wait \"$REC\"\nxcrun simctl io \"$IOS_DEVICE\"\
-        \ screenshot build/screenshots/ios-final-native.png\ntail -80 ios-driver-output.log\nexit \"$RC\"\n"
-    - name: Preserve native diagnostic state even after a drive failure
-      if: always()
-      working-directory: app
-      run: "mkdir -p build/screenshots\nif [ -n \"$IOS_DEVICE\" ]; then\n  xcrun simctl io \"$IOS_DEVICE\"\
-        \ screenshot build/screenshots/ios-diagnostic-native.png || true\n  CONTAINER=$(xcrun simctl get_app_container\
-        \ \"$IOS_DEVICE\" au.fintex.sanjaal data 2>/dev/null || true)\n  if [ -n \"$CONTAINER\" ]; then\n \
-        \   find \"$CONTAINER\" -name ios-stages.log -exec cp {} build/screenshots/ios-stages.log \\; || true\n\
-        \    find \"$CONTAINER\" -type d -name ios-evidence -exec cp -R {} build/screenshots/ \\; || true\n\
-        \  fi\nfi\n"
-    - uses: actions/upload-artifact@v4
+        php artisan test
+
+        php artisan route:clear && php artisan event:clear
+
+        PG_RACE=1 php artisan test tests/Concurrency
+
+
+        } 2>&1 | tee /tmp/candidate-api-3.log'
+      env:
+        APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+        DB_CONNECTION: pgsql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 5432
+        DB_DATABASE: sanjaal_test
+        DB_USERNAME: sanjaal
+        DB_PASSWORD: local-fixture-only
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       if: always()
       with:
-        name: ios-simulator-local-evidence
-        path: 'app/ios-driver-output.log
-
-          app/ios-simulator.log
-
-          app/ios-build.log
-
-          app/ios-native-console.log
-
-          app/ios-vm-probe.json
-
-          app/ios-driver-exit.txt
-
-          app/build/screenshots/*
-
-          /tmp/ios-api.log
-
-          /tmp/ios-socket-gate.log
-
-          /tmp/ios-devices.json
-
-
-          /tmp/ios-standard-bind-probe.log
-
-          '
-        retention-days: 1
-    permissions:
-      contents: read
+        name: exact-candidate-api-verification
+        path: /tmp/candidate-api-*.log
+        retention-days: 3
+    timeout-minutes: 30

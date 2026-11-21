@@ -226,7 +226,7 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
       backgroundColor: const Color(0xFF14152E),
       body: SafeArea(child: Column(children: [
         Expanded(child: Center(child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Avatar(user: caller, radius: 56),
             const SizedBox(height: 20),

@@ -108,6 +108,23 @@ void main() {
     expect(s.tokens, 0); expect(find.byType(CallPage), findsNothing); expect(find.text('This call has ended.'), findsOneWidget);
     await t.pumpWidget(const SizedBox()); await t.pumpAndSettle();
   });
+  testWidgets('lost decline reconciled as answered never offers join', (t) async {
+    final s = CallsFixture()..writeResult = ApiError('fixture lost', 503)..readResult = {'call': row('answered')};
+    await screen(t, s); await t.tap(find.byTooltip('Decline')); await t.pumpAndSettle();
+    expect(s.actions, 1); expect(s.reads, 1); expect(s.tokens, 0);
+    expect(find.text('Join this call'), findsNothing); expect(find.byType(CallPage), findsNothing);
+    expect(find.text('This call was answered.'), findsOneWidget);
+    await t.pumpWidget(const SizedBox()); await t.pumpAndSettle();
+  });
+  testWidgets('closing while a status check is pending ignores its late result', (t) async {
+    final s = CallsFixture()..writeResult = ApiError('fixture lost', 503)..readPending = Completer<Object?>();
+    await screen(t, s); await t.tap(find.byTooltip('Accept')); await t.pump();
+    await t.tap(find.text('Close')); await t.pumpAndSettle();
+    s.readPending!.complete({'call': row('answered')}); await t.pumpAndSettle();
+    expect(find.text('Join this call'), findsNothing); expect(s.actions, 1); expect(s.tokens, 0);
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox()); await t.pumpAndSettle();
+  });
   testWidgets('retirement suppresses a late answered state and any join', (t) async {
     final s = CallsFixture()..writeResult = ApiError('fixture lost', 503)..readPending = Completer<Object?>();
     await screen(t, s); await t.tap(find.byTooltip('Accept')); await t.pump();
@@ -128,6 +145,21 @@ void main() {
         Directory('test/renders').createSync(recursive: true);
         File('test/renders/call_unknown_$lang.png').writeAsBytesSync(bytes!.buffer.asUint8List());
       });
+      if (lang == 'ne') {
+        await t.drag(find.byType(SingleChildScrollView), const Offset(0, -1200));
+        await t.pumpAndSettle();
+        final text = find.byWidgetPredicate((w) => w is Text && (w.data?.contains('दोहोर्') ?? false));
+        expect(text, findsOneWidget);
+        final p = t.getRect(text);
+        final button = t.getRect(find.byType(FilledButton));
+        expect(p.bottom, lessThan(button.top));
+        expect(p.top, greaterThanOrEqualTo(0));
+        await t.runAsync(() async {
+          final b = t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('call-proof')));
+          final im = await b.toImage(pixelRatio: 2); final bytes = await im.toByteData(format: ui.ImageByteFormat.png);
+          File('test/renders/call_unknown_ne_scrolled.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+        });
+      }
       await t.pumpWidget(const SizedBox()); await t.pumpAndSettle();
     });
   }

@@ -12,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/main.dart' as app;
 import 'package:sanjaal/api.dart' show ApiError;
 import 'package:sanjaal/upload_center.dart';
+import 'package:sanjaal/feed_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _base = String.fromEnvironment('E2E_TOKEN_BASE');
@@ -111,6 +112,18 @@ void main() {
     await _until(tester, find.text('Your post is up.'));
     await tester.pump(const Duration(seconds: 1));
     await binding.takeScreenshot('upload_retry_2_after_retry');
+    final rootSession=tester.widget<app.HomeShell>(find.byType(app.HomeShell)).session;
+    expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
+    rootSession.offline=true;rootSession.notifyListeners();await tester.pump(const Duration(milliseconds:600));
+    expect(find.text('Your post is up.'),findsOneWidget);
+    expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
+    await binding.takeScreenshot('upload_retry_3_both_status_strips');
+    center.finishAcknowledgement();await tester.pump(const Duration(milliseconds:600));
+    expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
+    await binding.takeScreenshot('upload_retry_4_offline_only');
+    rootSession.offline=false;rootSession.notifyListeners();await tester.pump(const Duration(milliseconds:600));
+    await binding.takeScreenshot('upload_retry_5_status_strips_retired');
+
     expect(find.text('Try again'), findsNothing);
     expect(await _copies(tester, marker), 1, reason: 'retry must reuse the original, never create a second post');
     // ignore: avoid_print

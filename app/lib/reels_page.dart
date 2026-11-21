@@ -166,14 +166,15 @@ class _ReelsPageState extends State<ReelsPage> with SessionBoundState<ReelsPage>
         appBar: AppBar(title: Text(t_('Reels'))),
         body: Padding(padding: const EdgeInsets.only(bottom: 88), child: loading
             ? const Center(child: CircularProgressIndicator())
-            : EmptyState(
+            : LayoutBuilder(builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(constraints: BoxConstraints(minHeight: constraints.maxHeight), child: EmptyState(
                 icon: Ph.movie_outlined,
                 title: error ?? t_('No reels yet'),
                 hint: error == null ? t_('Share a short video with your community.') : null,
                 action: error == null && widget.onCreate != null
                     ? FilledButton.icon(onPressed: widget.onCreate, icon: const PhIcon('video-camera', size: 18), label: Text(t_('Create a reel')))
                     : OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Try again'))),
-              )),
+              ))))),
       );
     }
     return Scaffold(

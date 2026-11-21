@@ -379,7 +379,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       MePage(session: s, onCompose: _compose, contentRevision: _contentRevision),
     ];
     return Scaffold(
-      body: Column(children: [
+      body: ListenableBuilder(
+        listenable: Listenable.merge([s, UploadCenter.of(s)]),
+        builder: (context, child) {
+          final uploads = UploadCenter.of(s);
+          final headerVisible = s.offline || uploads.busy || uploads.restoring || uploads.error != null || uploads.result != null;
+          // A visible status strip owns the top inset for the whole stack.
+          // Without a strip, destinations retain their existing inset policy,
+          // including full-bleed Reels. Keep one subtree across transitions.
+          return SafeArea(top: headerVisible, bottom: false, left: false, right: false, child: child!);
+        },
+        child: Column(children: [
         UploadStrip(center: UploadCenter.of(s), destination: tab),
         ListenableBuilder(
           listenable: s,
@@ -395,7 +405,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           for (var i = 0; i < pages.length; i++)
             _visited.contains(i) ? TickerMode(enabled: i == tab && _foreground, child: pages[i]) : const SizedBox.shrink(),
         ]))),
-      ]),
+      ])),
       extendBody: true,
       bottomNavigationBar: GlassNavBar(
         immersive: tab == 1,

@@ -19,7 +19,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
-      run: 'test "$(git rev-parse HEAD:app/lib)" = 3ec46b9aef42d5d322227f542bac319a2ba82d96
+      run: 'test "$(git rev-parse HEAD:app/lib)" = 4543f63ccaf25d31d568827fa1c2cf17d497cbf2
 
         test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
 
@@ -126,7 +126,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
-      run: 'test "$(git rev-parse HEAD:app/lib)" = 3ec46b9aef42d5d322227f542bac319a2ba82d96
+      run: 'test "$(git rev-parse HEAD:app/lib)" = 4543f63ccaf25d31d568827fa1c2cf17d497cbf2
 
         test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
 

@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -98,6 +99,6 @@ class _NotificationsPageState extends State<NotificationsPage> with SessionBound
         Expanded(child: body),
       ]);
     }
-    return Scaffold(appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56,96), title: Text(t_('Notifications'),maxLines:2,style:const TextStyle(fontSize:18)), actions:[IconButton(tooltip:t_('Refresh'),onPressed:loading?null:_load,icon:const PhIcon('arrow-clockwise'))]), body: body);
+    return Scaffold(appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56,96), title: Text(t_('Notifications'),maxLines:2,style:const TextStyle(fontSize:18)), actions:[IconButton(tooltip:t_('Refresh'),onPressed:loading?null:_load,icon:const PhIcon('arrow-clockwise'))]), body: body);
   }
 }

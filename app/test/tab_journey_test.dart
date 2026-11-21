@@ -43,7 +43,7 @@ Future<void> fixture(WidgetTester t, Future<void> Function(Session, List<Uri>) r
   }));
 }
 Future<void> select(WidgetTester t, String name) async {
-  await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.text(name)));
+  await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip(name)));
   await flush(t);
 }
 class _PickedFixture extends ImagePickerPlatform {

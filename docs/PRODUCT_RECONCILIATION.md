@@ -1,5 +1,156 @@
 # Whole-product reconciliation
 
+## Current connected-product review, November 22, 2026
+
+This section supersedes the historical status tables and suggested release steps
+below. They remain dated work records, not current state or permission. Current
+review is reversible local source work in `coherent-experience-review`, based on
+protected baseline `bf13617be1a6432015face5020a4cbf0ac2be5d6`. The settled shared
+session-recovery checkpoint is tree `b78cdc5d0a11d7a67e567f91db861c960ad389a3`.
+The connected first-use checkpoint is tree
+`e76fa41a1bb0e28dd4302dd4dcec55b75dd34a3b`. The acknowledgement and media
+batch follows that checkpoint; its separately recorded tree is not a release
+commit or an installed app.
+
+### One direction, not another style restart
+
+PR1 remains the product identity reference:
+https://github.com/MaisySen/sanjaal/pull/1 . Owner-supplied Instagram examples
+settle white light-mode surfaces, compact profile grouping, edge-to-edge content,
+dark full-bleed Reels and content-transmitting glass navigation. They do not
+specify a new authentication layout. Preserve the existing supported journeys,
+real loading/error/empty states and signing/data identity. Do not restore old
+onboarding claims about unavailable wallet funding merely to match an earlier
+slide. Do not fill a new member's feed with fabricated community activity.
+
+### Connected first use, exercised through the actual app root
+
+`app/test/connected_first_use_test.dart` now enters the actual `SanjaalApp`, not a
+collection of independently mounted destination screenshots. Its synthetic HTTP
+journey goes from welcome to registration, empty Home, explicit text-post create
+and confirmed feed insertion, people search, member profile, Follow, Message,
+confirmed text send, back through the route stack, own profile edit/save,
+Settings and back to the original Home post. The fixture checks the ordered
+writes and rejects unexpected mutation/read paths rather than converting an
+unhandled route into fake empty success. No real identity or service is used.
+
+A connected failure test reproduced a genuine continuity defect: confirmed
+signup followed by a failed automatic token grant left the registration form
+active, so its primary action repeated signup. The local correction uses a typed
+account-created result to switch to sign-in, preserve the entered identifier
+and password, hide password visibility and keep the existing explanatory copy.
+The next explicit tap retries sign-in, never signup. English and Nepali tests at
+320x640 and 180% text check that transition and complete the subsequent sign-in.
+Separate English/Nepali actual-root tests take an existing member from welcome
+to sign-in, password reset, back to the same preserved form and successful
+sign-in. Reset alone never opens an account.
+
+Seven connected captures were inspected: welcome, registration, confirmed first
+post, first direct message, edited profile, and the English/Nepali large-text
+signup-to-sign-in recovery states. They use real widgets and synthetic people,
+posts, responses and delivery. An optional root font override supplies host
+Roboto for readable review; normal launches keep platform typography. Initial
+host captures with block glyphs were rejected and replaced. These are layout and
+route-continuity evidence, not native typography, keyboard, Auth0, performance,
+translation-quality or two-person delivery acceptance.
+
+Changed-scope validation after the correction: 120 selected Flutter tests passed
+in one run, including five connected-root cases, authentication/recovery,
+registration/session restore, Settings ownership and retained-tab/create-return
+regressions. Analysis of the four changed Dart files is clean. These are not a
+full-product suite, native check or speed measurement. Earlier failed setup
+attempts and a mistyped nonexistent test target are not counted as passes.
+
+### Acknowledgement ownership and connected media recovery
+
+The later profile capture exposed a real continuity problem: the clean upload
+success strip remained after the whole search/chat/edit journey. Clean success
+acknowledgements now expire after eight seconds, or are consumed on a subsequent
+route push, destination change or app background. Acknowledgement dismissal does
+not clear durable recovery state, remove confirmed content, alter its revision
+or send anything. Busy, uncertain and failed jobs remain visible until their
+separate recovery steps are handled. The immediate post confirmation still
+appears, while the later profile no longer carries unrelated post-success chrome.
+
+Rendered upload actions now bind both session generation and the displayed job
+marker and require the owning route to be current. A retained original/dismiss
+callback cannot act on a replacement session, another job, an expired success
+or a covered route. Twelve dedicated tests cover expiry, cover/return, tab
+changes, background, busy/error retention, stale callbacks and opening the exact
+current original. Timers belong to the strip and are cancelled on disposal.
+
+`connected_media_journey_test.dart` follows actual root sign-in, Create, post
+composer, denied-library fallback, explicit device-picker selection, photo review,
+Post, lost response and tab navigation. The permission/picker/HTTP boundaries are
+synthetic; no device permission or live upload occurs. With replay capability,
+only explicit Retry repeats the original multipart bytes, caption and intent,
+without reselecting the photo or creating another resource. Its confirmed photo
+appears in Home and profile. Without that capability, Retry remains absent and
+blocked: the member can check the original on Me, and the uncertainty marker
+remains until deliberately handled. No tab change replays either upload.
+
+The connected member journey also now rejects its first direct-text send,
+explicitly retries the same request while preserving a newer unsent thought,
+then verifies Stay preserves that thought before it is deliberately cleared.
+This is route/editor continuity, not real delivery. Selected existing tests also
+cover photo/voice retry bytes, lost-reply/poll reconciliation, pending-route exit,
+chat history/session retirement and gallery/capture permission recovery.
+
+Actual pixels were inspected for immediate confirmation, the later clean profile,
+photo preview, replay-capable and legacy recovery, confirmed photo, legacy profile
+check and the recovered chat with its newer composer text. One early photo
+capture preceded async preview decode and was replaced after settling the
+fixture. An early incomplete mock omitted Wallet's withdrawals read and produced
+a misleading offline banner; that mock was corrected and the final fixture
+asserts its full request set and online state. Neither was an application defect.
+The error snack was allowed to expire before inspecting the later chat composer.
+None of these images establishes native decoding/capture, keyboard, secure-store
+restart, translation quality, server replay deployment or device speed.
+
+The final combined changed-scope run passed 227 selected Flutter tests, including
+the twelve acknowledgement cases, seven connected-root cases and existing upload,
+chat retry/history/leave/session and capture/gallery tests. Analysis of all seven
+changed Dart files is clean. The earlier 120-test checkpoint is historical to its
+own source. Neither count measures device speed or completes native acceptance.
+
+### Current journey matrix
+
+| Journey | Grounded candidate state | Acceptance still open |
+| --- | --- | --- |
+| Join, sign in, recover and return | Optional welcome, direct registration/sign-in, localized form and password-reset paths; connected signup fallback now selects the correct next action. Current-grant identity retry and generation-keyed root keep old account views quiescent during unresolved replacement sign-in. | Real identity-provider callback/issuance, secure-store and native startup/restore/background/network recovery on the exact candidate. No live signup/reset was made. |
+| Home, content and daily return | Ordinary scrolling Home with story row, real post cards and retained five-tab shell, not the historical media-first pager. Connected text/photo creation confirms and retains the new post through search/chat/profile/Settings navigation; clean acknowledgements are bounded and route-owned. | Populated/native scroll, loading feel and frame/memory/network measurement. Text fixture success does not prove real media upload/decoding. Empty community depth remains a product issue, not a reason to invent content. |
+| Reels and media | Dark full-bleed destination, bounded player pool and route/tab/session retirement. Shared recovery gives a reachable current-account root action or actual signed-out sign-in; identity retry does not clear a replacement grant. | Exact native codec/audio/interruption/playback and physical device feel. Retired content and synthetic players are not playback acceptance. |
+| Find people and content | Existing people/hashtag search and real profile/detail paths remain available. Populated profile grids have separate fixture evidence. Discovery has a default-off client/server candidate with explicit author choice and strict eligibility. | Discovery is not activated. Public-audience/review producers, approved rollout policy and removal cadence, coordinated deployed contract and real image/scroll proof remain absent or unapproved. Do not expand Discovery to substitute for full-product acceptance. |
+| Create, review and recover | Existing explicit post/reel/story review, account-owned upload state and local draft paths are retained. The earlier in-memory-only draft statement below is obsolete. | Consult the exact lifecycle/draft/media records for their scoped native evidence. Automatic outbox, durable background transfer and cloud sync are not supplied by this review. Full media/permission/response-loss journey on the selected candidate remains owed. |
+| Conversation and identity | Connected member search/profile/follow/direct-text recovery, newer-composer protection and own-name save return correctly in the tested path. Existing group/history/media and account-owned editor protections remain source work, not widened here. | Two-device delivery, real private media/audio, native network recovery, group-role behavior and full normal/large-text review of final routes. A mock acknowledgement is not a real received message. |
+| Wallet, calls, rooms and push | Required destinations and honest unavailable states remain. No money/provider/sender activation or live room/call occurs in this review. | Provider/legal/operational gates and separately authorized rollout; two-device calls/rooms, consent/revoke, real audio routing/interruption and push foreground/background/logout-switch proof. Do not infer live capabilities from old tables. |
+| Settings, privacy, language and proposed services | Existing supported settings and source-backed controls remain distinct from missing enforcement. English/Nepali fixture layouts are reviewed within named shapes. Proposed services remain design work, not implemented services. | Native-language review, broader accessibility/device audit, each missing server-backed privacy/audience flow and owner decisions for any service activation. Public links are not made private by local filtering. |
+
+### Remaining coherent-candidate gates, in order
+
+1. Finish current changed-scope checks and freeze one inspectable local tree.
+   Review connected first-use and populated main destinations together against
+   PR1 and the supplied owner references. A changed screen is not a reason for
+   another product build.
+2. Audit remaining real journey breaks in that tree, especially native return,
+   media creation/recovery and conversation continuity. Preserve existing
+   off/default capability behavior rather than inventing activation prerequisites.
+3. Keep source, fixture evidence, native evidence, release artifact and installed
+   device acceptance separate. Earlier native/CI facts below belong to their
+   own source, not automatically to this tree. No new live/API/CI state is
+   asserted by this local review.
+4. Select and review one coherent candidate before any new build or distribution.
+   Proper OTA/release-channel decisions remain separate; Flutter source work
+   does not establish an Expo OTA path. Exact-candidate on-device review remains
+   required before distribution. Never uninstall or wipe to bypass identity.
+
+The retained signed iOS artifact is still 0.5.8+2013 in the separate release
+lane. This review does not change, upload or distribute it. No commit, push,
+merge, deployment, production migration, audience/consent change, provider
+activation, paid service or new product build is authorized by this document.
+
+## Historical checkpoints
+
 November 20 addendum: the draft-only-in-memory statements in this historical
 checkpoint are superseded by the encrypted creator-media and text/poll work in
 [LIFECYCLE_DRAFT_CORRECTIONS.md](LIFECYCLE_DRAFT_CORRECTIONS.md). Explicit local

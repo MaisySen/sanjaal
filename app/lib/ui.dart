@@ -124,6 +124,15 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Transparency': 'पारदर्शिता',
+  'Ultra clear': 'धेरै पारदर्शी',
+  'Fully tinted': 'गाढा रङ',
+  'Reduce glass': 'पारदर्शिता घटाउनुहोस्',
+  'Solid surfaces instead of glass': 'पारदर्शीको सट्टा ठोस सतह',
+  'This screen is from an earlier sign-in. Go back to continue.': 'यो पर्दा अघिल्लो साइन-इनको हो। जारी राख्न पछाडि फर्कनुहोस्।',
+  "You're signed out. Go back to sign in.": 'तपाईं साइन आउट हुनुभएको छ। साइन इन गर्न पछाडि फर्कनुहोस्।',
+  'Back to account': 'खातामा फर्कनुहोस्',
+
   'Checking call status': 'कलको अवस्था जाँचिँदै छ',
   'Call status could not be checked. No action was repeated.': 'कलको अवस्था जाँच्न सकिएन। कुनै काम दोहोर्‍याइएको छैन।',
   'This call was answered.': 'यो कल स्वीकार गरियो।',
@@ -696,6 +705,26 @@ const _ne = <String, String>{
   'Me': 'म',
   'For you': 'तपाईंका लागि',
   'Following': 'फलोइङ',
+  'Explore': 'अन्वेषण',
+  // Local Discovery proposal. Nepali wording needs owner-language review.
+  'Discovery': 'अन्वेषण',
+  'Discovery settings': 'अन्वेषणको सेटिङ',
+  'Discovery is unavailable. Close this view and open Search again.': 'अन्वेषण उपलब्ध छैन। यो पृष्ठ बन्द गरेर खोजी फेरि खोल्नुहोस्।',
+  'Your choice is saved.': 'तपाईंको छनोट सुरक्षित भयो।',
+  'Allow this post in Explore': 'यो पोस्ट अन्वेषणमा देखाउन अनुमति दिनुहोस्',
+  'Your post can be recommended only after public visibility and review are confirmed. Turning this off removes it from new Explore results, not from your profile or existing public links.': 'सार्वजनिक रूपमा देखिने र समीक्षा पूरा भएको पुष्टि भएपछि मात्र तपाईंको पोस्ट सिफारिस हुन सक्छ। यो बन्द गर्दा पोस्ट अन्वेषणका नयाँ नतिजाबाट हट्छ, तपाईंको प्रोफाइल वा पहिलेका सार्वजनिक लिङ्कबाट होइन।',
+  'Public visibility confirmed': 'सार्वजनिक रूपमा देखिने पुष्टि भयो',
+  'Public visibility not confirmed': 'सार्वजनिक रूपमा देखिने पुष्टि भएको छैन',
+  'Review approved': 'समीक्षाबाट स्वीकृत',
+  'Not eligible for recommendations': 'सिफारिसका लागि योग्य छैन',
+  'Awaiting review': 'समीक्षाको प्रतीक्षामा',
+  'Discovery settings could not be loaded.': 'अन्वेषणको सेटिङ लोड गर्न सकिएन।',
+  'Reload these settings before making another change.': 'फेरि परिवर्तन गर्नुअघि यी सेटिङ पुनः लोड गर्नुहोस्।',
+  'Your settings are still updating.': 'तपाईंको सेटिङ अझै अद्यावधिक हुँदैछ।',
+  'Discard these changes?': 'यी परिवर्तन हटाउने?',
+  'Your unsaved Discovery choice will be lost.': 'सुरक्षित नगरिएको अन्वेषणको छनोट हराउनेछ।',
+  'Reload': 'पुनः लोड गर्नुहोस्',
+  'All': 'सबै',
   'Search': 'खोज्नुहोस्',
   'Push notifications are not set up for iOS yet. Reopening the app will not enable them. Use Activity while Sanjaal is open.': 'iOS मा पुश सूचनाहरू अझै सेटअप भएका छैनन्। एप फेरि खोल्दैमा ती चालु हुँदैनन्। सञ्जाल खुला हुँदा गतिविधि हेर्नुहोस्।',
   'Notifications': 'सूचना',
@@ -727,6 +756,7 @@ const _ne = <String, String>{
   'Next': 'अर्को',
   'Skip': 'छोड्नुहोस्',
   'now': 'अहिले',
+  'Share with your community': 'आफ्नो समुदायसँग साझा गर्नुहोस्',
   'Your Nepali community': 'तपाईंको नेपाली समुदाय',
   'Blocked people': 'ब्लक गरिएका व्यक्तिहरू',
   'About, privacy and terms': 'हाम्रोबारे, गोपनीयता र सर्त',
@@ -883,32 +913,17 @@ class Logo extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
-    return Semantics(label: 'Sanjaal', image: true, child: FittedBox(fit: BoxFit.scaleDown, child: ExcludeSemantics(child: Row(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(width: size * 0.62, height: size * 0.62, child: const CustomPaint(painter: _SanjaalMark())),
-      SizedBox(width: size * 0.14),
-      Text('Sanjaal', style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w800, letterSpacing: -0.8, color: Theme.of(context).colorScheme.onSurface)),
-    ]))));
-
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.22),
+        color: brandRed,
+      ),
+      child: Text('स', style: TextStyle(fontFamily: 'NotoDev', color: Colors.white, fontSize: size * 0.58, fontWeight: FontWeight.w700, height: 1.1)),
+    );
   }
-}
-
-class _SanjaalMark extends CustomPainter {
-  const _SanjaalMark();
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.save(); canvas.scale(size.width / 100, size.height / 100);
-    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 100, 100), const Radius.circular(25)), Paint()..color = brandRed);
-    canvas.drawPath(Path()..moveTo(42,69)..lineTo(66,38)..lineTo(91,69)..close(), Paint()..color = const Color(0xFFFFD6DA));
-    canvas.drawPath(Path()..moveTo(12,69)..lineTo(43,23)..lineTo(75,69)..close(), Paint()..color = Colors.white);
-    canvas.drawPath(Path()..moveTo(33,38)..lineTo(43,23)..lineTo(53,38)..lineTo(47,36)..lineTo(43,42)..lineTo(39,36)..close(), Paint()..color = const Color(0xFFFFD6DA));
-    canvas.drawPath(Path()..moveTo(28,81)..lineTo(50,78)..lineTo(72,81), Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.4);
-    for (final point in [const Offset(28,81), const Offset(72,81)]) { canvas.drawCircle(point, 4, Paint()..color = Colors.white); }
-    canvas.drawCircle(const Offset(50,78), 6, Paint()..color = Colors.white);
-    canvas.drawCircle(const Offset(50,78), 4.5, Paint()..color = brandBlue);
-    canvas.restore();
-  }
-  @override
-  bool shouldRepaint(covariant _SanjaalMark oldDelegate) => false;
 }
 
 /// Opens a picture full screen with pinch zoom.

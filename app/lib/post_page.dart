@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'session_bound_state.dart';
@@ -7,9 +8,10 @@ import 'ui.dart';
 
 /// A notification or shared post resolves against current visibility, never a stale preview.
 class PostPage extends StatefulWidget {
-  const PostPage({super.key, required this.session, required this.postId});
+  const PostPage({super.key, required this.session, required this.postId, this.onVisibilityChanged});
   final Session session;
   final String postId;
+  final VoidCallback? onVisibilityChanged;
   @override
   State<PostPage> createState() => _PostPageState();
 }
@@ -53,13 +55,13 @@ class _PostPageState extends State<PostPage> with SessionBoundState<PostPage> {
 
   @override
   Widget build(BuildContext context) => !sessionActive?retiredSessionView():Scaffold(
-    appBar: AppBar(title: Text(t_('Post'))),
+    appBar: ReviewedAppBar(title: Text(t_('Post'))),
     body: unavailable
       ? const EmptyState(icon: Ph.info_outline, title: 'Post unavailable', hint: 'This post was removed or is no longer available to you.')
       : error != null
         ? EmptyState(icon: widget.session.offline ? Ph.cloud_off : Ph.error_outline, title: error!, action: OutlinedButton(onPressed: _load, child: Text(t_('Try again'))))
         : post == null
           ? const Center(child: CircularProgressIndicator())
-          : SafeArea(top: false, child: SingleChildScrollView(child: PostCard(session: widget.session, post: post!, onRemoved: () {if(mounted && sessionActive)setState(() { post = null; unavailable = true; });}))),
+          : SafeArea(top: false, child: SingleChildScrollView(child: PostCard(session: widget.session, post: post!, onRemoved: () {if(mounted && sessionActive){setState(() { post = null; unavailable = true; });widget.onVisibilityChanged?.call();}}))),
   );
 }

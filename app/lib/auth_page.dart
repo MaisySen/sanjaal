@@ -1,3 +1,4 @@
+import 'glass/glass_action.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show TextInput;
 import 'api.dart';
@@ -49,7 +50,15 @@ class _AuthPageState extends State<AuthPage> {
       // Leaving a failed or abandoned form must cancel its autofill context.
       TextInput.finishAutofillContext(shouldSave: true);
     } catch (e) {
-      if (mounted) setState(() => error = t_(authFailureMessage(e, registering: creating)));
+      if (mounted) {
+        setState(() {
+          if (creating && e is AccountCreatedSignInRequired) {
+            register = false;
+            showPassword = false;
+          }
+          error = t_(authFailureMessage(e, registering: creating));
+        });
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -87,12 +96,12 @@ class _AuthPageState extends State<AuthPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Align(alignment: Alignment.centerLeft, child: Logo(size: 60)),
-                    const SizedBox(height: 36),
-                    Text(t_(register ? 'Make yourself at home' : 'Welcome back'), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.6)),
-                    const SizedBox(height: 8),
-                    Text(t_(register ? 'Create your place in the community.' : 'Sign in to pick up where you left off.'), style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                    const SizedBox(height: 28),
+                    const Center(child: Logo(size: 84)),
+                    const SizedBox(height: 16),
+                    Text('Sanjaal', textAlign: TextAlign.center, style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text(t_('Your Nepali community'), textAlign: TextAlign.center),
+                    const SizedBox(height: 32),
                     TextFormField(
                       controller: _email,
                       enabled: !busy,
@@ -154,11 +163,10 @@ class _AuthPageState extends State<AuthPage> {
                       Semantics(liveRegion: true, child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
                     ],
                     const SizedBox(height: 20),
-                    FilledButton(
+                    GlassAction(
                       onPressed: busy ? null : _submit,
-                      child: busy
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text(register ? t_('Create account') : t_('Sign in')),
+                      busy: busy,
+                      label: register ? t_('Create account') : t_('Sign in'),
                     ),
                     TextButton(
                       onPressed: busy ? null : () => setState(() {
@@ -170,7 +178,7 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                     const SizedBox(height: 8),
                     const Divider(),
-                    OutlinedButton(onPressed: busy ? null : () => _social('google-oauth2'), child: Text(t_('Continue with Google'), textAlign: TextAlign.center)),
+                    GlassAction(onPressed: busy ? null : () => _social('google-oauth2'), primary: false, label: t_('Continue with Google')),
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(t_('Social sign in is in testing.'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),

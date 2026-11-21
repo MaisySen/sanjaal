@@ -1,3 +1,5 @@
+import 'glass/glass_sheet.dart';
+import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'draft_exit_guard.dart';
@@ -113,7 +115,7 @@ class _ChatsPageState extends State<ChatsPage> {
       }
     }
 
-    await showModalBottomSheet<void>(
+    await showReviewedGlassSheet<void>(
       context: context,
       builder: (ctx) { _menuContext=ctx; return SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -143,9 +145,9 @@ class _ChatsPageState extends State<ChatsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Chats'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chats'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     return Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
         title: Text(t_(showArchived ? 'Archived' : 'Chats')),
         actions: [
           IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
@@ -445,13 +447,13 @@ class _NewChatPageState extends State<NewChatPage> {
 
   @override
   Widget build(BuildContext context) {
-   if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('New chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+   if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('New chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
    return DraftExitGuard(
     hasChanges: !_completed && (picked.isNotEmpty || title.text.trim().isNotEmpty) && _savedGroupFingerprint!=_groupFingerprint,
     busy: (busy || _storing) && !_completed,
     busyMessage: 'Starting the conversation. Please wait.',
     child: Scaffold(
-      appBar: AppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
+      appBar: ReviewedAppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
         IconButton(tooltip:t_('Open saved group draft'),onPressed:_locked?null:_openGroup,icon:const PhIcon('archive')),
         IconButton(onPressed: _locked ? null : _switchMode, icon: PhIcon(group ? Ph.person : Ph.groups), tooltip: t_(group ? 'One to one' : 'New group')),
       ]),
@@ -462,7 +464,7 @@ class _NewChatPageState extends State<NewChatPage> {
           if(_storing)const LinearProgressIndicator(),
           if (group) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: TextField(controller: title, enabled: !_locked, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: t_('Group name'), border: const OutlineInputBorder()))),
           if (group && picked.isNotEmpty) SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [for (final entry in picked.entries) Padding(padding: const EdgeInsets.only(right: 6), child: InputChip(label: Text('@${entry.key}'), onDeleted: _locked ? null : () => setState(() => picked.remove(entry.key))))])),
-          Padding(padding: const EdgeInsets.all(16), child: TextField(controller: q, enabled: !_locked, autofocus: true, onChanged: _changed, decoration: InputDecoration(prefixIcon: const PhIcon('magnifying-glass'), hintText: t_('Search by name or username'), border: const OutlineInputBorder()))),
+          Padding(padding: const EdgeInsets.all(16), child: TextField(controller: q, enabled: !_locked, autofocus: true, onChanged: _changed, decoration: InputDecoration(prefixIcon: const Center(widthFactor: 1, heightFactor: 1, child: PhIcon('magnifying-glass', size: 22)), hintText: t_('Search by name or username'), border: const OutlineInputBorder()))),
           if (busy) Padding(padding: const EdgeInsets.all(16), child: Text(t_('Starting the conversation. Please wait.'))),
           if (startError != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Text(startError!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           if (_uncertain) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: OutlinedButton(onPressed: _leave, child: Text(t_('Back to Chats')))),
@@ -774,7 +776,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _messageMenu(Map<String, dynamic> m) async {
     if (!_active || m['pending'] == true || m['failed'] == true) return;
-    await showModalBottomSheet<void>(
+    await showReviewedGlassSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -831,16 +833,19 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
           decoration: BoxDecoration(
-            color: failed ? scheme.errorContainer : (mine ? scheme.primary : scheme.surfaceContainerHigh),
+            color: failed ? scheme.errorContainer : (mine ? brandRed : scheme.surfaceContainerHighest),
             borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
           ),
-          child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? Colors.white : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             if (m['reply_to'] is Map)
               Container(
                 margin: const EdgeInsets.only(bottom: 4),
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
+                decoration: BoxDecoration(
+                  border: Border(left: BorderSide(color: failed ? scheme.onErrorContainer : mine ? Colors.white : scheme.primary, width: 3)),
+                  color: failed ? scheme.onErrorContainer.withValues(alpha: .08) : mine ? Colors.white.withValues(alpha: .14) : scheme.onSurface.withValues(alpha: .06),
+                  borderRadius: BorderRadius.circular(4)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
@@ -863,7 +868,7 @@ class _ChatPageState extends State<ChatPage> {
             if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
             if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
             if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
+            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? Colors.white.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
           ])),
         ),
       ),
@@ -872,7 +877,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
     return DraftExitGuard(
@@ -881,13 +886,22 @@ class _ChatPageState extends State<ChatPage> {
       title: 'Leave chat?', message: 'Leaving removes unsent text and local retry copies, not messages that may have arrived.',
       keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: recording?'Finish or cancel the recording before leaving.':pickingMedia?'Wait for the media picker to close before leaving.':'Your message is still sending.',
       child: Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
+        toolbarHeight: (MediaQuery.textScalerOf(context).scale(16) * 2.4).clamp(56.0, 112.0),
         title: InkWell(
           onTap: group ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text((widget.convo['title'] ?? 'Chat').toString()),
-            if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
-            else if (group) Text(tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          child: Row(children: [
+            if (MediaQuery.textScalerOf(context).scale(14) < 20) ...[
+              CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                child: PhIcon(group ? 'users-three' : 'user', size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              const SizedBox(width: 10),
+            ],
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text((widget.convo['title'] ?? 'Chat').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 16, fontWeight: FontWeight.w700)),
+              if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
+              else if (group) Text(tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ])),
           ]),
         ),
         actions: [
@@ -1097,11 +1111,11 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Group info'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Group info'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final scheme = Theme.of(context).colorScheme;
     final session = widget.session;
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Group info'))),
+      appBar: ReviewedAppBar(title: Text(t_('Group info'))),
       body: ListView(children: [
         const SizedBox(height: 16),
         Center(child: CircleAvatar(radius: 44, backgroundColor: scheme.surfaceContainerHigh, child: PhIcon('users-three', size: 40, color: scheme.onSurfaceVariant))),

@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'dart:async';
 import 'room_microphone.dart';
@@ -81,7 +82,7 @@ class _RoomsPageState extends State<RoomsPage> with SessionBoundState<RoomsPage>
   Widget build(BuildContext context) {
     if(!sessionActive)return retiredSessionView();
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Live rooms')), actions: [
+      appBar: ReviewedAppBar(title: Text(t_('Live rooms')), actions: [
         IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise')),
       ]),
       body: Column(children:[
@@ -496,7 +497,7 @@ class RoomView extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: [
+      appBar: ReviewedAppBar(title: Text(title), actions: [
         if (!isHost && !failed) IconButton(tooltip: t_('Send a gift'), onPressed: onGift, icon: const PhIcon('gift')),
         if (isHost && !failed) TextButton(onPressed: onEnd, child: Text(t_('End'))),
       ]),

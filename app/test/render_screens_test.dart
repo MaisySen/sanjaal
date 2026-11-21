@@ -2,6 +2,7 @@
 // (package:http MockClient). Nothing here talks to the network. PNGs go to test/renders and CI
 // publishes them. This checks layout with realistic data, not behaviour on a device.
 import 'dart:convert';
+import 'package:sanjaal/glass/glass_sheet.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -58,10 +59,12 @@ bool _sharedMsgs = false;
 String _following = '';
 bool _failSend = false;
 String _communicationState = '';
+late Uint8List _fixturePhoto;
 
 Future<http.Response> _reply(http.Request r) async {
   if (_failSend && r.method == 'POST' && r.url.path.endsWith('/messages')) return http.Response(jsonEncode({'message': 'No connection'}), 503, headers: {'content-type': 'application/json'});
   final p = r.url.path;
+  if (p.endsWith('/stories/s1/media') || p.endsWith('/stories/s2/media')) return http.Response.bytes(_fixturePhoto, 200, headers: {'content-type': 'image/png'});
   if (p == '/oauth/token') return _json({'access_token': 'x', 'expires_in': 3600, 'refresh_token': 'r'});
   if (p.endsWith('/auth/me')) return _json({'features': {'polls': true}, 'user': {'public_id': 'me', 'name': 'Bidur', 'username': 'bidur'}});
   if (p.endsWith('/gifts')) {
@@ -139,6 +142,9 @@ Future<http.Response> _reply(http.Request r) async {
         {'public_id': 'r3', 'title': 'Sydney Nepali meetup planning', 'host_name': 'Sunita Rai'},
       ]
     });
+  }
+  if (p == '/api/v1/users/bidur') {
+    return _json({'user': {'public_id': 'me', 'name': 'Bidur', 'username': 'bidur', 'bio': 'Community, music and everyday moments.', 'avatar_url': null, 'posts_count': 0, 'followers_count': 84, 'following_count': 62, 'is_me': true}});
   }
   if (p == '/api/v1/users/asha') {
     return _json({'user': {'public_id': 'asha', 'name': 'Asha Gurung', 'username': 'asha', 'bio': 'Pokhara. Music, momo and mountains.', 'avatar_url': null, 'posts_count': 2, 'followers_count': 1240, 'following_count': 87, 'following': false, 'is_me': false}});
@@ -251,12 +257,13 @@ void main() {
     // to /tmp/photos by the reviewer. It is never committed. Otherwise the generated picture above is used.
     final real = File(Platform.environment['SANJAAL_TEST_PHOTO'] ?? '/tmp/photos/photo_portrait.jpg');
     final photoBytes = real.existsSync() ? real.readAsBytesSync() : bytes;
+    _fixturePhoto = photoBytes;
     feedImageProvider = (url) => MemoryImage(photoBytes);
     await _loadFont('MaterialIcons', ['$dir/MaterialIcons-Regular.otf']);
   });
 
   for (final b in [Brightness.light, Brightness.dark]) {
-    for (final name in ['post_detail', 'post_detail_small_big', 'post_unavailable_small_big', 'search_error_small_big', 'poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'call_reconnecting_small_big', 'call_waiting_small_big', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
+    for (final name in ['post_detail', 'post_detail_small_big', 'post_unavailable_small_big', 'search_error_small_big', 'poll', 'poll_small_big', 'compose_poll_small_big', 'reels_empty', 'reels_error', 'reels_empty_small_big', 'shell_reel', 'shell_reel_small_big', 'chats_empty', 'chats_error', 'rooms_empty', 'rooms_error', 'chats_empty_small_big', 'incoming_small_big', 'incoming_error_small_big', 'calls', 'calls_small_big', 'shell_offline', 'following_empty', 'following_error', 'following_empty_big', 'chat_shared', 'chat_shared_big', 'me', 'me_big', 'edit_profile', 'edit_profile_big', 'shell_big', 'shell_big_scrolled', 'create_big', 'group_info_big', 'wallet_big', 'chat_unsent', 'call_video', 'call_voice', 'call_reconnecting_small_big', 'call_waiting_small_big', 'group_info', 'create', 'search_none', 'search_error', 'story', 'reel', 'room_quiet', 'new_chat', 'blocked', 'search_results', 'about', 'about_big', 'search', 'chats_big', 'room_host_big', 'room_host_big_scrolled', 'settings_big', 'wallet_big', 'auth_big', 'compose', 'shell', 'chats', 'notifications', 'settings', 'auth', 'onboarding', 'onboarding_big', 'onboarding_ne_big', 'chats_ne', 'wallet', 'gift', 'chat', 'rooms', 'room_host', 'room_listener', 'room_failed', 'gift_short', 'profile_full', 'chat_voice']) {
       testWidgets('$name ${b.name}', (tester) async {
         await http.runWithClient(() async {
           SharedPreferences.setMockInitialValues({'refresh_token': 'r'});
@@ -267,13 +274,13 @@ void main() {
           _following = name.startsWith('following_error') ? 'error' : name.startsWith('following_empty') ? 'empty' : '';
           _sharedMsgs = name.startsWith('chat_shared');
           _failSend = name == 'chat_unsent';
-          await tester.runAsync(() => prefs.setLang(name.endsWith('_ne') ? 'ne' : 'en'));
+          await tester.runAsync(() => prefs.setLang(name.contains('_ne') ? 'ne' : 'en'));
           final key = GlobalKey();
           tester.view.physicalSize = name.contains('_small') ? const Size(960, 1920) : name == 'gift_short' ? const Size(1080, 1260) : const Size(1080, 2160);
           tester.view.devicePixelRatio = 3;
           addTearDown(tester.view.reset);
           final theme = buildTheme(b, fontFamily: 'Roboto', fontFamilyFallback: ['NotoDev']);
-          final base = name.replaceAll('chat_shared', 'chat').replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '').replaceAll('_small', '');
+          final base = name.replaceAll('chat_shared', 'chat').replaceAll('_offline', '').replaceAll('_scrolled', '').replaceAll('_big', '').replaceAll('_small', '').replaceAll('_ne', '');
           final Widget home = switch (base) {
             'post_detail' || 'post_unavailable' => PostPage(session: s, postId: 'fixture'),
             'wallet' => WalletPage(session: s),
@@ -286,12 +293,12 @@ void main() {
             'following_empty' || 'following_error' => FeedPage(session: s, onCompose: () async {}),
             'compose' || 'compose_poll' => ComposePage(session: s),
             'poll' => Scaffold(appBar: AppBar(title: const Text('Post')), body: SingleChildScrollView(child: PostCard(session: s, onRemoved: () {}, post: {'public_id': 'poll1', 'kind': 'post', 'body': 'Which day works for the community picnic?', 'author': {'public_id': 'me', 'username': 'bidur', 'name': 'Bidur Khatri'}, 'media': [], 'hashtags': [], 'poll': {'options': [{'choice': 0, 'text': 'Saturday afternoon', 'votes': 12}, {'choice': 1, 'text': 'Sunday morning', 'votes': 8}], 'total_votes': 20, 'my_choice': 0}, 'created_at': _ago(45)}))),
-            'create' => const Scaffold(backgroundColor: Colors.black, body: Align(alignment: Alignment.bottomCenter, child: Material(color: Color(0xFF1A1D24), borderRadius: BorderRadius.vertical(top: Radius.circular(28)), child: CreateSheet()))),
+            'create' => Builder(builder: (context) => Scaffold(body: TextButton(onPressed: () => showReviewedGlassSheet<String>(context: context, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet()), child: const Text('Open create fixture')))),
             'about' || 'about_big' => const AboutPage(),
             'search' || 'search_results' || 'search_none' || 'search_error' => SearchPage(session: s),
             'story' => StoryViewer(session: s, group: {'author': {'username': 'asha', 'name': 'Asha Gurung'}, 'items': [
-              {'public_id': 's1', 'type': 'image', 'created_at': _ago(90), 'url': 'http://fixture.invalid/s1.jpg', 'caption': 'Morning at Phewa lake'},
-              {'public_id': 's2', 'type': 'image', 'created_at': _ago(30), 'url': 'http://fixture.invalid/s2.jpg', 'caption': ''},
+              {'public_id': 's1', 'type': 'image', 'created_at': _ago(90), 'url': '$apiBase/stories/s1/media', 'protected_media': true, 'caption': 'Morning at Phewa lake'},
+              {'public_id': 's2', 'type': 'image', 'created_at': _ago(30), 'url': '$apiBase/stories/s2/media', 'protected_media': true, 'caption': ''},
             ]}),
             'reel' => Scaffold(backgroundColor: Colors.black, body: ReelItem(session: s, playing: true, muted: false, onToggleMute: () {}, reel: {'public_id': 'r1', 'body': 'Dal bhat after the boat ride #pokhara', 'comments_count': 14, 'likes_count': 212, 'author': {'username': 'asha', 'name': 'Asha Gurung', 'public_id': 'u1', 'following': false}, 'media': [{'type': 'video', 'url': 'http://fixture.invalid/r1.mp4'}]})),
             'blocked' => BlockedPage(session: s),
@@ -332,6 +339,12 @@ void main() {
             await tester.pump(const Duration(milliseconds: 400));
             expect(find.byType(CallView), findsOneWidget, reason: 'Call fixture must not fall through to generic Post');
           }
+          if (base == 'create') {
+            await tester.pump();
+            await tester.tap(find.text('Open create fixture'));
+            await tester.pump(const Duration(milliseconds: 400));
+            expect(find.text('Photos or a text update'), findsOneWidget);
+          }
           if (base == 'compose_poll') {
             await tester.pump();
             await tester.pump(const Duration(milliseconds: 400));
@@ -343,7 +356,7 @@ void main() {
           }
           if (base == 'shell_reel') {
             await tester.pump();
-            await tester.tap(find.text('Reels'));
+            await tester.tap(find.byTooltip('Reels'));
             await tester.pump(const Duration(milliseconds: 400));
           }
           if (base == 'incoming_error') {
@@ -400,6 +413,16 @@ void main() {
             final navTop = tester.getTopLeft(find.byType(GlassNavBar)).dy;
             expect(tester.getBottomLeft(find.text('Evening practice for the community concert')).dy, lessThan(navTop));
             expect(tester.getBottomLeft(find.text('Sound')).dy, lessThan(navTop));
+          }
+          if (base == 'story') {
+            expect(find.byType(RawImage), findsWidgets);
+            expect(tester.widgetList<RawImage>(find.byType(RawImage)).any((w) => w.image != null), isTrue, reason: 'The successful story fixture must display decoded photo pixels');
+            expect(find.textContaining('This story is unavailable'), findsNothing);
+          }
+          if (base == 'me') {
+            expect(find.text('Profile could not be loaded.'), findsNothing);
+            expect(find.text('84'), findsOneWidget);
+            expect(find.text('62'), findsOneWidget);
           }
           await tester.runAsync(() async {
             final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

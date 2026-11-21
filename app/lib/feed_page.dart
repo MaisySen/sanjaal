@@ -1,3 +1,6 @@
+import 'glass/glass_sheet.dart';
+import 'glass/glass_app_bar.dart';
+import 'glass/glass_action.dart';
 import 'memory_video_preview.dart';
 import 'dart:typed_data';
 import 'video_poster.dart';
@@ -5,7 +8,6 @@ import 'dart:convert' show jsonEncode;
 import 'creator_draft_store.dart';
 import 'creator_media_draft_store.dart';
 import 'media_library_page.dart';
-import 'settings_page.dart';
 import 'upload_center.dart';
 import 'ph.dart';
 import 'photo_gallery.dart';
@@ -21,9 +23,12 @@ import 'actions.dart';
 import 'gifts.dart';
 import 'api.dart';
 import 'session_bound_state.dart';
+import 'session_recovery.dart';
 import 'notifications_page.dart';
 import 'profile_pages.dart';
 import 'search_page.dart';
+import 'discovery_entry.dart';
+import 'discovery_consent_page.dart';
 import 'reactions.dart';
 import 'share_post.dart';
 import 'stories_page.dart';
@@ -45,16 +50,28 @@ class FeedPage extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(tooltip: t_('Settings'), icon: const PhIcon('list'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: session)))),
-          centerTitle: true,
-          title: const Logo(size: 48),
+        appBar: ReviewedAppBar(
+          automaticallyImplyLeading: false,
+          toolbarHeight: MediaQuery.textScalerOf(context).scale(14) > 20 ? 64 : 56,
+          title: const FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Row(mainAxisSize: MainAxisSize.min, children: [Logo(size: 32), SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -.8))])),
           actions: [
-            IconButton(tooltip: t_('Post'), icon: const PhIcon('plus'), onPressed: onCompose),
-            IconButton(tooltip: t_('Search'), icon: const PhIcon('magnifying-glass'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session)))),
+            IconButton(tooltip: t_('Post'), icon: const PhIcon('plus-square'), onPressed: onCompose),
+            IconButton(tooltip: t_('Search'), icon: const PhIcon('magnifying-glass'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => discoveryEntry(session)))),
             IconButton(tooltip: t_('Notifications'), icon: const PhIcon('bell'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
           ],
-          bottom: TabBar(tabs: [Tab(text: t_('For you')), Tab(text: t_('Following'))]),
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.center,
+            dividerColor: Colors.transparent,
+            indicator: const PRSegmentIndicator(brandRed),
+            labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            unselectedLabelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            labelPadding: const EdgeInsets.symmetric(horizontal: 14),
+            tabs: [for (final label in ['For you', 'Following']) Tab(
+              height: MediaQuery.textScalerOf(context).scale(14) > 20 ? MediaQuery.textScalerOf(context).scale(14) * 2.4 + 8 : 44,
+              child: Text(t_(label), textAlign: TextAlign.center, maxLines: 2),
+            )],
+          ),
         ),
         body: TabBarView(children: [
           FeedList(
@@ -65,7 +82,7 @@ class FeedPage extends StatelessWidget {
             emptyIcon: Ph.dynamic_feed_outlined,
             emptyTitle: 'Nothing here yet',
             emptyHint: t_('Share something that matters to you.'),
-            emptyAction: FilledButton.icon(onPressed: onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
+            emptyAction: GlassAction(onPressed: onCompose, icon: const PhIcon('plus', size: 18), label: t_('Create a post')),
           ),
           FeedList(
             key: const PageStorageKey('following'),
@@ -111,7 +128,9 @@ class FeedList extends StatefulWidget {
   State<FeedList> createState() => FeedListState();
 }
 
-class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
+class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin, SessionBoundState<FeedList> {
+  @override Session get viewSession=>widget.session;
+  @override void sessionRetired(){posts.clear();cursor=null;error=null;_refreshQueued=false;}
   @override
   bool get wantKeepAlive => true;
   final posts = <Map<String, dynamic>>[];
@@ -143,7 +162,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
   }
 
   void insertFirst(Map<String, dynamic> p) {
-    if (!mounted) return;
+    if (!mounted || !sessionActive) return;
     setState(() { posts.removeWhere((x) => x['public_id'] == p['public_id']); posts.insert(0, p); });
   }
 
@@ -153,7 +172,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
       (widget.query['kind'] == null || widget.query['kind'] == p['kind']) &&
       (widget.query['username'] == null || widget.query['username'] == (p['author'] as Map?)?['username']));
   void _published() {
-    if (!mounted || _uploadRevision == uploads.revision) return;
+    if (!mounted || !sessionActive || _uploadRevision == uploads.revision) return;
     _uploadRevision = uploads.revision;
     setState(() {
       for (final p in _localPosts.toList().reversed) {
@@ -165,6 +184,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
 
   bool _firstLoad = true;
   Future<void> load({bool refresh = false}) async {
+    if(!mounted || !sessionActive)return;
     if (loading) {
       if (refresh) _refreshQueued = true;
       return;
@@ -182,7 +202,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
       final bundled = forYou ? await widget.session.takeHome('feed') : null;
       final j = (bundled is Map ? bundled.cast<String, dynamic>() : null) ?? await widget.session.call('GET', widget.path, query: q) as Map<String, dynamic>;
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() {
         if (refresh) { posts.clear(); posts.addAll(_localPosts); }
         final ids = posts.map((p) => p['public_id']).toSet();
@@ -192,18 +212,18 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
       });
       if (refresh) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+          if (!mounted || !sessionActive) return;
           if (pager.hasClients) pager.jumpToPage(0);
           if (scroll.hasClients) scroll.jumpTo(0);
         });
       }
     } on ApiError catch (e) {
-      if (mounted) setState(() => error = t_(e.message));
+      if (mounted && sessionActive) setState(() => error = t_(e.message));
     } catch (_) {
       // A reply the app could not read must not look like an empty list.
-      if (mounted) setState(() => error = 'Could not load posts. Try again.');
+      if (mounted && sessionActive) setState(() => error = 'Could not load posts. Try again.');
     } finally {
-      if (mounted) {
+      if (mounted && sessionActive) {
         setState(() => loading = false);
         if (_refreshQueued) {
           _refreshQueued = false;
@@ -255,6 +275,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if(!sessionActive)return SessionRecoveryView(session:widget.session,embedded:true);
     final hasHeader = widget.header != null;
     if (widget.grid && posts.isNotEmpty) return RefreshIndicator(
       onRefresh: () => load(refresh: true),
@@ -268,7 +289,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin {
           final isVideo = media.any((m) => m['type'] == 'video');
           final caption = (p['body'] ?? '').toString();
           return Semantics(button: true, label: caption.isNotEmpty ? caption : t_(isVideo ? 'Video' : 'Post'), child: InkWell(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: p['public_id'].toString()))),
+            onTap: (){if(mounted && sessionActive)Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: p['public_id'].toString())));},
             child: Stack(fit: StackFit.expand, children: [
               ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHigh, child: url == null
                 ? Center(child: Padding(padding: const EdgeInsets.all(10), child: media.any((m) => m['type'] == 'video')
@@ -372,30 +393,38 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard> {
+class _PostCardState extends State<PostCard> with SessionBoundState<PostCard> {
+  @override Session get viewSession=>widget.session;
+  late final String _openingPost=widget.post['public_id'] as String;
+  @override bool get sessionActive=>super.sessionActive && id==_openingPost;
+  DialogRoute<bool>? _deleteDialog;
+  bool _deleting=false,_saving=false;
+  void _closeDelete(){
+    final route=_deleteDialog;_deleteDialog=null;
+    Future.microtask((){if(route!=null && route.isActive)route.navigator?.removeRoute(route);});
+  }
+  @override void sessionRetired(){_closeDelete();}
+  @override void dispose(){_closeDelete();super.dispose();}
   late int comments = (widget.post['comments_count'] as num?)?.toInt() ?? 0;
 
   String get id => widget.post['public_id'] as String;
   Map<String, dynamic> get author => (widget.post['author'] as Map).cast<String, dynamic>();
 
   Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(t_('Delete post?')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Delete'))),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await widget.session.call('DELETE', '/posts/$id');
-      widget.onRemoved();
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
+    if(!mounted || !sessionActive || _deleting)return;
+    _deleting=true;
+    final route=DialogRoute<bool>(context:context,builder:(c)=>AlertDialog(
+      title:Text(t_('Delete post?')),
+      actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(t_('Cancel'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(t_('Delete')))],
+    ));
+    _deleteDialog=route;
+    try{
+      final ok=await Navigator.of(context,rootNavigator:true).push<bool>(route);
+      if(ok!=true || !mounted || !sessionActive)return;
+      await widget.session.call('DELETE','/posts/$id');
+      if(mounted && sessionActive)widget.onRemoved();
+    }catch(e){if(mounted && sessionActive)showError(context,e);}
+    finally{if(identical(_deleteDialog,route))_deleteDialog=null;_deleting=false;}
   }
 
   PopupMenuItem<String> shareItem() => PopupMenuItem(value: 'share', enabled: widget.post['can_share_to_chat'] != false, child: Text(t_('Share to chat')));
@@ -403,54 +432,64 @@ class _PostCardState extends State<PostCard> {
   PopupMenuItem<String> saveItem() => PopupMenuItem(value: 'save', child: Text(widget.post['saved'] == true ? t_('Remove from saved') : t_('Save')));
 
   Future<void> _toggleSave() async {
+    if(!mounted || !sessionActive || _saving)return;
+    _saving=true;
     final was = widget.post['saved'] == true;
     setState(() => widget.post['saved'] = !was);
     try {
       await widget.session.call(was ? 'DELETE' : 'POST', '/posts/$id/save');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(was ? t_('Removed from saved') : t_('Saved'))));
+      if (mounted && sessionActive) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(was ? t_('Removed from saved') : t_('Saved'))));
     } on ApiError catch (e) {
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() => widget.post['saved'] = was);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_(e.message))));
-    }
+    }finally{_saving=false;}
   }
 
   Future<void> _menu(String v) async {
+    if(!mounted || !sessionActive)return;
+    if(v=='discovery'){
+      if(!widget.session.discoveryEnabled || author['public_id']!=widget.session.user?['public_id'])return;
+      return Navigator.of(context).push<void>(MaterialPageRoute(builder:(_)=>DiscoveryConsentPage(session:widget.session,postId:id,sourceAvailable:()=>widget.session.discoveryEnabled)));
+    }
     if (v == 'save') return _toggleSave();
     if (v == 'share') return shareToChat(context, widget.session, id);
     if (v == 'delete') return _delete();
-    if (v == 'report') return reportFlow(context, widget.session, 'post', id);
+    if (v == 'report') return reportFlow(context, widget.session, 'post', id,isActive:()=>mounted && sessionActive);
     if (v == 'block') {
-      if (await blockFlow(context, widget.session, author['username'].toString())) widget.onRemoved();
+      if (await blockFlow(context, widget.session, author['username'].toString(),isActive:()=>mounted && sessionActive) && mounted && sessionActive) widget.onRemoved();
     }
   }
 
   void _comments() async {
-    final added = await showModalBottomSheet<int>(
+    if(!mounted || !sessionActive)return;
+    final added = await showReviewedGlassSheet<int>(
       context: context,
       isScrollControlled: true,
       isDismissible: false,
       enableDrag: false,
       builder: (_) => CommentsSheet(session: widget.session, postId: id, postAuthorId: author['public_id'].toString()),
     );
-    if (!mounted) return;
+    if (!mounted || !sessionActive) return;
     if (added != null && added != 0) setState(() => comments = (comments + added).clamp(0, 1 << 31));
     try {
       final result = await widget.session.call('GET', '/posts/$id') as Map;
       final count = (result['post'] as Map)['comments_count'] as int;
-      if (mounted) setState(() => comments = count);
+      if (mounted && sessionActive) setState(() => comments = count);
     } catch (_) { /* Keep the last known count until the next feed refresh. */ }
   }
 
-  void _openAuthor() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString())));
+  void _openAuthor() {if(mounted && sessionActive)Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString())));}
+  void _gift(){if(mounted && sessionActive)showGiftSheet(context,widget.session,id,author['username'].toString());}
 
   Widget _tag(String tag) => InkWell(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tag))),
+        onTap: () {if(mounted && sessionActive)Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tag)));},
         child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text('#$tag', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600))),
       );
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return const SizedBox.shrink();
     final p = widget.post;
     final mine = author['public_id'] == widget.session.user?['public_id'];
     final media = (p['media'] as List).cast<Map<String, dynamic>>();
@@ -491,7 +530,7 @@ class _PostCardState extends State<PostCard> {
                 icon: PhIcon('dots-three', color: scheme.onSurfaceVariant),
                 onSelected: _menu,
                 itemBuilder: (_) => mine
-                    ? [saveItem(), shareItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                    ? [saveItem(), shareItem(), if(widget.session.discoveryEnabled) PopupMenuItem(value:'discovery',child:Text(t_('Discovery settings'))), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
                     : [saveItem(), shareItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
               )),
             ]),
@@ -509,13 +548,16 @@ class _PostCardState extends State<PostCard> {
           for (final v in videos) Padding(padding: const EdgeInsets.only(top: 10), child: VideoTile(url: v['url'] as String)),
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-            child: Row(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              runSpacing: 2,
               children: [
                 ReactionButton(session: widget.session, post: widget.post),
                 TextButton.icon(onPressed: _comments, icon: const PhIcon('chat-teardrop', size: 20), label: Text('$comments')),
                 if (!mine)
                   TextButton.icon(
-                    onPressed: () => showGiftSheet(context, widget.session, widget.post['public_id'] as String, author['username'].toString()),
+                    onPressed: _gift,
                     icon: const PhIcon('gift', size: 20),
                     label: Text(t_('Gift')),
                   ),
@@ -573,7 +615,7 @@ class _PostCardState extends State<PostCard> {
                 railItem('chat-teardrop', '$comments', _comments),
                 if (!mine) ...[
                   const SizedBox(height: 8),
-                  railItem('gift', t_('Gift'), () => showGiftSheet(context, widget.session, p['public_id'] as String, author['username'].toString())),
+                  railItem('gift', t_('Gift'), _gift),
                 ],
               ]),
             ),
@@ -600,7 +642,7 @@ class _PostCardState extends State<PostCard> {
                     icon: const PhIcon('dots-three', color: Colors.white),
                     onSelected: _menu,
                     itemBuilder: (_) => mine
-                        ? [saveItem(), shareItem(), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
+                        ? [saveItem(), shareItem(), if(widget.session.discoveryEnabled) PopupMenuItem(value:'discovery',child:Text(t_('Discovery settings'))), PopupMenuItem(value: 'delete', child: Text(t_('Delete')))]
                         : [saveItem(), shareItem(), PopupMenuItem(value: 'report', child: Text(t_('Report'))), PopupMenuItem(value: 'block', child: Text(t_('Block')))],
                   )),
                 ]),
@@ -822,7 +864,7 @@ class HashtagPage extends StatelessWidget {
   final String tag;
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text('#$tag')),
+        appBar: ReviewedAppBar(title: Text('#$tag')),
         body: FeedList(session: session, query: {'hashtag': tag}, emptyIcon: Ph.tag, emptyTitle: 'No posts with #$tag yet'),
       );
 }
@@ -1044,16 +1086,16 @@ class _ComposePageState extends State<ComposePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_draftAccountChanged) return Scaffold(appBar: AppBar(title: Text(t_('Local draft'))), body: Padding(padding: const EdgeInsets.all(20), child: Text(t_('This editor belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if (_draftAccountChanged) return Scaffold(appBar: ReviewedAppBar(title: Text(t_('Local draft'))), body: Padding(padding: const EdgeInsets.all(20), child: Text(t_('This editor belongs to another signed-in session. Close it and sign in again to continue.'))));
     return DraftExitGuard(
       hasChanges: !handedOff && _unsaved,
       busy: busy || _savingDraft,
       child: Scaffold(
-      appBar: AppBar(title: Text(t_('New post')), actions: [
+      appBar: ReviewedAppBar(title: Text(t_('New post')), actions: [
         IconButton(tooltip: t_(images.isNotEmpty || video!=null?'Save media draft':'Save text draft'), onPressed: busy || _savingDraft || handedOff ? null : _saveDraft, icon: const PhIcon('bookmark-simple')),
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilledButton(onPressed: busy || _savingDraft || handedOff || _mediaDraft?.attempted==true || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, child: busy ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t_('Post'))),
+          child: Center(child: GlassAction(compact: true, busy: busy, onPressed: busy || _savingDraft || handedOff || _mediaDraft?.attempted==true || uploadError?.terminal == true || (text.text.trim().isEmpty && images.isEmpty && video == null) ? null : _post, label: t_('Post'))),
         ),
       ]),
       body: Column(children: [
@@ -1237,7 +1279,7 @@ class _CreateSheetState extends State<CreateSheet> {
           option('reel', 'video-camera', t_('Reel'), t_('Short video')),
           option('story', 'camera', t_('Story'), t_('Disappears after 24 hours')),
           const SizedBox(height: 8),
-          SizedBox(width: double.infinity, height: 52, child: FilledButton(onPressed: picked == null ? null : () => Navigator.pop(context, picked), child: Text(t_('Continue')))),
+          SizedBox(width: double.infinity, child: GlassAction(onPressed: picked == null ? null : () => Navigator.pop(context, picked), label: t_('Continue'))),
         ]),
       )),
     );
@@ -1250,7 +1292,7 @@ class SavedPage extends StatelessWidget {
   final Session session;
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(t_('Saved'))),
+        appBar: ReviewedAppBar(title: Text(t_('Saved'))),
         body: FeedList(session: session, query: const {}, path: '/saved', emptyIcon: Ph.bookmark_outline, emptyTitle: 'Nothing saved yet', emptyHint: 'Open the menu on a post and choose Save. Only you can see this list.'),
       );
 }

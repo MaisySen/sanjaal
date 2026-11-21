@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'dart:async';
 import 'ph.dart';
@@ -52,7 +53,7 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
     if(!sessionActive)return retiredSessionView();
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Calls')), actions:[IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise'))]),
+      appBar: ReviewedAppBar(title: Text(t_('Calls')), actions:[IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise'))]),
       body: Column(children:[
         if(error!=null && calls.isNotEmpty) RefreshReadNotice(onRetry:reading?null:_load),
         Expanded(child:RefreshIndicator(

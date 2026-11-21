@@ -32,7 +32,7 @@ void main() {
         await t.tap(find.text('Share story'));await helpers.flush(t);await t.pump(const Duration(milliseconds:400));
         expect(find.byType(StoryComposePage),findsNothing);
         expect(center.busy,isTrue);expect(writes,1);
-        await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text('Wallet')));await helpers.flush(t);
+        await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.byTooltip('Wallet')));await helpers.flush(t);
         expect(find.byType(WalletPage),findsOneWidget);
         if(failFirst) {
           pending.completeError(http.ClientException('Synthetic lost reply'));await helpers.flush(t);

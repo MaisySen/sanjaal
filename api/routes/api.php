@@ -25,8 +25,11 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/broadcasting/auth', fn (\Illuminate\Http\Request $r) => Broadcast::auth($r));
 
     Route::get('/home', [\App\Http\Controllers\HomeController::class, 'show']);
+    Route::get('/discovery', [\App\Http\Controllers\DiscoveryController::class, 'index'])->middleware('throttle:60,1');
     Route::get('/posts', [PostController::class, 'index']);
     Route::post('/posts', [PostController::class, 'store'])->middleware('throttle:30,1');
+    Route::get('/posts/{post:public_id}/discovery', [\App\Http\Controllers\DiscoveryController::class, 'show']);
+    Route::put('/posts/{post:public_id}/discovery', [\App\Http\Controllers\DiscoveryController::class, 'update'])->middleware('throttle:30,1');
     Route::get('/posts/{post}', [PostController::class, 'show']);
     Route::delete('/posts/{post}', [PostController::class, 'destroy']);
     Route::post('/posts/{post}/poll/vote', [\App\Http\Controllers\PollController::class, 'vote'])->middleware('throttle:60,1');

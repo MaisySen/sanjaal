@@ -1,6 +1,7 @@
+import 'glass/glass_action.dart';
 import 'package:material_ui/material_ui.dart';
-import 'ph.dart';
 import 'ui.dart';
+import 'ph.dart';
 
 /// One optional introduction, then the real task. Feature help belongs beside
 /// the task that needs it, not in a sequence of pages a new member must recall.
@@ -20,6 +21,7 @@ class OnboardingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(builder: (context, bounds) => SingleChildScrollView(
@@ -28,24 +30,18 @@ class OnboardingPage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Row(children: [
-                  const Expanded(child: Align(alignment: Alignment.centerLeft, child: FittedBox(fit: BoxFit.scaleDown, child: Logo(size: 60)))),
-                  const SizedBox(width: 16),
-                  TextButton(onPressed: () => _continue(false), child: Text(t_('Sign in'))),
-                ]),
-                const SizedBox(height: 64),
-                Align(alignment: Alignment.centerLeft, child: Container(width: 32, height: 4, color: brandRed)),
+                Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => _continue(false), child: Text(t_('Sign in')))),
+                SizedBox(height: largeText ? 12 : 64),
+                Center(child: Container(width: largeText ? 72 : 140, height: largeText ? 72 : 140,
+                  decoration: const BoxDecoration(shape: BoxShape.circle, color: brandRed),
+                  child: Center(child: PhIcon('newspaper', size: largeText ? 36 : 64, color: Colors.white)))),
+                SizedBox(height: largeText ? 20 : 36),
+                Text(t_('Share with your community'), textAlign: TextAlign.center, style: theme.textTheme.headlineSmall?.copyWith(fontSize: largeText ? 22 : 24, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                Text(t_('A place for Nepalis, wherever you are.'), textAlign: TextAlign.center, style: theme.textTheme.bodyLarge?.copyWith(height: 1.4, color: colors.onSurfaceVariant)),
                 const SizedBox(height: 24),
-                Text(t_('Your people.\nYour stories.'), style: theme.textTheme.displaySmall?.copyWith(fontSize: 42, height: 1.08, fontWeight: FontWeight.w700, letterSpacing: -1.2)),
-                const SizedBox(height: 20),
-                Text(t_('A place for Nepalis, wherever you are.'), style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w400, height: 1.5, color: colors.onSurfaceVariant)),
-                const SizedBox(height: 40),
-                _WelcomeRow(icon: 'image', title: t_('Share a moment'), detail: t_('Photos, thoughts and short videos.')),
-                const SizedBox(height: 24),
-                _WelcomeRow(icon: 'chat-circle', title: t_('Keep the conversation going'), detail: t_('Find your people and stay in touch.')),
-                const SizedBox(height: 48),
-                FilledButton(onPressed: () => _continue(true), child: Text(t_('Create an account'))),
-                const SizedBox(height: 10),
+                GlassAction(onPressed: () => _continue(true), label: t_('Create an account')),
+                const SizedBox(height: 12),
                 Text(t_('Your community starts with you.'), textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
               ]),
             ),
@@ -53,25 +49,5 @@ class OnboardingPage extends StatelessWidget {
         )),
       ),
     );
-  }
-}
-
-class _WelcomeRow extends StatelessWidget {
-  const _WelcomeRow({required this.icon, required this.title, required this.detail});
-  final String icon;
-  final String title;
-  final String detail;
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(padding: const EdgeInsets.only(top: 3), child: PhIcon(icon, size: 24)),
-      const SizedBox(width: 16),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Text(detail, style: theme.textTheme.bodyMedium?.copyWith(height: 1.45, color: theme.colorScheme.onSurfaceVariant)),
-      ])),
-    ]);
   }
 }

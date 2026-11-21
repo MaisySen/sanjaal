@@ -2,7 +2,9 @@
 // microphone, camera or live delivery is exercised.
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
@@ -64,8 +66,8 @@ Future<void> flush(WidgetTester t) async {
   await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
   await t.pump(const Duration(milliseconds: 400));
 }
-Widget app(Widget child, {GlobalKey<NavigatorState>? nav}) => MaterialApp(navigatorKey: nav, navigatorObservers: [mediaRoutes], home: Scaffold(body: child));
-Widget reel({bool active = true}) => ReelItem(session: Session(), reel: {'public_id': 'reel', 'body': 'Fixture', 'media': [{'type': 'video', 'url': 'https://fixture.invalid/video.mp4'}], 'author': {'username': 'fixture'}}, playing: active, muted: false, onToggleMute: () {});
+Widget app(Widget child, {GlobalKey<NavigatorState>? nav,ThemeData? theme}) => MaterialApp(theme:theme,navigatorKey: nav, navigatorObservers: [mediaRoutes], home: Scaffold(body: child));
+Widget reel({bool active = true}) => ReelItem(session: Session()..user={'public_id':'fixture-owner','username':'fixture-owner'}, reel: {'public_id': 'reel', 'body': 'Fixture', 'media': [{'type': 'video', 'url': 'https://fixture.invalid/video.mp4'}], 'author': {'username': 'fixture'}}, playing: active, muted: false, onToggleMute: () {});
 Widget story() => StoryViewer(session: Session()..user={'public_id':'fixture','username':'fixture'}, group: {'author': {'username': 'fixture'}, 'items': [{'public_id': 'story', 'type': 'video', 'url': 'https://fixture.invalid/story.mp4', 'created_at': '2026-11-16T14:00:00Z'}]});
 void background(WidgetTester t) {
   for (final state in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
@@ -78,10 +80,98 @@ void foreground(WidgetTester t) {
   }
 }
 void main() {
+  setUpAll(()async{
+    final font=FontLoader('Roboto')..addFont(File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf').readAsBytes().then((b)=>ByteData.sublistView(b)));
+    await font.load();
+  });
   late _Video video;
   late VideoPlayerPlatform old;
   setUp(() { old = VideoPlayerPlatform.instance; video = _Video(); VideoPlayerPlatform.instance = video; });
   tearDown(() { VideoPlayerPlatform.instance = old; });
+
+  for(final change in ['same member','other member','logout']) {
+  testWidgets('retained Reels destination cannot follow or retain playback after $change',(t)async{
+    SharedPreferences.setMockInitialValues({});var follows=0;String owner='me';final shot=GlobalKey();
+    t.view.physicalSize=const Size(390,844);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
+    await http.runWithClient(()async{
+      final session=Session(unregisterPush:(_)async{});await session.login('fixture','not-a-password');
+      await t.pumpWidget(app(RepaintBoundary(key:shot,child:ReelsPage(session:session,active:true)),theme:ThemeData(fontFamily:'Roboto')));await flush(t);await flush(t);
+      expect(find.text('Old-session reel'),findsOneWidget);expect(video.playing.values.any((v)=>v),isTrue);
+      if(change=='logout'){await session.logout();}else{if(change=='other member')owner='replacement';await session.login('fixture','not-a-password');}await flush(t);
+      final follow=find.widgetWithText(OutlinedButton,'Follow');
+      if(follow.evaluate().isNotEmpty){await t.tap(follow);await flush(t);}
+      expect(follows,0,reason:'retained reel must not borrow replacement login for Follow');
+      expect(find.text('Old-session reel'),findsNothing);expect(video.playing.values.every((v)=>!v),isTrue);expect(t.takeException(),isNull);
+      if(change=='same member'){
+        await t.runAsync(()async{final image=await (shot.currentContext!.findRenderObject()! as RenderRepaintBoundary).toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('/downloads/sanjaal-discovery-review/reels-session-retired.png').writeAsBytesSync(bytes!.buffer.asUint8List());image.dispose();});
+      }
+      await t.pumpWidget(const SizedBox());await flush(t);
+    },()=>MockClient((r)async{
+      if(r.url.path.endsWith('/oauth/token'))return http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200);
+      if(r.url.path.endsWith('/auth/me'))return http.Response(jsonEncode({'user':{'public_id':owner,'username':owner}}),200);
+      if(r.url.path.endsWith('/follow')){follows++;return http.Response('{}',200);}
+      return http.Response(jsonEncode({'data':[{'public_id':'old-reel','body':'Old-session reel','author':{'public_id':'other','username':'other'},'media':[{'type':'video','url':'https://fixture.invalid/old.mp4'}],'likes_count':0,'comments_count':0}],'next_cursor':null}),200);
+    }));
+  });
+  }
+  for(final outcome in ['success','failure']) {
+    testWidgets('late reel follow $outcome cannot update old shared state after re-login',(t)async{
+      SharedPreferences.setMockInitialValues({});final response=Completer<http.Response>();var writes=0;
+      final item=<String,dynamic>{'public_id':'r','body':'Pending follow','author':{'public_id':'other','username':'other'},'media':[],'comments_count':0,'likes_count':0};
+      await http.runWithClient(()async{
+        final session=Session();await session.login('fixture','not-a-password');
+        await t.pumpWidget(app(ReelItem(session:session,reel:item,playing:true,muted:false,onToggleMute:(){})));await flush(t);
+        await t.tap(find.widgetWithText(OutlinedButton,'Follow'));await t.pump();expect(writes,1);
+        await session.login('fixture','not-a-password');await flush(t);
+        response.complete(http.Response(outcome=='success'?'{}':'{"message":"Late fixture failure"}',outcome=='success'?200:503));await flush(t);
+        expect(find.text('Pending follow'),findsNothing);expect(find.textContaining('Late fixture failure'),findsNothing);expect(writes,1);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+      },()=>MockClient((r)async{
+        if(r.url.path.endsWith('/oauth/token'))return http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200);
+        if(r.url.path.endsWith('/auth/me'))return http.Response(jsonEncode({'user':{'public_id':'me','username':'fixture'}}),200);
+        writes++;return response.future;
+      }));
+    });
+  }
+  testWidgets('late reel page cannot restore content or initialize players after re-login',(t)async{
+    SharedPreferences.setMockInitialValues({});final response=Completer<http.Response>();var reads=0;
+    await http.runWithClient(()async{
+      final session=Session();await session.login('fixture','not-a-password');
+      await t.pumpWidget(app(ReelsPage(session:session,active:true)));await t.pump();expect(reads,1);
+      await session.login('fixture','not-a-password');await t.pump();
+      response.complete(http.Response(jsonEncode({'data':[{'public_id':'late','body':'Late old reel','author':{'public_id':'other','username':'other'},'media':[{'type':'video','url':'https://fixture.invalid/late.mp4'}]}],'next_cursor':null}),200));await flush(t);
+      expect(find.textContaining('earlier sign-in'),findsOneWidget);expect(find.text('Late old reel'),findsNothing);expect(reads,1);expect(video.nextId,0);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+    },()=>MockClient((r)async{
+      if(r.url.path.endsWith('/oauth/token'))return http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200);
+      if(r.url.path.endsWith('/auth/me'))return http.Response(jsonEncode({'user':{'public_id':'me','username':'fixture'}}),200);
+      reads++;return response.future;
+    }));
+  });
+  testWidgets('late reel initialization cannot start playback after session retirement',(t)async{
+    SharedPreferences.setMockInitialValues({});video.delayed=true;
+    await http.runWithClient(()async{
+      final session=Session();await session.login('fixture','not-a-password');
+      final item=<String,dynamic>{'public_id':'r','body':'Old pending player','author':{'public_id':'other','username':'other'},'media':[{'type':'video','url':'https://fixture.invalid/late.mp4'}]};
+      await t.pumpWidget(app(ReelItem(session:session,reel:item,playing:true,muted:false,onToggleMute:(){})));await flush(t);expect(video.nextId,1);
+      await session.login('fixture','not-a-password');await flush(t);video.initialize(0);await flush(t);
+      expect(video.playing[0],isFalse);expect(video.calls,contains('dispose:0'));expect(find.text('Old pending player'),findsNothing);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+    },()=>MockClient((r)async=>http.Response(jsonEncode(r.url.path.endsWith('/oauth/token')?{'access_token':'fixture','expires_in':3600}:{'user':{'public_id':'me','username':'fixture'}}),200)));
+  });
+
+  testWidgets('return from retired reel comments performs no read with replacement login',(t)async{
+    SharedPreferences.setMockInitialValues({});var reads=0;final nav=GlobalKey<NavigatorState>();
+    await http.runWithClient(()async{
+      final session=Session();await session.login('fixture','not-a-password');
+      final item=<String,dynamic>{'public_id':'r','body':'Old comment owner','author':{'public_id':'other','username':'other'},'media':[],'comments_count':0};
+      await t.pumpWidget(app(ReelItem(session:session,reel:item,playing:false,muted:false,onToggleMute:(){}),nav:nav));await flush(t);
+      await t.tap(find.byTooltip('0'));await flush(t);expect(find.byType(CommentsSheet),findsOneWidget);expect(reads,1);
+      await session.login('fixture','not-a-password');await flush(t);nav.currentState!.pop(1);await flush(t);
+      expect(reads,1);expect(find.text('Old comment owner'),findsNothing);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+    },()=>MockClient((r)async{
+      if(r.url.path.endsWith('/oauth/token'))return http.Response(jsonEncode({'access_token':'fixture','expires_in':3600}),200);
+      if(r.url.path.endsWith('/auth/me'))return http.Response(jsonEncode({'user':{'public_id':'me','username':'fixture'}}),200);
+      reads++;return http.Response(jsonEncode({'data':[],'next_cursor':null}),200);
+    }));
+  });
   testWidgets('accessible reel Refresh recovers a failed player at the same URL', (t) async {
     SharedPreferences.setMockInitialValues({});
     final s = Session(); var reads = 0;
@@ -111,13 +201,13 @@ void main() {
     expect(failed.disposed,isTrue);expect(identical(pool.forReel(items[1]),healthy),isTrue);
     expect(video.nextId,4);expect(pool.length,3);expect(video.playing.values.every((v)=>!v),isTrue);
     final replacement=pool.forReel(items[0])!;
-    await t.pumpWidget(app(ReelItem(session:Session(),reel:items[0],playback:replacement,playing:false,muted:false,onToggleMute:(){})));await flush(t);
+    await t.pumpWidget(app(ReelItem(session:Session()..user={'public_id':'fixture-owner','username':'fixture-owner'},reel:items[0],playback:replacement,playing:false,muted:false,onToggleMute:(){})));await flush(t);
     expect(video.playing.values.every((v)=>!v),isTrue);
     pool.discardFailed();pool.warm(items,1);await flush(t);expect(video.nextId,4);
     await t.pumpWidget(const SizedBox());pool.dispose();await flush(t);expect(t.takeException(),isNull);
   });
   testWidgets('a retained ReelItem swaps pruned pooled ownership without replaying disposed controllers',(t)async{
-    final pool=ReelPlayerPool();final session=Session();
+    final pool=ReelPlayerPool();final session=Session()..user={'public_id':'fixture-owner','username':'fixture-owner'};
     final items=[for(var i=0;i<6;i++) <String,dynamic>{'public_id':'r$i','body':'Fixture','author':{'username':'fixture'},'media':[{'type':'video','url':'https://fixture.invalid/$i.mp4'}]}];
     Widget cell(Map<String,dynamic> item)=>app(ReelItem(key:const ValueKey('retained'),session:session,reel:item,playing:true,muted:false,onToggleMute:(){},playback:pool.forReel(item)));
     pool.warm(items,0);await t.pumpWidget(cell(items[0]));await flush(t);expect(video.playing[0],isTrue);

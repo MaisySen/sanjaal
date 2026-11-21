@@ -1,3 +1,5 @@
+import 'glass/glass_app_bar.dart';
+import 'glass/glass_action.dart';
 import 'ph.dart';
 import 'upload_center.dart';
 import 'draft_exit_guard.dart';
@@ -55,20 +57,19 @@ class ProfileHeader extends StatelessWidget {
       for (final stat in [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')])
         Expanded(child: _stat(context, n(stat.$1), t_(stat.$2))),
     ]);
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        GestureDetector(onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()), child: Avatar(user: user, radius: 40)),
-        const SizedBox(width: 20),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
-          if (!large) stats,
-        ])),
+        GestureDetector(onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()), child: Avatar(user: user, radius: 44)),
+        if (!large) ...[const SizedBox(width: 20), Expanded(child: stats)],
       ]),
       if (large) Padding(padding: const EdgeInsets.only(top: 12), child: stats),
-      if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text(bio)),
-      const SizedBox(height: 14),
+      const SizedBox(height: 12),
+      if (name.isNotEmpty) Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+      Text('@${user['username']}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      if (bio.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(bio)),
+      const SizedBox(height: 16),
       actions,
+      const Divider(height: 16),
     ]));
   }
 }
@@ -166,7 +167,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
     final user = u;
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: Text('@${widget.username}')),
+        appBar: ReviewedAppBar(title: Text('@${widget.username}')),
         body: error != null ? EmptyState(icon: Ph.person_off_outlined, title: error!, action: OutlinedButton(onPressed: loading ? null : _load, child: Text(t_('Try again')))) : const Center(child: CircularProgressIndicator()),
       );
     }
@@ -174,7 +175,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
     final following = user['following'] == true;
     final blocked = user['blocked'] == true;
     return Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
         title: Text('@${user['username']}'),
         actions: [
           IconButton(tooltip: t_('Refresh profile'), onPressed: loading || busy ? null : _load, icon: const PhIcon('arrow-clockwise')),
@@ -274,7 +275,7 @@ class _MePageState extends State<MePage> {
     final s = widget.session;
     final me = {...?counts, ...?s.user, for (final key in ['posts_count', 'followers_count', 'following_count']) if (counts?[key] != null) key: counts![key]};
     return Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
         title: Text('@${s.user?['username'] ?? t_('Me')}'),
         leading: IconButton(tooltip: t_('Settings'), icon: const PhIcon('list'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: s)))),
         actions: [
@@ -289,7 +290,7 @@ class _MePageState extends State<MePage> {
         emptyIcon: Ph.image_outlined,
         emptyTitle: t_('No photo or text posts yet'),
         emptyHint: t_('A photo, a thought, a little of your day.'),
-        emptyAction: widget.onCompose == null ? null : FilledButton.icon(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: Text(t_('Create a post'))),
+        emptyAction: widget.onCompose == null ? null : GlassAction(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: t_('Create a post')),
         header: Column(children: [
           if (error != null) _ProfileReadNotice(message: error!, retry: loading ? null : _load),
           if (loading) const LinearProgressIndicator(),
@@ -423,7 +424,7 @@ class _EditProfilePageState extends State<EditProfilePage> with SessionBoundStat
   Widget build(BuildContext context) {
     if (!sessionActive) return retiredSessionView();
     return DraftExitGuard(hasChanges: !saved && (name.text, username.text, bio.text) != initial, busy: busy, busyMessage: 'Your profile is still updating.', child: Scaffold(
-      appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Edit profile'), maxLines: 2, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)), actions: [
+      appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Edit profile'), maxLines: 2, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)), actions: [
         Padding(padding: const EdgeInsets.only(right: 8), child: FilledButton(onPressed: busy ? null : _save, child: Text(t_('Save')))),
       ]),
       body: Form(

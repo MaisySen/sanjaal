@@ -1,3 +1,4 @@
+// Harness adaptation for frozen ca9a9ff: compact tabs retain tooltips/semantics.
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
 import 'dart:io';
@@ -8,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sanjaal/video_poster.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sanjaal/glass_nav.dart';
 import 'package:flutter/semantics.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -108,7 +110,7 @@ void main(){
   await capture('ios_home');
   await stage('five tabs');
   for(final tab in ['Reels','Chats','Wallet','Me','Home']) {
-   await t.tap(find.text(tab).last);
+   await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip(tab)).hitTestable());
    await until(t,()=>find.byType(CircularProgressIndicator).evaluate().isEmpty);
    expect(find.text('Could not load this page.'),findsNothing);
    // A predicate can observe rebuilt widgets before the native frame/route
@@ -167,7 +169,7 @@ void main(){
   expect(find.text('Try again'),findsNothing);
   await stage('manual retry exactly one post before and after');
   await stage('chat navigation');
-  await t.tap(find.text('Chats').last);
+  await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Chats')).hitTestable());
   await until(t,()=>find.byTooltip('New chat').evaluate().isNotEmpty);
   await t.tap(find.byTooltip('New chat'));
   await until(t,()=>find.byType(TextField).evaluate().isNotEmpty);
@@ -212,7 +214,7 @@ void main(){
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_rooms_loaded');
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
-  await t.tap(find.text('Me').last);
+  await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Me')).hitTestable());
   await until(t,()=>find.byTooltip('Settings').evaluate().isNotEmpty);
   await stage('settings navigation');
   await t.tap(find.byTooltip('Settings'));

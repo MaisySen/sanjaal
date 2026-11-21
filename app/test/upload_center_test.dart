@@ -162,9 +162,9 @@ void main(){
    await t.enterText(find.byType(TextField),'An original pending upload');await t.pump();await t.tap(find.widgetWithText(FilledButton,'Post'));await flush(t);
    await t.pump(const Duration(milliseconds:400));
    expect(find.byType(ComposePage),findsNothing);expect(center.busy,isTrue);expect(writes,1);expect(center.progress,1);expect(find.text('Finishing upload...'),findsOneWidget);
-   await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text('Wallet')));await flush(t);expect(find.byType(WalletPage),findsOneWidget);
+   await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.byTooltip('Wallet')));await flush(t);expect(find.byType(WalletPage),findsOneWidget);
    reply.complete(json({'post':post('new')}));await flush(t);expect(center.busy,isFalse);expect(center.error,isNull);
-   await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text('Home')));await flush(t);expect(find.text('Confirmed new'),findsOneWidget);expect(reads,1,reason:'no refresh race is needed to show the committed response');
+   await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.byTooltip('Home')));await flush(t);expect(find.text('Confirmed new'),findsOneWidget);expect(reads,1,reason:'no refresh race is needed to show the committed response');
    expect(t.takeException(),isNull);
   },respond:(r)async{if(r.method=='POST'&&r.url.path.endsWith('/posts')){writes++;expect(r.body,contains('An original pending upload'));return reply.future;}if(r.url.path.endsWith('/posts'))reads++;return json({'data':[],'next_cursor':null,'balance':0,'entries':[],'unread_messages':0});});
  });

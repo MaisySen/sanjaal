@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'package:material_ui/material_ui.dart';
@@ -93,7 +94,7 @@ class _SearchPageState extends State<SearchPage> with SessionBoundState<SearchPa
   Widget build(BuildContext context) {
     if (!sessionActive) return retiredSessionView();
     return Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
         title: TextField(
           controller: input,
           autofocus: true,

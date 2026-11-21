@@ -27,7 +27,7 @@ Future<void> reportFlow(BuildContext context, Session s, String type, String tar
   if (r == null || !owner.active || !context.mounted) return;
   try {
     await s.call('POST', '/reports', body: {'type': type, 'target': target, 'reason': r});
-    if (context.mounted && owner.active) showInfo(context, 'Thanks. We review every report.');
+    if (context.mounted && owner.active) showInfo(context, 'Report submitted.');
   } catch (e) {
     if (context.mounted && owner.active) showError(context, e);
   }

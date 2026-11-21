@@ -1,3 +1,4 @@
+import 'glass/glass_sheet.dart';
 import 'session_bound_state.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
@@ -15,7 +16,7 @@ const _giftIcons = <String, PhData>{
 
 /// Bottom sheet that lists gifts and sends one to the creator of a post or reel.
 Future<void> showGiftSheet(BuildContext context, Session session, String postId, String username, {String? path, void Function(Map<String, dynamic> gift)? onSent}) {
-  return showModalBottomSheet<void>(
+  return showReviewedGlassSheet<void>(
     context: context,
     showDragHandle: true,
     builder: (_) => _GiftSheet(session: session, postId: postId, username: username, path: path ?? '/posts/$postId/gifts', onSent: onSent),

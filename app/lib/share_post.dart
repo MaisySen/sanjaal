@@ -1,3 +1,4 @@
+import 'glass/glass_sheet.dart';
 import 'feed_page.dart' show feedImageProvider;
 import 'ph.dart';
 import 'dart:math';
@@ -8,7 +9,7 @@ import 'ui.dart';
 
 /// Pick a chat and send a post into it. Nothing is sent until a chat is tapped.
 Future<void> shareToChat(BuildContext context, Session session, String postId) async {
-  await showModalBottomSheet<void>(
+  await showReviewedGlassSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

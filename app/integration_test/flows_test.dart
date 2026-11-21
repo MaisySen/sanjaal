@@ -1,3 +1,4 @@
+// Harness adaptation for frozen ca9a9ff: compact tabs retain tooltips/semantics.
 // Interaction run on an Android emulator against a LOCAL copy of this API with a synthetic member
 // (api/tests/E2E). Real taps and typing, real HTTP to the local API. It is not evidence about Auth0,
 // the live service, LiveKit, push or media. Nothing here is a real account.
@@ -6,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sanjaal/glass_nav.dart';
 import 'package:flutter/services.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
@@ -92,7 +94,7 @@ void main() {
           await binding.takeScreenshot('fail_$name');
         } catch (_) {}
         // Return to the tabs so later steps are not hidden behind a pushed page.
-        for (var i = 0; i < 4 && find.text('Wallet').evaluate().isEmpty; i++) {
+        for (var i = 0; i < 4 && find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Wallet')).hitTestable().evaluate().isEmpty; i++) {
           try {
             await tester.pageBack();
             await tester.pump(const Duration(milliseconds: 500));
@@ -214,7 +216,7 @@ void main() {
       await binding.takeScreenshot('flow4_post_in_feed');
     });
     await step('s2', () async {
-      await tester.tap(find.text('Chats'));
+      await tester.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Chats')).hitTestable());
       await _settle(tester, 4);
       await tester.tap(find.byTooltip('New chat'));
       await _settle(tester, 3);
@@ -249,7 +251,7 @@ void main() {
       await _settle(tester, 3);
     });
     await step('s4', () async {
-      await tester.tap(find.text('Wallet'));
+      await tester.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Wallet')).hitTestable());
       await _until(tester,find.text('Coins'));
       expect(find.byType(CircularProgressIndicator),findsNothing);
       expect(tester.widget<FilledButton>(find.widgetWithText(FilledButton,'Add coins')).onPressed,isNull);

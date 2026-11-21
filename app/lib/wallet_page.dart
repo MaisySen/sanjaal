@@ -379,9 +379,9 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
           ],
         ]),
       ),
-    );
-    final esewa = topup['esewa'] == true;
+      );
     }
+    final esewa = topup['esewa'] == true;
     final canCash = cashout['available'] == true && balance >= ((cashout['min'] as num?)?.toInt() ?? 500);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(

@@ -12,6 +12,8 @@ Base product source: `a4b99e2385add30b159cd7edb3c04b827a387cb2`.
 - Retires the page on account/session change. Local interface text supports English and Nepali. Processing and retention notices are displayed as supplied, not silently translated or invented.
 - Defaults intake OFF. No environment-only switch. `enabled`, `completion_mechanism_verified`, a policy version and nonempty processing/retention notices must all be set in reviewed source before intake can open.
 
+A read-only `php artisan accounts:deletion-plan <existing-request-uuid>` command now returns member-scoped dependency counts and operational holds without personal content, provider calls or writes. It has no apply mode and always reports deletion not allowed and inventory incomplete. This is not a consistent database snapshot or exhaustive media inventory. Three additional planner tests pass (41 assertions), including a SQL listener requiring every planner query to be SELECT and HTTP fakes proving no provider calls.
+
 There is no account deletion worker, remote identity deletion, data erasure, deployment or activation in this change. Request intake by itself does not satisfy completed account deletion. No real requests were submitted while developing it. Screenshots use synthetic notices explicitly identified as non-production.
 
 ## Why email is not the completion path

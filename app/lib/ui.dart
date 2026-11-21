@@ -124,7 +124,18 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
-  'Could not load this. Try again.': 'यो देखाउन सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Checking call status': 'कलको अवस्था जाँचिँदै छ',
+  'Call status could not be checked. No action was repeated.': 'कलको अवस्था जाँच्न सकिएन। कुनै काम दोहोर्‍याइएको छैन।',
+  'This call was answered.': 'यो कल स्वीकार गरियो।',
+  'This call was declined.': 'यो कल अस्वीकार गरियो।',
+  'This call was missed.': 'यो कल छुट्यो।',
+  'This call has ended.': 'यो कल समाप्त भयो।',
+  'Call status is unknown.': 'कलको अवस्था थाहा भएन।',
+  'You are not connected on this screen.': 'यो पर्दामा तपाईं कलमा जोडिनुभएको छैन।',
+  'Check call status': 'कलको अवस्था जाँच्नुहोस्',
+  'Join this call': 'यो कलमा जोडिनुहोस्',
+
+  'Could not load this.': 'यो देखाउन सकिएन।',
   'Could not confirm the result. Check before trying again.': 'नतिजा पुष्टि भएन। फेरि प्रयास गर्नुअघि जाँच्नुहोस्।',
 
   'Amount must be between 1 and 100000 coins.': 'रकम १ देखि १००००० सिक्कासम्म हुनुपर्छ।',

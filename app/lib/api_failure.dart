@@ -50,6 +50,6 @@ String apiFailureMessage(int status, Iterable<Object?> candidates, {bool mutatin
     400 || 422 => 'Check the details and try again.',
     _ => mutating
         ? 'Could not confirm the result. Check before trying again.'
-        : 'Could not load this. Try again.',
+        : 'Could not load this.',
   };
 }

@@ -64,6 +64,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/conversations/{id}/typing', [$x, 'typing'])->middleware('throttle:120,1');
     Route::get('/calls/incoming', [$x, 'incoming']);
     Route::get('/calls', [$x, 'history']);
+    Route::get('/calls/{id}', [$x, 'callState']);
     Route::post('/calls/{id}/action', [$x, 'callStatus']);
 
     Route::get('/conversations', [ChatController::class, 'index']);

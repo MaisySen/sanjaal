@@ -221,7 +221,8 @@ class ExtrasController extends Controller
             'caller' => Present::user($caller),
             'direction' => $c->caller_id === $me->id ? 'outgoing' : 'incoming',
             'kind' => $c->kind,
-            'status' => $c->status,
+            'status' => $c->status === 'ringing' && \Carbon\Carbon::parse($c->created_at)->lte(now()->subSeconds(40)) ? 'missed' : $c->status,
+            'ring_expires_at' => \Carbon\Carbon::parse($c->created_at)->addSeconds(40)->toIso8601String(),
             'duration_s' => ($c->answered_at && $c->ended_at) ? \Carbon\Carbon::parse($c->answered_at)->diffInSeconds(\Carbon\Carbon::parse($c->ended_at)) : 0,
             'created_at' => \Carbon\Carbon::parse($c->created_at)->toIso8601String(),
         ];
@@ -240,24 +241,40 @@ class ExtrasController extends Controller
         return response()->json(['data' => $rows->map(fn ($c) => $this->callRow($c, $me))->values()]);
     }
 
+    /** Exact current call state. An absent call is not evidence of its outcome. */
+    public function callState(Request $request, string $id): JsonResponse
+    {
+        $c = DB::table('calls')->where('public_id', $id)->first();
+        abort_unless($c, 404);
+        abort_unless(DB::table('conversation_members')->where('conversation_id', $c->conversation_id)->where('user_id', $request->user()->id)->exists(), 404);
+
+        return response()->json(['call' => $this->callRow($c, $request->user())])->header('Cache-Control', 'private, no-store');
+    }
+
     public function callStatus(Request $request, string $id): JsonResponse
     {
         $data = $request->validate(['action' => ['required', 'in:answer,decline,end']]);
         $me = $request->user();
-        $c = DB::table('calls')->where('public_id', $id)->first();
-        abort_unless($c, 404);
-        abort_unless(DB::table('conversation_members')->where('conversation_id', $c->conversation_id)->where('user_id', $me->id)->exists(), 404);
-        $upd = ['updated_at' => now()];
-        if ($data['action'] === 'answer' && $c->status === 'ringing') {
-            $upd += ['status' => 'answered', 'answered_at' => now()];
-        } elseif ($data['action'] === 'decline' && $c->status === 'ringing') {
-            $upd += ['status' => 'declined', 'ended_at' => now()];
-        } elseif ($data['action'] === 'end') {
-            $upd += $c->status === 'ringing' ? ['status' => 'missed', 'ended_at' => now()] : ['status' => 'ended', 'ended_at' => now()];
-        }
-        DB::table('calls')->where('id', $c->id)->update($upd);
+        $row = DB::transaction(function () use ($data, $me, $id) {
+            $c = DB::table('calls')->where('public_id', $id)->lockForUpdate()->first();
+            abort_unless($c, 404);
+            abort_unless(DB::table('conversation_members')->where('conversation_id', $c->conversation_id)->where('user_id', $me->id)->exists(), 404);
+            $upd = ['updated_at' => now()];
+            if ($c->status === 'ringing' && \Carbon\Carbon::parse($c->created_at)->lte(now()->subSeconds(40))) {
+                $upd += ['status' => 'missed', 'ended_at' => now()];
+            } elseif ($data['action'] === 'answer' && $c->status === 'ringing') {
+                $upd += ['status' => 'answered', 'answered_at' => now()];
+            } elseif ($data['action'] === 'decline' && $c->status === 'ringing') {
+                $upd += ['status' => 'declined', 'ended_at' => now()];
+            } elseif ($data['action'] === 'end' && in_array($c->status, ['ringing', 'answered'], true)) {
+                $upd += $c->status === 'ringing' ? ['status' => 'missed', 'ended_at' => now()] : ['status' => 'ended', 'ended_at' => now()];
+            }
+            DB::table('calls')->where('id', $c->id)->update($upd);
 
-        return response()->json(['call' => $this->callRow(DB::table('calls')->find($c->id), $me)]);
+            return DB::table('calls')->find($c->id);
+        });
+
+        return response()->json(['call' => $this->callRow($row, $me)]);
     }
 
     public function history(Request $request): JsonResponse

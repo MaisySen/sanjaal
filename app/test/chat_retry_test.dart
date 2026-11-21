@@ -99,7 +99,7 @@ void main(){
  testWidgets('initial read failure retries without losing composer text',(t)async{
   final held=Completer<http.Response>();var reads=0;
   await fixture(t,(r)async=>++reads==1?json({'message':'Fixture read failed'},503):reads==2?json({'data':[message('root','Loaded after retry')]}):held.future,()async{
-   expect(find.text('Could not load this. Try again.'),findsOneWidget);await t.enterText(find.byType(TextField),'Draft before retry');await t.tap(find.text('Try again'));await flush(t);
+   expect(find.text('Could not load this.'),findsOneWidget);await t.enterText(find.byType(TextField),'Draft before retry');await t.tap(find.text('Try again'));await flush(t);
    expect(find.text('Loaded after retry'),findsOneWidget);expect(find.text('Draft before retry'),findsOneWidget);held.complete(json({'data':[]}));
   });
  });

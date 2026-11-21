@@ -354,7 +354,7 @@ void main() {
         await open(t);
         expect(find.byType(SwitchListTile), findsNothing);
         expect(save(t).onPressed, isNull);
-        expect(find.text('Could not load this. Try again.'), findsOneWidget);
+        expect(find.text('Could not load this.'), findsOneWidget);
       },
     );
   });

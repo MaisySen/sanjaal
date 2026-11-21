@@ -87,18 +87,18 @@ void main(){
   });
   testWidgets('initial member profile failure offers retry',(t)async{
     var reads=0;await fixture(t,(s)=>UserProfilePage(session:s,username:'asha'),()async{
-      expect(find.text('Could not load this. Try again.'),findsOneWidget);await t.tap(find.text('Try again'));await flush(t);expect(find.text('Asha Gurung'),findsOneWidget);
+      expect(find.text('Could not load this.'),findsOneWidget);await t.tap(find.text('Try again'));await flush(t);expect(find.text('Asha Gurung'),findsOneWidget);
     },respond:(r)async=>r.url.path.endsWith('/users/asha')?(++reads==1?json({'message':'Fixture offline'},503):json({'user':person()})):json({'data':[],'next_cursor':null}));
   });
   testWidgets('successful follow survives failed reconciliation and retry does not repeat mutation',(t)async{
     var reads=0,writes=0;await fixture(t,(s)=>UserProfilePage(session:s,username:'asha'),()async{
-      await t.tap(find.text('Follow'));await flush(t);expect(writes,1);expect(find.text('Unfollow'),findsOneWidget);expect(find.text('5'),findsOneWidget);expect(find.text('Could not load this. Try again.'),findsOneWidget);
+      await t.tap(find.text('Follow'));await flush(t);expect(writes,1);expect(find.text('Unfollow'),findsOneWidget);expect(find.text('5'),findsOneWidget);expect(find.text('Could not load this.'),findsOneWidget);
       await t.tap(find.text('Try again'));await flush(t);expect(reads,3);expect(writes,1);expect(find.text('Unfollow'),findsOneWidget);
     },respond:(r)async{if(r.url.path.endsWith('/follow')){writes++;return json({'following':true});}if(r.url.path.endsWith('/users/asha')){reads++;return reads==2?json({'message':'Fixture refresh failed'},503):json({'user':person(following:reads>1,followers:reads>1?5:4)});}return json({'data':[],'next_cursor':null});});
   });
   testWidgets('own profile retry preserves identity and loads current counts',(t)async{
     var reads=0;await fixture(t,(s)=>MePage(session:s),()async{
-      expect(find.text('Fixture Name'),findsOneWidget);expect(find.text('Could not load this. Try again.'),findsOneWidget);await t.tap(find.text('Try again'));await flush(t);expect(find.text('7'),findsOneWidget);expect(find.text('Fixture Name'),findsOneWidget);
+      expect(find.text('Fixture Name'),findsOneWidget);expect(find.text('Could not load this.'),findsOneWidget);await t.tap(find.text('Try again'));await flush(t);expect(find.text('7'),findsOneWidget);expect(find.text('Fixture Name'),findsOneWidget);
     },respond:(r)async=>r.url.path.endsWith('/users/fixture')?(++reads==1?json({'message':'Fixture counts failed'},503):json({'user':person(posts:7)})):json({'data':[],'next_cursor':null}));
   });
   testWidgets('own profile newer publish counts win over an older response',(t)async{

@@ -58,7 +58,16 @@ class ChatController extends Controller
             return response()->json(['message' => 'Calls are not available yet.'], 503);
         }
         $me = $request->user();
-        $existing = $request->query('call') ? DB::table('calls')->where('public_id', $request->query('call'))->where('conversation_id', $convo->id)->value('public_id') : null;
+        $existing = null;
+        if ($request->query->has('call')) {
+            $selected = DB::table('calls')->where('public_id', $request->query('call'))->where('conversation_id', $convo->id)->first();
+            abort_unless($selected, 404);
+            abort_unless(in_array($selected->status, ['ringing', 'answered'], true), 410);
+            abort_if($selected->status === 'ringing' && \Carbon\Carbon::parse($selected->created_at)->lte(now()->subSeconds(40)), 410);
+            // A recipient cannot bypass answering by requesting a token directly.
+            abort_if((int) $selected->caller_id !== (int) $me->id && $selected->status !== 'answered', 409);
+            $existing = $selected->public_id;
+        }
         $call = $existing ?: \App\Http\Controllers\ExtrasController::ring($convo, $me, $request->query('kind') === 'video' ? 'video' : 'voice');
 
         return response()->json([

@@ -44,7 +44,7 @@ void main(){
  testWidgets('history loads only on request and retries the same cursor with draft intact',(t)async{
   final held=Completer<http.Response>();final cursors=<String>[];var fail=true;
   await fixture(t,(r)async{final before=r.url.queryParameters['before_seq'];if(before!=null){cursors.add(before);if(fail){fail=false;return json({'message':'Fixture older read failed'},503);}return json({'data':page(1,50)});}if(r.url.queryParameters.containsKey('after_seq'))return held.future;return json({'data':page(51,100)});},()async{
-   expect(cursors,isEmpty);expect(find.text(msg(100)['body']),findsOneWidget);await top(t);await t.tap(find.text('Load earlier messages'));await flush(t);expect(cursors,['51']);expect(find.text('Could not load this. Try again.'),findsOneWidget);
+   expect(cursors,isEmpty);expect(find.text(msg(100)['body']),findsOneWidget);await top(t);await t.tap(find.text('Load earlier messages'));await flush(t);expect(cursors,['51']);expect(find.text('Could not load this.'),findsOneWidget);
    await t.enterText(find.byType(TextField),'Draft while paging');await t.tap(find.text('Try again'));await flush(t);expect(cursors,['51','51']);expect(find.text('Draft while paging'),findsOneWidget);await top(t);expect(find.text(msg(1)['body']),findsOneWidget);expect(find.text('Load earlier messages'),findsOneWidget);held.complete(json({'data':[]}));
   });
  });

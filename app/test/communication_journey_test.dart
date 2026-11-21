@@ -127,7 +127,7 @@ void main() {
       await withSession(t, (s) async {
         await t.pumpWidget(app(switch (page) { 'chats' => ChatsPage(session: s), 'calls' => CallsPage(session: s), _ => RoomsPage(session: s) }));
         await flush(t);
-        expect(find.text('Could not load this. Try again.'), findsOneWidget);
+        expect(find.text('Could not load this.'), findsOneWidget);
         expect(find.widgetWithText(OutlinedButton, 'Try again'), findsOneWidget);
         expect(find.text('Start a conversation'), findsNothing);
         expect(find.text('No rooms live right now'), findsNothing);
@@ -135,7 +135,7 @@ void main() {
         await t.tap(find.text('Try again'));
         await flush(t);
         expect(reads, 2);
-        expect(find.text('Could not load this. Try again.'), findsNothing);
+        expect(find.text('Could not load this.'), findsNothing);
         expect(t.takeException(), isNull);
       }, (_) async { reads++; return reply(fail ? {'message': 'Fixture unavailable'} : {'data': []}, fail ? 503 : 200); });
     });
@@ -236,7 +236,7 @@ void main() {
   });
 
   for (final action in ['Accept', 'Decline']) {
-    testWidgets('failed incoming $action stays on ring screen, allows retry, and suppresses duplicate taps', (t) async {
+    testWidgets('uncertain incoming $action checks exact state without repeating the action', (t) async {
       final pending = Completer<http.Response>();
       var actions = 0;
       var tokens = 0;
@@ -249,16 +249,17 @@ void main() {
         expect(actions, 1);
         pending.complete(reply({'message': 'Call update failed'}, 503));
         await flush(t);
-        expect(find.text('Could not confirm the result. Check before trying again.'), findsOneWidget);
+        expect(find.text('Call status is unknown.'), findsOneWidget);
         expect(find.byType(IncomingCallPage), findsOneWidget);
         expect(find.byType(CallPage), findsNothing);
         expect(tokens, 0);
-        expect(t.widget<IconButton>(find.byType(IconButton).at(action == 'Accept' ? 1 : 0)).onPressed, isNotNull);
-        await t.tap(find.byTooltip(action));
+        expect(find.byTooltip('Accept'), findsNothing);
+        expect(find.byTooltip('Decline'), findsNothing);
+        await t.tap(find.text('Check call status'));
         await flush(t);
-        expect(actions, 2);
+        expect(actions, 1);
         expect(t.takeException(), isNull);
-      }, (r) async { if (r.url.path.endsWith('/action')) { actions++; return pending.future; } tokens++; return reply({}); });
+      }, (r) async { if (r.url.path.endsWith('/action')) { actions++; return pending.future; } if (r.method == 'GET' && r.url.path.endsWith('/calls/call')) return reply({}, 503); tokens++; return reply({}); });
     });
   }
 }

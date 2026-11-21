@@ -1,4 +1,5 @@
 import 'session_bound_state.dart';
+import 'dart:async';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -110,85 +111,164 @@ class IncomingCallPage extends StatefulWidget {
 
 class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundState<IncomingCallPage> {
   @override Session get viewSession => widget.session;
-
   bool busy = false;
+  bool checking = false;
+  String phase = 'ringing';
+  bool? requestedAccept;
+  Timer? expiry;
   String? error;
 
+  @override void initState() {
+    super.initState();
+    _armExpiry(widget.call);
+  }
+  @override void dispose() { expiry?.cancel(); super.dispose(); }
+  @override void sessionRetired() { expiry?.cancel(); phase = 'unknown'; error = null; }
+
+  void _armExpiry(Map<String, dynamic> row) {
+    expiry?.cancel();
+    final end = DateTime.tryParse('${row['ring_expires_at'] ?? ''}') ??
+        DateTime.tryParse('${row['created_at'] ?? ''}')?.add(const Duration(seconds: 40));
+    if (end == null) return; // Older servers still supply the initial snapshot.
+    final wait = end.difference(DateTime.now());
+    expiry = Timer(wait.isNegative ? Duration.zero : wait, () {
+      if (mounted && sessionActive && !busy) _checkStatus();
+    });
+  }
+
+  Map<String, dynamic> _validated(Object? value) {
+    if (value is! Map || value['call'] is! Map) throw const FormatException('Missing call');
+    final row = (value['call'] as Map).cast<String, dynamic>();
+    if (row['public_id'] != widget.call['public_id'] ||
+        row['conversation_id'] != widget.call['conversation_id'] ||
+        row['kind'] != widget.call['kind'] ||
+        !const ['ringing', 'answered', 'declined', 'missed', 'ended'].contains(row['status'])) {
+      throw const FormatException('Mismatched call state');
+    }
+    if (row['status'] == 'ringing') {
+      final end = DateTime.tryParse('${row['ring_expires_at'] ?? ''}');
+      if (end == null || !end.isAfter(DateTime.now())) {
+        throw const FormatException('Stale ringing snapshot');
+      }
+    }
+    return row;
+  }
+
+  Future<void> _checkStatus() async {
+    if (!mounted || !sessionActive || busy) return;
+    expiry?.cancel();
+    setState(() { busy = true; checking = true; phase = 'unknown'; error = null; });
+    try {
+      final value = await widget.session.call('GET', '/calls/${widget.call['public_id']}');
+      final row = _validated(value);
+      if (!mounted || !sessionActive) return;
+      setState(() { phase = row['status'] as String; error = null; });
+      if (phase == 'ringing') _armExpiry(row);
+    } catch (_) {
+      if (mounted && sessionActive) setState(() {
+        phase = 'unknown';
+        error = t_('Call status could not be checked. No action was repeated.');
+      });
+    } finally {
+      if (mounted && sessionActive) setState(() { busy = false; checking = false; });
+    }
+  }
+
+  void _join() {
+    if (!mounted || !sessionActive || phase != 'answered' || requestedAccept != true) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => CallPage(
+        session: widget.session,
+        conversationId: widget.call['conversation_id'] as String,
+        title: '${widget.call['title'] ?? 'Call'}',
+        video: widget.call['kind'] == 'video',
+        callId: widget.call['public_id'] as String,
+      ),
+    ));
+  }
+
   Future<void> _answer(bool accept) async {
-    if (!sessionActive || busy) return;
+    if (!sessionActive || busy || phase != 'ringing') return;
+    expiry?.cancel();
+    requestedAccept = accept;
     setState(() { busy = true; error = null; });
     try {
-      await widget.session.call('POST', '/calls/${widget.call['public_id']}/action', body: {'action': accept ? 'answer' : 'decline'});
+      final value = await widget.session.call('POST', '/calls/${widget.call['public_id']}/action',
+        body: {'action': accept ? 'answer' : 'decline'});
+      final row = _validated(value);
       if (!mounted || !sessionActive) return;
-      if (!accept) {
-        Navigator.of(context).pop();
-        return;
-      }
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => CallPage(
-          session: widget.session,
-          conversationId: widget.call['conversation_id'] as String,
-          title: '${widget.call['title'] ?? 'Call'}',
-          video: widget.call['kind'] == 'video',
-          callId: widget.call['public_id'] as String,
-        ),
-      ));
-    } catch (e) {
-      if (mounted && sessionActive) setState(() { busy = false; error = e is ApiError ? t_(e.message) : t_('Could not update the call. Try again.'); });
+      setState(() { busy = false; phase = row['status'] as String; });
+      if (accept && phase == 'answered') { _join(); return; }
+      if (!accept && phase == 'declined') { Navigator.of(context).pop(); return; }
+      // HTTP success is not proof that the requested transition happened.
+      await _checkStatus();
+    } catch (_) {
+      if (!mounted || !sessionActive) return;
+      setState(() { busy = false; phase = 'unknown'; });
+      // Check once, read-only for this exact call. Never resend the action.
+      await _checkStatus();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if(!sessionActive)return retiredSessionView();
+    if (!sessionActive) return retiredSessionView();
     final caller = (widget.call['caller'] as Map).cast<String, dynamic>();
     final video = widget.call['kind'] == 'video';
+    final description = checking ? 'Checking call status'
+        : phase == 'ringing' ? (video ? 'Incoming video call' : 'Incoming voice call')
+        : phase == 'answered' ? 'This call was answered.'
+        : phase == 'declined' ? 'This call was declined.'
+        : phase == 'missed' ? 'This call was missed.'
+        : phase == 'ended' ? 'This call has ended.'
+        : 'Call status is unknown.';
     return Scaffold(
       backgroundColor: const Color(0xFF14152E),
-      body: SafeArea(
-        child: Column(children: [
-          Expanded(child: Center(child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Avatar(user: caller, radius: 56),
-              const SizedBox(height: 20),
-              Text('${caller['name'] ?? caller['username']}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text(t_(video ? 'Incoming video call' : 'Incoming voice call'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 16)),
-              if (error != null) Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Semantics(liveRegion: true, child: Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white))),
+      body: SafeArea(child: Column(children: [
+        Expanded(child: Center(child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Avatar(user: caller, radius: 56),
+            const SizedBox(height: 20),
+            Text('${caller['name'] ?? caller['username']}', textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Semantics(liveRegion: true, child: Text(t_(description), textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 16))),
+            if (phase == 'answered') Padding(padding: const EdgeInsets.only(top: 16),
+              child: Text(t_('You are not connected on this screen.'), textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white))),
+            if (error != null) Padding(padding: const EdgeInsets.only(top: 16),
+              child: Semantics(liveRegion: true, child: Text(error!, textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white)))),
+            if (busy) const Padding(padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(color: Colors.white)),
+          ]),
+        ))),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: phase == 'ringing' ? Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            for (final accept in [false, true]) Flexible(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              IconButton.filled(
+                tooltip: t_(accept ? 'Accept' : 'Decline'),
+                style: IconButton.styleFrom(backgroundColor: accept ? const Color(0xFF3BE276) : Colors.red,
+                  foregroundColor: accept ? Colors.black : Colors.white, minimumSize: const Size(72, 72)),
+                onPressed: busy ? null : () => _answer(accept),
+                icon: PhIcon(accept ? (video ? Ph.videocam : Ph.call) : 'phone-x-fill', size: 32),
               ),
-              if (busy) const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(color: Colors.white)),
-            ]),
-          ))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              Flexible(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                IconButton.filled(
-                  tooltip: t_('Decline'),
-                  style: IconButton.styleFrom(backgroundColor: Colors.red, minimumSize: const Size(72, 72)),
-                  onPressed: busy ? null : () => _answer(false),
-                  icon: const PhIcon('phone-x-fill', size: 32),
-                ),
-                const SizedBox(height: 8),
-                Text(t_('Decline'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-              ])),
-              Flexible(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                IconButton.filled(
-                  tooltip: t_('Accept'),
-                  style: IconButton.styleFrom(backgroundColor: const Color(0xFF3BE276), foregroundColor: Colors.black, minimumSize: const Size(72, 72)),
-                  onPressed: busy ? null : () => _answer(true),
-                  icon: PhIcon(video ? Ph.videocam : Ph.call, size: 32),
-                ),
-                const SizedBox(height: 8),
-                Text(t_('Accept'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-              ])),
-            ]),
-          ),
-        ]),
-      ),
+              const SizedBox(height: 8),
+              Text(t_(accept ? 'Accept' : 'Decline'), textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70)),
+            ])),
+          ]) : Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+            if (phase == 'unknown') FilledButton(style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)), onPressed: busy ? null : _checkStatus,
+              child: Text(t_('Check call status'), textAlign: TextAlign.center)),
+            if (phase == 'answered' && requestedAccept == true) FilledButton(style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)), onPressed: busy ? null : _join,
+              child: Text(t_('Join this call'), textAlign: TextAlign.center)),
+            TextButton(onPressed: () => Navigator.of(context).pop(),
+              child: Text(t_('Close'), textAlign: TextAlign.center, style: const TextStyle(color: Colors.white))),
+          ]),
+        ),
+      ])),
     );
   }
 }

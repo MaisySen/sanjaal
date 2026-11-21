@@ -89,12 +89,17 @@ class UploadError extends ApiError {
 UploadError _uploadFailure(http.Response r, {bool replaySafe = false}) {
   Map<String, dynamic> data = {};
   try { data = (jsonDecode(r.body) as Map).cast<String, dynamic>(); } catch (_) {}
-  final message = switch(data['code']) {
+  // Error metadata is untrusted too. A malformed optional field must not
+  // throw a TypeError and bypass the uncertainty/terminal retry guard.
+  String? text(Object? value) => value is String && value.trim().isNotEmpty ? value : null;
+  final code = text(data['code']);
+  final resourceId = text(data['resource_id']);
+  final message = switch(code) {
     'upload_intent_conflict' => 'This draft was already shared with different content.',
     'upload_intent_gone' => 'The original upload was removed or expired.',
     _ => !replaySafe && r.statusCode >= 500 ? 'The upload result is unknown. Check your posts or stories before sharing again.' : _errorText(r),
   };
-  return UploadError(message, status: r.statusCode, code: data['code'] as String?, resourceId: data['resource_id'] as String?, uncertain: !replaySafe && r.statusCode >= 500);
+  return UploadError(message, status: r.statusCode, code: code, resourceId: resourceId, uncertain: !replaySafe && r.statusCode >= 500);
 }
 
 UploadError _interruptedUpload(bool replaySafe) => UploadError(

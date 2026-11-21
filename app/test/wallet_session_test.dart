@@ -23,6 +23,11 @@ class DelayedStore extends FixtureTransferStore {
  DelayedStore(this.gate);final Completer<void> gate;
  @override Future<void> write(String key,String value)async{await super.write(key,value);await gate.future;}
 }
+class DelayedReadStore extends FixtureTransferStore {
+ DelayedReadStore(this.gate);final Completer<void> gate;int reads=0,writes=0;
+ @override Future<String?> read(String key)async{if(++reads>1)await gate.future;return super.read(key);}
+ @override Future<void> write(String key,String value)async{writes++;await super.write(key,value);}
+}
 void main(){
  setUpAll(()async{
   Directory('test/renders').createSync(recursive:true);
@@ -97,6 +102,25 @@ void main(){
   }));
  },timeout:const Timeout(Duration(seconds:60)));
  }
+ testWidgets('retired wallet cannot begin persistence after a delayed read',(t)async{
+  debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
+  addTearDown(()=>debugDefaultTargetPlatformOverride=null);
+  final gate=Completer<void>();final store=DelayedReadStore(gate);var writes=0;
+  await http.runWithClient(()async{
+   final s=Session();await s.login('fixture','not-a-password');
+   await t.pumpWidget(MaterialApp(home:WalletPage(session:s,transferStore:store)));await flush(t);
+   await sendForm(t);await t.enterText(find.byType(TextFormField).at(0),'private_recipient');await t.enterText(find.byType(TextFormField).at(1),'25');
+   await t.tap(find.widgetWithText(FilledButton,'Send'));await t.pumpAndSettle();await t.tap(find.widgetWithText(FilledButton,'Confirm send'));await flush(t);
+   await s.login('replacement','not-a-password');gate.complete();await flush(t);await t.pumpAndSettle();
+   expect(writes,0);expect(store.writes,0);expect(t.takeException(),isNull);
+   await t.pumpWidget(const SizedBox());await t.pump(const Duration(seconds:1));
+  },()=>MockClient((r)async{
+   if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});
+   if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'me','username':'me'}});
+   if(r.method=='POST'){writes++;return reply({'message':'Synthetic rejection'},422);}
+   return r.url.path.endsWith('/withdrawals')?reply({'data':[]}):reply(wallet());
+  }));
+ });
  testWidgets('delayed transfer persistence cannot send after same-member replacement login',(t)async{
   debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
   addTearDown(()=>debugDefaultTargetPlatformOverride=null);

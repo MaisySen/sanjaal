@@ -108,9 +108,10 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
       if (key == null) throw const FormatException('Missing member identity');
       final store = widget.transferStore;
       final existing = await store.read(key);
+      if (!mounted || !sessionActive) return;
       if (existing != null && (jsonDecode(existing) as Map)['client_id'] != body['client_id']) {
         await _restoreTransfer();
-        if (mounted) showInfo(context, t_('Resolve the saved original transfer first.'));
+        if (mounted && sessionActive) showInfo(context, t_('Resolve the saved original transfer first.'));
         return;
       }
       await store.write(key, jsonEncode(body));

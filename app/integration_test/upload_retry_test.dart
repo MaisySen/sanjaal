@@ -1,3 +1,4 @@
+import 'native_transport.dart';
 // Android emulator journey against a LOCAL, disposable copy of this API (port 8001) with replay-safe
 // uploads switched ON and a one-shot fault: the server saves the post, then the reply is lost (503).
 // Real taps and typing through the creator UI, real HTTP, real upload strip. The test checks that
@@ -43,8 +44,9 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('upload: reply lost after the server saved it, then Try again keeps exactly one post', (tester) async {
+  await withNativeTransport((transport) async {
     expect(_token, isNotEmpty, reason: 'E2E_TOKEN dart-define missing');
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'theme':'light'});
     final p = await SharedPreferences.getInstance();
     await p.setString('refresh_token', 'local-e2e');
     app.main();
@@ -114,19 +116,27 @@ void main() {
     await binding.takeScreenshot('upload_retry_2_after_retry');
     final rootSession=tester.widget<app.HomeShell>(find.byType(app.HomeShell)).session;
     expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
-    rootSession.offline=true;rootSession.notifyListeners();await tester.pump(const Duration(milliseconds:600));
+    transport.offline=true;await tester.runAsync(transport.idle);
+    try { await tester.runAsync(()=>rootSession.call('GET','/calls/incoming')); fail('Offline transport must reject'); } on ApiError { /* Expected real transport failure. */ }
+    expect(transport.rejected,greaterThan(0));expect(rootSession.offline,isTrue);
+    await tester.pumpAndSettle();
     expect(find.text('Your post is up.'),findsOneWidget);
     expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
+    await tester.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:250)));
     await binding.takeScreenshot('upload_retry_3_both_status_strips');
+    expect(rootSession.offline,isTrue);expect(find.text('Your post is up.'),findsOneWidget);
     center.finishAcknowledgement();await tester.pump(const Duration(milliseconds:600));
     expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
     await binding.takeScreenshot('upload_retry_4_offline_only');
-    rootSession.offline=false;rootSession.notifyListeners();await tester.pump(const Duration(milliseconds:600));
+    transport.offline=false;
+    await tester.runAsync(()=>rootSession.call('GET','/calls/incoming'));
+    expect(rootSession.offline,isFalse);await tester.pumpAndSettle();
     await binding.takeScreenshot('upload_retry_5_status_strips_retired');
 
     expect(find.text('Try again'), findsNothing);
     expect(await _copies(tester, marker), 1, reason: 'retry must reuse the original, never create a second post');
     // ignore: avoid_print
     print('Upload failure/retry journey passed on Android: one post before and after Try again');
+  });
   });
 }

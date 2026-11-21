@@ -1,3 +1,4 @@
+import 'native_transport.dart';
 // Harness adaptation for frozen ca9a9ff: compact tabs retain tooltips/semantics.
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
@@ -10,7 +11,6 @@ import 'package:video_player/video_player.dart';
 import 'package:sanjaal/video_poster.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sanjaal/glass_nav.dart';
-import 'package:flutter/semantics.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/main.dart' as app;
@@ -67,11 +67,13 @@ void main(){
   });
  }
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
+  await withNativeTransport((transport) async {
   addTearDown(() async {try {await capture('ios_test_teardown');}catch(_) {}});
   await stage('start');
   expect(Platform.isIOS,isTrue);
   final p=await SharedPreferences.getInstance();await p.clear();
   await RefreshStore.clear();
+  await p.setString('theme','light');
   await p.setString('refresh_token','local-e2e');
   expect(await RefreshStore.read(),'local-e2e');expect(p.getString('refresh_token'),isNull);
   const drafts=CreatorDraftStore();
@@ -141,15 +143,22 @@ void main(){
   final feed=find.byType(FeedPage);
   expect(MediaQuery.paddingOf(t.element(feed)).top,0);
   final feedState=t.state(find.byType(FeedList).first);
-  rootSession.offline=true;rootSession.notifyListeners();await t.pump(const Duration(milliseconds:600));
+  transport.offline=true;await t.runAsync(transport.idle);
+  try { await t.runAsync(()=>rootSession.call('GET','/calls/incoming')); fail('Offline transport must reject'); } on ApiError { /* Expected real transport failure. */ }
+  expect(transport.rejected,greaterThan(0));expect(rootSession.offline,isTrue);
+  await t.pumpAndSettle();
   expect(find.text('Your post is up.'),findsOneWidget);
   expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
   expect(MediaQuery.paddingOf(t.element(feed)).top,0);
   await capture('ios_both_status_strips');
+  expect(rootUploads.result,isNotNull,reason:'Both-strip capture must precede real acknowledgement expiry');
+  expect(rootSession.offline,isTrue,reason:'Native capture must not silently clear offline');
   rootUploads.finishAcknowledgement();await t.pump(const Duration(milliseconds:600));
   expect(MediaQuery.paddingOf(t.element(feed)).top,0);
   await capture('ios_offline_status_strip');
-  rootSession.offline=false;rootSession.notifyListeners();await t.pump(const Duration(milliseconds:600));
+  transport.offline=false;
+  await t.runAsync(()=>rootSession.call('GET','/calls/incoming'));
+  expect(rootSession.offline,isFalse);await t.pumpAndSettle();
   expect(MediaQuery.paddingOf(t.element(feed)).top,greaterThan(0));
   expect(identical(feedState,t.state(find.byType(FeedList).first)),isTrue);
   await capture('ios_status_strips_retired');
@@ -251,6 +260,8 @@ void main(){
   await stage('semantics end handles=${binding.debugOutstandingSemanticsHandles} platform=${ui.PlatformDispatcher.instance.semanticsEnabled}');
   await stage('complete');
   await t.pumpWidget(const SizedBox());
+  // ignore: avoid_print
   print('iOS simulator local keychain/draft/restore/five-tab/post checks passed; no live service or physical iPhone proof.');
+  });
  });
 }

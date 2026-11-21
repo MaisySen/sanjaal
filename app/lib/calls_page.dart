@@ -120,16 +120,24 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
 
   @override void initState() {
     super.initState();
-    _armExpiry(widget.call);
+    final end = _deadline(widget.call);
+    if (widget.call['status'] != 'ringing' || end == null || !end.isAfter(DateTime.now())) {
+      phase = 'unknown';
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && sessionActive) _checkStatus(); });
+    } else {
+      _armExpiry(widget.call);
+    }
   }
   @override void dispose() { expiry?.cancel(); super.dispose(); }
   @override void sessionRetired() { expiry?.cancel(); phase = 'unknown'; error = null; }
 
+  DateTime? _deadline(Map<String, dynamic> row) => DateTime.tryParse('${row['ring_expires_at'] ?? ''}') ??
+      DateTime.tryParse('${row['created_at'] ?? ''}')?.add(const Duration(seconds: 40));
+
   void _armExpiry(Map<String, dynamic> row) {
     expiry?.cancel();
-    final end = DateTime.tryParse('${row['ring_expires_at'] ?? ''}') ??
-        DateTime.tryParse('${row['created_at'] ?? ''}')?.add(const Duration(seconds: 40));
-    if (end == null) return; // Older servers still supply the initial snapshot.
+    final end = _deadline(row);
+    if (end == null) return;
     final wait = end.difference(DateTime.now());
     expiry = Timer(wait.isNegative ? Duration.zero : wait, () {
       if (mounted && sessionActive && !busy) _checkStatus();

@@ -39,7 +39,7 @@ class CallsFixture extends Session {
     throw StateError('Unexpected fixture request');
   }
 }
-Future<void> screen(WidgetTester t, CallsFixture s, {String lang = 'en', bool large = false}) async {
+Future<void> screen(WidgetTester t, CallsFixture s, {String lang = 'en', bool large = false, Map<String,dynamic>? initial}) async {
   prefs.lang = lang; addTearDown(() => prefs.lang = 'en');
   if (large) {
     t.view.physicalSize = const Size(320, 640); t.view.devicePixelRatio = 1;
@@ -49,7 +49,7 @@ Future<void> screen(WidgetTester t, CallsFixture s, {String lang = 'en', bool la
     debugShowCheckedModeBanner: false,
     theme: buildTheme(Brightness.dark, fontFamily: 'Roboto'),
     builder: (c, w) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: TextScaler.linear(large ? 1.8 : 1)), child: w!),
-    home: IncomingCallPage(session: s, call: row('ringing')),
+    home: IncomingCallPage(session: s, call: initial ?? row('ringing')),
   )));
   await t.pump();
 }
@@ -108,6 +108,21 @@ void main() {
     expect(s.tokens, 0); expect(find.byType(CallPage), findsNothing); expect(find.text('This call has ended.'), findsOneWidget);
     await t.pumpWidget(const SizedBox()); await t.pumpAndSettle();
   });
+  for (final initial in [
+    row('ringing')..remove('ring_expires_at'),
+    row('ringing')..['ring_expires_at']=DateTime.now().subtract(const Duration(minutes:1)).toIso8601String(),
+    row('ended'),
+  ]) {
+    testWidgets('unverified initial snapshot offers no ringing actions $initial', (t) async {
+      final s=CallsFixture()..readPending=Completer<Object?>();
+      await screen(t,s,initial:initial);
+      expect(find.byTooltip('Accept'), findsNothing);expect(find.byTooltip('Decline'), findsNothing);
+      expect(s.actions,0);expect(s.reads,1);
+      s.readPending!.complete({'call':row('ended')});await t.pumpAndSettle();
+      expect(find.text('This call has ended.'),findsOneWidget);expect(s.tokens,0);
+      await t.pumpWidget(const SizedBox());await t.pumpAndSettle();
+    });
+  }
   testWidgets('lost decline reconciled as answered never offers join', (t) async {
     final s = CallsFixture()..writeResult = ApiError('fixture lost', 503)..readResult = {'call': row('answered')};
     await screen(t, s); await t.tap(find.byTooltip('Decline')); await t.pumpAndSettle();

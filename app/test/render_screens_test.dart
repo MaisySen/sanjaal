@@ -280,7 +280,7 @@ void main() {
             'profile_full' => UserProfilePage(session: s, username: 'asha'),
             'rooms' || 'rooms_empty' || 'rooms_error' => RoomsPage(session: s),
             'calls' => CallsPage(session: s),
-            'incoming' || 'incoming_error' => IncomingCallPage(session: s, call: {'public_id': 'fixture', 'conversation_id': 'c1', 'kind': 'voice', 'caller': {'username': 'asha', 'name': 'Asha Gurung'}}),
+            'incoming' || 'incoming_error' => IncomingCallPage(session: s, call: {'public_id': 'fixture', 'conversation_id': 'c1', 'kind': 'voice', 'status': 'ringing', 'ring_expires_at': DateTime.now().add(const Duration(seconds:40)).toIso8601String(), 'caller': {'username': 'asha', 'name': 'Asha Gurung'}}),
             'shell' || 'shell_reel' => HomeShell(session: s),
             'reels_empty' || 'reels_error' => ReelsPage(session: s, active: true, onCreate: () async {}),
             'following_empty' || 'following_error' => FeedPage(session: s, onCompose: () async {}),

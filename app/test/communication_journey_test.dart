@@ -241,7 +241,7 @@ void main() {
       var actions = 0;
       var tokens = 0;
       await withSession(t, (s) async {
-        await t.pumpWidget(app(IncomingCallPage(session: s, call: {'public_id': 'call', 'conversation_id': 'convo', 'title': 'Fixture', 'kind': 'voice', 'caller': {'username': 'caller'}})));
+        await t.pumpWidget(app(IncomingCallPage(session: s, call: {'public_id': 'call', 'conversation_id': 'convo', 'title': 'Fixture', 'kind': 'voice', 'status': 'ringing', 'ring_expires_at': DateTime.now().add(const Duration(seconds:40)).toIso8601String(), 'caller': {'username': 'caller'}})));
         await t.tap(find.byTooltip(action));
         await t.pump();
         await t.tap(find.byTooltip(action));

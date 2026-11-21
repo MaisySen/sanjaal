@@ -1,0 +1,22 @@
+name: API source security floor only
+'on':
+  push:
+    branches: [api-security-baseline]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enforce reviewed source floor and publisher fail-closed controls
+        run: |
+          python3 api/docker/security_floor.py --api-root api
+          python3 api/docker/test_security_floor.py
+          python3 -O api/docker/test_security_floor.py
+# Offline source checks only. No app build, image publication, credentials,
+# database, deployment, signing, upload, distribution or billing change.

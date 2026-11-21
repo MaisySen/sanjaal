@@ -3,6 +3,11 @@ name: iOS pipeline preflight only
   push:
     branches: [ios-pipeline-preflight]
   workflow_dispatch:
+    inputs:
+      inventory:
+        type: boolean
+        default: false
+        description: Run no-build macOS toolchain inventory
 permissions:
   contents: read
 concurrency:
@@ -10,6 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inventory:
+    if: github.event_name == 'workflow_dispatch' && inputs.inventory == true
     runs-on: macos-latest
     timeout-minutes: 5
     steps:

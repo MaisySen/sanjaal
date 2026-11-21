@@ -19,7 +19,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
-      run: 'test "$(git rev-parse HEAD:app/lib)" = 4543f63ccaf25d31d568827fa1c2cf17d497cbf2
+      run: 'test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
 
         test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
 
@@ -93,6 +93,14 @@ jobs:
         curl -s -o /dev/null -w "unauthenticated /me status %{http_code}\n" http://127.0.0.1:8000/api/v1/auth/me
         -H ''Accept: application/json''
 
+
+        python3 ../.github/ci/native-socket-proxy-contract.py
+
+        nohup python3 ../.github/ci/native-socket-proxy.py --port 8002 --upstream http://127.0.0.1:8001 --token-file
+        /tmp/e2e/token.txt > /tmp/e2e/socket-gate.log 2>&1 &
+
+        python3 ../.github/ci/native-socket-proxy-ready.py /tmp/e2e/token.txt
+
         '
     - name: Smoke test on emulator
       uses: reactivecircus/android-emulator-runner@v2
@@ -115,6 +123,8 @@ jobs:
 
           /tmp/drive_*.log
 
+          /tmp/e2e/socket-gate.log
+
           '
         if-no-files-found: warn
         retention-days: 1
@@ -126,7 +136,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
-      run: 'test "$(git rev-parse HEAD:app/lib)" = 4543f63ccaf25d31d568827fa1c2cf17d497cbf2
+      run: 'test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
 
         test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
 
@@ -175,6 +185,14 @@ jobs:
         curl --retry 5 --retry-connrefused --retry-delay 1 -s http://localhost:8000/api/v1/auth/me -H ''Accept:
         application/json''
 
+
+        python3 ../.github/ci/native-socket-proxy-contract.py
+
+        nohup python3 ../.github/ci/native-socket-proxy.py --port 8002 --upstream http://127.0.0.1:8000 --token-file
+        /tmp/ios-e2e/token.txt > /tmp/ios-socket-gate.log 2>&1 &
+
+        python3 ../.github/ci/native-socket-proxy-ready.py /tmp/ios-e2e/token.txt
+
         '
     - name: Select and boot available iPhone simulator
       run: 'defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
@@ -207,8 +225,8 @@ jobs:
         \ bootstatus \"$IOS_DEVICE\" -b\nxcrun simctl io \"$IOS_DEVICE\" recordVideo build/screenshots/ios-flows.mp4\
         \ > /tmp/ios-record.log 2>&1 &\nREC=$!\n# Compile once, then launch explicitly. Do not depend on the failed\n\
         # Flutter simulator log-reader discovery path to find its VM service.\nflutter build ios --simulator --debug\
-        \ --target=integration_test/ios_flows_test.dart --no-pub --dart-define=API_BASE_URL=http://localhost:8000/api/v1\
-        \ --dart-define=E2E_TOKEN_BASE=http://localhost:8000 --dart-define=E2E_TOKEN=\"$(cat /tmp/ios-e2e/token.txt)\"\
+        \ --target=integration_test/ios_flows_test.dart --no-pub --dart-define=API_BASE_URL=http://localhost:8002/api/v1\
+        \ --dart-define=E2E_TOKEN_BASE=http://localhost:8002 --dart-define=E2E_TOKEN=\"$(cat /tmp/ios-e2e/token.txt)\"\
         \ > ios-build.log 2>&1\nxcrun simctl install \"$IOS_DEVICE\" build/ios/iphonesimulator/Runner.app\n# Debug-only\
         \ simulator fixture, bind a fixed localhost port. Nothing\n# listens remotely and these arguments never\
         \ enter a release build.\nxcrun simctl launch --console \"$IOS_DEVICE\" au.fintex.sanjaal --vm-service-host=127.0.0.1\
@@ -261,6 +279,8 @@ jobs:
           app/build/screenshots/*
 
           /tmp/ios-api.log
+
+          /tmp/ios-socket-gate.log
 
           /tmp/ios-devices.json
 

@@ -80,7 +80,7 @@ void main() {
         t.view.physicalSize = const Size(960, 1920); t.view.devicePixelRatio = 3; addTearDown(t.view.reset);
         feedImageProvider = photo; addTearDown(() => feedImageProvider = null);
         final key = GlobalKey();
-        await t.pumpWidget(MaterialApp(theme: buildTheme(brightness, fontFamily: 'Roboto'), builder: (c,w) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.8)), child: w!), home: RepaintBoundary(key: key, child: Scaffold(body: SingleChildScrollView(child: PostCard(session: Session(), immersive: immersive, onRemoved: () {}, post: {
+        await t.pumpWidget(MaterialApp(theme: buildTheme(brightness, fontFamily: 'Roboto'), builder: (c,w) => MediaQuery(data: MediaQuery.of(c).copyWith(textScaler: const TextScaler.linear(1.8)), child: w!), home: RepaintBoundary(key: key, child: Scaffold(body: SingleChildScrollView(child: PostCard(session: Session()..user={'public_id':'gallery-viewer'}, immersive: immersive, onRemoved: () {}, post: {
           'public_id': 'fixture', 'body': 'A whole photo story', 'author': {'public_id': 'a', 'name': 'Fixture', 'username': 'fixture'},
           'media': [for (final n in ['one', 'two', 'three']) {'type': 'image', 'url': n}],
         }))))));

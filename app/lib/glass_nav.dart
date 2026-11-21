@@ -41,11 +41,11 @@ class GlassNavBar extends StatelessWidget {
         border: Border.all(color: edge, width: 1),
       ),
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        SizedBox(height: largeBadge ? 76 : largeText ? 52 : (collapsed ? 50 : 54), child: Row(children: [
+        Flexible(child: SizedBox(height: largeBadge ? 76 : largeText ? 52 : (collapsed ? 50 : 54), child: Row(children: [
           for (var i = 0; i < items.length; i++)
             Expanded(child: _Item(item: items[i], compact: true, selected: i == index, onTap: () => onSelected(i))),
           if (onSearch != null) IconButton(tooltip: t_('Search'), onPressed: onSearch, icon: PhIcon('magnifying-glass', size: 22, color: scheme.onSurfaceVariant), style: IconButton.styleFrom(minimumSize: const Size(44,44), backgroundColor: scheme.onSurface.withValues(alpha: .08))),
-        ])),
+        ]))),
         if (largeText) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(items[index].label, maxLines: 1, style: TextStyle(fontSize: 12, height: 1.1, color: scheme.primary, fontWeight: FontWeight.w700))),
       ])),
     );

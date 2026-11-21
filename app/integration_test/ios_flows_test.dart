@@ -143,9 +143,8 @@ void main(){
   final feed=find.byType(FeedPage);
   expect(MediaQuery.paddingOf(t.element(feed)).top,0);
   final feedState=t.state(find.byType(FeedList).first);
-  transport.offline=true;await t.runAsync(transport.idle);
-  try { await t.runAsync(()=>rootSession.call('GET','/calls/incoming')); fail('Offline transport must reject'); } on ApiError { /* Expected real transport failure. */ }
-  expect(transport.rejected,greaterThan(0));expect(rootSession.offline,isTrue);
+  expect(await t.runAsync(()=>transport.proveOffline(rootSession)),isTrue,
+      reason:'Actual native Session must receive a transport error and increment the socket gate rejection count');
   await t.pumpAndSettle();
   expect(find.text('Your post is up.'),findsOneWidget);
   expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
@@ -156,9 +155,9 @@ void main(){
   rootUploads.finishAcknowledgement();await t.pump(const Duration(milliseconds:600));
   expect(MediaQuery.paddingOf(t.element(feed)).top,0);
   await capture('ios_offline_status_strip');
-  transport.offline=false;
-  await t.runAsync(()=>rootSession.call('GET','/calls/incoming'));
-  expect(rootSession.offline,isFalse);await t.pumpAndSettle();
+  expect(await t.runAsync(()=>transport.proveOnline(rootSession)),isTrue,
+      reason:'Same native Session must reconnect through the socket gate');
+  await t.pumpAndSettle();
   expect(MediaQuery.paddingOf(t.element(feed)).top,greaterThan(0));
   expect(identical(feedState,t.state(find.byType(FeedList).first)),isTrue);
   await capture('ios_status_strips_retired');

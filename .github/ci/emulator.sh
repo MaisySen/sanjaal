@@ -17,7 +17,7 @@ for t in ${NATIVE_FLOW_TARGETS:-smoke signed_in flows native_media upload_retry}
   fi
   if [ "$t" = upload_retry ]; then
     # Second disposable local API (port 8001): replay-safe uploads ON and a one-shot lost-response fault.
-    extra="--dart-define=API_BASE_URL=http://10.0.2.2:8001/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8001 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
+    extra="--dart-define=API_BASE_URL=http://10.0.2.2:8002/api/v1 --dart-define=E2E_TOKEN_BASE=http://10.0.2.2:8002 --dart-define=E2E_TOKEN=$(cat /tmp/e2e/token.txt)"
   fi
   mkdir -p build/screenshots
   adb shell "screenrecord --bit-rate 1500000 --time-limit 170 /sdcard/rec_$t.mp4" > /dev/null 2>&1 &

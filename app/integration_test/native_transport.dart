@@ -1,52 +1,47 @@
-// Local-native harness only. Real HTTP except the explicit offline interval.
-import 'dart:async';
+// Disposable native fixture socket control, not physical network-loss proof.
+import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:sanjaal/api.dart' show resetApiKeepAlive;
+import 'package:sanjaal/api.dart';
 
-class NativeTransport extends http.BaseClient {
-  final http.Client _real;
-  NativeTransport({http.Client? real}) : _real = real ?? IOClient(HttpClient());
-  bool offline = false;
-  int pending = 0;
-  int rejected = 0;
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    if (offline && request.url.path.startsWith('/api/v1/')) {
-      rejected++;
-      throw const SocketException('Disposable native fixture connection unavailable');
+class NativeTransport {
+  final http.Client _control = IOClient(HttpClient());
+  static const base = String.fromEnvironment('E2E_TOKEN_BASE');
+  static const token = String.fromEnvironment('E2E_TOKEN');
+  Map<String,dynamic> last = {};
+  Future<Map<String,dynamic>> setOffline(bool value) async {
+    final uri = Uri.parse(base);
+    if (!['localhost','127.0.0.1','10.0.2.2'].contains(uri.host) || uri.port != 8002 || token.isEmpty) {
+      throw StateError('Socket gate requires the isolated native fixture route');
     }
-    pending++;
-    try {
-      final response = await _real.send(request);
-      Stream<List<int>> body() async* {
-        try { yield* response.stream; } finally { pending--; }
-      }
-      return http.StreamedResponse(body(), response.statusCode,
-        contentLength: response.contentLength, request: response.request,
-        headers: response.headers, isRedirect: response.isRedirect,
-        persistentConnection: response.persistentConnection,
-        reasonPhrase: response.reasonPhrase);
-    } catch (_) { pending--; rethrow; }
+    final response = await _control.post(Uri.parse('$base/_native/transport'),
+      headers: {'Authorization':'Bearer $token','Content-Type':'application/json'},
+      body: jsonEncode({'offline':value})).timeout(const Duration(seconds:8));
+    if(response.statusCode != 200) throw StateError('Native socket gate did not drain');
+    last = jsonDecode(response.body) as Map<String,dynamic>;
+    if(last['offline']!=value || last['active']!=0) throw StateError('Native socket gate state mismatch');
+    return last;
   }
-  Future<void> idle() async {
-    final end = DateTime.now().add(const Duration(seconds: 5));
-    while (pending != 0) {
-      if (DateTime.now().isAfter(end)) throw StateError('Native fixture requests did not drain');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-    }
-    // Let response consumers finish decoding and clearing their old status.
-    await Future<void>.delayed(const Duration(milliseconds: 150));
+  Future<bool> proveOffline(Session session) async {
+    final before = await setOffline(true);
+    if((before['forwarded_api'] as int) < 1) return false;
+    var failed = false;
+    try { await session.call('GET','/calls/incoming'); }
+    on ApiError { failed = true; }
+    final after = await setOffline(true);
+    return failed && session.offline && (after['rejected'] as int) > (before['rejected'] as int);
   }
-  // http top-level helpers close their temporary client. This scope owns it.
-  @override
-  void close() {}
-  void dispose() => _real.close();
+  Future<bool> proveOnline(Session session) async {
+    final before = await setOffline(false);
+    await session.call('GET','/calls/incoming');
+    final after = await setOffline(false);
+    return !session.offline && (after['forwarded_api'] as int) > (before['forwarded_api'] as int);
+  }
+  void dispose()=>_control.close();
 }
 Future<T> withNativeTransport<T>(Future<T> Function(NativeTransport) body) async {
-  final transport = NativeTransport();
-  resetApiKeepAlive();
-  try { return await http.runWithClient(() => body(transport), () => transport); }
-  finally { resetApiKeepAlive(); transport.dispose(); }
+  final transport=NativeTransport();
+  try { return await body(transport); }
+  finally { transport.dispose(); }
 }

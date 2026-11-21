@@ -116,10 +116,9 @@ void main() {
     await binding.takeScreenshot('upload_retry_2_after_retry');
     final rootSession=tester.widget<app.HomeShell>(find.byType(app.HomeShell)).session;
     expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
-    transport.offline=true;await tester.runAsync(transport.idle);
-    try { await tester.runAsync(()=>rootSession.call('GET','/calls/incoming')); fail('Offline transport must reject'); } on ApiError { /* Expected real transport failure. */ }
-    expect(transport.rejected,greaterThan(0));expect(rootSession.offline,isTrue);
-    await tester.pumpAndSettle();
+    expect(await tester.runAsync(()=>transport.proveOffline(rootSession)),isTrue,
+      reason:'Actual native Session must receive a transport error and increment the socket gate rejection count');
+  await tester.pumpAndSettle();
     expect(find.text('Your post is up.'),findsOneWidget);
     expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
     await tester.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:250)));
@@ -128,9 +127,9 @@ void main() {
     center.finishAcknowledgement();await tester.pump(const Duration(milliseconds:600));
     expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
     await binding.takeScreenshot('upload_retry_4_offline_only');
-    transport.offline=false;
-    await tester.runAsync(()=>rootSession.call('GET','/calls/incoming'));
-    expect(rootSession.offline,isFalse);await tester.pumpAndSettle();
+    expect(await tester.runAsync(()=>transport.proveOnline(rootSession)),isTrue,
+      reason:'Same native Session must reconnect through the socket gate');
+  await tester.pumpAndSettle();
     await binding.takeScreenshot('upload_retry_5_status_strips_retired');
 
     expect(find.text('Try again'), findsNothing);

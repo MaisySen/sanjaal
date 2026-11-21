@@ -112,4 +112,6 @@ if __name__ == '__main__':
         token = f.read().strip()
     if not token:
         p.error('empty fixture control token')
-    Server(('127.0.0.1', args.port), State(upstream, token)).serve_forever()
+    server = Server(('127.0.0.1', args.port), State(upstream, token))
+    print('Disposable socket gate listening on127.0.0.1:' + str(args.port), flush=True)
+    server.serve_forever()

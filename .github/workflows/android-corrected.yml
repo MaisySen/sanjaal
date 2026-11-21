@@ -1,0 +1,231 @@
+name: Corrected2013 Android engineering checks
+on:
+  push:
+    branches:
+    - android-corrected-2013
+permissions:
+  contents: read
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        ref: d0dcfcd188f41ec2fbe3eff4ed56588aa927b73a
+        persist-credentials: false
+    - name: Unresolved iOS export declaration stays unanswered
+      run: python3 .github/ci/test_ios_export_declaration.py
+      working-directory: .
+    - name: Phone preview finalizer unit contracts (fake Android tools)
+      run: python3 .github/ci/test_finalize_phone_preview.py && python3 .github/ci/test_finalize_play_bundle.py
+        && python3 .github/ci/test_candidate_manifest.py && python3 -O .github/ci/test_finalize_phone_preview.py
+        && python3 -O .github/ci/test_finalize_play_bundle.py && python3 -O .github/ci/test_candidate_manifest.py
+      working-directory: .
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+      with:
+        channel: stable
+        flutter-version: 3.50.0
+        cache: true
+    - run: flutter pub get
+    - name: Build release APK
+      run: "set +e\nflutter build apk --release --split-per-abi --target-platform\
+        \ android-arm64 --obfuscate \\\n  --split-debug-info=build/debug-info \\\n\
+        \  --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1 > build.log\
+        \ 2>&1\ncode=$?\nif [ $code -ne 0 ]; then\n  grep -nE \"error:|FAILURE|What\
+        \ went wrong|Execution failed|Caused by|minSdk|Could not\" -A2 build.log |\
+        \ head -40 | tr '\\n' ' ' | sed 's/%/%25/g' | cut -c1-3500 | while read -r\
+        \ l; do echo \"::error title=APK build::$l\"; done\nfi\nif [ $code -ne 0 ];\
+        \ then tail -100 build.log; else tail -5 build.log; fi\nexit $code\n"
+    - name: Preserve app failure diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-failure-logs
+        path: 'app/analyze.log
+
+          app/test.log
+
+          app/build.log
+
+          '
+        if-no-files-found: ignore
+    - name: Fail closed - the user APK must carry no test endpoint, test token or
+        tunnel
+      run: "set -e\nexpected_version=$(sed -n 's/^version: \\([^+]*\\)+.*/\\1/p' pubspec.yaml)\n\
+        expected_code=$(sed -n 's/^version: .*+\\([0-9]*\\)$/\\1/p' pubspec.yaml)\n\
+        [ \"$expected_code\" -ge 2008 ]\naapt=$(find \"$ANDROID_HOME/build-tools\"\
+        \ -name aapt -type f | sort -V | tail -1)\ntest -x \"$aapt\"\ncd build/app/outputs/flutter-apk\n\
+        n=0\nfor f in *.apk; do\n  n=$((n+1))\n  echo \"checking $f\"\n  \"$aapt\"\
+        \ dump badging \"$f\" > /tmp/sanjaal-apk-version.txt\n  grep -F \"package:\
+        \ name='au.fintex.sanjaal' versionCode='$expected_code' versionName='$expected_version'\"\
+        \ /tmp/sanjaal-apk-version.txt\n  unzip -tq \"$f\"\n  mkdir -p \"/tmp/x/$f\"\
+        \n  unzip -qo \"$f\" -d \"/tmp/x/$f\"\n  [ -f \"/tmp/x/$f/AndroidManifest.xml\"\
+        \ ] && [ -f \"/tmp/x/$f/classes.dex\" ] && find \"/tmp/x/$f/lib\" -name libapp.so\
+        \ | grep -q . || { echo \"::error::incomplete apk $f\"; exit 1; }\n  if grep\
+        \ -raEl 'trycloudflare|local-e2e|10\\.0\\.2\\.2|E2E_TOKEN' \"/tmp/x/$f\";\
+        \ then echo \"::error::test-only string found in $f\"; exit 1; fi\n  grep\
+        \ -qa 'sanjaal-api.onrender.com' -r \"/tmp/x/$f/lib\" || { echo \"::error::expected\
+        \ API default not found in $f\"; exit 1; }\ndone\n[ \"$n\" -gt 0 ] || { echo\
+        \ \"::error::no apk found\"; exit 1; }\necho \"checked $n apk(s): clean\"\n"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sanjaal-2013-release-ENGINEERING-NOT-FOR-USERS
+        path: app/build/app/outputs/flutter-apk/*.apk
+        retention-days: 3
+    timeout-minutes: 40
+  bundle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        ref: d0dcfcd188f41ec2fbe3eff4ed56588aa927b73a
+        persist-credentials: false
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '21'
+    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+      with:
+        channel: stable
+        flutter-version: 3.50.0
+        cache: true
+    - run: flutter pub get
+    - name: Build unsigned ARM64 engineering bundle
+      env:
+        SANJAAL_UNSIGNED_BUNDLE: '1'
+      run: "flutter build appbundle --release --target-platform android-arm64 --obfuscate\
+        \ \\\n  --split-debug-info=build/bundle-debug-info \\\n  --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1\n\
+        python3 - <<'PY_BUNDLE'\nimport zipfile\nfrom pathlib import Path\np=Path('build/app/outputs/bundle/release/app-release.aab')\n\
+        with zipfile.ZipFile(p) as z:\n    assert z.testzip() is None\n    names=z.namelist()\n\
+        \    assert not any(n.upper().endswith(('.RSA','.DSA','.EC','.SF')) and n.upper().startswith('META-INF/')\
+        \ for n in names), 'AAB must be unsigned'\n    assert {'BundleConfig.pb','base/manifest/AndroidManifest.xml','base/lib/arm64-v8a/libapp.so'}.issubset(names)\n\
+        \    libs=[n for n in names if n.startswith('base/lib/') and n.endswith('.so')]\n\
+        \    assert libs and all(n.startswith('base/lib/arm64-v8a/') for n in libs),\
+        \ 'Incomplete extra ABI in ARM64 bundle'\n    for n in names:\n        if\
+        \ not n.endswith('/'):\n            b=z.read(n)\n            assert not any(t\
+        \ in b for t in [b'trycloudflare',b'local-e2e',b'10.0.2.2',b'E2E_TOKEN']),\
+        \ 'Test-only marker: '+n\n    assert b'https://sanjaal-api.onrender.com/api/v1'\
+        \ in z.read('base/lib/arm64-v8a/libapp.so')\nPY_BUNDLE\n"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sanjaal-unsigned-aab-engineering-only
+        path: 'app/build/app/outputs/bundle/release/*.aab
+
+          app/build/bundle-debug-info/
+
+          '
+        retention-days: 7
+    timeout-minutes: 40
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        ref: d0dcfcd188f41ec2fbe3eff4ed56588aa927b73a
+        persist-credentials: false
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+      with:
+        channel: stable
+        flutter-version: 3.50.0
+        cache: true
+    - name: Enable KVM
+      run: 'echo ''KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"''
+        | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+
+        sudo udevadm control --reload-rules
+
+        sudo udevadm trigger --name-match=kvm
+
+        '
+    - run: flutter pub get
+      working-directory: app
+    - uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.4'
+        extensions: mbstring, pdo_sqlite, sqlite3, bcmath, gd
+        coverage: none
+    - name: Start local API with a synthetic member (isolated, no Auth0, no live data)
+      working-directory: api
+      env:
+        APP_KEY: base64:Y2ktb25seS1rZXktbm90LWEtc2VjcmV0LTMyYnl0ZXM=
+        APP_ENV: local
+        DB_CONNECTION: sqlite
+        DB_DATABASE: /tmp/e2e/db.sqlite
+        CACHE_STORE: file
+        SESSION_DRIVER: array
+        QUEUE_CONNECTION: sync
+      run: 'set -e
+
+        composer install --no-interaction --prefer-dist --no-progress
+
+        python3 tests/E2E/native_input_contract.py
+
+        python3 tests/E2E/native_media_contract.py
+
+        mkdir -p /tmp/e2e && touch /tmp/e2e/db.sqlite .env
+
+        php artisan migrate --force
+
+        php tests/E2E/prepare.php /tmp/e2e
+
+        echo "::add-mask::$(cat /tmp/e2e/token.txt)"
+
+        echo "::add-mask::$(cat /tmp/e2e/viewer-token.txt)"
+
+        E2E_NATIVE_INPUT=1 E2E_JWKS_FILE=/tmp/e2e/jwks.json nohup php -S 0.0.0.0:8000
+        -t public tests/E2E/server.php > /tmp/e2e/server.log 2>&1 &
+
+        E2E_FAULT_AFTER_COMMIT=1 UPLOAD_INTENTS_ENABLED=true E2E_NATIVE_INPUT=1 E2E_JWKS_FILE=/tmp/e2e/jwks.json
+        nohup php -S 0.0.0.0:8001 -t public tests/E2E/server.php > /tmp/e2e/server2.log
+        2>&1 &
+
+        sleep 3
+
+        curl -s -o /dev/null -w "unauthenticated /me status %{http_code}\n" http://127.0.0.1:8000/api/v1/auth/me
+        -H ''Accept: application/json''
+
+        '
+    - name: Smoke test on emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34
+        arch: x86_64
+        target: google_apis
+        script: sh .github/ci/emulator.sh
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: emulator-screenshots
+        path: 'app/build/screenshots/*.png
+
+          app/build/screenshots/*.mp4
+
+          app/build/screenshots/*.txt
+
+          app/build/screenshots/*.xml
+
+          /tmp/drive_*.log
+
+          '
+        if-no-files-found: warn

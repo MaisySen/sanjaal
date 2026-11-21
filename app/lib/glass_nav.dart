@@ -58,7 +58,7 @@ class GlassNavBar extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(collapsed ? 26 : 14, 0, collapsed ? 26 : 14, 8),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
-          child: GlassSurface(radius: 32, blur: 12, minOpacity: .10, opacity: .22 + .26 * glassSettings.transparency, child: bar),
+          child: GlassSurface(refractive: true, radius: 32, blur: 12, minOpacity: .10, opacity: .22 + .26 * glassSettings.transparency, child: bar),
         ),
       )),
     ));

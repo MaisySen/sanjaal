@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'glass_settings.dart';
+import 'refractive_glass.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -15,12 +16,13 @@ class GlassSurface extends StatelessWidget {
     this.minOpacity,
     this.blur = 12,
     this.opaque = false,
+    this.refractive = false,
   });
   final Widget child;
   final double radius, blur;
   final double? opacity, minOpacity;
   final Color? tint;
-  final bool opaque;
+  final bool opaque, refractive;
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: glassSettings, builder: (context, _) {
     final scheme = Theme.of(context).colorScheme;
@@ -40,8 +42,10 @@ class GlassSurface extends StatelessWidget {
           Positioned.fill(
             child: reduced
                 ? ColoredBox(color: base)
-                : BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                : RefractiveGlass(
+                    enabled: refractive,
+                    radius: radius,
+                    fallback: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
                     child: ColoredBox(
                       color: base.withValues(alpha: effectiveOpacity),
                     ),

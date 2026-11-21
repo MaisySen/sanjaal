@@ -69,14 +69,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if self.path.startswith('/api/v1/'):
                 state.forwarded_api += 1
         upstream = None
+        started = time.monotonic()
         try:
-            upstream = http.client.HTTPConnection(state.upstream.hostname, state.upstream.port, timeout=10)
+            upstream = http.client.HTTPConnection(state.upstream.hostname, state.upstream.port, timeout=60)
             headers = {k:v for k,v in self.headers.items() if k.lower() not in ['host','connection']}
             upstream.request(self.command, self.path, body, headers)
             response = upstream.getresponse()
             payload = response.read(16 * 1024 * 1024 + 1)
             if len(payload) > 16 * 1024 * 1024:
                 raise ValueError('fixture response too large')
+            print(json.dumps({'method': self.command, 'route': urlsplit(self.path).path, 'status': response.status, 'elapsed_ms': round((time.monotonic() - started) * 1000)}), flush=True)
             self.send_response(response.status)
             for key, value in response.getheaders():
                 if key.lower() not in ['connection','transfer-encoding','content-length']:
@@ -84,7 +86,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
-        except (OSError, http.client.HTTPException, ValueError):
+        except (OSError, http.client.HTTPException, ValueError) as error:
+            print(json.dumps({'method': self.command, 'route': urlsplit(self.path).path, 'error_type': type(error).__name__, 'elapsed_ms': round((time.monotonic() - started) * 1000)}), flush=True)
             self.close_connection = True
         finally:
             if upstream:

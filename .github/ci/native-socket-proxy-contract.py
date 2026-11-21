@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Real sockets, isolated fixture only. This is not a native app/device test."""
+import concurrent.futures
+import time
 import http.client
 import http.server
 import importlib.util
@@ -15,11 +17,18 @@ spec.loader.exec_module(gate)
 class Upstream(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
     def do_GET(self):
+        if self.path == '/api/v1/fixture-slow-poll':
+            self.server.poll_entered.set()
+            time.sleep(12)
         body = b'{"data":[]}'
         self.send_response(200)
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+    def do_POST(self):
+        self.send_response(201)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
     def log_message(self, *_):
         pass
 
@@ -44,6 +53,37 @@ class Contract(unittest.TestCase):
         self.client.request('POST', '/_native/transport', json.dumps({'offline': value}), {'Authorization':'Bearer ' + token})
         response = self.client.getresponse()
         return response.status, json.loads(response.read())
+    def test_supported_long_poll_does_not_disconnect_queued_mutation(self):
+        # Single-worker fixture reproduces php -S queuing. Product polls20s;
+        # 12s is sufficient to catch the former10s infrastructure ceiling.
+        slow = http.server.HTTPServer(('127.0.0.1', 0), Upstream)
+        slow.poll_entered = threading.Event()
+        original = self.state.upstream
+        self.state.upstream = gate.urlsplit('http://127.0.0.1:' + str(slow.server_port))
+        thread = threading.Thread(target=slow.serve_forever)
+        thread.start()
+        def request(method, path):
+            client = http.client.HTTPConnection('127.0.0.1', self.proxy.server_port, timeout=20)
+            try:
+                client.request(method, path)
+                response = client.getresponse()
+                response.read()
+                return response.status
+            finally:
+                client.close()
+        try:
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                poll = pool.submit(request, 'GET', '/api/v1/fixture-slow-poll')
+                self.assertTrue(slow.poll_entered.wait(timeout=3))
+                send = pool.submit(request, 'POST', '/api/v1/fixture-send')
+                self.assertEqual(poll.result(timeout=18), 200)
+                self.assertEqual(send.result(timeout=5), 201)
+        finally:
+            self.state.upstream = original
+            slow.shutdown()
+            slow.server_close()
+            thread.join()
+
     def test_unauthorized_and_invalid_control_does_not_block_api(self):
         self.assertEqual(self.control(True, 'wrong')[0], 403)
         self.assertFalse(self.state.offline)

@@ -454,6 +454,8 @@ const _ne = <String, String>{
   'Original reference': 'मूल सन्दर्भ',
   'Time unavailable': 'समय उपलब्ध छैन',
   'Reference': 'सन्दर्भ',
+  'Retry the same report?': 'उही रिपोर्ट फेरि पठाउने?',
+  'Report retry could not be saved. Nothing was sent.': 'पुनः प्रयास सुरक्षित गर्न सकिएन। केही पठाइएको छैन।',
   'Review report': 'रिपोर्ट जाँच्नुहोस्',
   'Send report': 'रिपोर्ट पठाउनुहोस्',
   'Send this report?': 'यो रिपोर्ट पठाउने हो?',

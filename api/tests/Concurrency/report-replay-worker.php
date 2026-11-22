@@ -44,9 +44,6 @@ try {
     try {
         $response = app(ReportController::class)->store($request);
         echo json_encode(['code' => $response->status(), 'receipt' => $response->getData(true)['report']['public_id']], JSON_THROW_ON_ERROR);
-    } catch (\Illuminate\Database\QueryException $error) {
-        if ($error->getCode() !== '55P03') throw $error;
-        echo json_encode(['code' => 503, 'receipt' => null], JSON_THROW_ON_ERROR);
     } catch (\Symfony\Component\HttpKernel\Exception\HttpException $error) {
         echo json_encode(['code' => $error->getStatusCode(), 'receipt' => null], JSON_THROW_ON_ERROR);
     }

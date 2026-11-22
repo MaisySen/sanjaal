@@ -24,39 +24,46 @@ class ReportController extends Controller
         $fingerprint = hash('sha256', json_encode([
             $data['type'], $data['target'], $data['reason'], $data['note'] ?? null,
         ], JSON_THROW_ON_ERROR));
-        [$row, $replayed] = DB::transaction(function () use ($request, $data, $submission, $fingerprint) {
-            if ($submission !== null) {
-                if (DB::getDriverName() === 'pgsql') {
-                    DB::statement("SET LOCAL lock_timeout = '2s'");
-                    DB::statement("SET LOCAL statement_timeout = '5s'");
-                }
-                // Serialize this reporter's keyed writes. The nullable unique constraint is
-                // the second guard; other reporters never contend for the same key.
-                DB::table('users')->where('id', $request->user()->id)->lockForUpdate()->firstOrFail();
-                $existing = DB::table('reports')->where('reporter_id', $request->user()->id)
-                    ->where('submission_id', $submission)->first();
-                if ($existing) {
-                    abort_unless(hash_equals((string) $existing->submission_fingerprint, $fingerprint), 409, 'This submission key belongs to a different report.');
+        try {
+            [$row, $replayed] = DB::transaction(function () use ($request, $data, $submission, $fingerprint) {
+                if ($submission !== null) {
+                    if (DB::getDriverName() === 'pgsql') {
+                        DB::statement("SET LOCAL lock_timeout = '2s'");
+                        DB::statement("SET LOCAL statement_timeout = '5s'");
+                    }
+                    // Serialize this reporter's keyed writes. The nullable unique constraint is
+                    // the second guard; other reporters never contend for the same key.
+                    DB::table('users')->where('id', $request->user()->id)->lockForUpdate()->firstOrFail();
+                    $existing = DB::table('reports')->where('reporter_id', $request->user()->id)
+                        ->where('submission_id', $submission)->first();
+                    if ($existing) {
+                        abort_unless(hash_equals((string) $existing->submission_fingerprint, $fingerprint), 409, 'This submission key belongs to a different report.');
 
-                    return [$existing, true];
+                        return [$existing, true];
+                    }
                 }
-            }
-            $record = [
-                'public_id' => (string) Str::uuid(),
-                'reporter_id' => $request->user()->id,
-                'target_type' => $data['type'], 'target_id' => $data['target'],
-                'reason' => $data['reason'], 'note' => $data['note'] ?? null,
-                'status' => 'received', 'created_at' => now(), 'updated_at' => now(),
-            ];
-            // Legacy requests remain compatible with the previous schema and writer.
-            if ($submission !== null) {
-                $record += ['submission_id' => $submission, 'submission_fingerprint' => $fingerprint];
-            }
-            $id = DB::table('reports')->insertGetId($record);
-            DB::table('report_events')->insert(['report_id' => $id, 'status' => 'received', 'created_at' => now()]);
+                $record = [
+                    'public_id' => (string) Str::uuid(),
+                    'reporter_id' => $request->user()->id,
+                    'target_type' => $data['type'], 'target_id' => $data['target'],
+                    'reason' => $data['reason'], 'note' => $data['note'] ?? null,
+                    'status' => 'received', 'created_at' => now(), 'updated_at' => now(),
+                ];
+                // Legacy requests remain compatible with the previous schema and writer.
+                if ($submission !== null) {
+                    $record += ['submission_id' => $submission, 'submission_fingerprint' => $fingerprint];
+                }
+                $id = DB::table('reports')->insertGetId($record);
+                DB::table('report_events')->insert(['report_id' => $id, 'status' => 'received', 'created_at' => now()]);
 
-            return [DB::table('reports')->find($id), false];
-        });
+                return [DB::table('reports')->find($id), false];
+            });
+        } catch (\Illuminate\Database\QueryException $error) {
+            if ($submission !== null && in_array($error->getCode(), ['55P03', '57014'], true)) {
+                abort(503, 'Report result unconfirmed. Retry the same submission.');
+            }
+            throw $error;
+        }
 
         return response()->json(['message' => 'Report received.', 'report' => $this->present($row), 'replayed' => $replayed], $replayed ? 200 : 201);
     }

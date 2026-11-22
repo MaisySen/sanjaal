@@ -100,3 +100,35 @@ exercise actual row contention: three tests, 46 assertions cover duplicate,
 conflicting and bounded held-lock retry. Removing the reporter row lock causes
 an observed concurrent unique-constraint failure, restored code passes again.
 No production migration, publication, provider action or build was run.
+
+## Private client replay checkpoint
+
+The client now uses replay only with both history and replay capabilities.
+Before the first HTTP write it saves and reads back the submission UUID in the
+existing secure-storage facility under an account-hashed key. An explicit retry
+of the same type/target/reason reuses that UUID across store instances. It never
+retries in the background or sends from another account. A verified matching
+receipt clears only that intent; invalid or uncertain results retain it. Current
+in-review/closed progress from a replay receipt is accepted without replacing it
+with a fabricated received status. Storage errors or failed readback stop before
+HTTP, and pending saves recheck route and session ownership before sending.
+Legacy servers receive no unsupported key. Bounds: eight unresolved intents per
+account, original references/reasons only, no credentials or content snapshots.
+
+132 synthetic Flutter tests pass, focused analysis clean. Additional checks
+cover new-instance persistence, independent account/payload keys, concurrent
+prepare serialization, stale cleanup, storage bounds/corruption, uncertain HTTP
+followed by same-key explicit retry/current receipt, legacy compatibility,
+unreadable storage, same-login/other-identity changes while storage is pending,
+and a lost write. These are storage-plugin mocks, not physical encrypted-storage
+or process-kill acceptance. Eight EN/NE light/dark first-send/retry layouts at
+320x640/180% text were rendered; retry copy was shortened after initial scroll
+clipping. Nepali action padding from the parent review is preserved. Post caption
+is a bounded preview; full UUID is optional secondary Reference. No published
+source, app build, production migration or real report has been made.
+
+Remaining limitations: no native encrypted-storage/restart proof, no pending
+report recovery list when original content disappears, no cross-device retry
+identity, and no immutable server subject binding. Existing retention and
+moderation policy/staffing decisions remain unchanged. Do not deploy this whole
+private tree as an unreviewed replacement for the bounded production overlay.

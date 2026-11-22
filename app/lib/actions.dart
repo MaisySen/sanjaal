@@ -1,4 +1,5 @@
 import 'reports_page.dart';
+import 'report_submission_store.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -40,6 +41,34 @@ Future<void> reportFlow(
         openingRoute?.isCurrent == false) {
       return;
     }
+    final replaySafe = s.reportHistoryEnabled && s.reportReplayEnabled;
+    const submissions = ReportSubmissionStore();
+    String? previous;
+    if (replaySafe) {
+      try {
+        previous = await submissions.find(
+          owner.member as String,
+          type,
+          target,
+          reason,
+        );
+      } catch (_) {
+        if (context.mounted &&
+            owner.active &&
+            openingRoute?.isCurrent != false) {
+          showError(
+            context,
+            ApiError(t_('Report retry could not be saved. Nothing was sent.')),
+          );
+        }
+        return;
+      }
+      if (!context.mounted ||
+          !owner.active ||
+          openingRoute?.isCurrent == false) {
+        return;
+      }
+    }
     final confirmed = await owner.dialog<bool>(
       context: context,
       builder: (c, complete) => AlertDialog(
@@ -52,7 +81,7 @@ Future<void> reportFlow(
             Text(t_(reportTypes[type] ?? 'Report')),
             const SizedBox(height: 6),
             if (targetLabel != null && targetLabel.trim().isNotEmpty) ...[
-              Text(targetLabel, maxLines: 4, overflow: TextOverflow.ellipsis),
+              Text(targetLabel, maxLines: 3, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 8),
             ],
             if (targetLabel != null &&
@@ -81,7 +110,13 @@ Future<void> reportFlow(
             const SizedBox(height: 16),
             Text(t_(reportReasons[reason]!)),
             const SizedBox(height: 12),
-            Text(t_('Send this report?')),
+            Text(
+              t_(
+                previous == null
+                    ? 'Send this report?'
+                    : 'Retry the same report?',
+              ),
+            ),
           ],
         ),
         actions: [
@@ -109,11 +144,42 @@ Future<void> reportFlow(
         openingRoute?.isCurrent == false) {
       return;
     }
+    String? submission;
+    if (replaySafe) {
+      try {
+        submission = await submissions.prepare(
+          owner.member as String,
+          type,
+          target,
+          reason,
+        );
+      } catch (_) {
+        if (context.mounted &&
+            owner.active &&
+            openingRoute?.isCurrent != false) {
+          showError(
+            context,
+            ApiError(t_('Report retry could not be saved. Nothing was sent.')),
+          );
+        }
+        return;
+      }
+      if (!context.mounted ||
+          !owner.active ||
+          openingRoute?.isCurrent == false) {
+        return;
+      }
+    }
     try {
       final result = await s.call(
         'POST',
         '/reports',
-        body: {'type': type, 'target': target, 'reason': reason},
+        body: {
+          'type': type,
+          'target': target,
+          'reason': reason,
+          'submission_id': ?submission,
+        },
       );
       if (!context.mounted ||
           !owner.active ||
@@ -128,8 +194,27 @@ Future<void> reportFlow(
       if (receipt.data['type'] != type ||
           receipt.data['target'] != target ||
           receipt.data['reason'] != reason ||
-          receipt.data['status'] != 'received') {
+          (receipt.data['status'] != 'received' &&
+              !(replaySafe && result['replayed'] == true))) {
         throw const FormatException();
+      }
+      if (submission != null) {
+        try {
+          await submissions.complete(
+            owner.member as String,
+            type,
+            target,
+            reason,
+            submission,
+          );
+        } catch (_) {
+          // Keep the same key on storage failure. A later explicit send is still replay-safe.
+        }
+        if (!context.mounted ||
+            !owner.active ||
+            openingRoute?.isCurrent == false) {
+          return;
+        }
       }
       final view = await owner.dialog<bool>(
         context: context,

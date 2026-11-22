@@ -11,7 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
-import 'call_page.dart';
+import 'active_call_host.dart';
 import 'profile_pages.dart' show UserProfilePage;
 import 'calls_page.dart';
 import 'rooms_page.dart';
@@ -1016,9 +1016,8 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
 
   void _call(bool video) {
     if(!_canContact)return;
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CallPage(session: widget.session, conversationId: id, title: (widget.convo['title'] ?? 'Call').toString(), video: video),
-    ));
+    unawaited(openCall(context, session: widget.session, conversationId: id,
+        title: (widget.convo['title'] ?? 'Call').toString(), video: video));
   }
 
   Widget _messageTile(Map<String, dynamic> m, {required bool group, required String? myId}) {

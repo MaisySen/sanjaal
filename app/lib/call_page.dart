@@ -1,321 +1,133 @@
-import 'session_bound_state.dart';
-import 'ph.dart';
-import 'package:livekit_client/livekit_client.dart' hide Session, ConnectionState;
-import 'package:livekit_client/livekit_client.dart' as livekit show ConnectionState;
 import 'package:material_ui/material_ui.dart';
+
 import 'api.dart';
-import 'call_lifecycle.dart';
-import 'call_media_guard.dart';
-import 'call_presentation.dart';
+import 'call_controller.dart';
+import 'call_view.dart';
 import 'ui.dart' show t_;
 
-/// Voice or video call for one conversation, over LiveKit.
+export 'call_view.dart';
+
+/// A presentation of one call. A host-owned controller survives minimisation.
 class CallPage extends StatefulWidget {
-  const CallPage({super.key, required this.session, required this.conversationId, required this.title, required this.video, this.callId});
+  const CallPage({
+    super.key,
+    required this.session,
+    required this.conversationId,
+    required this.title,
+    required this.video,
+    this.callId,
+    this.controller,
+    this.onMinimize,
+    this.onEnd,
+  });
   final Session session;
-  final String conversationId;
-  final String title;
+  final String conversationId, title;
   final bool video;
   final String? callId;
-
+  final CallController? controller;
+  final VoidCallback? onMinimize, onEnd;
   @override
   State<CallPage> createState() => _CallPageState();
 }
 
-class _CallPageState extends State<CallPage> with SessionBoundState<CallPage> {
-  @override Session get viewSession => widget.session;
-
-  final Room room = Room();
-  String status = 'Connecting...';
-  bool muted = false;
-  bool camOn = false;
-  bool failed = false;
-  String? _callId;
-  bool _ended = false;
-  bool _closed = false;
-  bool _mediaBusy = false;
-  final _mediaGuard = CallMediaGuard();
-  bool _setupComplete = false;
-  late final Future<void> _joining;
-  Future<void>? _mediaChange;
-
+class _CallPageState extends State<CallPage> {
+  late final CallController call;
+  late final bool ownsCall;
+  bool _retired = false;
   @override
   void initState() {
     super.initState();
-    _callId = widget.callId;
-    room.addListener(_changed);
-    _joining = _join();
+    ownsCall = widget.controller == null;
+    call =
+        widget.controller ??
+        CallController(
+          session: widget.session,
+          conversationId: widget.conversationId,
+          title: widget.title,
+          video: widget.video,
+          callId: widget.callId,
+        );
+    assert(
+      identical(call.session, widget.session) &&
+          call.conversationId == widget.conversationId,
+    );
+    call.addListener(_changed);
   }
 
-  @override void sessionRetired(){
-    _closed=true;
-    // Do not end this call with credentials from a different login.
-    _ended=true;
-    _releaseRoom();
-  }
   void _changed() {
-    if (mounted && sessionActive) setState(() {});
+    if (mounted) setState(() {});
   }
 
-  Future<void> _join() async {
-    try {
-      late Map<String, dynamic> token;
-      final connected = await connectCallWhileActive(
-        isActive: () => mounted && !_closed && sessionActive,
-        requestToken: () async {
-          final qs = widget.callId != null ? '?call=${widget.callId}' : '?kind=${widget.video ? 'video' : 'voice'}';
-          token = await widget.session.call('POST', '/conversations/${widget.conversationId}/call-token$qs') as Map<String, dynamic>;
-          _callId = token['call_id'] as String? ?? _callId;
-        },
-        connect: () => room.connect(token['url'] as String, token['token'] as String),
-        microphone: () async { await room.localParticipant?.setMicrophoneEnabled(true); },
-        camera: () async { await room.localParticipant?.setCameraEnabled(true); },
-        video: widget.video,
-      );
-      if (!connected) {
-        _endCall();
-        await _disconnectSafely();
-        return;
-      }
-      if (mounted && sessionActive) setState(() { _setupComplete = true; camOn = widget.video; });
-    } on ApiError catch (e) {
-      _endCall();
-      await _disconnectSafely();
-      if (mounted && sessionActive) {
-        setState(() {
-          failed = true;
-          status = t_(e.message);
-        });
-      }
-    } catch (_) {
-      _endCall();
-      await _disconnectSafely();
-      if (mounted && sessionActive) {
-        setState(() {
-          failed = true;
-          status = 'Could not start the call. Check your connection and microphone permission.';
-        });
-      }
+  void _end() {
+    if (!mounted ||
+        _retired ||
+        !call.ownerMatches ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    final end = widget.onEnd;
+    if (end != null) {
+      end();
+    } else {
+      Navigator.of(context).pop();
     }
   }
 
-  void _endCall() {
-    if (!sessionActive || _ended || _callId == null) return;
-    _ended = true;
-    widget.session.call('POST', '/calls/$_callId/action', body: {'action': 'end'}).catchError((_) => null);
+  @override
+  void didUpdateWidget(covariant CallPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.session, oldWidget.session) ||
+        widget.conversationId != oldWidget.conversationId ||
+        widget.callId != oldWidget.callId ||
+        !identical(widget.controller, oldWidget.controller)) {
+      _retired = true;
+      call.close(endRemote: false);
+    }
   }
 
   @override
   void dispose() {
-    _closed = true;
-    _endCall();
-    room.removeListener(_changed);
-    _releaseRoom();
+    call.removeListener(_changed);
+    if (ownsCall) call.dispose();
     super.dispose();
   }
 
-  Future<void> _disconnectSafely() async {
-    try { await room.disconnect(); } catch (_) {}
-  }
-
-  Future<void>? _release;
-  Future<void> _releaseRoom() => _release ??= () async {
-    // Stop capture immediately, then wait for any token/connect operation to
-    // observe _closed before disposing the native room it may still be using.
-    await _disconnectSafely();
-    try { await _joining; } catch (_) {}
-    try { await _mediaChange; } catch (_) {}
-    await _disconnectSafely();
-    try { await room.dispose(); } catch (_) {}
-  }();
-
-  void _changeMedia({required bool camera}) {
-    if (!sessionActive || _closed || _mediaBusy || failed || room.localParticipant == null) return;
-    _mediaChange = _media(camera: camera);
-  }
-
-  Future<void> _media({required bool camera}) async {
-    if (!sessionActive || _closed || _mediaBusy || failed || room.localParticipant == null) return;
-    setState(() => _mediaBusy = true);
-    final participant = room.localParticipant!;
-    try {
-      final next = camera ? !camOn : !muted;
-      final applied = await _mediaGuard.change(
-        isActive: () => mounted && sessionActive && !_closed && !failed,
-        apply: () async {
-          if (camera) {
-            await participant.setCameraEnabled(next);
-          } else {
-            await participant.setMicrophoneEnabled(!next);
-          }
-        },
-        onFailure: () {
-          if (mounted && sessionActive && !_closed) {
-            setState(() {
-              failed = true;
-              status = 'Media controls failed. Leave this call. Microphone or camera state could not be confirmed.';
-            });
-          }
-          _endCall();
-        },
-        stopMicrophone: () async { await participant.setMicrophoneEnabled(false); },
-        stopCamera: () async { await participant.setCameraEnabled(false); },
-        disconnect: () => room.disconnect(),
-      );
-      if (applied && mounted && sessionActive && !_closed) setState(() { if (camera) { camOn = next; } else { muted = next; } });
-    } catch (_) {
-      // The persistent failed state above keeps End reachable. Do not restore
-      // controls after an uncertain native mutation or claim capture stopped.
-    } finally {
-      if (mounted && sessionActive) setState(() => _mediaBusy = false);
-    }
-  }
-
-  VideoTrack? _videoOf(Participant p) {
-    for (final pub in p.videoTrackPublications) {
-      final t = pub.track;
-      if (t is VideoTrack && !pub.muted) return t;
-    }
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
-    if(!sessionActive)return retiredSessionView();
-    final remotes = room.remoteParticipants.values.toList();
-    final presentation = presentCall(
-      transport: switch (room.connectionState) {
-        livekit.ConnectionState.connected => CallTransport.connected,
-        livekit.ConnectionState.reconnecting => CallTransport.reconnecting,
-        livekit.ConnectionState.disconnected => CallTransport.disconnected,
-        livekit.ConnectionState.connecting => CallTransport.connecting,
-      },
-      setupComplete: _setupComplete, remoteCount: remotes.length,
-      previouslyConnected: _setupComplete,
-    );
-    final tiles = <Widget>[];
-    for (final p in remotes) {
-      final v = _videoOf(p);
-      tiles.add(_tile(p.name.isEmpty ? 'Member' : p.name, v));
-    }
-    final me = room.localParticipant;
-    return CallView(
-      title: widget.title,
-      status: failed ? status : presentation.status,
-      failed: failed,
-      video: widget.video,
-      muted: muted,
-      camOn: camOn,
-      tiles: tiles,
-      selfPreview: me != null && camOn && _videoOf(me) != null ? VideoTrackRenderer(_videoOf(me)!) : null,
-      controlsBusy: _mediaBusy || !presentation.mediaAvailable,
-      onMute: () => _changeMedia(camera: false),
-      onCamera: () => _changeMedia(camera: true),
-      onEnd: () => Navigator.of(context).pop(),
-    );
-  }
-
-  Widget _tile(String name, VideoTrack? v) => CallTile(name: name, video: v == null ? null : VideoTrackRenderer(v));
-}
-
-/// One participant tile: video when there is any, otherwise a placeholder with the name.
-class CallTile extends StatelessWidget {
-  const CallTile({super.key, required this.name, this.video});
-  final String name;
-  final Widget? video;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: Colors.grey.shade900, borderRadius: BorderRadius.circular(20)),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(children: [
-          if (video != null) Positioned.fill(child: video!) else const Center(child: PhIcon('user-fill', size: 64, color: Colors.white54)),
-          Positioned(
-            left: 10,
-            bottom: 10,
-            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), borderRadius: BorderRadius.circular(12)), child: Text(name, style: const TextStyle(color: Colors.white))),
-          ),
-        ]),
-      );
-}
-
-/// The call screen without any LiveKit dependency, so it can be rendered offline.
-class CallView extends StatelessWidget {
-  const CallView({super.key, required this.title, required this.status, required this.failed, required this.video, required this.muted, required this.camOn, required this.tiles, required this.onMute, required this.onCamera, required this.onEnd, this.selfPreview, this.controlsBusy = false});
-  final String title;
-  final String status;
-  final bool failed;
-  final bool video;
-  final bool muted;
-  final bool camOn;
-  final List<Widget> tiles;
-  final Widget? selfPreview;
-  final bool controlsBusy;
-  final VoidCallback onMute;
-  final VoidCallback onCamera;
-  final VoidCallback onEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(leading: Navigator.of(context).canPop() ? BackButton(color: Colors.white, style: IconButton.styleFrom(foregroundColor: Colors.white), onPressed: onEnd) : null, title: Text(title, style: const TextStyle(color: Colors.white)), iconTheme: const IconThemeData(color: Colors.white), backgroundColor: Colors.black, foregroundColor: Colors.white),
-      body: LayoutBuilder(builder: (context, box) => Column(children: [
-        // A service/permission error may be long, especially with large text.
-        // Keep it fully scrollable without pushing End call off the screen.
-        ConstrainedBox(constraints: BoxConstraints(maxHeight: box.maxHeight * 0.3), child: SingleChildScrollView(
-          key: const ValueKey('call-status-scroll'),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: Semantics(liveRegion: true, child: Text(t_(status), textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70))),
-        )),
-        Expanded(child: Stack(children: [
-          if (tiles.isEmpty)
-            const Center(child: PhIcon('user-fill', size: 80, color: Colors.white54))
-          else LayoutBuilder(builder: (context, box) {
-            final cols = tiles.length > 1 ? 2 : 1;
-            final rows = (tiles.length / cols).ceil();
-            return GridView.count(
-              physics: const NeverScrollableScrollPhysics(), crossAxisCount: cols,
-              childAspectRatio: (box.maxWidth / cols) / (box.maxHeight / rows), children: tiles,
-            );
-          }),
-          if (selfPreview != null) Positioned(right: 14, top: 14,
-            child: Semantics(label: t_('Your camera preview'), child: SizedBox(height: 120, width: 90,
-              child: ClipRRect(borderRadius: BorderRadius.circular(14), child: selfPreview)))),
-        ])),
-        SafeArea(
+    if (_retired || !call.ownerMatches) {
+      return Scaffold(
+        body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(32, 8, 32, 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(40)),
-              child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                IconButton.filledTonal(
-                  style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white, disabledForegroundColor: Colors.white54),
-                  tooltip: t_(muted ? 'Unmute microphone' : 'Mute microphone'),
-                  onPressed: failed || controlsBusy ? null : onMute,
-                  icon: PhIcon(muted ? Ph.mic_off : Ph.mic),
-                ),
-                if (video)
-                  IconButton.filledTonal(
-                    style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.18), foregroundColor: Colors.white, disabledForegroundColor: Colors.white54),
-                    tooltip: t_(camOn ? 'Turn camera off' : 'Turn camera on'),
-                    onPressed: failed || controlsBusy ? null : onCamera,
-                    icon: PhIcon(camOn ? Ph.videocam : Ph.videocam_off),
-                  ),
-                IconButton.filled(
-                  style: IconButton.styleFrom(backgroundColor: Colors.red),
-                  tooltip: t_('End call'),
-                  onPressed: onEnd,
-                  icon: const PhIcon('phone-x-fill', color: Colors.white),
-                ),
-              ]),
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              t_(
+                'This screen belongs to another signed-in session. Close it and sign in again to continue.',
+              ),
             ),
           ),
         ),
-      ])),
+      );
+    }
+    return PopScope<Object?>(
+      canPop: widget.onMinimize == null,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) widget.onMinimize?.call();
+      },
+      child: CallView(
+        title: call.title,
+        status: call.presentation.status,
+        failed: call.failed,
+        video: call.video,
+        muted: call.muted,
+        camOn: call.camOn,
+        tiles: call.connection.tiles,
+        selfPreview: call.camOn ? call.connection.selfPreview : null,
+        controlsBusy: call.mediaBusy || !call.presentation.mediaAvailable,
+        onMute: () => call.changeMedia(camera: false),
+        onCamera: () => call.changeMedia(camera: true),
+        onMinimize: widget.onMinimize,
+        onEnd: _end,
+      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'active_call_host.dart';
 import 'profile_setup_page.dart';
 import 'glass/glass_sheet.dart';
 import 'glass/glass_settings.dart';
@@ -161,6 +162,7 @@ class SanjaalApp extends StatefulWidget {
 
 class _SanjaalAppState extends State<SanjaalApp> {
   final session = Session();
+  final _navigatorKey = GlobalKey<NavigatorState>();
   bool _createAccount = false;
   bool _preferencesLoading = true;
   bool _preferencesFailed = false;
@@ -200,6 +202,9 @@ class _SanjaalAppState extends State<SanjaalApp> {
       builder: (context, _) => MaterialApp(
         title: 'Sanjaal',
         navigatorObservers: [mediaRoutes],
+        navigatorKey: _navigatorKey,
+        builder: (context, child) => ActiveCallHost(session: session,
+            navigatorKey: _navigatorKey, child: child ?? const SizedBox.shrink()),
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light, fontFamily: widget.fontFamily),
         darkTheme: buildTheme(Brightness.dark, fontFamily: widget.fontFamily),
@@ -331,12 +336,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Future<void> _checkIncoming() async {
-    if (_ringing || !mounted || !_foreground) return;
+    if (_ringing || !mounted || !_foreground || ActiveCallHost.busy(context)) return;
     _ringing = true;
     try {
       final j = await widget.session.call('GET', '/calls/incoming') as Map<String, dynamic>;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
-      if (list.isEmpty || !mounted || !_foreground) return;
+      if (list.isEmpty || !mounted || !_foreground || ActiveCallHost.busy(context)) return;
       if (list.first['public_id'] == _lastCall) return;
       _lastCall = list.first['public_id'] as String;
       HapticFeedback.heavyImpact();

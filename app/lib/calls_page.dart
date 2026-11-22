@@ -5,6 +5,7 @@ import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'active_call_host.dart';
 import 'call_page.dart';
 import 'ui.dart';
 
@@ -50,9 +51,9 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
     if (!mounted || !sessionActive || opening || !calls.any((c) => identical(c, row))) return;
     opening = true;
     try {
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => CallPage(session: widget.session, conversationId: row['conversation_id'] as String, title: '${row['title'] ?? 'Call'}', video: row['kind'] == 'video'),
-      ));
+      await openCall(context, session: widget.session,
+          conversationId: row['conversation_id'] as String,
+          title: '${row['title'] ?? 'Call'}', video: row['kind'] == 'video');
     } finally {
       opening = false;
     }
@@ -193,6 +194,19 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
 
   void _join() {
     if (!mounted || !sessionActive || phase != 'answered' || requestedAccept != true) return;
+    final host = ActiveCallHost.maybeOf(context);
+    if (host != null) {
+      final route = ModalRoute.of(context);
+      if (route?.isCurrent != true || host.busy) return;
+      unawaited(host.open(context, session: widget.session,
+          conversationId: widget.call['conversation_id'] as String,
+          title: '${widget.call['title'] ?? 'Call'}',
+          video: widget.call['kind'] == 'video',
+          callId: widget.call['public_id'] as String));
+      if (host.owns(widget.session, widget.call['conversation_id'] as String) &&
+          route!.isActive) Navigator.of(context).removeRoute(route);
+      return;
+    }
     Navigator.of(context).pushReplacement(MaterialPageRoute(
       builder: (_) => CallPage(
         session: widget.session,

@@ -1,3 +1,4 @@
+import 'profile_setup_page.dart';
 import 'glass/glass_sheet.dart';
 import 'glass/glass_settings.dart';
 import 'discovery_entry.dart';
@@ -232,6 +233,12 @@ class _SanjaalAppState extends State<SanjaalApp> {
                         setState(() => _createAccount = create);
                         prefs.finishOnboarding();
                       });
+              }
+              if (session.profileSetupPending) {
+                return ProfileSetupPage(
+                  key: ValueKey('profile-setup-${session.accountViewGeneration}'),
+                  session: session,
+                );
               }
               return HomeShell(key: ValueKey(session.accountViewGeneration), session: session);
             },

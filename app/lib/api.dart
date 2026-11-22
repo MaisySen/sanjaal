@@ -464,6 +464,24 @@ class Session extends ChangeNotifier {
     }finally{_finishAuthentication(epoch);}
   }
 
+  String? _profileSetupOwner;
+  int? _profileSetupGeneration;
+  bool get profileSetupPending =>
+      _profileSetupOwner != null &&
+      user?['public_id'] == _profileSetupOwner &&
+      generation == _profileSetupGeneration &&
+      !accountViewNeedsRefresh;
+  void finishProfileSetup({required String owner, required int openedGeneration}) {
+    if (!profileSetupPending ||
+        owner != _profileSetupOwner ||
+        openedGeneration != _profileSetupGeneration) {
+      return;
+    }
+    _profileSetupOwner = null;
+    _profileSetupGeneration = null;
+    notifyListeners();
+  }
+
   int _registrationAttempt = 0;
   Future<void> register(String email, String username, String password) async {
     final epoch = _sessionEpoch;
@@ -500,7 +518,14 @@ class Session extends ChangeNotifier {
             : 'Could not create your account. Try again.', r.statusCode);
     }
     try {
-      await login(email, password);
+      final signingIn = login(email, password);
+      final loginEpoch = _sessionEpoch;
+      await signingIn;
+      _checkSession(loginEpoch);
+      if (attempt != _registrationAttempt) throw ApiError('Please sign in again.', 401);
+      _profileSetupOwner = user?['public_id'] as String?;
+      _profileSetupGeneration = loginEpoch;
+      notifyListeners();
     } catch (_) {
       throw AccountCreatedSignInRequired();
     }
@@ -616,6 +641,8 @@ class Session extends ChangeNotifier {
     _access = null;
     _refresh = null;
     user = null;
+    _profileSetupOwner = null;
+    _profileSetupGeneration = null;
     pollsEnabled = false;
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;

@@ -9,6 +9,7 @@ import 'package:sanjaal/glass_nav.dart';
 import 'package:sanjaal/feed_page.dart';
 import 'package:sanjaal/search_page.dart';
 import 'package:sanjaal/profile_pages.dart';
+import 'package:sanjaal/profile_setup_page.dart';
 import 'package:sanjaal/chat_pages.dart';
 import 'package:sanjaal/settings_page.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -308,6 +309,10 @@ void main() {
             'synthetic-password',
           );
           await tapText(t, 'Create account');
+          expect(find.byType(ProfileSetupPage), findsOneWidget);
+          expect(find.byType(HomeShell), findsNothing);
+          await capture(t, key, 'optional_profile');
+          await tapText(t, 'Continue to Sanjaal');
           expect(find.byType(HomeShell), findsOneWidget);
           expect(find.text('Nothing here yet'), findsOneWidget);
           await t.tap(find.byTooltip('Post').first);

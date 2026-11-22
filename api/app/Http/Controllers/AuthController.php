@@ -14,7 +14,7 @@ class AuthController extends Controller
 {
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['features' => ['interaction_controls' => true, 'video_posters' => true, 'protected_stories' => true, 'story_replies' => true, 'group_member_refs' => true, 'polls' => true, 'upload_intents' => (bool) config('services.uploads.replay_safe')], 'user' => \App\Http\Resources\Present::user($request->user()) + ['phone' => $request->user()->phone, 'email' => $request->user()->email]]);
+        return response()->json(['features' => ['group_member_removal' => config('group_member_removal.enabled') === true && \Illuminate\Support\Facades\Schema::hasColumn('conversations', 'ownership_version'), 'group_ownership' => config('group_ownership.enabled') === true && \Illuminate\Support\Facades\Schema::hasColumn('conversations', 'ownership_version'), 'interaction_controls' => true, 'video_posters' => true, 'protected_stories' => true, 'story_replies' => true, 'group_member_refs' => true, 'polls' => true, 'upload_intents' => (bool) config('services.uploads.replay_safe')], 'user' => \App\Http\Resources\Present::user($request->user()) + ['phone' => $request->user()->phone, 'email' => $request->user()->email]]);
     }
 
     public function update(Request $request): JsonResponse

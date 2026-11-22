@@ -177,6 +177,81 @@ class ChatController extends Controller
         return response()->json(['conversation' => $result]);
     }
 
+    /** Explicit owner handoff. Existing members keep their membership and message history. */
+    public function transferOwnership(Request $request, string $id): JsonResponse
+    {
+        abort_unless(config('group_ownership.enabled') === true, 404);
+        $convo = $this->authorized($request, $id);
+        abort_unless($convo->type === 'group', 422, 'Only groups have an owner.');
+        abort_unless(array_key_exists('ownership_version', $convo->getAttributes()), 503, 'Group ownership is not ready on this server.');
+        $data = $request->validate([
+            'member_id' => ['required', 'uuid'],
+            'ownership_revision' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+        ]);
+        $me = $request->user();
+        $result = DB::transaction(function () use ($convo, $me, $data) {
+            $current = Conversation::whereKey($convo->id)->lockForUpdate()->firstOrFail();
+            $current->load('members');
+            $actor = $current->members->firstWhere('id', $me->id);
+            abort_unless($actor, 404);
+            abort_unless($actor->pivot->role === 'owner', 403, 'Only the group owner can choose the next owner.');
+            abort_unless($current->members->where('pivot.role', 'owner')->count() === 1, 409, 'Reload this group before choosing an owner.');
+            abort_unless(hash_equals($this->ownershipRevision($current), $data['ownership_revision']), 409, 'The group changed. Reload it before choosing an owner.');
+            $target = $current->members->firstWhere('public_id', $data['member_id']);
+            abort_unless($target, 404);
+            abort_if($target->id === $me->id, 422, 'Choose another group member.');
+            abort_unless($current->members()->updateExistingPivot($me->id, ['role' => 'member']) === 1, 409, 'Reload this group before choosing an owner.');
+            abort_unless($current->members()->updateExistingPivot($target->id, ['role' => 'owner']) === 1, 409, 'Reload this group before choosing an owner.');
+            $current->increment('ownership_version');
+
+            return $this->present($current->load('members'), $me);
+        });
+
+        return response()->json(['conversation' => $result]);
+    }
+
+    /** An owner removes another current member without deleting messages or media. */
+    public function removeMember(Request $request, string $id): JsonResponse
+    {
+        abort_unless(config('group_member_removal.enabled') === true, 404);
+        $convo = $this->authorized($request, $id);
+        abort_unless($convo->type === 'group', 422, 'Only groups have removable members.');
+        abort_unless(array_key_exists('ownership_version', $convo->getAttributes()), 503, 'Group member management is not ready on this server.');
+        $data = $request->validate([
+            'member_id' => ['required', 'uuid'],
+            'ownership_revision' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+        ]);
+        $me = $request->user();
+        $result = DB::transaction(function () use ($convo, $me, $data) {
+            $current = Conversation::whereKey($convo->id)->lockForUpdate()->firstOrFail();
+            $current->load('members');
+            $actor = $current->members->firstWhere('id', $me->id);
+            abort_unless($actor, 404);
+            abort_unless($actor->pivot->role === 'owner', 403, 'Only the group owner can remove a member.');
+            abort_unless($current->members->where('pivot.role', 'owner')->count() === 1, 409, 'Reload this group before removing a member.');
+            abort_unless(hash_equals($this->ownershipRevision($current), $data['ownership_revision']), 409, 'The group changed. Reload it before removing a member.');
+            $target = $current->members->firstWhere('public_id', $data['member_id']);
+            abort_unless($target, 404);
+            abort_if($target->id === $me->id || $target->pivot->role !== 'member', 422, 'Use Leave group to leave, or choose another member.');
+            abort_unless($current->members()->detach($target->id) === 1, 409, 'Reload this group before removing a member.');
+            $current->increment('ownership_version');
+
+            return $this->present($current->load('members'), $me);
+        });
+
+        return response()->json(['conversation' => $result]);
+    }
+
+    /** A monotonic version also prevents an ownership round trip reviving an old choice. */
+    private function ownershipRevision(Conversation $convo): string
+    {
+        $members = $convo->members->sortBy('public_id')->map(fn ($u) => [
+            $u->public_id, $u->username, $u->publicName(), $u->pivot->role,
+        ])->values()->all();
+
+        return hash('sha256', json_encode([$convo->public_id, $convo->title, (int) ($convo->ownership_version ?? 0), $members], JSON_THROW_ON_ERROR));
+    }
+
     /** Any member of a group can add people by username, up to 50 members in total. */
     public function addMembers(Request $request, string $id): JsonResponse
     {
@@ -196,9 +271,10 @@ class ChatController extends Controller
         }
         $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
             ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();
-        $over = DB::transaction(function () use ($convo, $users, $blocked) {
+        $over = DB::transaction(function () use ($convo, $users, $blocked, $me) {
             // Lock the conversation row so two invitations cannot both pass the capacity check.
-            Conversation::whereKey($convo->id)->lockForUpdate()->first();
+            Conversation::whereKey($convo->id)->lockForUpdate()->firstOrFail();
+            abort_unless($convo->hasMember($me), 404);
             $existing = $convo->members()->pluck('users.id')->all();
             $fresh = $users->reject(fn ($u) => in_array($u->id, $existing, true) || in_array($u->id, $blocked, true));
             if (count($existing) + $fresh->count() > 50) {
@@ -208,6 +284,9 @@ class ChatController extends Controller
                 // New members see messages from now on, not the history from before they joined.
                 $from = (int) $convo->messages()->max('id');
                 $convo->members()->attach($fresh->pluck('id')->all(), ['role' => 'member', 'history_from_id' => $from, 'last_read_message_id' => $from]);
+                if (array_key_exists('ownership_version', $convo->getAttributes())) {
+                    $convo->increment('ownership_version');
+                }
             }
 
             return false;
@@ -216,7 +295,7 @@ class ChatController extends Controller
             return response()->json(['message' => 'A group can have at most 50 members.', 'errors' => ['usernames' => ['A group can have at most 50 members.']]], 422);
         }
 
-        return response()->json(['conversation' => $this->present($convo->load('members'), $me)]);
+        return response()->json(['conversation' => $this->present($convo->fresh('members'), $me)]);
     }
 
     /** Leave a group. If the owner leaves, the longest standing member becomes owner. */
@@ -239,6 +318,9 @@ class ChatController extends Controller
                 return false;
             }
             $convo->forceFill(['title' => $title])->save();
+            if (array_key_exists('ownership_version', $convo->getAttributes())) {
+                $convo->increment('ownership_version');
+            }
 
             return true;
         });
@@ -261,6 +343,9 @@ class ChatController extends Controller
             // Read the role only after the lock: another leave may have just promoted this member to owner.
             $wasOwner = $convo->members()->where('users.id', $me->id)->wherePivot('role', 'owner')->exists();
             $convo->members()->detach($me->id);
+            if (array_key_exists('ownership_version', $convo->getAttributes())) {
+                $convo->increment('ownership_version');
+            }
             if (! $convo->members()->exists()) {
                 // Current private uploads are DB-only. Clean their bytes in the
                 // same transaction; legacy B2 cleanup stays a separate review.
@@ -473,7 +558,8 @@ class ChatController extends Controller
             'public_id' => $c->public_id,
             'type' => $c->type,
             'title' => $c->type === 'group' ? $c->title : $other?->publicName(),
-            'members' => $c->members->map(fn ($u) => Present::user($u))->values(),
+            'members' => $c->members->map(fn ($u) => Present::user($u) + ($c->type === 'group' ? ['group_role' => $u->pivot->role] : []))->values(),
+            'ownership_revision' => $c->type === 'group' ? $this->ownershipRevision($c) : null,
             'last_message' => $last ? Present::message($last, (int) ($pivot?->history_from_id ?? 0), $hidden ?? Present::hiddenAuthors([$me->id]), $pre) : null,
             'my_role' => $c->type === 'group' ? ($pivot?->role ?? 'member') : null,
             'pinned' => (bool) ($pivot?->pinned), 'muted' => (bool) ($pivot?->muted), 'archived' => (bool) ($pivot?->archived),

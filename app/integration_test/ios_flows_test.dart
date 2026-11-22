@@ -1,5 +1,5 @@
 import 'native_transport.dart';
-// Harness adaptation for frozen ca9a9ff: compact tabs retain tooltips/semantics.
+// Harness adaptation for the reviewed runtime: compact tabs retain tooltips/semantics.
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
 import 'dart:io';
@@ -255,11 +255,12 @@ void main(){
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_settings');
   await stage('native device access through settings search');
+  await t.tap(find.widgetWithText(TextField,'Search settings'));
   await t.enterText(find.widgetWithText(TextField,'Search settings'),'device');
   await until(t,()=>find.text('Device access').evaluate().isNotEmpty);
   await t.tap(find.text('Device access'));
   await until(t,()=>find.byType(DeviceAccessPage).evaluate().isNotEmpty &&
-      find.text('Photos and videos').evaluate().isNotEmpty);
+      find.text('Photos and videos').evaluate().isNotEmpty && t.view.viewInsets.bottom==0);
   final access=await t.runAsync(()=>const DeviceAccessGateway().read());
   expect(access!.platform,'ios');
   expect(access.values['photos'],access.values['videos']);
@@ -267,6 +268,9 @@ void main(){
     expect(access.values[key],isNot('unknown'));
     expect(find.text(deviceAccessStates[access.values[key]]!),findsWidgets);
   }
+  final openSettings=find.widgetWithText(FilledButton,'Open device settings');
+  await t.ensureVisible(openSettings);
+  expect(openSettings.hitTestable(),findsOneWidget);
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_native_device_access');
   await t.pageBack();

@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   ios-flows:
+    if: github.repository == 'MaisySen/sanjaal' && github.event.repository.private == false
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -28,7 +29,7 @@ jobs:
       with:
         channel: stable
         flutter-version: 3.50.0
-        cache: true
+        cache: false
     - uses: shivammathur/setup-php@v2
       with:
         php-version: '8.4'
@@ -122,34 +123,13 @@ jobs:
         \   find \"$CONTAINER\" -name ios-stages.log -exec cp {} build/screenshots/ios-stages.log \\; || true\n\
         \    find \"$CONTAINER\" -type d -name ios-evidence -exec cp -R {} build/screenshots/ \\; || true\n\
         \  fi\nfi\n"
-    - uses: actions/upload-artifact@v4
+    - name: Preserve bounded synthetic native pixels without artifact storage
       if: always()
-      with:
-        name: ios-simulator-local-evidence
-        path: 'app/ios-driver-output.log
-
-          app/ios-simulator.log
-
-          app/ios-build.log
-
-          app/ios-native-console.log
-
-          app/ios-vm-probe.json
-
-          app/ios-driver-exit.txt
-
-          app/build/screenshots/*
-
-          /tmp/ios-api.log
-
-          /tmp/ios-socket-gate.log
-
-          /tmp/ios-devices.json
-
-
-          /tmp/ios-standard-bind-probe.log
-
-          '
-        retention-days: 1
+      run: |
+        for file in app/ios-build.log app/ios-driver-output.log; do
+          if [ -f "$file" ]; then tail -80 "$file"; fi
+        done
+        python3 .github/ci/test-native-pixel-log.py
+        python3 .github/ci/native-pixel-log.py
     permissions:
       contents: read

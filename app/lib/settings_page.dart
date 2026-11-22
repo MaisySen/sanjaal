@@ -31,6 +31,31 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
   String query = '';
   final _search = TextEditingController();
   bool _opening = false;
+  bool _openingMail = false;
+
+  Future<void> _openMail({bool deletion = false}) async {
+    if (!mounted || !sessionActive || _openingMail) return;
+    final route = ModalRoute.of(context);
+    bool ownsRoute() => mounted && sessionActive && (route == null || route.isCurrent);
+    if (!ownsRoute()) return;
+    _openingMail = true;
+    final username = (widget.session.user?['username'] ?? '').toString();
+    final uri = deletion
+        ? Uri.parse('mailto:contact@fintex.au?subject=${Uri.encodeComponent('Delete my Sanjaal account')}&body=${Uri.encodeComponent('Please delete my Sanjaal account and data. Username: $username')}')
+        : Uri.parse('mailto:contact@fintex.au?subject=Sanjaal');
+    final fallback = deletion
+        ? 'Email contact@fintex.au to request account deletion.'
+        : 'Email contact@fintex.au for help.';
+    var opened = false;
+    try {
+      opened = await launchUrl(uri);
+    } catch (_) {
+      // Native failures use the same recovery as a missing email handler.
+    } finally {
+      _openingMail = false;
+    }
+    if (!opened && mounted && ownsRoute()) showInfo(context, t_(fallback));
+  }
   @override
   void dispose() {
     _search.dispose();
@@ -83,17 +108,8 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
       ],
       'More info and support': [
         ('About privacy terms licences', option('About, privacy and terms', 'info', () => open(const AboutPage()))),
-        ('Help contact support', option('Contact us', 'envelope-simple', () async {
-          if(!mounted || !sessionActive)return;
-          final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal'));
-          if (!ok && context.mounted && sessionActive) showInfo(context, 'Email contact@fintex.au for help.');
-        }, subtitle: 'contact@fintex.au')),
-        ('Delete my account data', option('Delete my account', 'trash', () async {
-          if(!mounted || !sessionActive)return;
-          final u = (session.user?['username'] ?? '').toString();
-          final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=${Uri.encodeComponent('Delete my Sanjaal account')}&body=${Uri.encodeComponent('Please delete my Sanjaal account and data. Username: $u')}'));
-          if (!ok && context.mounted && sessionActive) showInfo(context, 'Email contact@fintex.au to request account deletion.');
-        }, subtitle: 'Sends a request by email')),
+        ('Help contact support', option('Contact us', 'envelope-simple', () => _openMail(), subtitle: 'contact@fintex.au')),
+        ('Delete my account data', option('Delete my account', 'trash', () => _openMail(deletion: true), subtitle: 'Sends a request by email')),
       ],
       'Login': [
         ('Sign out logout', option('Sign out', 'sign-out', () {

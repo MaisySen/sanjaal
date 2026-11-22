@@ -186,6 +186,22 @@ class _BlockedPageState extends State<BlockedPage> with SessionBoundState<Blocke
     } finally { if (mounted && sessionActive) setState(() => loading = false); }
   }
 
+  Future<void> _unblock(Map<String, dynamic> user) async {
+    if (!mounted || !sessionActive || loading || changing ||
+        list?.any((current) => identical(current, user)) != true) {
+      return;
+    }
+    setState(() => changing = true);
+    try {
+      await widget.session.call('DELETE', '/users/${user['username']}/block');
+      await _load(afterChange: true);
+    } catch (e) {
+      if (mounted && sessionActive) showError(context, e);
+    } finally {
+      if (mounted && sessionActive) setState(() => changing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => !sessionActive ? _retiredSettingsView(context, widget.session) : Scaffold(
     appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Blocked people'), maxLines: 2, style: const TextStyle(fontSize: 18)), actions: [IconButton(tooltip: t_('Refresh'), onPressed: loading || changing ? null : _load, icon: const PhIcon('arrow-clockwise'))]),
@@ -200,15 +216,7 @@ class _BlockedPageState extends State<BlockedPage> with SessionBoundState<Blocke
         if (list != null && list!.isEmpty) EmptyState(icon: Ph.block, title: t_('You have not blocked anyone')),
         for (final u in list ?? <Map<String,dynamic>>[]) ListTile(
           leading: Avatar(user: u), title: Text('@${u['username']}'),
-          trailing: TextButton(onPressed: loading || changing ? null : () async {
-            if(!mounted || !sessionActive)return;
-            setState(() => changing = true);
-            try {
-              await widget.session.call('DELETE', '/users/${u['username']}/block');
-              await _load(afterChange: true);
-            } catch (e) { if (context.mounted && sessionActive) showError(context, e); }
-            finally { if (mounted && sessionActive) setState(() => changing = false); }
-          }, child: Text(t_('Unblock'))),
+          trailing: TextButton(onPressed: loading || changing ? null : () => _unblock(u), child: Text(t_('Unblock'))),
         ),
       ])),
   );

@@ -8,9 +8,11 @@ import 'upload_center_test.dart' as h;
 
 class Routes extends NavigatorObserver {
   int pushes = 0;
+  Route<dynamic>? last;
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     pushes++;
+    last = route;
     super.didPush(route, previousRoute);
   }
 }
@@ -30,7 +32,12 @@ VoidCallback open(WidgetTester t, bool calls) => calls
 void main() {
   for (final calls in [true, false]) {
     final label = calls ? 'Calls' : 'Rooms';
-    for (final scenario in ['duplicate', 'disposed', 'replaced row']) {
+    for (final scenario in [
+      'duplicate',
+      'disposed',
+      'replaced row',
+      'return',
+    ]) {
       testWidgets('$label rejects $scenario retained destination', (t) async {
         var sideEffects = 0;
         await h.fixture(
@@ -53,11 +60,26 @@ void main() {
                   .onRefresh();
               await h.flush(t);
             }
-            old();
+            if (scenario == 'return') {
+              old();
+              final navigator = t.state<NavigatorState>(find.byType(Navigator));
+              navigator.removeRoute(routes.last!);
+              await h.flush(t);
+              open(t, calls)();
+            } else {
+              old();
+            }
             if (scenario == 'duplicate') old();
             // Inspect pushes synchronously, then remove all routes before a
             // destination builder can reach call/media/room setup.
-            expect(routes.pushes, scenario == 'duplicate' ? 2 : 1);
+            expect(
+              routes.pushes,
+              scenario == 'return'
+                  ? 3
+                  : scenario == 'duplicate'
+                  ? 2
+                  : 1,
+            );
             await t.pumpWidget(const SizedBox());
             await h.flush(t);
             expect(sideEffects, 0);

@@ -52,4 +52,53 @@ void main(){
    reply.complete(helpers.json({}));await helpers.flush(t);expect(t.takeException(),isNull);
   },respond:(r)async{if(r.method=='DELETE'){writes++;return reply.future;}return helpers.json({'data':[{'username':'fixture'}]});});
  });
+ testWidgets('refresh cannot overtake pending unblock reconciliation',(t)async{
+  final deletion=Completer<http.Response>();final oldRead=Completer<http.Response>();var reads=0;
+  await helpers.fixture(t,(s,c)async{
+   await t.pumpWidget(MaterialApp(home:BlockedPage(session:s)));await helpers.flush(t);
+   final retainedRefresh=t.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh;
+   await t.tap(find.text('Unblock'));await helpers.flush(t);
+   expect(t.widget<IconButton>(find.byWidgetPredicate((w)=>w is IconButton && w.tooltip=='Refresh')).onPressed,isNull);
+   unawaited(retainedRefresh());await helpers.flush(t);
+   expect(reads,1,reason:'manual refresh must wait for the pending moderation write');
+   deletion.complete(helpers.json({}));await helpers.flush(t);
+   expect(reads,2);expect(find.text('You have not blocked anyone'),findsOneWidget);
+   expect(find.text('@fixture'),findsNothing);
+  },respond:(r)async{
+   if(r.method=='DELETE')return deletion.future;
+   reads++;
+   if(reads==1)return helpers.json({'data':[{'username':'fixture'}]});
+   if(!deletion.isCompleted)return oldRead.future;
+   return helpers.json({'data':[]});
+  });
+ });
+
+ testWidgets('unblock failure releases refresh without inventing successful removal',(t)async{
+  final deletion=Completer<http.Response>();var reads=0;
+  await helpers.fixture(t,(s,c)async{
+   await t.pumpWidget(MaterialApp(home:BlockedPage(session:s)));await helpers.flush(t);
+   await t.tap(find.text('Unblock'));await helpers.flush(t);
+   deletion.complete(helpers.json({'message':'Synthetic failure'},503));await helpers.flush(t);
+   expect(find.text('@fixture'),findsOneWidget);expect(reads,1);
+   expect(t.widget<IconButton>(find.byWidgetPredicate((w)=>w is IconButton && w.tooltip=='Refresh')).onPressed,isNotNull);
+   await t.tap(find.byTooltip('Refresh'));await helpers.flush(t);expect(reads,2);
+  },respond:(r)async{if(r.method=='DELETE')return deletion.future;reads++;return helpers.json({'data':[{'username':'fixture'}]});});
+ });
+ testWidgets('post-unblock read failure offers retry after write lock ends',(t)async{
+  var reads=0,writes=0;
+  await helpers.fixture(t,(s,c)async{
+   await t.pumpWidget(MaterialApp(home:BlockedPage(session:s)));await helpers.flush(t);
+   await t.tap(find.text('Unblock'));await helpers.flush(t);
+   expect(find.text('Try again'),findsOneWidget);expect(reads,2);expect(writes,1);
+   await t.tap(find.text('Try again'));await helpers.flush(t);
+   expect(reads,3);expect(writes,1);expect(find.text('You have not blocked anyone'),findsOneWidget);
+  },respond:(r)async{
+   if(r.method=='DELETE'){writes++;return helpers.json({});}
+   reads++;
+   if(reads==1)return helpers.json({'data':[{'username':'fixture'}]});
+   if(reads==2)return helpers.json({'message':'Synthetic unavailable'},503);
+   return helpers.json({'data':[]});
+  });
+ });
+
 }

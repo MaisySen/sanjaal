@@ -146,8 +146,8 @@ class _BlockedPageState extends State<BlockedPage> with SessionBoundState<Blocke
   @override
   void initState() { super.initState(); _load(); }
 
-  Future<void> _load() async {
-    if (!mounted || !sessionActive || loading) return;
+  Future<void> _load({bool afterChange = false}) async {
+    if (!mounted || !sessionActive || loading || (changing && !afterChange)) return;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/blocked') as Map<String, dynamic>;
@@ -161,14 +161,14 @@ class _BlockedPageState extends State<BlockedPage> with SessionBoundState<Blocke
 
   @override
   Widget build(BuildContext context) => !sessionActive ? _retiredSettingsView(context, widget.session) : Scaffold(
-    appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Blocked people'), maxLines: 2, style: const TextStyle(fontSize: 18)), actions: [IconButton(tooltip: t_('Refresh'), onPressed: loading ? null : _load, icon: const PhIcon('arrow-clockwise'))]),
+    appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Blocked people'), maxLines: 2, style: const TextStyle(fontSize: 18)), actions: [IconButton(tooltip: t_('Refresh'), onPressed: loading || changing ? null : _load, icon: const PhIcon('arrow-clockwise'))]),
     body: list == null && loading
       ? const Center(child: CircularProgressIndicator())
       : RefreshIndicator(onRefresh: _load, child: ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
         if (loading) const LinearProgressIndicator(),
         if (error != null) Padding(padding: const EdgeInsets.all(20), child: Column(children: [
           Text(error!, textAlign: TextAlign.center),
-          TextButton(onPressed: loading ? null : _load, child: Text(t_('Try again'))),
+          TextButton(onPressed: loading || changing ? null : _load, child: Text(t_('Try again'))),
         ])),
         if (list != null && list!.isEmpty) EmptyState(icon: Ph.block, title: t_('You have not blocked anyone')),
         for (final u in list ?? <Map<String,dynamic>>[]) ListTile(
@@ -178,7 +178,7 @@ class _BlockedPageState extends State<BlockedPage> with SessionBoundState<Blocke
             setState(() => changing = true);
             try {
               await widget.session.call('DELETE', '/users/${u['username']}/block');
-              await _load();
+              await _load(afterChange: true);
             } catch (e) { if (context.mounted && sessionActive) showError(context, e); }
             finally { if (mounted && sessionActive) setState(() => changing = false); }
           }, child: Text(t_('Unblock'))),

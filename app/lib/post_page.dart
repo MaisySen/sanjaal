@@ -93,11 +93,10 @@ class _PostPageState extends State<PostPage> with SessionBoundState<PostPage> {
       : Scaffold(
           appBar: ReviewedAppBar(title: Text(t_('Post'))),
           body: unavailable
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Ph.info_outline,
-                  title: 'Post unavailable',
-                  hint:
-                      'This post was removed or is no longer available to you.',
+                  title: t_('Post unavailable'),
+                  hint: t_('This post was removed or is no longer available to you.'),
                 )
               : error != null
               ? EmptyState(

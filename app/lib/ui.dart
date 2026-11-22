@@ -130,6 +130,8 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Post unavailable': 'पोस्ट उपलब्ध छैन',
+  'This post was removed or is no longer available to you.': 'यो पोस्ट हटाइएको छ वा अब तपाईंका लागि उपलब्ध छैन।',
   'Post could not be loaded.': 'पोस्ट लोड गर्न सकिएन।',
   'Glass changed for now, but could not be saved.': 'अहिलेका लागि ग्लास फेरिएको छ, तर सुरक्षित गर्न सकिएन।',
   'Appearance changed for now, but could not be saved. Choose it again to retry.': 'अहिलेका लागि रूप फेरिएको छ, तर सुरक्षित गर्न सकिएन। फेरि प्रयास गर्न उही विकल्प छान्नुहोस्।',

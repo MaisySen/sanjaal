@@ -26,11 +26,11 @@ jobs:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
       run: |
-        test "$(git rev-parse HEAD:app/lib)" = 15c3cf259d1299f2e6e6417936b349f004523e41
+        test "$(git rev-parse HEAD:app/lib)" = 2d9369b7b3922593777f009c0984665bc91b5b6d
         test "$(git rev-parse HEAD:app/ios)" = ad3103d5f6f5916be739d7834990aeaa41a29ec1
         test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
-        test "$(git rev-parse HEAD:app/pubspec.yaml)" = a70859c72405a0d40b8b3441010fcf6d8676e7a9
-        test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
+        test "$(git rev-parse HEAD:app/pubspec.yaml)" = 5a697f2f5a49a12b7927174ff91f5c842ec4e2fc
+        test "$(git rev-parse HEAD:app/pubspec.lock)" = d6f2d80db0abcd8fc53cbdf001fd8bac9d476eec
         test "$(git rev-parse HEAD:app/integration_test)" = 5b0bfd799b8abf0bea326bdbefd3a394132e5dd0
         test "$(git rev-parse HEAD:api/app)" = 54ecb668b31ffb1ab47d9c58ec3664f3fe3ed011
         test "$(git rev-parse HEAD:api/config)" = 14692b362a6c58d1eca3fb14ab254da3b69bdefa

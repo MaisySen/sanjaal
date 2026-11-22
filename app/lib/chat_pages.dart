@@ -38,13 +38,16 @@ class _ChatsPageState extends State<ChatsPage> {
   late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool _retired = false;
+  bool _opening = false;
+  bool get _active=>mounted && !_retired && identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   BuildContext? _menuContext;
   void _accountChanged(){if(!_active && mounted){
+    _retired = true;
     ++_loadVersion;timer?.cancel();
     final menu=_menuContext;
     if(menu!=null && menu.mounted && ModalRoute.of(menu)?.isCurrent==true)Navigator.of(menu).pop();
-    setState(()=>convos=[]);
+    setState(() { convos=[];error=null; });
   }}
   List<Map<String, dynamic>> convos = [];
   bool loading = true;
@@ -66,6 +69,7 @@ class _ChatsPageState extends State<ChatsPage> {
   @override
   void didUpdateWidget(ChatsPage old) {
     super.didUpdateWidget(old);
+    _accountChanged();
     if (widget.active && !old.active) _load(quiet: true);
   }
 
@@ -128,18 +132,34 @@ class _ChatsPageState extends State<ChatsPage> {
     _menuContext=null;
   }
 
+  Future<void> _openAux(Widget page) async {
+    if (!_active || _opening) return;
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _opening = false;
+    }
+  }
+
   Future<void> _open(Map<String, dynamic> c) async {
-    if(!_active)return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: c)));
-    _load(quiet: true,force:true);
+    if (!_active || _opening) return;
+    await _openAux(ChatPage(session: widget.session, convo: c));
+    if (_active) _load(quiet: true,force:true);
   }
 
   Future<void> _new() async {
-    if(!_active)return;
-    final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session)));
-    if (mounted && _active && c != null) {
+    if (!_active || _opening) return;
+    _opening = true;
+    Map<String, dynamic>? c;
+    try {
+      c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session)));
+    } finally {
+      _opening = false;
+    }
+    if (_active && c != null) {
       await _load(quiet: true,force:true);
-      if (mounted && _active) _open(c);
+      if (_active) _open(c);
     }
   }
 
@@ -175,11 +195,11 @@ class _ChatsPageState extends State<ChatsPage> {
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
           child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, runSpacing: 4, children: [
             TextButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session))),
+              onPressed: () => _openAux(CallsPage(session: widget.session)),
               icon: const PhIcon('phone', size: 20), label: Text(t_('Calls')),
             ),
             TextButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session))),
+              onPressed: () => _openAux(RoomsPage(session: widget.session)),
               icon: const PhIcon('waveform', size: 20), label: Text(t_('Live rooms')),
             ),
           ])),

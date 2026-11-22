@@ -113,30 +113,43 @@ class _ChatsPageState extends State<ChatsPage> {
   }
 
   Future<void> _menu(Map<String, dynamic> c) async {
-    if(!_active)return;
+    if (!_active || _opening || !convos.any((row) => identical(row, c))) return;
+    _opening = true;
+    var submitted = false;
     final id = c['public_id'];
-    Future<void> set(Map<String, dynamic> body) async {
-      if(!mounted || !_active)return;
-      Navigator.pop(context);
-      try {
-        await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
-        await _load(quiet: true,force:true);
-      } catch (e) {
-        if (mounted && _active) showError(context, e);
-      }
+    try {
+      await showReviewedGlassSheet<void>(
+        context: context,
+        builder: (ctx) {
+          _menuContext = ctx;
+          Future<void> change(Map<String, dynamic> body) async {
+            if (!_active || submitted || !ctx.mounted ||
+                ModalRoute.of(ctx)?.isCurrent != true ||
+                !convos.any((row) => identical(row, c))) {
+              return;
+            }
+            submitted = true;
+            Navigator.of(ctx).pop();
+            try {
+              await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
+              await _load(quiet: true, force: true);
+            } catch (e) {
+              if (mounted && _active) showError(context, e);
+            }
+          }
+          return SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(t_(c['pinned'] == true ? 'Unpin' : 'Pin to top')), onTap: () => change({'pinned': c['pinned'] != true})),
+              ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(t_(c['muted'] == true ? 'Unmute' : 'Mute')), onTap: () => change({'muted': c['muted'] != true})),
+              ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(t_(c['archived'] == true ? 'Unarchive' : 'Archive')), onTap: () => change({'archived': c['archived'] != true})),
+            ]),
+          );
+        },
+      );
+    } finally {
+      _menuContext = null;
+      _opening = false;
     }
-
-    await showReviewedGlassSheet<void>(
-      context: context,
-      builder: (ctx) { _menuContext=ctx; return SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(t_(c['pinned'] == true ? 'Unpin' : 'Pin to top')), onTap: () => set({'pinned': c['pinned'] != true})),
-          ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(t_(c['muted'] == true ? 'Unmute' : 'Mute')), onTap: () => set({'muted': c['muted'] != true})),
-          ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(t_(c['archived'] == true ? 'Unarchive' : 'Archive')), onTap: () => set({'archived': c['archived'] != true})),
-        ]),
-      );},
-    );
-    _menuContext=null;
   }
 
   Future<void> _openAux(Widget page) async {

@@ -17,21 +17,48 @@ class ReportController extends Controller
             'target' => ['required', 'string', 'max:40'],
             'reason' => ['required', 'in:spam,abuse,nudity,violence,scam,other'],
             'note' => ['nullable', 'string', 'max:300'],
+            'submission_id' => ['sometimes', 'required', 'uuid'],
         ]);
-        $id = DB::transaction(function () use ($request, $data) {
-            $id = DB::table('reports')->insertGetId([
+        $submission = isset($data['submission_id']) ? strtolower($data['submission_id']) : null;
+        // Normalize nullable note once so replay comparison does not depend on JSON key order.
+        $fingerprint = hash('sha256', json_encode([
+            $data['type'], $data['target'], $data['reason'], $data['note'] ?? null,
+        ], JSON_THROW_ON_ERROR));
+        [$row, $replayed] = DB::transaction(function () use ($request, $data, $submission, $fingerprint) {
+            if ($submission !== null) {
+                if (DB::getDriverName() === 'pgsql') {
+                    DB::statement("SET LOCAL lock_timeout = '2s'");
+                    DB::statement("SET LOCAL statement_timeout = '5s'");
+                }
+                // Serialize this reporter's keyed writes. The nullable unique constraint is
+                // the second guard; other reporters never contend for the same key.
+                DB::table('users')->where('id', $request->user()->id)->lockForUpdate()->firstOrFail();
+                $existing = DB::table('reports')->where('reporter_id', $request->user()->id)
+                    ->where('submission_id', $submission)->first();
+                if ($existing) {
+                    abort_unless(hash_equals((string) $existing->submission_fingerprint, $fingerprint), 409, 'This submission key belongs to a different report.');
+
+                    return [$existing, true];
+                }
+            }
+            $record = [
                 'public_id' => (string) Str::uuid(),
                 'reporter_id' => $request->user()->id,
                 'target_type' => $data['type'], 'target_id' => $data['target'],
                 'reason' => $data['reason'], 'note' => $data['note'] ?? null,
                 'status' => 'received', 'created_at' => now(), 'updated_at' => now(),
-            ]);
+            ];
+            // Legacy requests remain compatible with the previous schema and writer.
+            if ($submission !== null) {
+                $record += ['submission_id' => $submission, 'submission_fingerprint' => $fingerprint];
+            }
+            $id = DB::table('reports')->insertGetId($record);
             DB::table('report_events')->insert(['report_id' => $id, 'status' => 'received', 'created_at' => now()]);
 
-            return $id;
+            return [DB::table('reports')->find($id), false];
         });
 
-        return response()->json(['message' => 'Report received.', 'report' => $this->present(DB::table('reports')->find($id))], 201);
+        return response()->json(['message' => 'Report received.', 'report' => $this->present($row), 'replayed' => $replayed], $replayed ? 200 : 201);
     }
 
     public function index(Request $request): JsonResponse

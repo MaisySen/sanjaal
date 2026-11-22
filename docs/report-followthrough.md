@@ -79,3 +79,24 @@ that earlier visual acceptance is withdrawn. The revised button uses explicit
 post UUID is now behind an expandable secondary Reference detail. Review tests
 open/close that reference, then verify original-target submission. The four
 updated narrow/large-text captures are the replacement visual evidence.
+
+## November 23 private replay backend
+
+Optional submission_id UUIDs are reporter scoped and normalized. The server
+fingerprints the exact type, target, reason and nullable note. Replaying the same
+payload returns the same receipt and current progress; a changed payload returns
+409 without a new event. A nullable compound unique constraint plus serialized
+reporter row lock prevents duplicate concurrent writes. PostgreSQL locks and
+statements have bounded timeouts; a timed-out write does not retry automatically.
+Legacy keyless requests retain prior behavior. The additive migration does not
+assign keys to historical submissions. Capability is advertised only when both
+columns exist. No client uses it yet at this backend checkpoint.
+
+Cached and uncached full disposable suites: PHP8.4.27/PostgreSQL 267 tests,
+2417 assertions, five explicit skips; SQLite 268/2420/six skips. Eight new replay
+feature tests cover identical/rebound/cross-owner/current-status/normalization/
+validation/distinct keys/transaction failure. Dedicated PostgreSQL18 processes
+exercise actual row contention: three tests, 46 assertions cover duplicate,
+conflicting and bounded held-lock retry. Removing the reporter row lock causes
+an observed concurrent unique-constraint failure, restored code passes again.
+No production migration, publication, provider action or build was run.

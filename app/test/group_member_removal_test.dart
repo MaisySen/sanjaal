@@ -541,6 +541,7 @@ void main() {
   ) async {
     var writes = 0, reads = 0;
     final poll = Completer<http.Response>();
+    final readback = Completer<http.Response>();
     await fixture(
       t,
       (s) async {
@@ -576,6 +577,10 @@ void main() {
           expect(find.text('Rename group'), findsNothing);
           expect(writes, 1);
         } finally {
+          if (!readback.isCompleted)
+            readback.complete(
+              base.json({'conversation': h.snapshot(transferred: true)}),
+            );
           if (!poll.isCompleted)
             poll.complete(base.json({'data': [], 'typing': []}));
         }
@@ -587,6 +592,7 @@ void main() {
               : poll.future;
         if (r.url.path.endsWith('/read') || r.url.path.endsWith('/typing'))
           return base.json({});
+        if (r.method == 'GET' && writes > 0) return readback.future;
         if (r.method == 'POST') writes++;
         return base.json({'conversation': h.snapshot(transferred: writes > 0)});
       },

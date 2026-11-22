@@ -20,7 +20,7 @@ jobs:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
       run: |
-        test "$(git rev-parse HEAD:app/lib)" = 73b4b7096e309dd8d49590fefdb7320789c64088
+        test "$(git rev-parse HEAD:app/lib)" = cc9b261b25956923a1d8c4e0fde25d9780de5aeb
         test "$(git rev-parse HEAD:app/ios)" = ad3103d5f6f5916be739d7834990aeaa41a29ec1
         test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
         test "$(git rev-parse HEAD:app/pubspec.yaml)" = a70859c72405a0d40b8b3441010fcf6d8676e7a9

@@ -1250,7 +1250,20 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     final groupId = widget.convo['public_id'] as String;
     setState(() { busy = true; isOwner = false; });
     try {
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupOwnershipPage(session: widget.session, groupId: groupId, removeMembers: removeMembers)));
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupOwnershipPage(
+        session: widget.session,
+        groupId: groupId,
+        removeMembers: removeMembers,
+        onChanged: (current) {
+          if (!mounted || !_active || widget.convo['public_id'] != groupId) return;
+          setState(() {
+            title = current.title;
+            members = current.members;
+            isOwner = current.isOwner;
+          });
+          _publish();
+        },
+      )));
       if (!mounted || !_active || widget.convo['public_id'] != groupId) return;
       final value = await widget.session.call('GET', '/conversations/$groupId');
       final current = GroupOwnershipSnapshot(value is Map ? value['conversation'] : null, groupId, widget.session.user?['public_id'] ?? '');

@@ -88,10 +88,13 @@ class GroupOwnershipPage extends StatefulWidget {
     required this.session,
     required this.groupId,
     this.removeMembers = false,
+    this.onChanged,
   });
   final Session session;
   final String groupId;
   final bool removeMembers;
+  // A validated action receipt only. A read or unknown outcome never emits it.
+  final ValueChanged<GroupOwnershipSnapshot>? onChanged;
   @override
   State<GroupOwnershipPage> createState() => _GroupOwnershipPageState();
 }
@@ -326,6 +329,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
             ? 'Member removed. Their earlier messages have not been deleted.'
             : 'Ownership transferred. You are still a group member.';
       });
+      widget.onChanged?.call(parsed);
     } catch (_) {
       if (active && version == epoch) {
         setState(() {

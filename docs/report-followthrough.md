@@ -47,3 +47,28 @@ client upgrade does not make this server feature available. Durable submission
 replay, report-context attachments, immutable target binding, an operator UI,
 policy/staffing and enforcement remain separate work. No build, provider,
 production data, moderation decision or notification was activated.
+
+## November 23 client review checkpoint
+
+Private client candidate on the df1b7ce baseline adds an explicit final review.
+Selecting a reason no longer submits a report. The review shows the type,
+selected profile name or post author/caption when available, the original target
+reference and selected reason, with Cancel and Send report. Display context is
+not transmitted as evidence and does not establish immutable server target
+binding. Existing legacy submission and capability-gated receipts are unchanged.
+
+The existing action owner also owns this second dialog. Cancel, system back,
+same-member re-login, a covering route and retained/double callbacks cannot
+bypass the explicit send or cause a second write. Existing cross-member and
+pending-result retirement checks remain in the regression set.
+
+117 synthetic Flutter tests passed across report review/history, member actions,
+profile-menu ownership/recovery and post-card session behavior. The two new or
+changed core files (actions and review fixtures) analyze without issues; the
+broader four-file check retains three pre-existing informational lints in feed
+and profile. A negative control removing the final review failed because a
+write had occurred before confirmation. English/Nepali light/dark pixels at
+320x640 with 180% text were inspected after reducing the overlarge title and
+shortening redundant help. Content can scroll independently of action buttons.
+This is source-only local validation, not a native build, live moderation report,
+backend deployment, physical-device acceptance or app distribution.

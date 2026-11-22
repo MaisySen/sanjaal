@@ -283,6 +283,10 @@ void main() {
             expect(writes, 0);
             await t.tap(find.text(action == 'report' ? 'Spam' : 'Block'));
             await p.flush(t);
+            if (action == 'report') {
+              await t.tap(find.text('Send report'));
+            }
+            await p.flush(t);
             await t.pumpAndSettle();
             expect(writes, 1);
             expect(t.takeException(), isNull);
@@ -322,6 +326,10 @@ void main() {
                 await p.flush(t);
                 if (action != 'unblock') {
                   await t.tap(find.text(action == 'report' ? 'Spam' : 'Block'));
+                  await p.flush(t);
+                  if (action == 'report') {
+                    await t.tap(find.text('Send report'));
+                  }
                   await p.flush(t);
                 }
                 expect(writes, 1);

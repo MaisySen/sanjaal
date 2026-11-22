@@ -236,7 +236,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
     setState(() => busy = true);
     try {
       if (v == 'report') {
-        await reportFlow(context, widget.session, 'user', widget.username, isActive: stillSelected);
+        await reportFlow(context, widget.session, 'user', widget.username, isActive: stillSelected, targetLabel: selected['name'] as String?);
       } else if (v == 'block') {
         var submitted = false;
         final blocked = await blockFlow(context, widget.session, widget.username,

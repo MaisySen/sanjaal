@@ -88,6 +88,8 @@ void main() {
           await t.tap(find.text('Report fixture'));
           await t.pumpAndSettle();
           await t.tap(find.text('Spam'));
+          await t.pumpAndSettle();
+          await t.tap(find.text('Send report'));
           await h.flush(t);
           await t.pumpAndSettle();
           expect(find.text('Report received'), findsOneWidget);
@@ -389,6 +391,8 @@ void followThroughTests() {
             await t.tap(find.text('Report fixture'));
             await t.pumpAndSettle();
             await t.tap(find.text('Spam'));
+            await t.pumpAndSettle();
+            await t.tap(find.text('Send report'));
             await h.flush(t);
             await t.pumpAndSettle();
             expect(find.text('Report received'), findsNothing);
@@ -458,6 +462,10 @@ void followThroughTests() {
         await t.pumpAndSettle();
         choose();
         await t.pump();
+        expect(writes, 0);
+        await t.tap(find.text('Send report'));
+        await h.flush(t);
+        await t.pumpAndSettle();
         expect(find.text('Report received'), findsOneWidget);
         expect(writes, 1);
         await t.tap(find.text('Done'));
@@ -519,6 +527,8 @@ void receiptVisualTests() {
           await t.tap(find.text('Report fixture'));
           await t.pumpAndSettle();
           await t.tap(find.text(t_('Spam')));
+          await t.pumpAndSettle();
+          await t.tap(find.text(t_('Send report')));
           await h.flush(t);
           await t.pumpAndSettle();
           expect(find.text(t_('Report received')), findsOneWidget);

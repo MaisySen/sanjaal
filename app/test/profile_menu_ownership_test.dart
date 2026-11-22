@@ -62,6 +62,11 @@ void main() {
                 callback();
                 callback();
                 await p.flush(t);
+                if (action == 'report') {
+                  expect(writes, 0);
+                  await t.tap(find.text('Send report'));
+                  await p.flush(t);
+                }
                 await t.pumpAndSettle();
                 if (action == 'report') {
                   expect(find.byType(UserProfilePage), findsOneWidget);
@@ -131,6 +136,10 @@ void main() {
           old(action);
           await p.flush(t);
           await t.tap(find.text(action == 'report' ? 'Spam' : 'Block'));
+          await p.flush(t);
+          if (action == 'report') {
+            await t.tap(find.text('Send report'));
+          }
           await p.flush(t);
           old(action);
           await p.flush(t);

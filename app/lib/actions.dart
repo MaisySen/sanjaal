@@ -12,6 +12,7 @@ Future<void> reportFlow(
   String type,
   String target, {
   bool Function()? isActive,
+  String? targetLabel,
 }) async {
   final openingRoute = ModalRoute.of(context);
   final owner = _ActionOwner(s, isActive);
@@ -34,6 +35,50 @@ Future<void> reportFlow(
       ),
     );
     if (reason == null ||
+        !owner.active ||
+        !context.mounted ||
+        openingRoute?.isCurrent == false) {
+      return;
+    }
+    final confirmed = await owner.dialog<bool>(
+      context: context,
+      builder: (c, complete) => AlertDialog(
+        scrollable: true,
+        title: Text(t_('Review report'), style: const TextStyle(fontSize: 18)),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(t_(reportTypes[type] ?? 'Report')),
+            const SizedBox(height: 6),
+            if (targetLabel != null && targetLabel.trim().isNotEmpty) ...[
+              Text(targetLabel, maxLines: 4, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+            ],
+            SelectableText(
+              type == 'user' ? '@$target' : target,
+              key: const ValueKey('report-review-target'),
+              style: Theme.of(c).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Text(t_(reportReasons[reason]!)),
+            const SizedBox(height: 12),
+            Text(t_('Send this report?')),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => complete(false),
+            child: Text(t_('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => complete(true),
+            child: Text(t_('Send report')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true ||
         !owner.active ||
         !context.mounted ||
         openingRoute?.isCurrent == false) {

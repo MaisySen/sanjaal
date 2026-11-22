@@ -481,7 +481,7 @@ class _PostCardState extends State<PostCard> with SessionBoundState<PostCard> {
     if (v == 'save') return _toggleSave();
     if (v == 'share') return shareToChat(context, widget.session, id);
     if (v == 'delete') return _delete();
-    if (v == 'report') return reportFlow(context, widget.session, 'post', id,isActive:()=>mounted && sessionActive);
+    if (v == 'report') return reportFlow(context, widget.session, 'post', id,isActive:()=>mounted && sessionActive, targetLabel: '@${author['username']}\n${widget.post['body'] ?? ''}');
     if (v == 'block') {
       if (await blockFlow(context, widget.session, author['username'].toString(),isActive:()=>mounted && sessionActive) && mounted && sessionActive) widget.onRemoved();
     }

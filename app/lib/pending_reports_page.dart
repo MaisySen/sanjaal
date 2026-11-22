@@ -51,11 +51,12 @@ class _PendingReportsPageState extends State<PendingReportsPage>
       if (mounted && sessionActive) setState(() => rows = result);
     } catch (_) {
       if (mounted && sessionActive) {
-        setState(
-          () => error = t_(
+        setState(() {
+          rows = null;
+          error = t_(
             'Unconfirmed reports could not be read. Nothing was changed.',
-          ),
-        );
+          );
+        });
       }
     } finally {
       if (mounted && sessionActive) setState(() => loading = false);

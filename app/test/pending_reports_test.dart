@@ -99,6 +99,72 @@ void main() {
       );
     }
   }
+  for (final lang in ['en', 'ne']) {
+    for (final dark in [false, true]) {
+      testWidgets('unreadable attempts fail closed then recover $lang $dark', (
+        t,
+      ) async {
+        t.view.physicalSize = const Size(320, 640);
+        t.view.devicePixelRatio = 1;
+        addTearDown(t.view.reset);
+        await const ReportSubmissionStore().prepare(
+          'me',
+          'user',
+          'asha',
+          'spam',
+        );
+        const storage = FlutterSecureStorage();
+        final saved = Map<String, String>.from(await storage.readAll());
+        final storageKey = saved.keys.single;
+        await storage.write(key: storageKey, value: 'broken local fixture');
+        await p.fixture(
+          t,
+          (s) {
+            s.reportHistoryEnabled = true;
+            s.reportReplayEnabled = true;
+            return PendingReportsPage(session: s);
+          },
+          () async {
+            await t.pumpAndSettle();
+            expect(
+              find.text(
+                t_(
+                  'Unconfirmed reports could not be read. Nothing was changed.',
+                ),
+              ),
+              findsOneWidget,
+            );
+            expect(find.text('@asha'), findsNothing);
+            expect(await storage.read(key: storageKey), 'broken local fixture');
+            expect(t.takeException(), isNull);
+            await p.shot(
+              t,
+              'pending_reports_error_${lang}_${dark ? 'dark' : 'light'}',
+            );
+            await storage.write(key: storageKey, value: saved[storageKey]!);
+            await t.ensureVisible(find.text(t_('Try again')));
+            await t.tap(find.text(t_('Try again')));
+            await p.flush(t);
+            expect(find.text('@asha'), findsOneWidget);
+            expect(
+              find.text(
+                t_(
+                  'Unconfirmed reports could not be read. Nothing was changed.',
+                ),
+              ),
+              findsNothing,
+            );
+            expect(t.takeException(), isNull);
+          },
+          language: lang,
+          scale: 1.8,
+          brightness: dark ? Brightness.dark : Brightness.light,
+          respond: (_) async =>
+              throw StateError('Local recovery must not call API'),
+        );
+      });
+    }
+  }
   testWidgets('history entry opens local attempts with no report write', (
     t,
   ) async {

@@ -28,3 +28,21 @@ Sources fetched November 22:
 - https://developer.apple.com/help/account/keys/create-a-private-key/
 - https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns.md
 - https://firebase.google.com/docs/cloud-messaging/flutter/get-started
+
+
+## Installed SDK startup audit, November 22, 11:58 AEDT
+
+The lockfile pins firebase_core 3.15.2 and firebase_messaging 15.2.10. Inspection of those installed packages found:
+
+- Core's native FLTFirebaseCorePlugin sharedInstance loads FIROptions.defaultOptions and configures the default Firebase app if options exist. Bundling the native config can therefore initialize Firebase during native plugin registration, before selecting the prepared Dart adapter.
+- Messaging's FLTFirebaseMessagingPlugin registers a launch observer. Its launch callback sets up delegate forwarding and calls registerForRemoteNotifications. This APNs registration path is distinct from FCM token autogeneration and from a notification authorization prompt. Whether that callback runs in this app's implicit-engine launch ordering, and what the OS/network actually does, still needs device evidence.
+- The installed Dart API includes setAutoInitEnabled, getAPNSToken, getToken and onTokenRefresh. The newer public guide's register/onRegistered installation-ID API must not be copied into this pinned version without a reviewed migration.
+- Runner/Info.plist currently has no FirebaseMessagingAutoInitEnabled override. The captured GoogleService-Info.plist is still not installed in the target. No runtime defaults, native source, capabilities, entitlements, dependency code or provider configuration changed in this audit.
+
+Both official guides fetched at this check document FirebaseMessagingAutoInitEnabled=NO for build-time FCM auto-init prevention and warn that the runtime override persists across restarts. A future integration must address that persisted state as well as a fresh install. This flag alone must not be described as suppressing the plugin's separate APNs registration call. Retain required method swizzling rather than disabling it as a shortcut. No native startup silence, consent compliance or delivery is proven by this source audit.
+
+Sources re-fetched:
+- https://firebase.google.com/docs/cloud-messaging/flutter/client
+- https://firebase.google.com/docs/cloud-messaging/flutter/get-started
+
+Local provenance: app/pubspec.lock; installed firebase_core-3.15.2/ios/firebase_core/Sources/firebase_core/FLTFirebaseCorePlugin.m, sharedInstance; installed firebase_messaging-15.2.10/ios/firebase_messaging/Sources/firebase_messaging/FLTFirebaseMessagingPlugin.m, initWithFlutterMethodChannel and application_onDidFinishLaunchingNotification; firebase_messaging-15.2.10/lib/src/messaging.dart; app/ios/Runner/Info.plist; app/ios/Runner/AppDelegate.swift.

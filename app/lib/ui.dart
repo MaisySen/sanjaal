@@ -796,6 +796,7 @@ const _ne = <String, String>{
   'System': 'सिस्टम',
   'Report': 'रिपोर्ट',
   'Block': 'ब्लक',
+  'This member is blocked.': 'यो सदस्य ब्लक गरिएको छ।',
   'Welcome to Sanjaal': 'सञ्जालमा स्वागत छ',
   'Get started': 'सुरु गरौं',
   'Next': 'अर्को',

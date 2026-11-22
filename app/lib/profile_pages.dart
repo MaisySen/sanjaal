@@ -210,18 +210,44 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   }
 
   Future<void> _menu(String v) async {
-    if (!mounted || !sessionActive || !_profileVerified || busy || loading) return;
-    if (v == 'report') return reportFlow(context, widget.session, 'user', widget.username, isActive:()=>mounted && sessionActive && _profileVerified);
-    if (v == 'block') {
-      if (await blockFlow(context, widget.session, widget.username, isActive:()=>mounted && sessionActive && _profileVerified) && mounted && sessionActive) Navigator.of(context).pop();
+    if (!mounted || !sessionActive || !_profileVerified || busy || loading || u == null ||
+        !const {'report', 'block', 'unblock'}.contains(v)) {
+      return;
     }
-    if (v == 'unblock') {
-      try {
-        await widget.session.call('DELETE', '/users/${widget.username}/block');
-        await _load();
-      } catch (e) {
-        if (mounted && sessionActive) showError(context, e);
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+    final selected = u!;
+    if ((v == 'block' && selected['blocked'] == true) ||
+        (v == 'unblock' && selected['blocked'] != true)) {
+      return;
+    }
+    final profileRead = read;
+    bool stillSelected() => mounted && sessionActive && _profileVerified &&
+        read == profileRead && identical(u, selected);
+    setState(() => busy = true);
+    try {
+      if (v == 'report') {
+        await reportFlow(context, widget.session, 'user', widget.username, isActive: stillSelected);
+      } else if (v == 'block') {
+        var submitted = false;
+        final blocked = await blockFlow(context, widget.session, widget.username,
+            isActive: stillSelected, onSubmitted: () => submitted = true);
+        if (!stillSelected()) return;
+        if (blocked && route.isCurrent) {
+          route.navigator?.pop();
+        } else if (submitted) {
+          await _load();
+        }
+      } else {
+        try {
+          await widget.session.call('DELETE', '/users/${widget.username}/block');
+        } catch (e) {
+          if (mounted && stillSelected()) showError(context, e);
+        }
+        if (stillSelected()) await _load();
       }
+    } finally {
+      if (mounted && sessionActive) setState(() => busy = false);
     }
   }
 
@@ -249,7 +275,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
               onSelected: _menu,
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'report', child: Text(t_('Report'))),
-                PopupMenuItem(value: blocked ? 'unblock' : 'block', child: Text(blocked ? 'Unblock' : t_('Block'))),
+                PopupMenuItem(value: blocked ? 'unblock' : 'block', child: Text(blocked ? t_('Unblock') : t_('Block'))),
               ],
             ),
         ],
@@ -257,11 +283,12 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
       body: ProfilePosts(
         session: widget.session,
         query: {'username': widget.username},
+        hideContent: blocked,
         emptyIcon: Ph.image_outlined,
         emptyTitle: t_('No photo or text posts yet'),
         header: Column(children: [
           if (error != null) _ProfileReadNotice(message: error!, retry: loading || busy ? null : _load),
-          if (loading) const LinearProgressIndicator(),
+          if (loading || busy) const LinearProgressIndicator(),
           ProfileHeader(
           user: user,
           onFollowers: !_profileVerified || !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.followers),
@@ -423,7 +450,8 @@ class _MePageState extends State<MePage> with SessionBoundState<MePage> {
 
 /// Only content types backed by Sanjaal are shown. Reposts/tags are not fake tabs.
 class ProfilePosts extends StatefulWidget {
-  const ProfilePosts({super.key, required this.session, required this.query, required this.header, required this.emptyIcon, required this.emptyTitle, this.emptyHint, this.emptyAction});
+  const ProfilePosts({super.key, required this.session, required this.query, required this.header, required this.emptyIcon, required this.emptyTitle, this.emptyHint, this.emptyAction, this.hideContent = false});
+  final bool hideContent;
   final Session session;
   final Map<String, String> query;
   final Widget header;
@@ -438,7 +466,13 @@ class _ProfilePostsState extends State<ProfilePosts> {
   int tab = 0;
   final visited = <int>{0};
   @override
-  Widget build(BuildContext context) => IndexedStack(index: tab, children: [for (var i = 0; i < 2; i++)
+  Widget build(BuildContext context) {
+    if (widget.hideContent) {
+      return ListView(children: [widget.header,
+        EmptyState(icon: Ph.person_off_outlined, title: t_('This member is blocked.')),
+      ]);
+    }
+    return IndexedStack(index: tab, children: [for (var i = 0; i < 2; i++)
     if (!visited.contains(i)) const SizedBox.shrink() else FeedList(
       key: ValueKey(i), session: widget.session, query: {...widget.query, 'kind': i == 0 ? 'post' : 'reel'}, grid: true,
       emptyIcon: i == 0 ? widget.emptyIcon : Ph.movie_outlined,
@@ -454,6 +488,7 @@ class _ProfilePostsState extends State<ProfilePosts> {
       ))])]),
     ),
   ]);
+  }
 }
 
 class EditProfilePage extends StatefulWidget {

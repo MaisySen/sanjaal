@@ -1,3 +1,4 @@
+import 'device_access_page.dart';
 import 'reports_page.dart';
 import 'language_settings_page.dart';
 import 'appearance_settings_page.dart';
@@ -101,6 +102,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
         ('Blocked people privacy', option('Blocked people', 'prohibit', () => open(BlockedPage(session: session)))),
       ],
       'Your app and media': [
+        ('Device permissions camera microphone photos videos', option('Device access', 'gear', () => open(DeviceAccessPage(session: session)))),
         ('Appearance theme light dark', option('Appearance', 'moon', () => open(const AppearanceSettingsPage()))),
         ('Language translations English Nepali', option('Language', 'translate', () => open(const LanguageSettingsPage()))),
       ],

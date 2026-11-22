@@ -33,6 +33,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
+        DeviceAccessChannel(this).register(engine.dartExecutor.binaryMessenger)
         VideoPosterChannel(this).register(engine.dartExecutor.binaryMessenger)
         engine.platformViewsController.registry.registerViewFactory("au.fintex.sanjaal/memory-video", MemoryVideoFactory(engine.dartExecutor.binaryMessenger))
         EventChannel(engine.dartExecutor.binaryMessenger, "au.fintex.sanjaal/updates/events")

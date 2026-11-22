@@ -138,6 +138,22 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Device access': 'डिभाइस पहुँच',
+  'Allowed': 'अनुमति छ',
+  'Not allowed': 'अनुमति छैन',
+  'Not requested': 'अनुमति मागिएको छैन',
+  'Restricted by device': 'डिभाइसले सीमित गरेको छ',
+  'Selected items only': 'छानिएका सामग्री मात्र',
+  'Status unavailable': 'स्थिति उपलब्ध छैन',
+  'Microphone': 'माइक्रोफोन',
+  'Photos and videos': 'तस्बिर र भिडियोहरू',
+  'Check again': 'फेरि जाँच्नुहोस्',
+  'Device access could not be checked. Try again.': 'डिभाइस पहुँच जाँच्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Device settings could not be opened. Try again.': 'डिभाइस सेटिङ खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Change access in your device settings. Sanjaal checks again when you return.': 'डिभाइस सेटिङमा पहुँच परिवर्तन गर्नुहोस्। फर्किएपछि सञ्जालले फेरि जाँच्छ।',
+  'Opening settings...': 'सेटिङ खुल्दै छ...',
+  'Permission settings do not confirm that camera, microphone or playback works.': 'अनुमति भएकोले मात्र क्यामेरा, माइक्रोफोन वा भिडियो चल्ने पुष्टि हुँदैन।',
+  'Selected access applies only to the photos and videos you chose.': 'छानिएको पहुँच तपाईंले रोजेका तस्बिर र भिडियोमा मात्र लागू हुन्छ।',
   'Post unavailable': 'पोस्ट उपलब्ध छैन',
   'This post was removed or is no longer available to you.': 'यो पोस्ट हटाइएको छ वा अब तपाईंका लागि उपलब्ध छैन।',
   'Post could not be loaded.': 'पोस्ट लोड गर्न सकिएन।',

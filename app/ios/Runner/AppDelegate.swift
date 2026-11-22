@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import Photos
 import AVFoundation
 
 @main
@@ -17,6 +18,7 @@ import AVFoundation
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SanjaalVideoPoster") else { return }
+    registerDeviceAccess(registrar.messenger())
     registrar.register(MemoryVideoFactory(messenger: registrar.messenger()), withId: "au.fintex.sanjaal/memory-video")
     let channel = FlutterMethodChannel(name: "au.fintex.sanjaal/video-poster", binaryMessenger: registrar.messenger())
     channel.setMethodCallHandler { [weak self] call, result in
@@ -44,6 +46,48 @@ import AVFoundation
           result(bytes.map { FlutterStandardTypedData(bytes: $0) })
         }
       }
+    }
+  }
+}
+
+// Permission state only. No media lookup, permission request or capture occurs.
+private func registerDeviceAccess(_ messenger: FlutterBinaryMessenger) {
+  let channel = FlutterMethodChannel(name: "au.fintex.sanjaal/device-access", binaryMessenger: messenger)
+  func captureState(_ media: AVMediaType) -> String {
+    switch AVCaptureDevice.authorizationStatus(for: media) {
+    case .authorized: return "allowed"
+    case .denied: return "not_allowed"
+    case .notDetermined: return "not_requested"
+    case .restricted: return "restricted"
+    @unknown default: return "unknown"
+    }
+  }
+  func photoState() -> String {
+    let status: PHAuthorizationStatus
+    if #available(iOS 14, *) {
+      status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+      if status == .limited { return "limited" }
+    } else {
+      status = PHPhotoLibrary.authorizationStatus()
+    }
+    switch status {
+    case .authorized: return "allowed"
+    case .denied: return "not_allowed"
+    case .notDetermined: return "not_requested"
+    case .restricted: return "restricted"
+    default: return "unknown"
+    }
+  }
+  channel.setMethodCallHandler { call, result in
+    switch call.method {
+    case "status":
+      let photos = photoState()
+      result(["platform": "ios", "states": ["camera": captureState(.video),
+        "microphone": captureState(.audio), "photos": photos, "videos": photos]] as [String: Any])
+    case "settings":
+      guard let url = URL(string: UIApplication.openSettingsURLString) else { result(false); return }
+      UIApplication.shared.open(url, options: [:]) { opened in result(opened) }
+    default: result(FlutterMethodNotImplemented)
     }
   }
 }

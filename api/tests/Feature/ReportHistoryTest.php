@@ -11,6 +11,15 @@ class ReportHistoryTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_malformed_receipt_inputs_fail_without_touching_reports(): void
+    {
+        [$member, $headers] = $this->member('invalid-receipt');
+        $this->getJson('/api/v1/reports/not-a-receipt', $headers)->assertNotFound();
+        $this->artisan('reports:status', ['receipt' => 'not-a-receipt', 'status' => 'closed'])->assertFailed();
+        $this->assertDatabaseCount('reports', 0);
+        $this->assertDatabaseCount('report_events', 0);
+    }
+
     public function test_unknown_legacy_timestamps_remain_unknown(): void
     {
         [$member, $headers] = $this->member('legacy');

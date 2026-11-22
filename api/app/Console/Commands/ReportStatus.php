@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /** Operator-only status recording. This does not remove content or notify a target. */
 class ReportStatus extends Command
@@ -19,8 +20,14 @@ class ReportStatus extends Command
 
             return self::FAILURE;
         }
-        $result = DB::transaction(function () use ($status) {
-            $report = DB::table('reports')->where('public_id', $this->argument('receipt'))->lockForUpdate()->first();
+        $receipt = $this->argument('receipt');
+        if (! is_string($receipt) || ! Str::isUuid($receipt)) {
+            $this->error('Use a valid report receipt.');
+
+            return self::FAILURE;
+        }
+        $result = DB::transaction(function () use ($status, $receipt) {
+            $report = DB::table('reports')->where('public_id', $receipt)->lockForUpdate()->first();
             if (! $report) return 'missing';
             if ($report->status === $status) return 'unchanged';
             if ($report->status === 'closed') return 'closed';

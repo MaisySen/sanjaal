@@ -26,11 +26,20 @@ closed reviews cannot move backwards. These commands do not remove content,
 restrict accounts, send notifications or establish a review deadline. A submitted
 reference is historical input, not verified ownership of a current username.
 
-Verification: 25 SQLite API tests / 190 assertions; 96 focused Flutter tests;
-clean focused analyzer and diff check. Normal-size light/dark English/Nepali
-history/detail pixels and narrow large-text receipt/list/detail/timeline/error/
-empty layouts inspected. Fixtures are synthetic, not installed-device evidence.
-The new migration and operator status race have not been tested on PostgreSQL.
+Verification: full default Unit/Feature suite on disposable PostgreSQL 18.7,
+232 tests / 2197 assertions, with four explicit discovery capture/race/plan opt-ins
+skipped. The route-cached run has the same result. Full SQLite suite: 232 tests /
+2168 assertions, six skips, including PostgreSQL-only checks. The separate report
+operator concurrency suite observes two real backend processes waiting at the
+same row lock before release; duplicate starts, close-versus-start and duplicate
+closures retain legal, idempotent histories. Malformed operator receipts now fail
+validation before PostgreSQL can reject a UUID cast. The HTTP route already
+rejected malformed receipt paths.
+
+96 focused Flutter tests and focused analysis passed at the report checkpoint.
+Normal-size light/dark English/Nepali history/detail pixels and narrow large-text
+receipt/list/detail/timeline/error/empty layouts were inspected. Fixtures are
+synthetic. These checks are not installed-device or deployed-service evidence.
 
 Rollout remains held. Migrate and switch writers/capability coherently, then
 verify against the deployed API and installed clients. A backend-independent

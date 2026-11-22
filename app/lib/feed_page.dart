@@ -349,7 +349,7 @@ class FeedListState extends State<FeedList> with AutomaticKeepAliveClientMixin, 
                 action: OutlinedButton(onPressed: () => load(refresh: true), child: Text(t_('Try again'))),
               );
             }
-            return Padding(padding: const EdgeInsets.only(top: 40), child: EmptyState(icon: widget.emptyIcon, title: widget.emptyTitle, hint: widget.emptyHint, action: widget.emptyAction));
+            return Padding(padding: const EdgeInsets.only(top: 40), child: EmptyState(icon: widget.emptyIcon, title: t_(widget.emptyTitle), hint: widget.emptyHint == null ? null : t_(widget.emptyHint!), action: widget.emptyAction));
           }
           if (k == posts.length) {
             if (error != null) {
@@ -891,7 +891,7 @@ class HashtagPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: ReviewedAppBar(title: Text('#$tag')),
-        body: FeedList(session: session, query: {'hashtag': tag}, emptyIcon: Ph.tag, emptyTitle: 'No posts with #$tag yet'),
+        body: FeedList(session: session, query: {'hashtag': tag}, emptyIcon: Ph.tag, emptyTitle: t_('No posts with {tag} yet').replaceFirst('{tag}', '#$tag')),
       );
 }
 

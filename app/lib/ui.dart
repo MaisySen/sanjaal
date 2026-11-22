@@ -406,6 +406,11 @@ const _ne = <String, String>{
   'Your sign-in changed. Close this dialog to open your current wallet.': 'तपाईंको साइन-इन बदलियो। हालको वालेट खोल्न यो संवाद बन्द गर्नुहोस्।',
   'Polls are not available for this session. Keep the draft or remove the poll to post text.': 'यो सत्रमा मतदान उपलब्ध छैन। मस्यौदा राख्नुहोस् वा मतदान हटाएर लेख पोस्ट गर्नुहोस्।',
 
+  'Capture timer': 'खिच्ने टाइमर',
+  'Cancel countdown': 'काउन्टडाउन रद्द गर्नुहोस्',
+  'Photo in': 'तस्बिर खिच्न बाँकी',
+  'Recording starts in': 'रेकर्डिङ सुरु हुन बाँकी',
+  'Off': 'बन्द',
   'Take a photo': 'तस्बिर खिच्नुहोस्',
   'Stop recording': 'रेकर्डिङ रोक्नुहोस्',
   'Start recording': 'रेकर्डिङ सुरु गर्नुहोस्',

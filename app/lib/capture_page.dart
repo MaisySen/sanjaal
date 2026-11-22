@@ -7,6 +7,7 @@ import 'package:photo_manager/photo_manager.dart' as photos;
 import 'package:material_ui/material_ui.dart';
 
 import 'ph.dart';
+import 'media_visibility.dart' show mediaRoutes;
 import 'ui.dart';
 
 class CreatorMedia {
@@ -140,7 +141,8 @@ class CapturePage extends StatefulWidget {
   State<CapturePage> createState() => _CapturePageState();
 }
 
-class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
+class _CapturePageState extends State<CapturePage>
+    with WidgetsBindingObserver, RouteAware {
   CaptureDevice? device;
   late bool video = widget.startVideo;
   bool front = false,
@@ -153,9 +155,26 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   int epoch = 0, seconds = 0;
   double zoom = 1;
   String? error;
-  bool permissionDenied = false, permissionRestricted = false, settingsBusy = false;
+  bool permissionDenied = false,
+      permissionRestricted = false,
+      settingsBusy = false;
   XFile? recovered;
   Timer? timer;
+  Timer? countdownTimer;
+  int captureDelay = 0, countdown = 0, countdownVersion = 0;
+  ModalRoute<dynamic>? observedRoute;
+  bool get routeAvailable =>
+      mounted &&
+      foreground &&
+      !leaving &&
+      ModalRoute.of(context)?.isCurrent != false;
+  bool get canConfigure =>
+      routeAvailable &&
+      ready &&
+      !busy &&
+      !recording &&
+      countdown == 0 &&
+      recovered == null;
   Future<void>? operation;
   @override
   void initState() {
@@ -164,7 +183,71 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     boot();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != observedRoute) {
+      mediaRoutes.unsubscribe(this);
+      observedRoute = route;
+      if (route != null) mediaRoutes.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPushNext() => cancelCountdown();
+  @override
+  void didPopNext() {}
+  @override
+  void didPush() {}
+  @override
+  void didPop() => cancelCountdown();
+
+  void cancelCountdown({bool notify = true}) {
+    countdownVersion++;
+    countdownTimer?.cancel();
+    countdownTimer = null;
+    if (countdown != 0) {
+      if (mounted && notify) {
+        setState(() => countdown = 0);
+      } else {
+        countdown = 0;
+      }
+    }
+  }
+
+  void cycleCaptureDelay() {
+    if (!canConfigure) return;
+    setState(
+      () => captureDelay = switch (captureDelay) {
+        0 => 3,
+        3 => 10,
+        _ => 0,
+      },
+    );
+  }
+
+  void changeMode(bool mode) {
+    if (!routeAvailable ||
+        busy ||
+        recording ||
+        countdown > 0 ||
+        recovered != null ||
+        mode == video) {
+      return;
+    }
+    setState(() => video = mode);
+    boot();
+  }
+
+  void switchCamera() {
+    if (!canConfigure || device?.canSwitch != true) return;
+    front = !front;
+    boot();
+  }
+
   Future<void> boot() async {
+    cancelCountdown();
     if (!foreground || recovered != null) return;
     final request = ++epoch;
     final old = device;
@@ -202,17 +285,27 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     try {
       await (widget.openSettings?.call() ?? photos.PhotoManager.openSetting());
     } catch (_) {
-      if (mounted) showInfo(context, t_('Device settings could not be opened. Open Settings manually, then return to Sanjaal.'));
+      if (mounted) {
+        showInfo(
+          context,
+          t_(
+            'Device settings could not be opened. Open Settings manually, then return to Sanjaal.',
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => settingsBusy = false);
     }
   }
 
   String captureError(Object e) {
-    permissionRestricted = e is camera.CameraException && e.code.contains('Restricted');
+    permissionRestricted =
+        e is camera.CameraException && e.code.contains('Restricted');
     permissionDenied = e is camera.CameraException && e.code.contains('Denied');
     if (permissionRestricted) {
-      return t_('Camera or microphone access is restricted on this device. You may need help from the person who manages it. You can still choose media from your library.');
+      return t_(
+        'Camera or microphone access is restricted on this device. You may need help from the person who manages it. You can still choose media from your library.',
+      );
     }
     if (e is camera.CameraException &&
         (e.code.contains('Denied') || e.code.contains('Restricted'))) {
@@ -231,8 +324,9 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
       foreground = false;
       if (state == AppLifecycleState.inactive ||
           state == AppLifecycleState.paused ||
-          state == AppLifecycleState.detached)
+          state == AppLifecycleState.detached) {
         suspend();
+      }
     } else {
       foreground = true;
       if (!busy && recovered == null) boot();
@@ -241,25 +335,28 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   }
 
   Future<void> suspend() async {
+    cancelCountdown();
     if (device == null) return;
     final current = device!;
     device = null;
     epoch++;
     timer?.cancel();
-    if (mounted)
+    if (mounted) {
       setState(() {
         ready = false;
         busy = true;
       });
+    }
     try {
       await operation;
       if (recording) recovered = await current.stop();
       recording = false;
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         error = t_(
           'The interrupted recording could not be recovered. Nothing was posted.',
         );
+      }
     } finally {
       await current.dispose();
       if (mounted) {
@@ -270,10 +367,55 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   }
 
   Future<void> shutter() async {
-    if (!ready || busy || !foreground || device == null) return;
-    operation = capture(device!, epoch);
-    await operation;
-    operation = null;
+    if (countdown > 0) {
+      cancelCountdown();
+      return;
+    }
+    if (!ready || busy || !routeAvailable || device == null) return;
+    final current = device!, request = epoch;
+    if (!recording && captureDelay > 0) {
+      final version = ++countdownVersion;
+      final delay = captureDelay;
+      setState(() => countdown = delay);
+      countdownTimer = Timer.periodic(const Duration(seconds: 1), (tick) {
+        if (!mounted ||
+            !routeAvailable ||
+            !ready ||
+            busy ||
+            request != epoch ||
+            version != countdownVersion ||
+            !identical(device, current)) {
+          cancelCountdown();
+          return;
+        }
+        final remaining = (delay - tick.tick).clamp(0, delay);
+        if (remaining > 0) {
+          setState(() => countdown = remaining);
+        } else {
+          cancelCountdown();
+          unawaited(captureNow(current, request));
+        }
+      });
+      return;
+    }
+    await captureNow(current, request);
+  }
+
+  Future<void> captureNow(CaptureDevice current, int request) async {
+    if (!ready ||
+        busy ||
+        !routeAvailable ||
+        request != epoch ||
+        !identical(current, device)) {
+      return;
+    }
+    final pending = capture(current, request);
+    operation = pending;
+    try {
+      await pending;
+    } finally {
+      if (identical(operation, pending)) operation = null;
+    }
   }
 
   Future<void> capture(CaptureDevice current, int request) async {
@@ -331,11 +473,12 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     final current = device;
     device = null;
     epoch++;
-    if (mounted)
+    if (mounted) {
       setState(() {
         ready = false;
         recording = false;
       });
+    }
     await current?.dispose();
     if (!mounted) return;
     setState(() => busy = false);
@@ -346,22 +489,24 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   }
 
   Future<void> setting(Future<void> Function() action) async {
-    if (!ready || busy || recording) return;
+    if (!canConfigure) return;
     setState(() => busy = true);
     try {
       await action();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         showInfo(
           context,
           t_('That camera setting is not supported on this device.'),
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
   Future<void> close() async {
+    cancelCountdown();
     if (busy || leaving) return;
     if (recording || recovered != null) {
       final discard = await showDialog<bool>(
@@ -413,6 +558,8 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    cancelCountdown(notify: false);
+    mediaRoutes.unsubscribe(this);
     epoch++;
     timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -447,26 +594,35 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(28, 76, 28, 24),
-                          child: SingleChildScrollView(child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                error!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              const SizedBox(height: 12),
-                              if (permissionDenied) FilledButton(
-                                onPressed: busy || settingsBusy ? null : settings,
-                                child: Text(t_('Open device settings')),
-                              ),
-                              if (!permissionRestricted) TextButton(
-                                onPressed: busy ? null : boot,
-                                child: Text(t_('Try again')),
-                              ),
-                              TextButton(onPressed: busy ? null : close, child: Text(t_('Close camera'))),
-                            ],
-                          )),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  error!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                const SizedBox(height: 12),
+                                if (permissionDenied)
+                                  FilledButton(
+                                    onPressed: busy || settingsBusy
+                                        ? null
+                                        : settings,
+                                    child: Text(t_('Open device settings')),
+                                  ),
+                                if (!permissionRestricted)
+                                  TextButton(
+                                    onPressed: busy ? null : boot,
+                                    child: Text(t_('Try again')),
+                                  ),
+                                TextButton(
+                                  onPressed: busy ? null : close,
+                                  child: Text(t_('Close camera')),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     if (recovered != null)
@@ -540,11 +696,12 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                           if (recovered == null) ...[
                             IconButton(
                               tooltip: t_(torch ? 'Flash on' : 'Flash off'),
-                              onPressed: ready && !busy && !recording
+                              onPressed: canConfigure
                                   ? () => setting(() async {
                                       await device!.flash(!torch);
-                                      if (mounted)
+                                      if (mounted) {
                                         setState(() => torch = !torch);
+                                      }
                                     })
                                   : null,
                               icon: PhIcon(
@@ -553,12 +710,13 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                               ),
                             ),
                             TextButton(
-                              onPressed: ready && !busy && !recording
+                              onPressed: canConfigure
                                   ? () => setting(() async {
                                       final next = zoom == 1 ? 2.0 : 1.0;
                                       final actual = await device!.zoom(next);
-                                      if (mounted)
+                                      if (mounted) {
                                         setState(() => zoom = actual);
+                                      }
                                     })
                                   : null,
                               child: Text(
@@ -570,6 +728,49 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                         ],
                       ),
                     ),
+                    if (countdown > 0)
+                      Center(
+                        child: Semantics(
+                          liveRegion: true,
+                          label:
+                              '${t_(video ? 'Recording starts in' : 'Photo in')} $countdown ${t_('seconds')}',
+                          child: ExcludeSemantics(
+                            child: Container(
+                              key: const ValueKey('capture-countdown-circle'),
+                              width: MediaQuery.textScalerOf(context)
+                                  .scale(132)
+                                  .clamp(132.0, 200.0)
+                                  .toDouble(),
+                              height: MediaQuery.textScalerOf(context)
+                                  .scale(132)
+                                  .clamp(132.0, 200.0)
+                                  .toDouble(),
+                              padding: const EdgeInsets.all(16),
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: Color(0xBB000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '$countdown',
+                                  key: const ValueKey(
+                                    'capture-countdown-number',
+                                  ),
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 72,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (recording)
                       Positioned(
                         top: 74,
@@ -592,7 +793,9 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                         child: Center(
                           child: Semantics(
                             label: t_(
-                              recording
+                              countdown > 0
+                                  ? 'Cancel countdown'
+                                  : recording
                                   ? 'Stop recording'
                                   : video
                                   ? 'Start recording'
@@ -634,6 +837,15 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                                               : Colors.white)
                                         : Colors.grey,
                                   ),
+                                  child: countdown > 0
+                                      ? const Center(
+                                          child: PhIcon(
+                                            'x',
+                                            color: Colors.black,
+                                            size: 34,
+                                          ),
+                                        )
+                                      : null,
                                 ),
                               ),
                             ),
@@ -648,6 +860,34 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
               child: Row(
                 children: [
+                  Semantics(
+                    value: captureDelay == 0
+                        ? t_('Off')
+                        : '$captureDelay ${t_('seconds')}',
+                    child: IconButton(
+                      key: const ValueKey('capture-delay'),
+                      tooltip: t_('Capture timer'),
+                      onPressed: canConfigure ? cycleCaptureDelay : null,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 48,
+                        height: 48,
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      icon: captureDelay == 0
+                          ? const PhIcon('timer', color: Colors.white)
+                          : FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '$captureDelay',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
                   Expanded(
                     child: Wrap(
                       alignment: WrapAlignment.center,
@@ -657,13 +897,13 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                           if (widget.allowVideo) true,
                         ])
                           TextButton(
-                            onPressed: busy || recording || recovered != null
+                            onPressed:
+                                busy ||
+                                    recording ||
+                                    countdown > 0 ||
+                                    recovered != null
                                 ? null
-                                : () {
-                                    if (mode == video) return;
-                                    setState(() => video = mode);
-                                    boot();
-                                  },
+                                : () => changeMode(mode),
                             child: Text(
                               t_(mode ? 'Video' : 'Photo'),
                               style: TextStyle(
@@ -681,19 +921,17 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                   ),
                   IconButton(
                     tooltip: t_('Switch camera'),
-                    constraints: const BoxConstraints.tightFor(width:48,height:48),
-                    style: IconButton.styleFrom(minimumSize:const Size(48,48),maximumSize:const Size(48,48)),
-                    onPressed:
-                        busy ||
-                            recording ||
-                            recovered != null ||
-                            !ready ||
-                            device?.canSwitch != true
-                        ? null
-                        : () {
-                            front = !front;
-                            boot();
-                          },
+                    constraints: const BoxConstraints.tightFor(
+                      width: 48,
+                      height: 48,
+                    ),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      maximumSize: const Size(48, 48),
+                    ),
+                    onPressed: canConfigure && device?.canSwitch == true
+                        ? switchCamera
+                        : null,
                     icon: const PhIcon('arrows-clockwise', color: Colors.white),
                   ),
                 ],

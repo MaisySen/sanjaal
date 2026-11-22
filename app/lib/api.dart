@@ -845,10 +845,43 @@ class Session extends ChangeNotifier {
     return path == '/stories' ? _uploadResult(r, 'story', replaySafe) : jsonDecode(r.body) as Map<String, dynamic>;
   }
 
+  void _checkProfileOwner(int epoch, Object? owner) {
+    _checkSession(epoch);
+    if (owner is! String || owner.trim().isEmpty || owner != user?['public_id'] ||
+        authenticating || accountViewNeedsRefresh) {
+      throw ApiError('Please sign in again.', 401);
+    }
+  }
+
+  void _commitProfileResponse(Object? value, int epoch, Object? owner) {
+    _checkProfileOwner(epoch, owner);
+    final response = value is Map ? value['user'] : null;
+    final invalid = ApiError(apiFailureMessage(200, const [], mutating: true));
+    if (response is! Map || response.isEmpty || response.keys.any((key) => key is! String)) throw invalid;
+    if (response.containsKey('public_id') && response['public_id'] != owner) throw invalid;
+    for (final key in ['name', 'username']) {
+      if (response.containsKey(key) && response[key] is! String) throw invalid;
+    }
+    for (final key in ['bio', 'avatar_url']) {
+      if (response[key] != null && response[key] is! String) throw invalid;
+    }
+    // These are Present.user's fields. Keep existing partial-response behavior
+    // without letting unknown response keys replace unrelated session metadata.
+    final fields = <String, dynamic>{
+      for (final key in ['public_id', 'name', 'username', 'bio', 'avatar_url'])
+        if (response.containsKey(key)) key: response[key],
+    };
+    if (fields.isEmpty) throw invalid;
+    user = {...?user, ...fields};
+    notifyListeners();
+  }
+
   Future<void> uploadAvatar(UploadFile f) async {
     final epoch = _sessionEpoch;
+    final owner = user?['public_id'];
+    _checkProfileOwner(epoch, owner);
     final token = await _token();
-    _checkSession(epoch);
+    _checkProfileOwner(epoch, owner);
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/auth/me/avatar'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
@@ -859,16 +892,25 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw ApiError('Upload failed. Check your connection and try again.');
     }
-    _checkSession(epoch);
+    _checkProfileOwner(epoch, owner);
     if (r.statusCode != 200) throw ApiError(_errorText(r, mutating: true), r.statusCode);
-    user = {...?user, ...((jsonDecode(r.body) as Map)['user'] as Map).cast<String, dynamic>()};
-    notifyListeners();
+    final Object? value;
+    try { value = jsonDecode(r.body); }
+    catch (_) { throw ApiError(apiFailureMessage(200, const [], mutating: true)); }
+    _commitProfileResponse(value, epoch, owner);
   }
 
   Future<void> updateProfile(Map<String, dynamic> fields) async {
-    final j = await call('PATCH', '/auth/me', body: fields) as Map<String, dynamic>;
-    user = {...?user, ...(j['user'] as Map).cast<String, dynamic>()};
-    notifyListeners();
+    final epoch = _sessionEpoch;
+    final owner = user?['public_id'];
+    _checkProfileOwner(epoch, owner);
+    final Object? value;
+    try { value = await call('PATCH', '/auth/me', body: fields); }
+    on FormatException {
+      _checkProfileOwner(epoch, owner);
+      throw ApiError(apiFailureMessage(200, const [], mutating: true));
+    }
+    _commitProfileResponse(value, epoch, owner);
   }
 }
 

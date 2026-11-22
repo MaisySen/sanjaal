@@ -31,3 +31,7 @@ The API's existing accepted-response/Session update behavior is unchanged. The b
 Photo-picker start ownership is covered here, not the entire picker/file-read/upload/late-toast path. Other editor/custom-dialog callbacks and nested navigation shapes are not certified. Full profile editing, provider/native/background/cold-start, physical-device performance and product/reference/release acceptance remain open.
 
 No live account/profile/data action, source push, backend rollout, deployment, native build, signing, installation or distribution occurred. Default-off/native restrictions, existing Apple keys and Stampies are unchanged. Apple identity setup remains separate.
+
+## Subsequent bounded API follow-up
+
+[Profile response/session ownership](profile-response-session-ownership.md) adds structural response validation, captured-owner/session checks and malformed-success uncertainty handling. The API-unchanged limit above describes this save-route checkpoint at 913b813; the follow-up does not turn its submitted-snapshot baseline into independent persistence or full profile acceptance.

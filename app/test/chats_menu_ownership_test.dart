@@ -94,7 +94,13 @@ void main() {
             );
             current.onLongPress!();
             await h.flush(t);
-            expect(find.widgetWithText(ListTile, 'Mute'), findsOneWidget);
+            expect(
+              find.widgetWithText(
+                ListTile,
+                shape == 'normal' ? 'Unmute' : 'Mute',
+              ),
+              findsOneWidget,
+            );
           }
           nav.currentState!.popUntil((r) => r.isFirst);
           await h.flush(t);
@@ -119,6 +125,9 @@ void main() {
                 'type': 'direct',
                 'title': 'Private thread',
                 'unread': 0,
+                'pinned': false,
+                'muted': writes > 0,
+                'archived': false,
               },
             ],
           });

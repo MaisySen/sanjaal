@@ -6,6 +6,6 @@ Six old-source synthetic negatives were reproduced across the targeted runs: two
 
 Seven new cases cover those shapes plus ordinary current-row selection. Normal completion and dismissal can reopen a new menu. The selected menu, Chats entry, chat-session, visibility and communication groups passed 67 tests. Focused analysis has only the three existing chat-source infos. Layout and API request bodies were not changed; no new pixel/device/reference acceptance is claimed.
 
-The submission flag belongs to one sheet. This correction does not claim serialization across distinct menu cycles after the first sheet has closed while its request is still pending. That separate pending-operation interaction remains to be reviewed. Earlier broader 196-case evidence is anchored to d944b67 and was not rerun after this change.
+At the 6886d9d checkpoint, the submission flag belonged to one sheet and did not serialize distinct menu cycles while the preceding request was pending. The follow-up in [chats-settings-pending.md](chats-settings-pending.md) covers that interaction within the mounted inbox, including read recovery. It does not provide persistence or global/server serialization. Earlier broader 196-case evidence stays anchored to d944b67 and is not inherited as current evidence.
 
 No real conversation setting, account, message or data operation, backend runtime/rollout, push, native build, signing, installation, distribution or provider change occurred.

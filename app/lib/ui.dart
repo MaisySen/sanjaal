@@ -627,6 +627,7 @@ const _ne = <String, String>{
   'File could not be read': 'फाइल पढ्न सकिएन',
   'Video preview unavailable. Your video is still selected.': 'भिडियोको पूर्वावलोकन उपलब्ध छैन। तपाईंको भिडियो चयन भएकै छ।',
   'That file is over 25 MB. Choose a smaller one.': 'यो फाइल २५ एमबीभन्दा ठूलो छ। सानो फाइल छान्नुहोस्।',
+  'Updating chat settings': 'च्याट सेटिङ अद्यावधिक हुँदैछ',
   'Could not refresh.': 'रिफ्रेस हुन सकेन।',
   'Nothing yet': 'अहिलेसम्म केही छैन',
   'Likes, comments and new followers show up here.': 'लाइक, टिप्पणी र नयाँ फलोअरहरू यहाँ देखिन्छन्।',
@@ -984,9 +985,9 @@ class RefreshReadNotice extends StatelessWidget {
   final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context)=>Material(color:Theme.of(context).colorScheme.surfaceContainerHigh,child:Padding(
-    padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:Row(children:[
-      Expanded(child:Text(t_('Could not refresh.'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface))),
-      TextButton(onPressed:onRetry,child:Text(t_('Try again'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface))),
-    ]),
+    padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:SizedBox(width:double.infinity,child:Wrap(spacing:12,runSpacing:4,alignment:WrapAlignment.spaceBetween,crossAxisAlignment:WrapCrossAlignment.center,children:[
+      Text(t_('Could not refresh.'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface)),
+      TextButton(onPressed:onRetry,child:Text(t_('Try again'),style:TextStyle(color:onRetry==null?Theme.of(context).disabledColor:Theme.of(context).colorScheme.onSurface))),
+    ])),
   ));
 }

@@ -40,7 +40,7 @@ Widget app(Widget home) => MaterialApp(theme: buildTheme(Brightness.light), home
 void main() {
   testWidgets('confirmed inbox settings force fresh data past an older pending poll',(t)async{
     final old=Completer<http.Response>();var reads=0,writes=0;
-    Map<String,dynamic> row(String title)=>{'public_id':'chat','title':title};
+    Map<String,dynamic> row(String title)=>{'public_id':'chat','title':title,'pinned':title=='Updated conversation','muted':false,'archived':false};
     await withSession(t,(s)async{
       await t.pumpWidget(app(ChatsPage(session:s)));await flush(t);await t.pump(const Duration(seconds:12));await flush(t);expect(reads,2);
       await t.longPress(find.text('Community music'));await t.pumpAndSettle();await t.tap(find.text('Pin to top'));await flush(t);expect(writes,1);expect(reads,3);expect(find.text('Updated conversation'),findsOneWidget);

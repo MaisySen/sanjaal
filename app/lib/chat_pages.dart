@@ -41,6 +41,10 @@ class _ChatsPageState extends State<ChatsPage> {
   late final int _sessionGeneration;
   bool _retired = false;
   bool _opening = false;
+  bool _settingsBusy = false;
+  bool _settingsNeedRead = false;
+  bool _settingsRetryingRead = false;
+  static const _settingKeys = ['pinned', 'muted', 'archived'];
   bool get _active=>mounted && !_retired && identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   BuildContext? _menuContext;
   void _accountChanged(){if(!_active && mounted){
@@ -48,7 +52,7 @@ class _ChatsPageState extends State<ChatsPage> {
     ++_loadVersion;timer?.cancel();
     final menu=_menuContext;
     if(menu!=null && menu.mounted && ModalRoute.of(menu)?.isCurrent==true)Navigator.of(menu).pop();
-    setState(() { convos=[];error=null; });
+    setState(() { convos=[];error=null;_settingsBusy=false;_settingsNeedRead=false;_settingsRetryingRead=false; });
   }}
   List<Map<String, dynamic>> convos = [];
   bool loading = true;
@@ -87,21 +91,26 @@ class _ChatsPageState extends State<ChatsPage> {
     super.dispose();
   }
 
-  Future<void> _load({bool quiet = false, bool force = false}) async {
-    if(!mounted || !_active || (!force && _readingArchive==showArchived)) return;
+  Future<void> _load({bool quiet = false, bool force = false, bool afterSetting = false}) async {
+    if(!mounted || !_active || (_settingsBusy && !afterSetting) || (!force && _readingArchive==showArchived)) return;
     final archived=showArchived;
     _readingArchive=archived;
     final version = ++_loadVersion;
+    if (_settingsNeedRead && !_settingsBusy) setState(() => _settingsRetryingRead = true);
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
       if (!mounted || !_active || version != _loadVersion) return;
       final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
-      if(rows.any((c)=>c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty || (c['last_message']!=null && c['last_message'] is! Map) || (c['unread']!=null && c['unread'] is! num))) throw const FormatException('Invalid inbox');
-      setState(() { convos=rows; error=null; });
+      if(rows.any((c)=>c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty || (c['last_message']!=null && c['last_message'] is! Map) || (c['unread']!=null && c['unread'] is! num) ||
+          _settingKeys.any((key) => (_settingsNeedRead || c[key] != null) && c[key] is! bool))) {
+        throw const FormatException('Invalid inbox');
+      }
+      setState(() { convos=rows; error=null; _settingsNeedRead=false; });
     } catch (e) {
       if (mounted && _active && version == _loadVersion && !quiet) setState(() => error=e is ApiError?t_(e.message):t_('Chats could not be loaded.'));
     } finally {
       if(version==_loadVersion) _readingArchive=null;
+      if (mounted && _active && version == _loadVersion && _settingsRetryingRead) setState(() => _settingsRetryingRead = false);
       if (mounted && _active && version == _loadVersion && loading) setState(() => loading = false);
     }
   }
@@ -112,8 +121,27 @@ class _ChatsPageState extends State<ChatsPage> {
     return (last['body']??'').toString();
   }
 
+  Future<void> _changeSetting(String id, Map<String, dynamic> body) async {
+    if (!_active || _settingsBusy || _settingsNeedRead) return;
+    // Retire reads begun before the change. Other reads wait for reconciliation.
+    ++_loadVersion;
+    _readingArchive = null;
+    setState(() { _settingsBusy = true; _settingsNeedRead = true; });
+    try {
+      try {
+        await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
+      } catch (e) {
+        if (mounted && _active) showError(context, e);
+      }
+      // A failed/lost reply is not proof that the setting stayed unchanged.
+      if (_active) await _load(force: true, afterSetting: true);
+    } finally {
+      if (_active) setState(() => _settingsBusy = false);
+    }
+  }
+
   Future<void> _menu(Map<String, dynamic> c) async {
-    if (!_active || _opening || !convos.any((row) => identical(row, c))) return;
+    if (!_active || _opening || _settingsBusy || _settingsNeedRead || !convos.any((row) => identical(row, c))) return;
     _opening = true;
     var submitted = false;
     final id = c['public_id'];
@@ -123,19 +151,14 @@ class _ChatsPageState extends State<ChatsPage> {
         builder: (ctx) {
           _menuContext = ctx;
           Future<void> change(Map<String, dynamic> body) async {
-            if (!_active || submitted || !ctx.mounted ||
+            if (!_active || submitted || _settingsBusy || _settingsNeedRead || !ctx.mounted ||
                 ModalRoute.of(ctx)?.isCurrent != true ||
                 !convos.any((row) => identical(row, c))) {
               return;
             }
             submitted = true;
             Navigator.of(ctx).pop();
-            try {
-              await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
-              await _load(quiet: true, force: true);
-            } catch (e) {
-              if (mounted && _active) showError(context, e);
-            }
+            await _changeSetting(id as String, body);
           }
           return SafeArea(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -193,8 +216,9 @@ class _ChatsPageState extends State<ChatsPage> {
           IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
           PopupMenuButton<String>(
             tooltip: t_('More'),
+            enabled: !_settingsBusy && !_settingsRetryingRead,
             onSelected: (_) {
-              if(!_active)return;
+              if(!_active || _settingsBusy || _settingsRetryingRead)return;
               setState(() {
                 showArchived = !showArchived;
                 convos = [];
@@ -210,7 +234,12 @@ class _ChatsPageState extends State<ChatsPage> {
         ],
       ),
       body: Column(children: [
-        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:()=>_load()),
+        if (_settingsBusy || _settingsRetryingRead) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [
+          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 12),
+          Expanded(child: Semantics(liveRegion: true, child: Text(t_('Updating chat settings')))),
+        ])),
+        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:_settingsBusy || _settingsRetryingRead ? null : ()=>_load()),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
           child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, runSpacing: 4, children: [
@@ -250,7 +279,7 @@ class _ChatsPageState extends State<ChatsPage> {
                       final scheme = Theme.of(context).colorScheme;
                       return InkWell(
                         onTap: () => _open(c),
-                        onLongPress: () => _menu(c),
+                        onLongPress: _settingsBusy || _settingsNeedRead ? null : () => _menu(c),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           child: Row(children: [

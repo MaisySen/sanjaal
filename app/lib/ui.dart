@@ -557,6 +557,7 @@ const _ne = <String, String>{
   'Photo saved. Text changes still need Save.': 'फोटो सुरक्षित भयो। लेखेका परिवर्तन सुरक्षित गर्न सेभ थिच्नुहोस्।',
   'Refresh profile': 'प्रोफाइल पुनः लोड गर्नुहोस्',
   'Profile could not be loaded.': 'प्रोफाइल लोड हुन सकेन।',
+  'Could not verify this chat. Refresh the profile and try again.': 'यो च्याट पुष्टि गर्न सकिएन। प्रोफाइल ताजा गरी फेरि प्रयास गर्नुहोस्।',
   'That member does not exist.': 'त्यो सदस्य भेटिएन।',
   'Name': 'नाम',
   'Username': 'प्रयोगकर्ता नाम',

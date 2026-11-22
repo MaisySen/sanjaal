@@ -22,3 +22,5 @@ Limits:
 - Exact reference, physical-device, export, private delivery and full-product acceptance remain open. Privacy/native default-off restrictions and existing signing/distribution gates are unchanged.
 
 No live relationship, profile, account or data operation, source push, deployment, backend rollout, native build, signing, installation, store or distribution action occurred.
+
+Follow-up: [profile-to-chat receipt consistency](profile-chat-receipt.md) adds profile Message response checks and refresh recovery. It does not repair the server username race or other conversation-entry flows.

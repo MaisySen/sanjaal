@@ -544,6 +544,7 @@ void main() {
                 'public_id': 'chat',
                 'type': 'direct',
                 'title': 'Asha Gurung',
+                'members': [me, {'public_id': 'asha', 'username': 'asha', 'name': 'Asha Gurung'}],
               },
             });
           }

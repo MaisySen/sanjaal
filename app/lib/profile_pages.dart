@@ -36,6 +36,25 @@ Map<String, dynamic> _profileRead(dynamic value, {String? owner, String? usernam
   return value;
 }
 
+/// A profile Message receipt must describe this selected pair before the
+/// conversation screen can fetch messages or acknowledge anything.
+Map<String, dynamic> _profileChatRead(dynamic response, String owner, Map<String, dynamic> recipient) {
+  if (response is! Map || response['conversation'] is! Map) {
+    throw const FormatException('Invalid conversation');
+  }
+  final conversation = (response['conversation'] as Map).cast<String, dynamic>();
+  final members = conversation['members'];
+  if (conversation['public_id'] is! String || (conversation['public_id'] as String).trim().isEmpty ||
+      conversation['type'] != 'direct' || members is! List || members.length != 2 ||
+      members.any((member) => member is! Map || member['public_id'] is! String || member['username'] is! String || (member['username'] as String).trim().isEmpty) ||
+      owner == recipient['public_id'] ||
+      members.where((member) => member['public_id'] == owner).length != 1 ||
+      members.where((member) => member['public_id'] == recipient['public_id'] && member['username'] == recipient['username']).length != 1) {
+    throw const FormatException('Conversation does not match selected member');
+  }
+  return conversation;
+}
+
 /// 999 stays 999, 1240 becomes 1.2K, 2500000 becomes 2.5M.
 String shortCount(int v) {
   String f(double x, String u) {
@@ -184,16 +203,28 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   }
 
   Future<void> _message() async {
-    if (!mounted || !sessionActive || !_profileVerified || busy || loading) return;
+    if (!mounted || !sessionActive || !_profileVerified || busy || loading || u == null || u!['blocked'] == true) return;
+    final recipient = u!;
+    final owner = widget.session.user!['public_id'] as String;
+    final profileRead = read;
+    bool stillSelected() => mounted && sessionActive && _profileVerified && read == profileRead && identical(u, recipient);
     setState(() => busy = true);
     try {
-      final j = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': widget.username}) as Map<String, dynamic>;
-      if (!mounted || !sessionActive) return;
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: (j['conversation'] as Map).cast<String, dynamic>())));
+      final response = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': recipient['username']});
+      if (!mounted || !stillSelected()) return;
+      final conversation = _profileChatRead(response, owner, recipient);
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: conversation)));
     } catch (e) {
-      if (mounted && sessionActive) showError(context, e);
+      if (mounted && stillSelected()) {
+        setState(() {
+          _profileVerified = false;
+          error = t_('Could not verify this chat. Refresh the profile and try again.');
+        });
+        if (e is ApiError) showError(context, e);
+      }
+    } finally {
+      if (mounted && sessionActive) setState(() => busy = false);
     }
-    if (mounted && sessionActive) setState(() => busy = false);
   }
 
   Future<void> _menu(String v) async {

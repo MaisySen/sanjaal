@@ -1,10 +1,51 @@
 # Whole-product reconciliation
 
-## Current connected-product review, November 22, 2026
+## Delivery continuity correction, November 22, 2026, 19:20 AEDT
 
-This section supersedes the historical status tables and suggested release steps
-below. They remain dated work records, not current state or permission. Current
-review is reversible local source work in `coherent-experience-review`, based on
+The review/batch condition is not a blanket source-push or engineering-build ban.
+The original owner instructions cover public MaisySen project source and Actions
+(November15), scoped Android private beta setup (November17), and one Sanjaal-only
+Apple certificate plus private upload (November21). Those scopes do not expand
+credentials, audiences, legal attestations or public-store release. Source review,
+product design review, compiler validation, stable signing, private acceptance
+installation and store/tester promotion remain separate stages. Earlier claims
+that no signing or private delivery authority existed were too broad. Readiness
+and current operational access must still be verified.
+
+The consolidated runtime at local1d9dbb4 was published as the filtered snapshot
+2e07112, without unpublished notes/history or review-only service prototypes:
+https://github.com/MaisySen/sanjaal/commit/2e07112ceed3d5e44dc2cf37e308b4489573a6c9
+Runtime/native/assets/integration/lock/API trees are identical; two prototype-only
+test files are excluded. The combined local preflight passed186 selected cases,
+not a complete product or performance test.
+
+The isolated compiler-only run is finished:
+https://github.com/MaisySen/sanjaal/actions/runs/44998923978
+Both compiler steps succeeded. The iOS simulator payload/source collector passed
+with Flutter3.50.0, Dart3.14.0, Xcode26.6 build17F113 and simulator SDK26.5. Android
+produced its debug APK but the collector rejected native libraries outside ARM64.
+The unsplit debug command did not match the collector's single-ABI contract.
+That workflow/checker mismatch is not evidence of an app regression, but the
+actual extra library list and post-build tracked-config check were not retained
+or completed. The original run remains failed, not retrospectively passed.
+No native application ran and no binary was preserved, stable-signed, installed,
+uploaded or distributed. No backend deployment or capability activation occurred.
+
+A local-only recovery prepares ABI inventory/hash and post-build-config diagnostics
+before rejection, preserves the strict ABI requirement, and selects an explicitly
+split ARM64 debug output for a future independently warranted native batch.
+Eleven synthetic checker tests pass. No compiler job was rerun for that correction.
+Current design/brand, native pixels/device feel, exact delivery-candidate acceptance,
+scoped Apple CI identity, export determination and tester/distribution gates remain
+open. Neither the Apple identity wait nor this collector failure pauses independent
+product work. The backend rollout hold and default-off capabilities are unchanged.
+
+
+## Earlier connected-product review, November 22, 2026
+
+The delivery-continuity correction above is newer than this section. This section
+supersedes only the older historical tables below; none is authority for an action.
+This earlier review was reversible local work in `coherent-experience-review`, based on
 protected baseline `bf13617be1a6432015face5020a4cbf0ac2be5d6`. The settled shared
 session-recovery checkpoint is tree `b78cdc5d0a11d7a67e567f91db861c960ad389a3`.
 The connected first-use checkpoint is tree

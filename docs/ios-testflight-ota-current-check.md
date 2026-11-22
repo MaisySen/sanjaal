@@ -2,6 +2,20 @@
 
 Read-only source and public-document check, November 22, 2026. Not a completed release pipeline, provider selection, App Review determination or upload permission.
 
+## Later compiler evidence and authority clarification
+
+The November22 compiler-only run44998923978 built the current runtime as an iOS
+simulator fixture and passed its source/payload collector. Actual toolchain was
+Flutter3.50.0, Dart3.14.0, Xcode26.6 build17F113, simulator SDK26.5:
+https://github.com/MaisySen/sanjaal/actions/runs/44998923978/job/137135908193
+No app launched, no phone binary or stable signing occurred, and nothing was
+uploaded. A simulator SDK does not establish the iphoneos archive SDK, export
+compliance, signed TestFlight readiness, physical acceptance or an OTA baseline.
+The original owner has scoped historical certificate/private-upload authority;
+there is no general signing/build prohibition. Existing scopes and the separate
+CI-identity, candidate-review, credential, legal and audience checks must still
+match the next action. Do not turn this document into a blanket permission hold.
+
 ## Current Apple floor versus next announced floor
 
 Apple's current upload requirement is Xcode 26 or later with the iOS 26 SDK or later. Its requirements page also lists iOS 13 as the current minimum deployment target. The submitting page announces iOS/iPadOS 27 SDK and deployment target iOS 15 or later from April 2027. These are different dates and must not be merged into a claim that the later floor applies now.

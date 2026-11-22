@@ -37,3 +37,5 @@ Eight actual dialog/kept-draft captures were inspected at a 320x640 logical view
 This covers the shared guard and the named paths, not every caller, nested navigator shape, custom dialog, editor-save callback or async completion in the app. Caller session/draft ownership remains the caller's responsibility. Already-issued work, native persistence, interruption/cold start, provider behavior, full product/reference acceptance and private delivery remain open.
 
 No source push, backend rollout, deployment, native build, stable-key signing, installation or distribution occurred. Default-off capabilities, native restrictions, existing Apple keys and Stampies were not changed. Apple identity setup remains separate.
+
+Profile text-save return has a separate bounded follow-up in [Profile save-route ownership](profile-save-route-ownership.md). Other caller/receipt/native limits above remain open.

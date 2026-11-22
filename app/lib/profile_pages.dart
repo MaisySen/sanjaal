@@ -514,14 +514,18 @@ class _EditProfilePageState extends State<EditProfilePage> with SessionBoundStat
   void sessionRetired() {
     for (final field in [name, username, bio]) { field.clear(); }
     busy = false;
+    _finishing = false;
   }
   late final name = TextEditingController(text: (widget.session.user?['name'] ?? '').toString());
   late final username = TextEditingController(text: (widget.session.user?['username'] ?? '').toString());
   late final bio = TextEditingController(text: (widget.session.user?['bio'] ?? '').toString());
   final _form = GlobalKey<FormState>();
   bool busy = false;
-  bool saved = false;
-  late final (String, String, String) initial;
+  bool _finishing = false;
+  bool get _locked => busy || _finishing;
+  bool get _canEdit => mounted && sessionActive && ModalRoute.of(context)?.isCurrent == true;
+  (String, String, String) get _values => (name.text, username.text, bio.text);
+  late (String, String, String) initial;
 
   @override
   void initState() {
@@ -535,7 +539,7 @@ class _EditProfilePageState extends State<EditProfilePage> with SessionBoundStat
 
 
   Future<void> _avatar() async {
-    if (busy || !sessionActive) return;
+    if (_locked || !_canEdit) return;
     setState(() => busy = true);
     try {
       final f = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 640, imageQuality: 78));
@@ -549,28 +553,32 @@ class _EditProfilePageState extends State<EditProfilePage> with SessionBoundStat
   }
 
   Future<void> _save() async {
-    if (busy || !sessionActive || !_form.currentState!.validate()) return;
+    if (_locked || !_canEdit || !_form.currentState!.validate()) return;
+    final route = ModalRoute.of(context)!;
+    final submitted = _values;
     setState(() => busy = true);
     try {
-      await widget.session.updateProfile({'name': name.text.trim(), 'username': username.text.trim(), 'bio': bio.text.trim()});
+      await widget.session.updateProfile({'name': submitted.$1.trim(), 'username': submitted.$2.trim(), 'bio': submitted.$3.trim()});
       if (!mounted || !sessionActive) return;
-      setState(() { saved = true; busy = false; });
+      setState(() { initial = submitted; busy = false; _finishing = true; });
       await WidgetsBinding.instance.endOfFrame;
-      if (mounted && sessionActive) Navigator.of(context).pop();
+      if (mounted && sessionActive && route.isCurrent && _values == submitted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted && sessionActive) {
         setState(() => busy = false);
         showError(context, e);
       }
+    } finally {
+      if (mounted && sessionActive && _finishing) setState(() => _finishing = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (!sessionActive) return retiredSessionView();
-    return DraftExitGuard(hasChanges: !saved && (name.text, username.text, bio.text) != initial, busy: busy, busyMessage: 'Your profile is still updating.', child: Scaffold(
+    return DraftExitGuard(hasChanges: _values != initial, busy: busy, busyMessage: 'Your profile is still updating.', child: Scaffold(
       appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Edit profile'), maxLines: 2, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)), actions: [
-        Padding(padding: const EdgeInsets.only(right: 8), child: FilledButton(onPressed: busy ? null : _save, child: Text(t_('Save')))),
+        Padding(padding: const EdgeInsets.only(right: 8), child: FilledButton(onPressed: _locked ? null : _save, child: Text(t_('Save')))),
       ]),
       body: Form(
         key: _form,
@@ -581,22 +589,22 @@ class _EditProfilePageState extends State<EditProfilePage> with SessionBoundStat
               Positioned(
                 right: 0,
                 bottom: 0,
-                child: CircleAvatar(radius: 18, backgroundColor: Colors.white, child: IconButton(tooltip: t_('Change photo'), padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.black), onPressed: busy ? null : _avatar)),
+                child: CircleAvatar(radius: 18, backgroundColor: Colors.white, child: IconButton(tooltip: t_('Change photo'), padding: EdgeInsets.zero, icon: const PhIcon('camera', size: 18, color: Colors.black), onPressed: _locked ? null : _avatar)),
               ),
             ]),
           ),
           const SizedBox(height: 24),
-          TextFormField(key: const ValueKey('profile-name'), controller: name, enabled: !busy, maxLength: 80, decoration: InputDecoration(labelText: t_('Name'), border: const OutlineInputBorder()), validator: (v) => (v ?? '').trim().isEmpty ? t_('Required') : null),
+          TextFormField(key: const ValueKey('profile-name'), controller: name, enabled: !_locked, maxLength: 80, decoration: InputDecoration(labelText: t_('Name'), border: const OutlineInputBorder()), validator: (v) => (v ?? '').trim().isEmpty ? t_('Required') : null),
           const SizedBox(height: 12),
           TextFormField(
             key: const ValueKey('profile-username'),
             controller: username,
-            enabled: !busy,
+            enabled: !_locked,
             decoration: InputDecoration(labelText: t_('Username'), border: const OutlineInputBorder()),
             validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch((v ?? '').trim()) ? null : t_('Use 3 to 30 letters, numbers, dots or underscores'),
           ),
           const SizedBox(height: 12),
-          TextFormField(key: const ValueKey('profile-bio'), controller: bio, enabled: !busy, maxLength: 160, maxLines: 3, decoration: InputDecoration(labelText: t_('Bio'), border: const OutlineInputBorder())),
+          TextFormField(key: const ValueKey('profile-bio'), controller: bio, enabled: !_locked, maxLength: 160, maxLines: 3, decoration: InputDecoration(labelText: t_('Bio'), border: const OutlineInputBorder())),
           if (busy) const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator()),
         ]),
       ),

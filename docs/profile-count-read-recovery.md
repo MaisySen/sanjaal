@@ -9,3 +9,5 @@ Own-profile counts use '-' until a count snapshot has loaded, with an accessible
 Eight new cases cover EN/NE unknown-count recovery plus own/other string, negative and boolean count refreshes, retained snapshots and successful retry. Selected count/profile-journey/own-profile-route/other-profile-entry groups passed 64 tests. Analyzer has no errors/warnings and one unchanged informational underscore lint in the editor. Actual narrow 1.8x EN/light and NE/dark first-read recovery captures were inspected: error, retry, unknown counts, identity and profile controls remain readable and scrollable. This is not final reference/native acceptance.
 
 No live profile change, account operation, relationship read/write, native build, source push, signing/install/distribution, backend rollout or provider action occurred.
+
+Follow-up: [profile identity read recovery](profile-identity-read-recovery.md) adds identity binding and action gating. Older own-profile fixtures were corrected to the signed-in identity and count/recovery checks rerun. The earlier count tests were not owner-identity evidence.

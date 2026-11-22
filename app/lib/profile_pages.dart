@@ -15,11 +15,16 @@ import 'feed_page.dart' show FeedList, SavedPage;
 import 'settings_page.dart';
 import 'ui.dart';
 
-/// Validate counts before replacing a readable profile snapshot. Missing counts
-/// retain the existing partial-profile contract; malformed counts are a failed
-/// read, never a successful refresh with a crashing or invented value.
-Map<String, dynamic> _profileRead(dynamic value) {
-  if (value is! Map<String, dynamic>) {
+/// Validate identity and counts before replacing a readable profile snapshot.
+/// The signed-in owner's counts must match that public ID. Another profile stays
+/// bound to its route username and the public ID from its first valid response.
+/// Missing counts retain the existing partial-profile contract.
+Map<String, dynamic> _profileRead(dynamic value, {String? owner, String? username}) {
+  if (value is! Map<String, dynamic> ||
+      value['public_id'] is! String || (value['public_id'] as String).trim().isEmpty ||
+      value['username'] is! String || (value['username'] as String).trim().isEmpty ||
+      (owner != null && value['public_id'] != owner) ||
+      (username != null && value['username'] != username)) {
     throw const FormatException('Invalid profile');
   }
   for (final key in ['posts_count', 'followers_count', 'following_count']) {
@@ -115,17 +120,18 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   @override
   Session get viewSession => widget.session;
   @override
-  void sessionRetired() { u=null;error=null;busy=false;loading=false;read++; }
+  void sessionRetired() { u=null;error=null;busy=false;loading=false;_profileVerified=false;read++; }
   Map<String, dynamic>? u;
   String? error;
   bool busy = false;
   bool loading = false;
   int read = 0;
   bool _openingMembers = false;
+  bool _profileVerified = false;
 
   Future<void> _openMembers(Map<String, dynamic> user, FollowListKind kind) async {
     final owner = user['public_id'];
-    if (!mounted || !sessionActive || _openingMembers || busy || loading ||
+    if (!mounted || !sessionActive || !_profileVerified || _openingMembers || busy || loading ||
         !widget.session.followListsEnabled || !identical(u, user) ||
         user['blocked'] == true || user['username'] != widget.username ||
         owner is! String || owner.trim().isEmpty) {
@@ -149,18 +155,18 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   Future<void> _load() async {
     if (!mounted || !sessionActive) return;
     final request = ++read;
-    setState(() { loading = true; error = null; });
+    setState(() { loading = true; error = null; _profileVerified = false; });
     try {
       final j = await widget.session.call('GET', '/users/${widget.username}') as Map<String, dynamic>;
-      final profile = _profileRead(j['user']);
-      if (mounted && sessionActive && request == read) setState(() => u = profile);
+      final profile = _profileRead(j['user'], owner: u?['public_id'] as String?, username: widget.username);
+      if (mounted && sessionActive && request == read) setState(() { u = profile; _profileVerified = true; });
     } catch (e) {
       if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : t_(e.message)) : t_('Profile could not be loaded.'));
     } finally { if (mounted && sessionActive && request == read) setState(() => loading = false); }
   }
 
   Future<void> _follow() async {
-    if (!sessionActive || busy || loading || u == null) return;
+    if (!mounted || !sessionActive || !_profileVerified || busy || loading || u == null) return;
     final me = u!;
     final was = me['following'] == true;
     setState(() => busy = true);
@@ -178,7 +184,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   }
 
   Future<void> _message() async {
-    if (!sessionActive || busy || loading) return;
+    if (!mounted || !sessionActive || !_profileVerified || busy || loading) return;
     setState(() => busy = true);
     try {
       final j = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': widget.username}) as Map<String, dynamic>;
@@ -191,10 +197,10 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   }
 
   Future<void> _menu(String v) async {
-    if (!sessionActive || busy || loading) return;
-    if (v == 'report') return reportFlow(context, widget.session, 'user', widget.username, isActive:()=>sessionActive);
+    if (!mounted || !sessionActive || !_profileVerified || busy || loading) return;
+    if (v == 'report') return reportFlow(context, widget.session, 'user', widget.username, isActive:()=>mounted && sessionActive && _profileVerified);
     if (v == 'block') {
-      if (await blockFlow(context, widget.session, widget.username, isActive:()=>sessionActive) && mounted && sessionActive) Navigator.of(context).pop();
+      if (await blockFlow(context, widget.session, widget.username, isActive:()=>mounted && sessionActive && _profileVerified) && mounted && sessionActive) Navigator.of(context).pop();
     }
     if (v == 'unblock') {
       try {
@@ -226,7 +232,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
           IconButton(tooltip: t_('Refresh profile'), onPressed: loading || busy ? null : _load, icon: const PhIcon('arrow-clockwise')),
           if (!isMe)
             PopupMenuButton<String>(
-              enabled: !busy && !loading,
+              enabled: !busy && !loading && _profileVerified,
               onSelected: _menu,
               itemBuilder: (_) => [
                 PopupMenuItem(value: 'report', child: Text(t_('Report'))),
@@ -245,15 +251,15 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
           if (loading) const LinearProgressIndicator(),
           ProfileHeader(
           user: user,
-          onFollowers: !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.followers),
-          onFollowing: !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.following),
+          onFollowers: !_profileVerified || !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.followers),
+          onFollowing: !_profileVerified || !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.following),
           actions: isMe
               ? const SizedBox.shrink()
               : ProfileActions(children: [
                   following
-                        ? OutlinedButton(onPressed: busy || loading ? null : _follow, child: Text(t_('Unfollow')))
-                        : FilledButton(onPressed: busy || loading || blocked ? null : _follow, child: Text(t_('Follow'))),
-                  OutlinedButton.icon(onPressed: busy || loading || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message'))),
+                        ? OutlinedButton(onPressed: busy || loading || !_profileVerified ? null : _follow, child: Text(t_('Unfollow')))
+                        : FilledButton(onPressed: busy || loading || !_profileVerified || blocked ? null : _follow, child: Text(t_('Follow'))),
+                  OutlinedButton.icon(onPressed: busy || loading || !_profileVerified || blocked ? null : _message, icon: const PhIcon('chat-circle'), label: Text(t_('Message'))),
                 ]),
         )]),
       ),
@@ -340,7 +346,7 @@ class _MePageState extends State<MePage> with SessionBoundState<MePage> {
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/$name') as Map<String, dynamic>;
-      final profile = _profileRead(j['user']);
+      final profile = _profileRead(j['user'], owner: widget.session.user?['public_id'] as String?);
       if (mounted && sessionActive && request == read) setState(() => counts = profile);
     } catch (e) {
       if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? t_(e.message) : t_('Profile could not be loaded.'));

@@ -97,7 +97,9 @@ void main() {
           expect(opens, 2);
         },
         respond: (r) async => r.url.path.contains('/users/')
-            ? h.json({'user': {}})
+            ? h.json({
+                'user': {'public_id': 'me', 'username': 'fixture'},
+              })
             : h.json({'data': []}),
       );
     },
@@ -141,7 +143,9 @@ void main() {
             await p.shot(t, 'own_profile_retired_$lang');
           },
           respond: (r) async => r.url.path.contains('/users/')
-              ? h.json({'user': {}})
+              ? h.json({
+                  'user': {'public_id': 'me', 'username': 'fixture'},
+                })
               : h.json({'data': []}),
         );
       },
@@ -184,6 +188,8 @@ void main() {
             respond: (r) async => r.url.path.contains('/users/')
                 ? h.json({
                     'user': {
+                      'public_id': 'me',
+                      'username': 'fixture',
                       'posts_count': 7,
                       'followers_count': 4,
                       'following_count': 3,
@@ -228,6 +234,8 @@ void main() {
         respond: (r) async => r.url.path.contains('/users/')
             ? h.json({
                 'user': {
+                  'public_id': 'me',
+                  'username': 'fixture',
                   'posts_count': 7,
                   'followers_count': 4,
                   'following_count': 3,
@@ -258,6 +266,8 @@ void main() {
           pending.complete(
             h.json({
               'user': {
+                'public_id': 'me',
+                'username': 'fixture',
                 'posts_count': 8,
                 'followers_count': 4,
                 'following_count': 3,
@@ -272,6 +282,8 @@ void main() {
             ? (++reads == 1
                   ? h.json({
                       'user': {
+                        'public_id': 'me',
+                        'username': 'fixture',
                         'posts_count': 7,
                         'followers_count': 4,
                         'following_count': 3,
@@ -297,6 +309,8 @@ void main() {
         pending.complete(
           h.json({
             'user': {
+              'public_id': 'me',
+              'username': 'fixture',
               'posts_count': 9876,
               'followers_count': 1234,
               'following_count': 4321,

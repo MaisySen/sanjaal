@@ -66,7 +66,7 @@ void main() {
           respond: (r) async => r.url.path.contains('/users/')
               ? p.json({
                   'user': {
-                    ...p.person(followers: 9),
+                    ...p.person(own: true, followers: 9),
                     if (++reads == 1) 'followers_count': 'invalid-fixture',
                   },
                 })
@@ -112,7 +112,7 @@ void main() {
             respond: (r) async => r.url.path.contains('/users/')
                 ? p.json({
                     'user': {
-                      ...p.person(followers: reads < 2 ? 9 : 11),
+                      ...p.person(own: own, followers: reads < 2 ? 9 : 11),
                       if (++reads == 2) invalid.key: invalid.value,
                     },
                   })

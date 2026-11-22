@@ -517,6 +517,7 @@ void main() {
             return h.json({
               'user': {
                 ...member('fixture'),
+                'public_id': 'me',
                 'followers_count': 2,
                 'following_count': 3,
                 'posts_count': 0,

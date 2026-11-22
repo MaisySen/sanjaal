@@ -31,7 +31,7 @@ Future<void> fixture(WidgetTester t, Widget Function(Session) page, Future<void>
     return respond == null ? json({}) : respond(r);
   }));
 }
-Map<String,dynamic> person({bool following=false,int followers=4,int posts=0})=>{'public_id':'asha','username':'asha','name':'Asha Gurung','bio':'Community music and weekend walks.','following':following,'followers_count':followers,'following_count':3,'posts_count':posts};
+Map<String,dynamic> person({bool own=false,bool following=false,int followers=4,int posts=0})=>{'public_id':own?'me':'asha','username':own?'fixture':'asha','name':'Asha Gurung','bio':'Community music and weekend walks.','following':following,'followers_count':followers,'following_count':3,'posts_count':posts};
 class PendingPicker extends ImagePickerPlatform {
   final result=Completer<XFile?>();
   @override
@@ -47,7 +47,7 @@ void main(){
       expect(find.text('5'),findsOneWidget);
       expect(find.text('No photo or text posts yet'),findsOneWidget);
       expect(find.text('You have not posted yet'),findsNothing);
-    },respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(posts:5)}):json({'data':[],'next_cursor':null}));
+    },respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(own:true,posts:5)}):json({'data':[],'next_cursor':null}));
   });
   testWidgets('unchanged edit leaves without a discard question',(t)async{
     await fixture(t,(s)=>EditProfilePage(session:s),()async{await t.pageBack();await t.pumpAndSettle();expect(find.byType(EditProfilePage),findsNothing);expect(find.text('Discard this draft?'),findsNothing);});
@@ -99,13 +99,13 @@ void main(){
   testWidgets('own profile retry preserves identity and loads current counts',(t)async{
     var reads=0;await fixture(t,(s)=>MePage(session:s),()async{
       expect(find.text('Fixture Name'),findsOneWidget);expect(find.text('Could not load this.'),findsOneWidget);await t.tap(find.text('Try again'));await flush(t);expect(find.text('7'),findsOneWidget);expect(find.text('Fixture Name'),findsOneWidget);
-    },respond:(r)async=>r.url.path.endsWith('/users/fixture')?(++reads==1?json({'message':'Fixture counts failed'},503):json({'user':person(posts:7)})):json({'data':[],'next_cursor':null}));
+    },respond:(r)async=>r.url.path.endsWith('/users/fixture')?(++reads==1?json({'message':'Fixture counts failed'},503):json({'user':person(own:true,posts:7)})):json({'data':[],'next_cursor':null}));
   });
   testWidgets('own profile newer publish counts win over an older response',(t)async{
     final old=Completer<http.Response>();var reads=0;final revision=ValueNotifier(0);addTearDown(revision.dispose);
     await fixture(t,(s)=>ValueListenableBuilder<int>(valueListenable:revision,builder:(_,v,__)=>MePage(session:s,contentRevision:v)),()async{
-      revision.value=1;await flush(t);expect(find.text('9'),findsOneWidget);old.complete(json({'user':person(posts:1)}));await flush(t);expect(find.text('9'),findsOneWidget);
-    },respond:(r)async=>r.url.path.endsWith('/users/fixture')?(++reads==1?old.future:json({'user':person(posts:9)})):json({'data':[],'next_cursor':null}));
+      revision.value=1;await flush(t);expect(find.text('9'),findsOneWidget);old.complete(json({'user':person(own:true,posts:1)}));await flush(t);expect(find.text('9'),findsOneWidget);
+    },respond:(r)async=>r.url.path.endsWith('/users/fixture')?(++reads==1?old.future:json({'user':person(own:true,posts:9)})):json({'data':[],'next_cursor':null}));
   });
   testWidgets('unchanged edit closes directly and changed text requires explicit discard',(t)async{
     await fixture(t,(s)=>EditProfilePage(session:s),()async{
@@ -151,7 +151,7 @@ void main(){
         await t.ensureVisible(create);await t.pumpAndSettle();
         expect(t.getBottomRight(create).dy,lessThanOrEqualTo(640));
         expect(t.takeException(),isNull);await shot(t,'profile_first_action_${lang}_${scale==1?'normal':'large'}');
-      },scale:scale,language:lang,respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(followers:1250,posts:12)}):json({'data':[],'next_cursor':null}));
+      },scale:scale,language:lang,respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(own:true,followers:1250,posts:12)}):json({'data':[],'next_cursor':null}));
     });
   }}
   for(final page in ['edit','member','me']){for(final lang in ['en','ne']){for(final b in [Brightness.light,Brightness.dark]){
@@ -159,7 +159,7 @@ void main(){
       t.view.physicalSize=const Size(320,640);t.view.devicePixelRatio=1;addTearDown(t.view.resetPhysicalSize);addTearDown(t.view.resetDevicePixelRatio);
       await fixture(t,(s)=>page=='edit'?EditProfilePage(session:s):page=='member'?UserProfilePage(session:s,username:'asha'):MePage(session:s),()async{
         await flush(t);await t.pumpAndSettle();expect(t.takeException(),isNull);await shot(t,'profile_${page}_${lang}_${b.name}');
-      },brightness:b,scale:1.8,language:lang,respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(followers:1250,posts:12)}):json({'data':[],'next_cursor':null}));
+      },brightness:b,scale:1.8,language:lang,respond:(r)async=>r.url.path.contains('/users/')?json({'user':person(own:page=='me',followers:1250,posts:12)}):json({'data':[],'next_cursor':null}));
     });
   }}}
 

@@ -23,7 +23,7 @@ class GroupOwnershipRaceTest extends TestCase
         $this->assertSame(54388, (int) $db->getConfig('port'));
         $this->assertSame(dirname($host).'/data', $db->selectOne("select current_setting('data_directory') as path")->path);
         $this->artisan('migrate:fresh', ['--force' => true]);
-        config(['group_ownership.enabled' => true]);
+        config(['group_ownership.enabled' => true, 'group_member_removal.enabled' => true]);
     }
 
     private function group(): array
@@ -33,7 +33,7 @@ class GroupOwnershipRaceTest extends TestCase
         [$c] = $this->member('third');
         $snapshot = $this->postJson('/api/v1/conversations', ['type' => 'group', 'title' => 'Synthetic race', 'usernames' => ['next', 'third']], $headers)->assertCreated()->json('conversation');
 
-        return [Conversation::where('public_id', $snapshot['public_id'])->firstOrFail(), $a, $b, $c, $snapshot['ownership_revision']];
+        return [Conversation::where('public_id', $snapshot['public_id'])->firstOrFail(), $a, $b, $c, $snapshot['ownership_revision'], $headers];
     }
 
     private function race(Conversation $group, array $operations): array
@@ -133,5 +133,97 @@ class GroupOwnershipRaceTest extends TestCase
         $this->assertSame(1, $group->members()->wherePivot('role', 'owner')->count());
         $this->assertSame($b->id, $group->members()->wherePivot('role', 'owner')->first()->id);
         $this->assertSame($codes[0] === 200 ? 2 : 1, $group->fresh()->ownership_version);
+    }
+
+    public function test_competing_removals_need_distinct_current_confirmations(): void
+    {
+        [$group, $a, $b, $c, $revision] = $this->group();
+        $codes = $this->race($group, [[$a->id, 'remove', $b->public_id, $revision], [$a->id, 'remove', $c->public_id, $revision]]);
+        sort($codes);
+        $this->assertSame([200, 409], $codes);
+        $this->assertSame(2, $group->members()->count());
+        $this->assertSame(1, $group->members()->wherePivot('role', 'owner')->count());
+        $this->assertSame($a->id, $group->members()->wherePivot('role', 'owner')->first()->id);
+        $this->assertSame(1, $group->fresh()->ownership_version);
+    }
+
+    public function test_removal_and_handoff_cannot_apply_the_same_old_authority(): void
+    {
+        [$group, $a, $b, , $revision] = $this->group();
+        $codes = $this->race($group, [[$a->id, 'remove', $b->public_id, $revision], [$a->id, 'transfer', $b->public_id, $revision]]);
+        $this->assertTrue(in_array($codes, [[200, 409], [403, 200]], true));
+        $this->assertSame(1, $group->members()->wherePivot('role', 'owner')->count());
+        $this->assertSame(1, $group->fresh()->ownership_version);
+        $this->assertSame($codes[0] === 200 ? $a->id : $b->id, $group->members()->wherePivot('role', 'owner')->first()->id);
+    }
+
+    public function test_queued_send_rechecks_membership_after_removal(): void
+    {
+        [$group, $a, $b, , $revision] = $this->group();
+        $codes = $this->race($group, [[$a->id, 'remove', $b->public_id, $revision], [$b->id, 'send', '', '']]);
+        $this->assertSame(200, $codes[0]);
+        $this->assertContains($codes[1], [201, 404]);
+        $this->assertFalse($group->hasMember($b));
+        $this->assertSame($codes[1] === 201 ? 1 : 0, $group->messages()->count());
+    }
+
+    private function pausedPoll(Conversation $group, $member, callable $during): array
+    {
+        $dir = sys_get_temp_dir().'/group-ownership-race-'.bin2hex(random_bytes(6));
+        mkdir($dir, 0700);
+        $process = null;
+        $pipes = [];
+        try {
+            $command = [PHP_BINARY, '-c', php_ini_loaded_file(), __DIR__.'/group-ownership-worker.php', $dir.'/go', $group->public_id, $member->id, 'poll', '', '', $dir.'/ready-0'];
+            $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, base_path());
+            $this->assertIsResource($process);
+            touch($dir.'/go');
+            $deadline = hrtime(true) + 10000000000;
+            while (! file_exists($dir.'/ready-0.poll')) {
+                if (hrtime(true) >= $deadline) $this->fail('Group poll did not finish its initial empty-message probe.');
+                usleep(10000);
+            }
+            // Its real controller has already authorized the old membership and
+            // finished the initial empty-message query. No fixture hook is in production.
+            $this->assertSame(0, $group->messages()->count());
+            $during();
+            touch($dir.'/go.read');
+            $out = stream_get_contents($pipes[1]);
+            $error = stream_get_contents($pipes[2]);
+            fclose($pipes[1]); fclose($pipes[2]); $pipes = [];
+            $this->assertSame(0, proc_close($process), 'Group poll fixture failed: '.$error);
+            $process = null;
+
+            return json_decode($out, true, flags: JSON_THROW_ON_ERROR);
+        } finally {
+            if (is_resource($process)) { proc_terminate($process); proc_close($process); }
+            foreach ($pipes as $pipe) if (is_resource($pipe)) fclose($pipe);
+            foreach (glob($dir.'/*') ?: [] as $file) @unlink($file);
+            @rmdir($dir);
+        }
+    }
+
+    public function test_waiting_poll_cannot_deliver_messages_created_after_removal(): void
+    {
+        [$group, $a, $b, , $revision, $headers] = $this->group();
+        $result = $this->pausedPoll($group, $b, function () use ($group, $b, $revision, $headers) {
+            $this->postJson('/api/v1/conversations/'.$group->public_id.'/member-removals', ['member_id' => $b->public_id, 'ownership_revision' => $revision], $headers)->assertOk();
+            $this->postJson('/api/v1/conversations/'.$group->public_id.'/messages', ['body' => 'Private after removal', 'client_id' => 'after-removal'], $headers)->assertCreated();
+        });
+        $this->assertSame(404, $result['code']);
+        $this->assertSame([], $result['payload']);
+    }
+
+    public function test_waiting_poll_uses_reinvited_members_new_history_boundary(): void
+    {
+        [$group, $a, $b, , $revision, $headers] = $this->group();
+        $result = $this->pausedPoll($group, $b, function () use ($group, $b, $revision, $headers) {
+            $this->postJson('/api/v1/conversations/'.$group->public_id.'/member-removals', ['member_id' => $b->public_id, 'ownership_revision' => $revision], $headers)->assertOk();
+            $this->postJson('/api/v1/conversations/'.$group->public_id.'/messages', ['body' => 'Private during absence', 'client_id' => 'during-absence'], $headers)->assertCreated();
+            $this->postJson('/api/v1/conversations/'.$group->public_id.'/members', ['usernames' => ['next']], $headers)->assertOk();
+            $this->postJson('/api/v1/conversations/'.$group->public_id.'/messages', ['body' => 'Visible after return', 'client_id' => 'after-return'], $headers)->assertCreated();
+        });
+        $this->assertSame(200, $result['code']);
+        $this->assertSame(['Visible after return'], array_column($result['payload']['data'], 'body'));
     }
 }

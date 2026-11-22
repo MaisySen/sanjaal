@@ -680,6 +680,21 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   void _composerChanged(){if(mounted && _active)setState((){});}
 
   bool _closed = false;
+  bool _membershipUnavailable = false;
+  bool get _canContact => _active && !_membershipUnavailable;
+  void _markMembershipUnavailable() {
+    if (!mounted || !_active || widget.convo['type'] != 'group') return;
+    setState(() {
+      _membershipUnavailable = true;
+      _closed = true;
+      loading = false;
+      recording = false;
+      typing = [];
+      error = null;
+    });
+    if (ModalRoute.of(context)?.isCurrent == true) FocusScope.of(context).unfocus();
+    _wakeVisible();
+  }
   Completer<void>? _visibilityWait;
   void _wakeVisible() {
     final pending = _visibilityWait;
@@ -749,7 +764,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   }
 
   Future<void> _older() async {
-    if (!_active || loadingOlder || !hasOlder || historyBoundary == null) return;
+    if (!_canContact || loadingOlder || !hasOlder || historyBoundary == null) return;
     final before = firstSeq;
     setState(() { loadingOlder = true; olderError = null; });
     try {
@@ -766,7 +781,8 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
       // Older rows grow in the sliver before the center. Its offset stays fixed
       // without guessing text/image heights or moving a user reading history.
     } catch (e) {
-      if (mounted && _active) setState(() => olderError = e is ApiError ? t_(e.message) : t_('Earlier messages could not be loaded.'));
+      if (e is ApiError && e.status == 404) _markMembershipUnavailable();
+      if (mounted && _active && !_membershipUnavailable) setState(() => olderError = e is ApiError ? t_(e.message) : t_('Earlier messages could not be loaded.'));
     } finally { if (mounted && _active) setState(() => loadingOlder = false); }
   }
 
@@ -809,7 +825,10 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
     } catch (e) {
-      if (mounted && !_closed && _active && _readingVisible) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
+      if (mounted && !_closed && _active && _readingVisible) {
+        if (e is ApiError && e.status == 404) _markMembershipUnavailable();
+        if (!_membershipUnavailable) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
+      }
     } finally {
       fetching = false;
       if (mounted && !_closed && _active && _readingVisible && loading) setState(() => loading = false);
@@ -818,7 +837,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
 
   Future<void> _send() async {
     final t = input.text.trim();
-    if (!_active || t.isEmpty) return;
+    if (!_canContact || t.isEmpty) return;
     input.clear();
     final cid = newUploadIntent();
     final me = widget.session.user!;
@@ -839,7 +858,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   }
 
   Future<void> _deliver(Map<String, dynamic> local) async {
-    if (!_active || local['pending'] != true) return;
+    if (!_canContact || local['pending'] != true) return;
     final cid = local['client_id'];
     final replyId = (local['reply_to'] as Map?)?['public_id'];
     try {
@@ -864,12 +883,13 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
         local['failed'] = true;
         local['unavailable'] = e is ApiError && e.status == 410;
       });
-      showError(context, e is ApiError ? e : ApiError(t_('Delivery could not be confirmed.')));
+      if (e is ApiError && e.status == 404) _markMembershipUnavailable();
+      if (!_membershipUnavailable) showError(context, e is ApiError ? e : ApiError(t_('Delivery could not be confirmed.')));
     }
   }
 
   Future<void> _attach() async {
-    if (!_active || hasLocalMedia || pickingMedia) return;
+    if (!_canContact || hasLocalMedia || pickingMedia) return;
     setState(() => pickingMedia = true);
     try {
       final x = await guardPick(context, () => ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1280, imageQuality: 78));
@@ -884,7 +904,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   }
 
   Future<void> _sendVoice(List<int> bytes) async {
-    if (!mounted || !_active) return;
+    if (!mounted || !_canContact) return;
     setState(() => recording = false);
     await _sendFile(UploadFile(bytes, 'audio/mp4', 'voice.m4a'));
   }
@@ -892,7 +912,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   bool get hasLocalMedia => msgs.any((m) => m['_file'] is UploadFile);
 
   Future<void> _sendFile(UploadFile file) async {
-    if (!mounted || !_active || hasLocalMedia) return;
+    if (!mounted || !_canContact || hasLocalMedia) return;
     final cid = newUploadIntent();
     final me = widget.session.user!;
     final local = <String, dynamic>{
@@ -920,7 +940,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   }
 
   void _typingPing() {
-    if(!_active)return;
+    if(!_canContact)return;
     final now = DateTime.now();
     if (now.difference(_lastTypingPing) < const Duration(seconds: 4)) return;
     _lastTypingPing = now;
@@ -933,12 +953,12 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
+          if (_canContact) ListTile(
             leading: const PhIcon('arrow-bend-up-left'),
             title: Text(t_('Reply')),
             onTap: () {
               Navigator.pop(ctx);
-              if(mounted && _active)setState(() => replyTo = m);
+              if(mounted && _canContact)setState(() => replyTo = m);
             },
           ),
           if ((m['body'] ?? '').toString().isNotEmpty)
@@ -958,14 +978,14 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   }
 
   Future<void> _retry(Map<String, dynamic> m) async {
-    if (!mounted || !_active || !msgs.contains(m) || m['failed'] != true || m['pending'] == true || m['unavailable'] == true) return;
+    if (!mounted || !_canContact || !msgs.contains(m) || m['failed'] != true || m['pending'] == true || m['unavailable'] == true) return;
     // Retry the immutable original, never the newer composer or its reply.
     setState(() { m['failed'] = false; m['pending'] = true; });
     await _deliver(m);
   }
 
   void _call(bool video) {
-    if(!_active)return;
+    if(!_canContact)return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => CallPage(session: widget.session, conversationId: id, title: (widget.convo['title'] ?? 'Call').toString(), video: video),
     ));
@@ -979,7 +999,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
       key: ValueKey(m['public_id']),
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
-        onTap: failed && m['unavailable'] != true ? () => _retry(m) : null,
+        onTap: _canContact && failed && m['unavailable'] != true ? () => _retry(m) : null,
         onLongPress: () => _messageMenu(m),
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 3),
@@ -1021,8 +1041,8 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
             if (m['kind'] == 'storyreply') Text(t_('Story reply'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
             if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
-            if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? Colors.white.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
+            if ((m['body'] ?? '').toString().isNotEmpty) (_membershipUnavailable ? SelectableText(m['body'].toString()) : Text(m['body'].toString())),
+            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_(_membershipUnavailable ? 'Delivery unconfirmed. Retrying is unavailable here.' : 'Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? Colors.white.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
           ])),
         ),
       ),
@@ -1043,7 +1063,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
       appBar: ReviewedAppBar(
         toolbarHeight: (MediaQuery.textScalerOf(context).scale(16) * 2.4).clamp(56.0, 112.0),
         title: InkWell(
-          onTap: group ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
+          onTap: group && !_membershipUnavailable ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
           child: Row(children: [
             if (MediaQuery.textScalerOf(context).scale(14) < 20) ...[
               CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -1054,16 +1074,29 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
               Text((widget.convo['title'] ?? 'Chat').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 16, fontWeight: FontWeight.w700)),
               if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
-              else if (group) Text(tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              else if (group) Text(_membershipUnavailable ? t_('Access unavailable') : tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ])),
           ]),
         ),
         actions: [
-          IconButton(tooltip: t_('Voice call'), icon: const PhIcon('phone-fill'), onPressed: () => _call(false)),
-          IconButton(tooltip: t_('Video call'), icon: const PhIcon('video-camera'), onPressed: () => _call(true)),
+          IconButton(tooltip: t_('Voice call'), icon: const PhIcon('phone-fill'), onPressed: _membershipUnavailable ? null : () => _call(false)),
+          IconButton(tooltip: t_('Video call'), icon: const PhIcon('video-camera'), onPressed: _membershipUnavailable ? null : () => _call(true)),
         ],
       ),
-      body: Column(children: [
+      body: _membershipUnavailable ? ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        itemCount: msgs.length + 2,
+        itemBuilder: (context, index) {
+          if (index == 0) return Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(t_('This group is no longer available to you. You cannot load or send messages here.')));
+          if (index <= msgs.length) return _messageTile(msgs[index - 1], group: group, myId: myId);
+          return SafeArea(child: Padding(padding: const EdgeInsets.only(top: 20), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t_('Already shown messages and unsent drafts stay on this screen until you leave.')),
+            if (input.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 20), child: TextField(controller: input, readOnly: true, minLines: 1, maxLines: 3, decoration: InputDecoration(labelText: t_('Unsent message')))),
+            const SizedBox(height: 16),
+            Text(t_('Go back to Chats and reopen the group if you are added again.')),
+          ])));
+        },
+      ) : Column(children: [
         if (error != null && msgs.isNotEmpty) Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), child: Row(children: [
           Expanded(child: Text(error!, maxLines: 2, overflow: TextOverflow.ellipsis)),
           TextButton(onPressed: fetching ? null : () => _fetch(), child: Text(t_('Try again'))),
@@ -1129,7 +1162,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
               Row(children: [
                 IconButton(tooltip: t_('Attach photo'), onPressed: hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
                 Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
-                IconButton(onPressed: hasLocalMedia || pickingMedia ? null : () => setState(() => recording = true), icon: const PhIcon('microphone'), tooltip: 'Voice message'),
+                IconButton(onPressed: hasLocalMedia || pickingMedia ? null : () { if (_canContact) setState(() => recording = true); }, icon: const PhIcon('microphone'), tooltip: 'Voice message'),
                 IconButton.filled(tooltip: t_('Send message'), onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
               ]),
             ]),
@@ -1170,12 +1203,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
 
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
-  Future<void> _ownership() async {
-    if (!_active || busy || !widget.session.groupOwnershipEnabled || ModalRoute.of(context)?.isCurrent != true) return;
+  Future<void> _ownership({bool removeMembers = false}) async {
+    if (!_active || busy || !(removeMembers ? widget.session.groupMemberRemovalEnabled : widget.session.groupOwnershipEnabled) || ModalRoute.of(context)?.isCurrent != true) return;
     final groupId = widget.convo['public_id'] as String;
     setState(() { busy = true; isOwner = false; });
     try {
-      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupOwnershipPage(session: widget.session, groupId: groupId)));
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupOwnershipPage(session: widget.session, groupId: groupId, removeMembers: removeMembers)));
       if (!mounted || !_active || widget.convo['public_id'] != groupId) return;
       final value = await widget.session.call('GET', '/conversations/$groupId');
       final current = GroupOwnershipSnapshot(value is Map ? value['conversation'] : null, groupId, widget.session.user?['public_id'] ?? '');
@@ -1187,7 +1220,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         });
       }
     } catch (_) {
-      if (mounted && _active && ModalRoute.of(context)?.isCurrent == true) { _say(t_('Could not load group ownership. Try again.')); }
+      if (mounted && _active && ModalRoute.of(context)?.isCurrent == true) { _say(t_(removeMembers ? 'Could not load group members. Try again.' : 'Could not load group ownership. Try again.')); }
     } finally {
       if (mounted && _active) setState(() => busy = false);
     }
@@ -1304,6 +1337,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('note-pencil', size: 20)),
             title: Text(t_('Rename group'), style: const TextStyle(fontWeight: FontWeight.w600)),
             onTap: busy ? null : _rename,
+          ),
+        if (widget.session.groupMemberRemovalEnabled)
+          ListTile(
+            leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('user-minus', size: 20)),
+            title: Text(t_('Manage members'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            onTap: busy ? null : () => _ownership(removeMembers: true),
           ),
         if (widget.session.groupOwnershipEnabled)
           ListTile(

@@ -77,6 +77,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/conversations', [ChatController::class, 'index']);
     Route::post('/conversations', [ChatController::class, 'store']);
     Route::get('/conversations/{conversation}', [ChatController::class, 'show'])->whereUuid('conversation');
+    Route::post('/conversations/{conversation}/member-removals', [ChatController::class, 'removeMember'])->whereUuid('conversation')->middleware('throttle:30,1');
     Route::post('/conversations/{conversation}/ownership', [ChatController::class, 'transferOwnership'])->whereUuid('conversation')->middleware('throttle:30,1');
     Route::get('/conversations/{conversation}/messages', [ChatController::class, 'messages']);
     Route::post('/conversations/{conversation}/messages', [ChatController::class, 'send'])->middleware('throttle:120,1');

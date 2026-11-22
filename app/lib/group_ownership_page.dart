@@ -87,9 +87,11 @@ class GroupOwnershipPage extends StatefulWidget {
     super.key,
     required this.session,
     required this.groupId,
+    this.removeMembers = false,
   });
   final Session session;
   final String groupId;
+  final bool removeMembers;
   @override
   State<GroupOwnershipPage> createState() => _GroupOwnershipPageState();
 }
@@ -99,6 +101,14 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
   @override
   Session get viewSession => widget.session;
   late final String _groupId;
+  late final bool _removeMembers;
+  bool get enabled => widget.removeMembers
+      ? widget.session.groupMemberRemovalEnabled
+      : widget.session.groupOwnershipEnabled;
+  String get pageTitle =>
+      widget.removeMembers ? 'Manage members' : 'Group ownership';
+  String get actionLabel =>
+      widget.removeMembers ? 'Remove from group' : 'Make owner';
   bool _retiredGroup = false;
   GroupOwnershipSnapshot? snapshot;
   bool loading = false, sending = false, needsRead = false;
@@ -109,7 +119,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
       mounted && sessionActive && !_retiredGroup && widget.groupId == _groupId;
   bool get canAct =>
       active &&
-      widget.session.groupOwnershipEnabled &&
+      enabled &&
       !loading &&
       !sending &&
       !needsRead &&
@@ -119,6 +129,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
   void initState() {
     super.initState();
     _groupId = widget.groupId;
+    _removeMembers = widget.removeMembers;
     load();
   }
 
@@ -143,17 +154,16 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
   @override
   void didUpdateWidget(GroupOwnershipPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.groupId != _groupId && !_retiredGroup) {
+    if ((widget.groupId != _groupId ||
+            widget.removeMembers != _removeMembers) &&
+        !_retiredGroup) {
       _retiredGroup = true;
       retire();
     }
   }
 
   Future<void> load() async {
-    if (!active ||
-        loading ||
-        sending ||
-        !widget.session.groupOwnershipEnabled) {
+    if (!active || loading || sending || !enabled) {
       return;
     }
     final version = ++epoch;
@@ -181,7 +191,9 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
     } catch (_) {
       if (active && version == epoch) {
         setState(() {
-          error = 'Could not load group ownership. Try again.';
+          error = widget.removeMembers
+              ? 'Could not load group members. Try again.'
+              : 'Could not load group ownership. Try again.';
         });
       }
     } finally {
@@ -205,9 +217,10 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
       return;
     }
     final version = epoch;
+    final removing = widget.removeMembers;
     bool valid() =>
         active &&
-        widget.session.groupOwnershipEnabled &&
+        enabled &&
         version == epoch &&
         identical(snapshot, source) &&
         !loading &&
@@ -229,7 +242,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
         return AlertDialog(
           insetPadding: const EdgeInsets.all(16),
           title: Text(
-            t_('Make owner?'),
+            t_(removing ? 'Remove member?' : 'Make owner?'),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
           ),
           contentTextStyle: Theme.of(context).textTheme.bodyMedium
@@ -248,7 +261,9 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
                 const SizedBox(height: 12),
                 Text(
                   t_(
-                    'They will be able to rename this group and choose its next owner. You will stay in the group as a member.',
+                    removing
+                        ? 'They will lose access to this group until someone adds them again. Messages and copies already received are not erased.'
+                        : 'They will be able to rename this group and choose its next owner. You will stay in the group as a member.',
                   ),
                 ),
               ],
@@ -261,7 +276,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
             ),
             FilledButton(
               onPressed: () => finish(true),
-              child: Text(t_('Make owner')),
+              child: Text(t_(actionLabel), textAlign: TextAlign.center),
             ),
           ],
         );
@@ -276,7 +291,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
     try {
       final value = await widget.session.call(
         'POST',
-        '/conversations/$_groupId/ownership',
+        '/conversations/$_groupId/${removing ? 'member-removals' : 'ownership'}',
         body: {
           'member_id': member['public_id'],
           'ownership_revision': source.revision,
@@ -289,18 +304,27 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
       );
       final before = source.members.map((m) => m['public_id']).toSet();
       final after = parsed.members.map((m) => m['public_id']).toSet();
-      if (parsed.isOwner ||
-          parsed.owner['public_id'] != member['public_id'] ||
+      final successorValid = removing
+          ? parsed.isOwner &&
+                parsed.owner['public_id'] == source.owner['public_id'] &&
+                !after.contains(member['public_id']) &&
+                after.length == before.length - 1 &&
+                before.containsAll(after)
+          : !parsed.isOwner &&
+                parsed.owner['public_id'] == member['public_id'] &&
+                before.length == after.length &&
+                before.containsAll(after);
+      if (!successorValid ||
           parsed.revision == source.revision ||
-          parsed.title != source.title ||
-          before.length != after.length ||
-          !before.containsAll(after)) {
+          parsed.title != source.title) {
         throw const FormatException();
       }
       if (!active || version != epoch) return;
       setState(() {
         snapshot = parsed;
-        info = 'Ownership transferred. You are still a group member.';
+        info = removing
+            ? 'Member removed. Their earlier messages have not been deleted.'
+            : 'Ownership transferred. You are still a group member.';
       });
     } catch (_) {
       if (active && version == epoch) {
@@ -324,7 +348,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
     if (!sessionActive) return retiredSessionView();
     if (_retiredGroup) {
       return Scaffold(
-        appBar: ReviewedAppBar(title: Text(t_('Group ownership'))),
+        appBar: ReviewedAppBar(title: Text(t_(pageTitle))),
         body: Padding(
           padding: const EdgeInsets.all(20),
           child: Text(
@@ -341,7 +365,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
       child: Scaffold(
         appBar: ReviewedAppBar(
           title: Text(
-            t_('Group ownership'),
+            t_(pageTitle),
             maxLines: 2,
             style: const TextStyle(
               fontSize: 20,
@@ -353,7 +377,7 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
               ? MediaQuery.textScalerOf(context).scale(20) * 2.4 + 16
               : null,
           actions: [
-            if (widget.session.groupOwnershipEnabled)
+            if (enabled)
               IconButton(
                 tooltip: t_('Reload group'),
                 onPressed: loading || sending ? null : load,
@@ -361,12 +385,14 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
               ),
           ],
         ),
-        body: !widget.session.groupOwnershipEnabled
+        body: !enabled
             ? Padding(
                 padding: const EdgeInsets.all(20),
                 child: Text(
                   t_(
-                    'Group ownership changes are not available on this server.',
+                    widget.removeMembers
+                        ? 'Member management is not available on this server.'
+                        : 'Group ownership changes are not available on this server.',
                   ),
                 ),
               )
@@ -379,8 +405,12 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
                     Text(
                       t_(
                         sending
-                            ? 'Changing group owner...'
-                            : 'Loading group ownership...',
+                            ? (widget.removeMembers
+                                  ? 'Removing member...'
+                                  : 'Changing group owner...')
+                            : (widget.removeMembers
+                                  ? 'Loading group members...'
+                                  : 'Loading group ownership...'),
                       ),
                     ),
                   ],
@@ -411,11 +441,19 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
                     Text(
                       t_(
                         current.isOwner
-                            ? 'Choose another current member to become the owner. This does not remove anyone from the group.'
-                            : 'Only the current owner can choose the next owner.',
+                            ? (widget.removeMembers
+                                  ? (current.members.length == 1
+                                        ? 'There are no other members to remove.'
+                                        : 'Choose a member to remove. Removing someone does not erase messages or copies already received.')
+                                  : 'Choose another current member to become the owner. This does not remove anyone from the group.')
+                            : (widget.removeMembers
+                                  ? 'Only the current owner can remove another member.'
+                                  : 'Only the current owner can choose the next owner.'),
                       ),
                     ),
-                    if (current.isOwner && current.members.length == 1) ...[
+                    if (!widget.removeMembers &&
+                        current.isOwner &&
+                        current.members.length == 1) ...[
                       const SizedBox(height: 12),
                       Text(
                         t_('Add another person before choosing a new owner.'),
@@ -435,11 +473,13 @@ class _GroupOwnershipPageState extends State<GroupOwnershipPage>
                                     widget.session.user?['public_id']
                             ? IconButton(
                                 tooltip:
-                                    '${t_('Make owner')}: @${member['username']}',
+                                    '${t_(actionLabel)}: @${member['username']}',
                                 onPressed: sending || loading
                                     ? null
                                     : () => choose(current, member),
-                                icon: const PhIcon('crown'),
+                                icon: PhIcon(
+                                  widget.removeMembers ? 'user-minus' : 'crown',
+                                ),
                               )
                             : null,
                       ),

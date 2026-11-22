@@ -1,4 +1,5 @@
 import 'native_transport.dart';
+import 'native_group_journey.dart';
 // Harness adaptation for the reviewed runtime: compact tabs retain tooltips/semantics.
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
@@ -247,6 +248,8 @@ void main(){
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_rooms_loaded');
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
+  await nativeGroupJourney(t, rootSession,
+      waitUntil: (ready) => until(t, ready), capture: capture, stage: stage);
   await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Me')).hitTestable());
   await until(t,()=>find.byTooltip('Settings').evaluate().isNotEmpty);
   await stage('settings navigation');

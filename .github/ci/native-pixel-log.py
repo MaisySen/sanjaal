@@ -17,6 +17,12 @@ NAMES = (
     'native_ios_settings.png',
     'native_ios_native_device_access.png',
     'native_ios_chat_native_keyboard_ready.png',
+    'native_ios_group_created.png',
+    'native_ios_group_remove_confirm.png',
+    'native_ios_group_removed.png',
+    'native_ios_group_owner_confirm.png',
+    'native_ios_group_transferred.png',
+    'native_ios_group_member_role.png',
     'ios-diagnostic-native.png',
 )
 MAX_IMAGE = 4 * 1024 * 1024

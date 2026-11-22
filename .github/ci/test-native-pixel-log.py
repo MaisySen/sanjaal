@@ -49,6 +49,20 @@ class NativePixelsTest(unittest.TestCase):
             self.assertEqual(len(actual), rows[0]['size'])
             self.assertEqual((rows[0]['width'], rows[0]['height']), (1, 1))
 
+    def test_all_declared_native_frames_are_emitted_once(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name in module.NAMES:
+                (root / name).write_bytes(synthetic_png())
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                module.emit(root)
+            rows = [json.loads(line.removeprefix('SANJAAL_NATIVE_PIXEL '))
+                    for line in out.getvalue().splitlines()
+                    if line.startswith('SANJAAL_NATIVE_PIXEL ')]
+            self.assertEqual([row['name'] for row in rows], list(module.NAMES))
+            self.assertEqual(len(module.NAMES), len(set(module.NAMES)))
+
     def test_missing_required_capture_fails(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(ValueError, 'Required'):

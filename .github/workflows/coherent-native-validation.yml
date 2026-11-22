@@ -20,11 +20,17 @@ jobs:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
       run: |
-        test "$(git rev-parse HEAD:app/lib)" = a4d991ef9c996d75b6dc0f193d628da3cd7bbe2d
+        test "$(git rev-parse HEAD:app/lib)" = 73b4b7096e309dd8d49590fefdb7320789c64088
         test "$(git rev-parse HEAD:app/ios)" = ad3103d5f6f5916be739d7834990aeaa41a29ec1
         test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
         test "$(git rev-parse HEAD:app/pubspec.yaml)" = a70859c72405a0d40b8b3441010fcf6d8676e7a9
         test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
+        test "$(git rev-parse HEAD:app/integration_test)" = 52421ce77460d5b6eb02898b561fc9f211008540
+        test "$(git rev-parse HEAD:api/app)" = 2fc600e01e4a11b437f333379caac203c218caa0
+        test "$(git rev-parse HEAD:api/config)" = 14692b362a6c58d1eca3fb14ab254da3b69bdefa
+        test "$(git rev-parse HEAD:api/routes)" = 519700d6eff4a62ba2b209d9bea24638f8f1ebaa
+        test "$(git rev-parse HEAD:api/database/migrations)" = ed4ebbe416b37335335a0b27b0185a8310c456b7
+        test "$(git rev-parse HEAD:api/tests/E2E)" = 03f14165fab2b02f48b0d1efc5e2b4899f8c6aec
     - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
       with:
         channel: stable
@@ -48,7 +54,7 @@ jobs:
       run: "composer install --no-interaction --prefer-dist --no-progress\nmkdir -p /tmp/ios-e2e;touch /tmp/ios-e2e/db.sqlite\
         \ .env\nphp artisan migrate --force\nphp tests/E2E/prepare.php /tmp/ios-e2e\ncp ../app/test/fixtures/ios_synthetic_video.mp4\
         \ public/ios-native-fixture.mp4\necho \"::add-mask::$(cat /tmp/ios-e2e/token.txt)\"\nE2E_FAULT_AFTER_COMMIT=1\
-        \ UPLOAD_INTENTS_ENABLED=true E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public\
+        \ UPLOAD_INTENTS_ENABLED=true GROUP_OWNERSHIP_ENABLED=true GROUP_MEMBER_REMOVAL_ENABLED=true E2E_JWKS_FILE=/tmp/ios-e2e/jwks.json nohup php -S 127.0.0.1:8000 -t public\
         \ tests/E2E/server.php > /tmp/ios-api.log 2>&1 &\ncurl --retry 5 --retry-connrefused --retry-delay\
         \ 1 -s http://localhost:8000/api/v1/auth/me -H 'Accept: application/json'\n\npython3 ../.github/ci/native-bind-probe.py\n\
         python3 ../.github/ci/native-socket-proxy-contract.py\nnohup python3 ../.github/ci/native-socket-proxy.py\

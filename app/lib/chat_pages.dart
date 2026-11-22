@@ -665,6 +665,36 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   DateTime _lastTypingPing = DateTime.fromMillisecondsSinceEpoch(0);
 
   String get id => widget.convo['public_id'] as String;
+  Map<String, dynamic>? _groupView;
+  bool _groupInfoOpen = false;
+  int _groupInfoVersion = 0;
+  @override
+  void didUpdateWidget(ChatPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.convo, widget.convo) || !identical(oldWidget.session, widget.session)) {
+      ++_groupInfoVersion;
+      _groupView = null;
+    }
+  }
+  Future<void> _openGroupInfo() async {
+    if (!_canContact || _groupInfoOpen || widget.convo['type'] != 'group' || ModalRoute.of(context)?.isCurrent != true) return;
+    final groupId = id;
+    final version = ++_groupInfoVersion;
+    Map<String, dynamic>? updated;
+    _groupInfoOpen = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(
+        session: widget.session,
+        convo: _groupView?['public_id'] == groupId ? _groupView! : widget.convo,
+        onChanged: (value) { if (value['public_id'] == groupId) updated = value; },
+      )));
+      if (mounted && _active && id == groupId && version == _groupInfoVersion && updated != null) {
+        setState(() => _groupView = updated);
+      }
+    } finally {
+      _groupInfoOpen = false;
+    }
+  }
   int get lastSeq => msgs.where((m) => m['seq'] != null).fold(0, (a, m) => (m['seq'] as num).toInt() > a ? (m['seq'] as num).toInt() : a);
 
   @override
@@ -1053,7 +1083,8 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   Widget build(BuildContext context) {
     if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final myId = widget.session.user?['public_id'];
-    final group = widget.convo['type'] == 'group';
+    final conversation = _groupView?['public_id'] == id ? _groupView! : widget.convo;
+    final group = conversation['type'] == 'group';
     return DraftExitGuard(
       hasChanges: hasLocalMedia || input.text.trim().isNotEmpty || replyTo!=null || recording || msgs.any((m)=>m['failed']==true || m['pending']==true),
       busy: pickingMedia || recording || msgs.any((m)=>m['pending']==true),
@@ -1063,7 +1094,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
       appBar: ReviewedAppBar(
         toolbarHeight: (MediaQuery.textScalerOf(context).scale(16) * 2.4).clamp(56.0, 112.0),
         title: InkWell(
-          onTap: group && !_membershipUnavailable ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
+          onTap: group && !_membershipUnavailable ? _openGroupInfo : null,
           child: Row(children: [
             if (MediaQuery.textScalerOf(context).scale(14) < 20) ...[
               CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -1071,10 +1102,10 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
               const SizedBox(width: 10),
             ],
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text((widget.convo['title'] ?? 'Chat').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
+              Text((conversation['title'] ?? 'Chat').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 16, fontWeight: FontWeight.w700)),
               if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
-              else if (group) Text(_membershipUnavailable ? t_('Access unavailable') : tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              else if (group) Text(_membershipUnavailable ? t_('Access unavailable') : tf_('{n} members', {'n': (conversation['members'] as List?)?.length ?? 0}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ])),
           ]),
         ),
@@ -1175,9 +1206,10 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
 
 /// Group membership, owner-only rename, invitations and leaving.
 class GroupInfoPage extends StatefulWidget {
-  const GroupInfoPage({super.key, required this.session, required this.convo});
+  const GroupInfoPage({super.key, required this.session, required this.convo, this.onChanged});
   final Session session;
   final Map<String, dynamic> convo;
+  final ValueChanged<Map<String, dynamic>>? onChanged;
   @override
   State<GroupInfoPage> createState() => _GroupInfoPageState();
 }
@@ -1200,6 +1232,16 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   bool busy = false;
   late String title = (widget.convo['title'] ?? 'Group').toString();
   late bool isOwner = widget.convo['my_role'] == 'owner';
+  void _publish() {
+    if (!mounted || !_active) return;
+    widget.onChanged?.call(Map<String, dynamic>.unmodifiable({
+      'public_id': widget.convo['public_id'],
+      'type': 'group',
+      'title': title,
+      'members': List<Map<String, dynamic>>.unmodifiable(members.map((m) => Map<String, dynamic>.unmodifiable(m))),
+      'my_role': isOwner ? 'owner' : 'member',
+    }));
+  }
 
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
@@ -1218,6 +1260,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
           members = current.members;
           isOwner = current.isOwner;
         });
+        _publish();
       }
     } catch (_) {
       if (mounted && _active && ModalRoute.of(context)?.isCurrent == true) { _say(t_(removeMembers ? 'Could not load group members. Try again.' : 'Could not load group ownership. Try again.')); }
@@ -1254,7 +1297,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     try {
       final j = await widget.session.call('POST', '/conversations/${widget.convo['public_id']}/members', body: {'usernames': names}) as Map<String, dynamic>;
       final c = j['conversation'] as Map<String, dynamic>;
-      if (mounted && _active) setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
+      if (mounted && _active) {
+        setState(() => members = ((c['members'] as List?) ?? const []).cast<Map<String, dynamic>>());
+        _publish();
+      }
     } on ApiError catch (e) {
       if (mounted && _active) _say(t_(e.message));
     } finally {
@@ -1283,7 +1329,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     try {
       final j = await widget.session.call('PATCH', '/conversations/${widget.convo['public_id']}', body: {'title': name}) as Map<String, dynamic>;
       final c = j['conversation'] as Map<String, dynamic>;
-      if (mounted && _active) setState(() => title = (c['title'] ?? name).toString());
+      if (mounted && _active) {
+        setState(() => title = (c['title'] ?? name).toString());
+        _publish();
+      }
     } on ApiError catch (e) {
       if (mounted && _active) _say(t_(e.message));
     } finally {

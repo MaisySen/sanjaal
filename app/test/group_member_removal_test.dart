@@ -404,6 +404,194 @@ void main() {
       },
     );
   });
+  testWidgets('returning from member removal refreshes the chat header', (
+    t,
+  ) async {
+    phone(t);
+    var writes = 0, messageReads = 0;
+    final poll = Completer<http.Response>();
+    await fixture(
+      t,
+      (s) async {
+        try {
+          await mount(
+            t,
+            s,
+            home: ChatPage(session: s, convo: h.snapshot()),
+          );
+          expect(find.text('3 members'), findsOneWidget);
+          await t.tap(find.text('Synthetic group'));
+          await base.flush(t);
+          await t.pumpAndSettle();
+          await t.tap(find.text('Manage members'));
+          await base.flush(t);
+          await t.pumpAndSettle();
+          await choose(t);
+          await t.tap(find.widgetWithText(FilledButton, 'Remove from group'));
+          await base.flush(t);
+          await t.pageBack();
+          await base.flush(t);
+          await t.pumpAndSettle();
+          expect(find.text('2 members'), findsOneWidget);
+          await t.pageBack();
+          await base.flush(t);
+          await t.pumpAndSettle();
+          expect(find.byType(ChatPage), findsOneWidget);
+          expect(find.text('2 members'), findsOneWidget);
+          expect(find.text('3 members'), findsNothing);
+          await capture(t, 'chat-header-en');
+          expect(writes, 1);
+        } finally {
+          if (!poll.isCompleted)
+            poll.complete(base.json({'data': [], 'typing': []}));
+        }
+      },
+      (r) async {
+        if (r.url.path.endsWith('/messages')) {
+          return ++messageReads == 1
+              ? base.json({'data': [], 'typing': []})
+              : poll.future;
+        }
+        if (r.url.path.endsWith('/read') || r.url.path.endsWith('/typing')) {
+          return base.json({});
+        }
+        if (r.method == 'POST') writes++;
+        return base.json({
+          'conversation': writes == 0 ? h.snapshot() : removed(),
+        });
+      },
+    );
+  });
+  for (final operation in ['rename', 'add']) {
+    testWidgets('returning from $operation refreshes chat metadata', (t) async {
+      var writes = 0, reads = 0;
+      final poll = Completer<http.Response>();
+      final changed = h.snapshot();
+      if (operation == 'rename') {
+        changed['title'] = 'Updated group';
+      } else {
+        changed['members'] = [
+          ...changed['members'] as List,
+          {
+            'public_id': '20000000-0000-4000-8000-000000000004',
+            'username': 'fourth',
+            'name': 'Synthetic Fourth',
+            'group_role': 'member',
+          },
+        ];
+      }
+      await fixture(
+        t,
+        (s) async {
+          try {
+            await mount(
+              t,
+              s,
+              home: ChatPage(session: s, convo: h.snapshot()),
+            );
+            await t.tap(find.text('Synthetic group'));
+            await base.flush(t);
+            await t.pumpAndSettle();
+            await t.tap(
+              find.text(operation == 'rename' ? 'Rename group' : 'Add people'),
+            );
+            await base.flush(t);
+            await t.enterText(
+              find.byType(TextField),
+              operation == 'rename' ? 'Updated group' : 'fourth',
+            );
+            await t.tap(
+              find.widgetWithText(
+                FilledButton,
+                operation == 'rename' ? 'Save' : 'Add',
+              ),
+            );
+            await base.flush(t);
+            await t.pumpAndSettle();
+            await t.pageBack();
+            await base.flush(t);
+            await t.pumpAndSettle();
+            expect(
+              find.text(operation == 'rename' ? 'Updated group' : '4 members'),
+              findsOneWidget,
+            );
+            expect(writes, 1);
+          } finally {
+            if (!poll.isCompleted)
+              poll.complete(base.json({'data': [], 'typing': []}));
+          }
+        },
+        (r) async {
+          if (r.url.path.endsWith('/messages'))
+            return ++reads == 1
+                ? base.json({'data': [], 'typing': []})
+                : poll.future;
+          if (r.url.path.endsWith('/read') || r.url.path.endsWith('/typing'))
+            return base.json({});
+          if (r.method == 'PATCH' || r.method == 'POST') writes++;
+          return base.json({
+            'conversation': writes == 0 ? h.snapshot() : changed,
+          });
+        },
+      );
+    });
+  }
+  testWidgets('handoff role remains current when group info is reopened', (
+    t,
+  ) async {
+    var writes = 0, reads = 0;
+    final poll = Completer<http.Response>();
+    await fixture(
+      t,
+      (s) async {
+        s.groupOwnershipEnabled = true;
+        try {
+          await mount(
+            t,
+            s,
+            home: ChatPage(session: s, convo: h.snapshot()),
+          );
+          await t.tap(find.text('Synthetic group'));
+          await base.flush(t);
+          await t.pumpAndSettle();
+          await t.tap(find.text('Group ownership'));
+          await base.flush(t);
+          await t.pumpAndSettle();
+          await t.tap(find.byTooltip('Make owner: @next'));
+          await base.flush(t);
+          await t.pumpAndSettle();
+          await t.tap(find.widgetWithText(FilledButton, 'Make owner'));
+          await base.flush(t);
+          await t.pageBack();
+          await base.flush(t);
+          await t.pumpAndSettle();
+          expect(find.text('Rename group'), findsNothing);
+          await t.pageBack();
+          await base.flush(t);
+          await t.pumpAndSettle();
+          await t.tap(find.text('Synthetic group'));
+          await base.flush(t);
+          await t.pumpAndSettle();
+          expect(find.byType(GroupInfoPage), findsOneWidget);
+          expect(find.text('Rename group'), findsNothing);
+          expect(writes, 1);
+        } finally {
+          if (!poll.isCompleted)
+            poll.complete(base.json({'data': [], 'typing': []}));
+        }
+      },
+      (r) async {
+        if (r.url.path.endsWith('/messages'))
+          return ++reads == 1
+              ? base.json({'data': [], 'typing': []})
+              : poll.future;
+        if (r.url.path.endsWith('/read') || r.url.path.endsWith('/typing'))
+          return base.json({});
+        if (r.method == 'POST') writes++;
+        return base.json({'conversation': h.snapshot(transferred: writes > 0)});
+      },
+    );
+  });
   for (final language in ['en', 'ne']) {
     testWidgets(
       'removal confirmation is readable at narrow large text $language',

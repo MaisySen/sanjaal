@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sanjaal/api.dart';
+import 'package:sanjaal/refresh_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 http.Response reply(Object data) => http.Response(jsonEncode(data), 200);
@@ -14,6 +15,44 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
+  });
+  test('cold restore malformed feature payload preserves rotated grant for current recovery', () async {
+    FlutterSecureStorage.setMockInitialValues({
+      'refresh_token': 'saved-fixture',
+    });
+    final s = Session();
+    var repaired = false, grants = 0;
+    await http.runWithClient(
+      () async {
+        await s.restore();
+        expect(s.user, isNull);
+        expect(s.restoreError, isNotNull);
+        expect(s.accountViewNeedsRefresh, isTrue);
+        expect(await RefreshStore.read(), 'rotated-fixture');
+        repaired = true;
+        await s.recoverAccountView();
+        expect(s.user?['public_id'], 'restored');
+        expect(s.restoreError, isNull);
+        expect(s.accountViewNeedsRefresh, isFalse);
+        expect(s.followListsEnabled, isFalse);
+        expect(grants, 1);
+      },
+      () => MockClient((r) async {
+        if (r.url.path.endsWith('/oauth/token')) {
+          grants++;
+          return reply({
+            'access_token': 'restored-fixture',
+            'refresh_token': 'rotated-fixture',
+            'expires_in': 3600,
+          });
+        }
+        return reply({
+          'user': {'public_id': 'restored', 'username': 'restored'},
+          if (!repaired) 'features': [],
+        });
+      }),
+    );
+    s.dispose();
   });
   for (final malformed in <Object>[[], true, 'invalid', 42]) {
     for (final replacing in [false, true]) {

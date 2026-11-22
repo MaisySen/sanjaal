@@ -15,6 +15,22 @@ import 'feed_page.dart' show FeedList, SavedPage;
 import 'settings_page.dart';
 import 'ui.dart';
 
+/// Validate counts before replacing a readable profile snapshot. Missing counts
+/// retain the existing partial-profile contract; malformed counts are a failed
+/// read, never a successful refresh with a crashing or invented value.
+Map<String, dynamic> _profileRead(dynamic value) {
+  if (value is! Map<String, dynamic>) {
+    throw const FormatException('Invalid profile');
+  }
+  for (final key in ['posts_count', 'followers_count', 'following_count']) {
+    final count = value[key];
+    if (count != null && (count is! num || !count.isFinite || count < 0)) {
+      throw const FormatException('Invalid profile count');
+    }
+  }
+  return value;
+}
+
 /// 999 stays 999, 1240 becomes 1.2K, 2500000 becomes 2.5M.
 String shortCount(int v) {
   String f(double x, String u) {
@@ -27,8 +43,8 @@ String shortCount(int v) {
   return v.toString();
 }
 
-Widget _stat(BuildContext context, String n, String label) => Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(n, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+Widget _stat(BuildContext context, String n, String label, {bool available = true}) => Column(mainAxisSize: MainAxisSize.min, children: [
+      Text(n, semanticsLabel: available ? null : t_('Unavailable'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
       Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
     ]);
 
@@ -45,7 +61,8 @@ class ProfileActions extends StatelessWidget {
 }
 
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key, required this.user, required this.actions, this.onFollowers, this.onFollowing});
+  const ProfileHeader({super.key, required this.user, required this.actions, this.onFollowers, this.onFollowing, this.countsAvailable = true});
+  final bool countsAvailable;
   final Map<String, dynamic> user;
   final Widget actions;
   final VoidCallback? onFollowers;
@@ -55,11 +72,11 @@ class ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = (user['name'] ?? '').toString();
     final bio = (user['bio'] ?? '').toString();
-    String n(String k) => shortCount((user[k] as num?)?.toInt() ?? 0);
+    String n(String k) => countsAvailable ? shortCount((user[k] as num?)?.toInt() ?? 0) : '-';
     final large = MediaQuery.textScalerOf(context).scale(14) > 19;
     Widget countCell((String, String) stat) {
       final tap = stat.$1 == 'followers_count' ? onFollowers : stat.$1 == 'following_count' ? onFollowing : null;
-      final cell = Padding(padding: EdgeInsets.symmetric(vertical: onFollowers != null || onFollowing != null ? 8 : 0), child: _stat(context, n(stat.$1), t_(stat.$2)));
+      final cell = Padding(padding: EdgeInsets.symmetric(vertical: onFollowers != null || onFollowing != null ? 8 : 0), child: _stat(context, n(stat.$1), t_(stat.$2), available: countsAvailable));
       return tap == null ? cell : InkWell(onTap: tap, child: cell);
     }
     const items = [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')];
@@ -135,7 +152,8 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/${widget.username}') as Map<String, dynamic>;
-      if (mounted && sessionActive && request == read) setState(() => u = (j['user'] as Map).cast<String, dynamic>());
+      final profile = _profileRead(j['user']);
+      if (mounted && sessionActive && request == read) setState(() => u = profile);
     } catch (e) {
       if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? (e.status == 404 ? t_('That member does not exist.') : t_(e.message)) : t_('Profile could not be loaded.'));
     } finally { if (mounted && sessionActive && request == read) setState(() => loading = false); }
@@ -322,7 +340,8 @@ class _MePageState extends State<MePage> with SessionBoundState<MePage> {
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/$name') as Map<String, dynamic>;
-      if (mounted && sessionActive && request == read) setState(() => counts = (j['user'] as Map).cast<String, dynamic>());
+      final profile = _profileRead(j['user']);
+      if (mounted && sessionActive && request == read) setState(() => counts = profile);
     } catch (e) {
       if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? t_(e.message) : t_('Profile could not be loaded.'));
     } finally { if (mounted && sessionActive && request == read) setState(() => loading = false); }
@@ -362,6 +381,7 @@ class _MePageState extends State<MePage> with SessionBoundState<MePage> {
           if (loading) const LinearProgressIndicator(),
           ProfileHeader(
           user: me,
+          countsAvailable: counts != null,
           onFollowers: s.followListsEnabled ? () => openMembers(FollowListKind.followers) : null,
           onFollowing: s.followListsEnabled ? () => openMembers(FollowListKind.following) : null,
           actions: ProfileActions(children: [

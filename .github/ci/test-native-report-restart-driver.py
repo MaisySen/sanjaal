@@ -39,7 +39,7 @@ class DriverTest(unittest.TestCase):
             class Response:
                 def __enter__(self): return self
                 def __exit__(self, *args): pass
-                def read(self): return json.dumps({'result': {'type': 'VM'}})
+                def read(self): return json.dumps({'result': {'type': 'VM', 'pid': killed[-1]}})
             class Child:
                 def wait(self, **kwargs): return driver_code
             class Thread:

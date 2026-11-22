@@ -66,6 +66,7 @@ def main():
                     with urllib.request.urlopen(ENDPOINT + 'getVM', timeout=2) as response:
                         state = json.load(response)
                     assert state['result']['type'] == 'VM'
+                    assert str(state['result']['pid']) == str(pid), 'VM service belongs to another app process'
                     break
                 except Exception:
                     if time.monotonic() > deadline:

@@ -14,6 +14,7 @@ Future<void> reportFlow(
   String target, {
   bool Function()? isActive,
   String? targetLabel,
+  String? initialReason,
 }) async {
   final openingRoute = ModalRoute.of(context);
   final owner = _ActionOwner(s, isActive);
@@ -22,19 +23,24 @@ Future<void> reportFlow(
     return;
   }
   try {
-    final reason = await owner.dialog<String>(
-      context: context,
-      builder: (c, complete) => SimpleDialog(
-        title: Text(t_('Report')),
-        children: [
-          for (final entry in reportReasons.entries)
-            SimpleDialogOption(
-              onPressed: () => complete(entry.key),
-              child: Text(t_(entry.value)),
-            ),
-        ],
-      ),
-    );
+    if (initialReason != null && !reportReasons.containsKey(initialReason)) {
+      return;
+    }
+    final reason =
+        initialReason ??
+        await owner.dialog<String>(
+          context: context,
+          builder: (c, complete) => SimpleDialog(
+            title: Text(t_('Report')),
+            children: [
+              for (final entry in reportReasons.entries)
+                SimpleDialogOption(
+                  onPressed: () => complete(entry.key),
+                  child: Text(t_(entry.value)),
+                ),
+            ],
+          ),
+        );
     if (reason == null ||
         !owner.active ||
         !context.mounted ||

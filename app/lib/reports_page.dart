@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'pending_reports_page.dart';
 import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'session_bound_state.dart';
@@ -192,6 +193,13 @@ class _ReportsPageState extends State<ReportsPage>
                 'Only reports submitted by this account appear here. Review status does not confirm content removal.',
               ),
             ),
+            if (supported && widget.session.reportReplayEnabled)
+              ListTile(
+                title: Text(t_('Unconfirmed reports')),
+                subtitle: Text(t_('Check an earlier attempt without the original post or profile.')),
+                trailing: const PhIcon('caret-right'),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder:(_)=>PendingReportsPage(session:widget.session))),
+              ),
             if (!supported)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 24),

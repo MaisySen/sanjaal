@@ -97,6 +97,19 @@ class ReportSubmissionStore {
     }
   }
 
+  Future<List<Map<String, String>>> pending(String owner) async =>
+      (await _read(owner)).entries
+          .map((entry) {
+            final fields = jsonDecode(entry.key) as List;
+            return Map<String, String>.unmodifiable({
+              'type': fields[0] as String,
+              'target': fields[1] as String,
+              'reason': fields[2] as String,
+              'submission_id': entry.value,
+            });
+          })
+          .toList(growable: false);
+
   Future<String?> find(
     String owner,
     String type,

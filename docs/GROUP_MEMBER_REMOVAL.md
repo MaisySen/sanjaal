@@ -36,8 +36,12 @@ keyboard. The unavailable view scrolls at large text sizes with a keyboard.
 Verification: API default suites, SQLite 252 tests / 2317 assertions / 6 skips;
 isolated PostgreSQL 252 / 2346 / 4. The dedicated ownership/removal suite passes
 28 / 273, including six independent-worker row-contention cases and two paused
-poll revocation/rejoin checks. Flutter has 503 passes across 21 selected files,
-including 18 removal tests, not a full current 177-file sweep. Actual fixture
+poll revocation/rejoin checks. The initial frontend checkpoint had 503 passes across 21 selected files,
+including 18 removal tests. The current frozen frontend sweep has 2485 passes
+and 10 explicit skips across all 177 unique top-level files, including 22 removal
+and continuity tests. Returning to chat now preserves confirmed title, member
+count and owner role; a confirmed handoff cannot restore stale owner controls
+merely because the parent's follow-up read is pending. Actual fixture
 pixels for selection, success, unavailable/draft preservation and EN/NE large-text
 confirmation were inspected. No native-language or native/device acceptance is
 claimed. The successful native run at824119b predates both group features.

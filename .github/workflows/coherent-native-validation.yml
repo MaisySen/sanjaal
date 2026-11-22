@@ -4,6 +4,12 @@ name: Reviewed coherent candidate native validation
     branches:
     - coherent-native-validation
     - reviewed-coherent-product
+    paths:
+    - 'app/**'
+    - 'api/**'
+    - '.github/workflows/coherent-native-validation.yml'
+    - '.github/ci/native-*'
+    - '.github/ci/test-native-*'
 permissions:
   contents: read
 concurrency:

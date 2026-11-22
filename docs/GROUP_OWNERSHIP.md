@@ -27,7 +27,7 @@ removal, an admin tier, account deletion or a change to message retention.
   reuse a retained confirmation. A pending write blocks Back until its bounded
   request ends. Older servers have no ownership entry or dead reload action.
 
-## Local verification
+## Initial feature checkpoint
 
 - API default suites: SQLite 242 tests, 2239 assertions, 6 skips; isolated
   PostgreSQL 18, 242 tests, 2268 assertions, 4 skips.
@@ -45,3 +45,18 @@ removal, an admin tier, account deletion or a change to message retention.
 The successful iOS run at `824119b` predates this feature and does not verify it.
 No isolated build or push was made for this change. Signing, phone installation,
 production behavior and the wider product delivery remain separate work.
+
+## Coherent batch review
+
+The current frontend sweep covers 177 unique top-level test files with 2485
+passes and 10 explicit skips, frozen at runtime tree
+`cc9b261b25956923a1d8c4e0fde25d9780de5aeb`. Confirmed receipts also carry the
+current title, membership and role back into the chat, including when the
+parent's follow-up read is still pending. The held-read handoff/reopen regression
+fails before that correction and passes afterward.
+
+Native first-use input/validation and group creation/removal/handoff/history
+coverage is prepared and compiles. First-use validation submits no provider
+signup, sign-in or reset request. Actual native execution of this batch is still
+pending at this checkpoint. The standalone analyzer was not verified after its
+timeout; compiler and widget results do not replace native execution.

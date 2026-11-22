@@ -186,6 +186,8 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
 
   Future<void> _message() async {
     if (!mounted || !sessionActive || !_profileVerified || busy || loading || u == null || u!['blocked'] == true) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
     final recipient = u!;
     final owner = widget.session.user!['public_id'] as String;
     final profileRead = read;
@@ -195,6 +197,13 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
       final response = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': recipient['username']});
       if (!mounted || !stillSelected()) return;
       final conversation = checkedDirectConversation(response, owner, recipient);
+      if (!route.isCurrent) {
+        setState(() {
+          _profileVerified = false;
+          error = t_('The chat may already exist. Check Chats before starting it again.');
+        });
+        return;
+      }
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: conversation)));
     } catch (e) {
       if (mounted && stillSelected()) {

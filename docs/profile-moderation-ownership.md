@@ -39,3 +39,5 @@ Server moderation targets still resolve usernames. This does not independently a
 Profile Message and parent inbox navigation still need their separate covering-route review. Other profile/follow/media/group operations, full journeys, provider/native behavior and product/reference/release acceptance remain open. Default-off capabilities and backend runtime are unchanged.
 
 No live moderation/account/data action, source push, backend rollout, deployment, native build, signing, installation or distribution occurred.
+
+Message follow-up: [Profile Message route ownership](profile-message-route-ownership.md) now has a separate bounded correction for the profile's Message route. Parent inbox covering-route ownership remains open. This document's wider selections stay anchored to 4bb7606.

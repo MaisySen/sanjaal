@@ -24,3 +24,5 @@ Limits:
 No live conversation, message, read receipt, moderation, account or data action; no source push, deployment, backend rollout, native build, signing, installation, store or distribution action occurred.
 
 Follow-up: [New chat selection and direct receipt](new-chat-direct-receipt.md) shares the direct validator with New chat and checks its current selected result. Group receipt validation and other entry paths remain outside that correction.
+
+Route follow-up: [Profile Message route ownership](profile-message-route-ownership.md) adds the original profile route's covered/leaving start and navigation guards. The direct receipt validator is unchanged; parent inbox handoff remains separate.

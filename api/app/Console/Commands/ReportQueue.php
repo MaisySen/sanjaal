@@ -31,7 +31,9 @@ class ReportQueue extends Command
             }
             $query->where('id', '>', $boundary);
         }
-        $rows = $query->orderBy('id')->limit($limit + 1)->get(['public_id', 'target_type', 'target_id as submitted_reference', 'reason', 'note', 'status', 'created_at']);
+        $columns = ['public_id', 'target_type', 'target_id as submitted_reference', 'reason', 'note', 'status', 'created_at'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('reports', 'target_public_id')) $columns[] = 'target_public_id';
+        $rows = $query->orderBy('id')->limit($limit + 1)->get($columns);
         $more = $rows->count() > $limit;
         $rows = $rows->take($limit)->values();
         $this->line(json_encode(['data' => $rows->all(), 'next_cursor' => $more ? $rows->last()->public_id : null], JSON_THROW_ON_ERROR));

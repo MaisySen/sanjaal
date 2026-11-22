@@ -233,6 +233,7 @@ class Session extends ChangeNotifier {
   bool followListsEnabled = false;
   bool reportHistoryEnabled = false;
   bool reportReplayEnabled = false;
+  bool reportMemberRefsEnabled = false;
   bool loading = true;
   /// Credentials belong to this API, never to a URL's claimed purpose.
   bool supportsPrivateMedia(String url) {
@@ -608,6 +609,7 @@ class Session extends ChangeNotifier {
     discoveryEnabled = (j['features'] as Map?)?['discovery_v1'] == true;
     followListsEnabled = (j['features'] as Map?)?['follow_lists'] == true;
     reportHistoryEnabled = (j['features'] as Map?)?['report_history'] == true;
+    reportMemberRefsEnabled = (j['features'] as Map?)?['report_member_refs'] == true;
     reportReplayEnabled = reportHistoryEnabled && (j['features'] as Map?)?['report_replay'] == true;
     unawaited(Push.register(this));
   }
@@ -669,6 +671,7 @@ class Session extends ChangeNotifier {
     followListsEnabled = false;
     reportHistoryEnabled = false;
     reportReplayEnabled = false;
+    reportMemberRefsEnabled = false;
     await _writeCredentials(RefreshStore.clear);
   }
 

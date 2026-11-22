@@ -40,6 +40,119 @@ class DelayedReportStorage extends TestFlutterSecureStoragePlatform {
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   testWidgets(
+    'member-bound retry never downgrades to mutable handle on older server',
+    (t) async {
+      const ref = '11111111-1111-4111-8111-111111111111';
+      var writes = 0;
+      await h.fixture(
+        t,
+        (s, c) async {
+          s.reportHistoryEnabled = true;
+          s.reportReplayEnabled = true;
+          await t.pumpWidget(
+            MaterialApp(
+              home: Builder(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => reportFlow(
+                      context,
+                      s,
+                      'user',
+                      'asha',
+                      initialReason: 'spam',
+                      memberRef: ref,
+                    ),
+                    child: const Text('Open fixture'),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await t.tap(find.text('Open fixture'));
+          await h.flush(t);
+          expect(writes, 0);
+          expect(find.text('Send report'), findsNothing);
+          expect(t.takeException(), isNull);
+        },
+        respond: (_) async {
+          writes++;
+          return h.json({});
+        },
+      );
+    },
+  );
+  for (final matching in [false, true]) {
+    testWidgets(
+      'member reference binds request and receipt matching=$matching',
+      (t) async {
+        const ref = '11111111-1111-4111-8111-111111111111';
+        var writes = 0;
+        await h.fixture(
+          t,
+          (s, c) async {
+            s.reportHistoryEnabled = true;
+            s.reportReplayEnabled = true;
+            s.reportMemberRefsEnabled = true;
+            await t.pumpWidget(
+              MaterialApp(
+                home: Builder(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () => reportFlow(
+                        context,
+                        s,
+                        'user',
+                        'asha',
+                        memberRef: ref,
+                        targetLabel: 'Asha',
+                      ),
+                      child: const Text('Open fixture'),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            await t.tap(find.text('Open fixture'));
+            await h.flush(t);
+            await t.tap(find.text('Spam'));
+            await h.flush(t);
+            expect(writes, 0);
+            await t.tap(find.text('Send report'));
+            await h.flush(t);
+            await t.pumpAndSettle();
+            expect(writes, 1);
+            expect(
+              find.text('Report received'),
+              matching ? findsOneWidget : findsNothing,
+            );
+            final pending = await const ReportSubmissionStore().find(
+              'me',
+              'user',
+              'asha',
+              'spam',
+              memberRef: ref,
+            );
+            expect(pending, matching ? isNull : isNotNull);
+            expect(t.takeException(), isNull);
+          },
+          respond: (req) async {
+            writes++;
+            expect((jsonDecode(req.body) as Map)['target_public_id'], ref);
+            final receipt = r.report()
+              ..addAll({
+                'type': 'user',
+                'target': 'asha',
+                'target_public_id': matching
+                    ? ref
+                    : '22222222-2222-4222-8222-222222222222',
+              });
+            return h.json({'report': receipt, 'replayed': false});
+          },
+        );
+      },
+    );
+  }
+  testWidgets(
     'unconfirmed explicit retry restores same key and receipt then clears pending',
     (t) async {
       final keys = <String>[];

@@ -20,6 +20,49 @@ void main() {
     expect(await store.find('b', 'post', 'original', 'spam'), isNull);
     expect(await store.prepare('b', 'post', 'original', 'spam'), isNot(key));
   });
+  test(
+    'member refs persist independently from legacy and reused handles',
+    () async {
+      const a = '11111111-1111-4111-8111-111111111111';
+      const b = '22222222-2222-4222-8222-222222222222';
+      final legacy = await store.prepare('me', 'user', 'asha', 'spam');
+      final first = await store.prepare(
+        'me',
+        'user',
+        'asha',
+        'spam',
+        memberRef: a,
+      );
+      final second = await store.prepare(
+        'me',
+        'user',
+        'asha',
+        'spam',
+        memberRef: b,
+      );
+      expect({legacy, first, second}.length, 3);
+      expect(
+        (await store.pending('me'))
+            .where((row) => row['target_public_id'] == a)
+            .single['submission_id'],
+        first,
+      );
+      await store.complete('me', 'user', 'asha', 'spam', first, memberRef: b);
+      expect(
+        await store.find('me', 'user', 'asha', 'spam', memberRef: a),
+        first,
+      );
+      await store.complete('me', 'user', 'asha', 'spam', first, memberRef: a);
+      expect(
+        await store.find('me', 'user', 'asha', 'spam', memberRef: a),
+        isNull,
+      );
+      expect(
+        await store.find('me', 'user', 'asha', 'spam', memberRef: b),
+        second,
+      );
+    },
+  );
   test('changed reason or target keeps independent durable keys', () async {
     final keys = await Future.wait([
       store.prepare('a', 'post', 'one', 'spam'),

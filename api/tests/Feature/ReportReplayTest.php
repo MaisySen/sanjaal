@@ -16,6 +16,33 @@ class ReportReplayTest extends TestCase
         return array_merge(['type' => 'post', 'target' => 'original-post', 'reason' => 'spam', 'note' => null, 'submission_id' => '11111111-1111-4111-8111-111111111111'], $changes);
     }
 
+    public function test_member_reference_survives_rename_and_handle_reuse_without_retargeting(): void
+    {
+        [$member, $headers] = $this->member('reporter');
+        [$subject] = $this->member('asha');
+        $body = $this->body(['type' => 'user', 'target' => 'asha', 'target_public_id' => $subject->public_id]);
+        $receipt = $this->postJson('/api/v1/reports', $body, $headers)->assertCreated()->assertJsonPath('report.target_public_id', $subject->public_id)->json('report.public_id');
+        $subject->update(['username' => 'renamed', 'auth0_sub' => 'auth0|renamed']);
+        [$replacement] = $this->member('asha');
+        $this->postJson('/api/v1/reports', $body, $headers)->assertOk()->assertJsonPath('replayed', true)->assertJsonPath('report.public_id', $receipt)->assertJsonPath('report.target_public_id', $subject->public_id);
+        $this->postJson('/api/v1/reports', array_replace($body, ['submission_id' => (string) Str::uuid()]), $headers)->assertConflict();
+        $this->postJson('/api/v1/reports', array_replace($body, ['target_public_id' => $replacement->public_id]), $headers)->assertConflict();
+        $this->getJson('/api/v1/auth/me', $headers)->assertOk()->assertJsonPath('features.report_member_refs', true);
+        $this->assertDatabaseCount('reports', 1);
+        $this->artisan('reports:queue')->expectsOutputToContain($subject->public_id)->assertSuccessful();
+    }
+
+    public function test_invalid_or_missing_subject_ref_never_writes_or_leaks_lookup_result(): void
+    {
+        [$member, $headers] = $this->member('reporter');
+        foreach ([['type' => 'post', 'target_public_id' => (string) Str::uuid()], ['type' => 'user', 'target_public_id' => 'not-uuid']] as $change) {
+            $this->postJson('/api/v1/reports', $this->body($change), $headers)->assertUnprocessable();
+        }
+        $this->postJson('/api/v1/reports', $this->body(['type' => 'user', 'target_public_id' => (string) Str::uuid()]), $headers)->assertConflict();
+        $this->assertDatabaseCount('reports', 0);
+        $this->assertDatabaseCount('report_events', 0);
+    }
+
     public function test_same_submission_returns_one_original_receipt_and_event(): void
     {
         [$member, $headers] = $this->member('reporter');

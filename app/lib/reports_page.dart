@@ -30,6 +30,10 @@ class ReportReceipt {
     if (value is! Map ||
         value['public_id'] is! String ||
         !_receiptPattern.hasMatch(value['public_id']) ||
+        (value['target_public_id'] != null &&
+            (value['type'] != 'user' ||
+                value['target_public_id'] is! String ||
+                !_receiptPattern.hasMatch(value['target_public_id']))) ||
         !reportTypes.containsKey(value['type']) ||
         !reportReasons.containsKey(value['reason']) ||
         !reportStatuses.containsKey(value['status']) ||
@@ -196,9 +200,17 @@ class _ReportsPageState extends State<ReportsPage>
             if (supported && widget.session.reportReplayEnabled)
               ListTile(
                 title: Text(t_('Unconfirmed reports')),
-                subtitle: Text(t_('Check an earlier attempt without the original post or profile.')),
+                subtitle: Text(
+                  t_(
+                    'Check an earlier attempt without the original post or profile.',
+                  ),
+                ),
                 trailing: const PhIcon('caret-right'),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder:(_)=>PendingReportsPage(session:widget.session))),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PendingReportsPage(session: widget.session),
+                  ),
+                ),
               ),
             if (!supported)
               Padding(

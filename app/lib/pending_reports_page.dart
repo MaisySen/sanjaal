@@ -79,6 +79,7 @@ class _PendingReportsPageState extends State<PendingReportsPage>
         row['type']!,
         row['target']!,
         initialReason: row['reason'],
+        memberRef: row['target_public_id'],
         isActive: () => mounted && sessionActive && supported,
       );
     } finally {

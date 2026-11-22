@@ -18,19 +18,27 @@ class ReportController extends Controller
             'reason' => ['required', 'in:spam,abuse,nudity,violence,scam,other'],
             'note' => ['nullable', 'string', 'max:300'],
             'submission_id' => ['sometimes', 'required', 'uuid'],
+            'target_public_id' => ['sometimes', 'required', 'uuid'],
         ]);
+        if (isset($data['target_public_id'])) {
+            abort_unless($data['type'] === 'user', 422, 'Member reference requires a member report.');
+            $data['target_public_id'] = strtolower($data['target_public_id']);
+        }
         $submission = isset($data['submission_id']) ? strtolower($data['submission_id']) : null;
         // Normalize nullable note once so replay comparison does not depend on JSON key order.
-        $fingerprint = hash('sha256', json_encode([
-            $data['type'], $data['target'], $data['reason'], $data['note'] ?? null,
-        ], JSON_THROW_ON_ERROR));
+        $fields = [$data['type'], $data['target'], $data['reason'], $data['note'] ?? null];
+        // Keep legacy fingerprints byte-for-byte stable.
+        if (isset($data['target_public_id'])) $fields[] = $data['target_public_id'];
+        $fingerprint = hash('sha256', json_encode($fields, JSON_THROW_ON_ERROR));
         try {
             [$row, $replayed] = DB::transaction(function () use ($request, $data, $submission, $fingerprint) {
-                if ($submission !== null) {
+                if ($submission !== null || isset($data['target_public_id'])) {
                     if (DB::getDriverName() === 'pgsql') {
                         DB::statement("SET LOCAL lock_timeout = '2s'");
                         DB::statement("SET LOCAL statement_timeout = '5s'");
                     }
+                }
+                if ($submission !== null) {
                     // Serialize this reporter's keyed writes. The nullable unique constraint is
                     // the second guard; other reporters never contend for the same key.
                     DB::table('users')->where('id', $request->user()->id)->lockForUpdate()->firstOrFail();
@@ -41,6 +49,10 @@ class ReportController extends Controller
 
                         return [$existing, true];
                     }
+                }
+                if (isset($data['target_public_id'])) {
+                    $subject = DB::table('users')->where('public_id', $data['target_public_id'])->lockForUpdate()->first();
+                    abort_unless($subject && $subject->username === $data['target'], 409, 'This profile changed. Refresh it before reporting.');
                 }
                 $record = [
                     'public_id' => (string) Str::uuid(),
@@ -53,13 +65,14 @@ class ReportController extends Controller
                 if ($submission !== null) {
                     $record += ['submission_id' => $submission, 'submission_fingerprint' => $fingerprint];
                 }
+                if (isset($data['target_public_id'])) $record['target_public_id'] = $data['target_public_id'];
                 $id = DB::table('reports')->insertGetId($record);
                 DB::table('report_events')->insert(['report_id' => $id, 'status' => 'received', 'created_at' => now()]);
 
                 return [DB::table('reports')->find($id), false];
             });
         } catch (\Illuminate\Database\QueryException $error) {
-            if ($submission !== null && in_array($error->getCode(), ['55P03', '57014'], true)) {
+            if (($submission !== null || isset($data['target_public_id'])) && in_array($error->getCode(), ['55P03', '57014', '40P01'], true)) {
                 abort(503, 'Report result unconfirmed. Retry the same submission.');
             }
             throw $error;
@@ -103,6 +116,7 @@ class ReportController extends Controller
     {
         return [
             'public_id' => $row->public_id, 'type' => $row->target_type, 'target' => $row->target_id,
+            'target_public_id' => $row->target_public_id ?? null,
             'reason' => $row->reason, 'note' => $row->note, 'status' => $row->status,
             'created_at' => $row->created_at === null ? null : Carbon::parse($row->created_at)->toISOString(),
             'updated_at' => $row->updated_at === null ? null : Carbon::parse($row->updated_at)->toISOString(),

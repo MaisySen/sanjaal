@@ -1,5 +1,6 @@
 // Device-local storage mock and synthetic HTTP only. No live reports.
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart' show RefreshIndicator;
@@ -197,6 +198,51 @@ void main() {
         expect(t.takeException(), isNull);
       },
       respond: (_) async => throw StateError('Local refresh must not call API'),
+    );
+  });
+  testWidgets('local recovery retains immutable member reference', (t) async {
+    const ref = '11111111-1111-4111-8111-111111111111';
+    final key = await const ReportSubmissionStore().prepare(
+      'me',
+      'user',
+      'asha',
+      'spam',
+      memberRef: ref,
+    );
+    var writes = 0;
+    await p.fixture(
+      t,
+      (s) {
+        s.reportHistoryEnabled = true;
+        s.reportReplayEnabled = true;
+        s.reportMemberRefsEnabled = true;
+        return PendingReportsPage(session: s);
+      },
+      () async {
+        await p.flush(t);
+        await t.tap(find.text('@asha'));
+        await p.flush(t);
+        expect(writes, 0);
+        await t.tap(find.text('Send report'));
+        await p.flush(t);
+        expect(writes, 1);
+        expect(find.text('Report received'), findsOneWidget);
+        expect(t.takeException(), isNull);
+      },
+      respond: (req) async {
+        writes++;
+        expect((jsonDecode(req.body) as Map)['target_public_id'], ref);
+        expect((jsonDecode(req.body) as Map)['submission_id'], key);
+        return p.json({
+          'report': r.report()
+            ..addAll({
+              'type': 'user',
+              'target': 'asha',
+              'target_public_id': ref,
+            }),
+          'replayed': true,
+        });
+      },
     );
   });
   testWidgets('history entry opens local attempts with no report write', (

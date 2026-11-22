@@ -17,7 +17,12 @@ class ReportSubmissionStore {
     return 'report_submissions_v1_${sha256.convert(utf8.encode(owner))}';
   }
 
-  String _payload(String type, String target, String reason) {
+  String _payload(
+    String type,
+    String target,
+    String reason, [
+    String? memberRef,
+  ]) {
     if (!const ['post', 'user', 'comment'].contains(type) ||
         target.trim().isEmpty ||
         target.runes.length > 40 ||
@@ -31,7 +36,14 @@ class ReportSubmissionStore {
         ].contains(reason)) {
       throw const FormatException('Invalid report submission');
     }
-    return jsonEncode([type, target, reason]);
+    if (memberRef != null &&
+        (type != 'user' ||
+            !RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            ).hasMatch(memberRef))) {
+      throw const FormatException('Invalid member reference');
+    }
+    return jsonEncode([type, target, reason, ?memberRef]);
   }
 
   Future<Map<String, String>> _read(String owner) async {
@@ -58,9 +70,15 @@ class ReportSubmissionStore {
       }
       final payload = jsonDecode(e.key);
       if (payload is! List ||
-          payload.length != 3 ||
+          (payload.length != 3 && payload.length != 4) ||
           payload.any((v) => v is! String) ||
-          _payload(payload[0], payload[1], payload[2]) != e.key) {
+          _payload(
+                payload[0],
+                payload[1],
+                payload[2],
+                payload.length == 4 ? payload[3] : null,
+              ) !=
+              e.key) {
         throw const FormatException('Invalid report storage');
       }
       result[e.key] = e.value;
@@ -106,6 +124,7 @@ class ReportSubmissionStore {
               'target': fields[1] as String,
               'reason': fields[2] as String,
               'submission_id': entry.value,
+              if (fields.length == 4) 'target_public_id': fields[3] as String,
             });
           })
           .toList(growable: false);
@@ -114,15 +133,17 @@ class ReportSubmissionStore {
     String owner,
     String type,
     String target,
-    String reason,
-  ) async => (await _read(owner))[_payload(type, target, reason)];
+    String reason, {
+    String? memberRef,
+  }) async => (await _read(owner))[_payload(type, target, reason, memberRef)];
   Future<String> prepare(
     String owner,
     String type,
     String target,
-    String reason,
-  ) => _serial(owner, () async {
-    final payload = _payload(type, target, reason);
+    String reason, {
+    String? memberRef,
+  }) => _serial(owner, () async {
+    final payload = _payload(type, target, reason, memberRef);
     final pending = await _read(owner);
     if (pending.containsKey(payload)) return pending[payload]!;
     if (pending.length >= 8) {
@@ -145,9 +166,10 @@ class ReportSubmissionStore {
     String type,
     String target,
     String reason,
-    String expected,
-  ) => _serial(owner, () async {
-    final payload = _payload(type, target, reason);
+    String expected, {
+    String? memberRef,
+  }) => _serial(owner, () async {
+    final payload = _payload(type, target, reason, memberRef);
     final pending = await _read(owner);
     if (pending[payload] != expected) return;
     pending.remove(payload);

@@ -36,9 +36,11 @@ try {
         if (hrtime(true) > $deadline) throw new RuntimeException('Operator fixture barrier expired.');
         usleep(1000);
     }
+    $memberRef = $argv[5] ?? '';
     $request = Request::create('/api/v1/reports', 'POST', [
-        'type' => 'post', 'target' => $target, 'reason' => 'spam',
+        'type' => $memberRef === '' ? 'post' : 'user', 'target' => $target, 'reason' => 'spam',
         'submission_id' => '11111111-1111-4111-8111-111111111111',
+        ...($memberRef === '' ? [] : ['target_public_id' => $memberRef]),
     ]);
     $request->setUserResolver(fn () => User::findOrFail((int) $owner));
     try {

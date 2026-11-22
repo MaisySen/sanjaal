@@ -15,6 +15,7 @@ Future<void> reportFlow(
   bool Function()? isActive,
   String? targetLabel,
   String? initialReason,
+  String? memberRef,
 }) async {
   final openingRoute = ModalRoute.of(context);
   final owner = _ActionOwner(s, isActive);
@@ -47,6 +48,20 @@ Future<void> reportFlow(
         openingRoute?.isCurrent == false) {
       return;
     }
+    if (memberRef != null &&
+        (type != 'user' ||
+            !s.reportMemberRefsEnabled ||
+            !RegExp(
+              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+            ).hasMatch(memberRef))) {
+      if (context.mounted) {
+        showError(
+          context,
+          ApiError(t_('Report history is not available on this server yet.')),
+        );
+      }
+      return;
+    }
     final replaySafe = s.reportHistoryEnabled && s.reportReplayEnabled;
     const submissions = ReportSubmissionStore();
     String? previous;
@@ -57,6 +72,7 @@ Future<void> reportFlow(
           type,
           target,
           reason,
+          memberRef: memberRef,
         );
       } catch (_) {
         if (context.mounted &&
@@ -158,6 +174,7 @@ Future<void> reportFlow(
           type,
           target,
           reason,
+          memberRef: memberRef,
         );
       } catch (_) {
         if (context.mounted &&
@@ -185,6 +202,7 @@ Future<void> reportFlow(
           'target': target,
           'reason': reason,
           'submission_id': ?submission,
+          'target_public_id': ?memberRef,
         },
       );
       if (!context.mounted ||
@@ -199,6 +217,8 @@ Future<void> reportFlow(
       final receipt = ReportReceipt((result as Map)['report']);
       if (receipt.data['type'] != type ||
           receipt.data['target'] != target ||
+          (memberRef != null &&
+              receipt.data['target_public_id'] != memberRef) ||
           receipt.data['reason'] != reason ||
           (receipt.data['status'] != 'received' &&
               !(replaySafe && result['replayed'] == true))) {
@@ -212,6 +232,7 @@ Future<void> reportFlow(
             target,
             reason,
             submission,
+            memberRef: memberRef,
           );
         } catch (_) {
           // Keep the same key on storage failure. A later explicit send is still replay-safe.

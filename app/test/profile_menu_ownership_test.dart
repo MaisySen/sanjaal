@@ -1,5 +1,6 @@
 // Synthetic profile moderation and route stacks only. No live member actions.
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -28,6 +29,42 @@ Future<void> cover(WidgetTester t) async {
 }
 
 void main() {
+  testWidgets('profile report carries verified public ID on capable server', (
+    t,
+  ) async {
+    const ref = '11111111-1111-4111-8111-111111111111';
+    var writes = 0;
+    await p.fixture(
+      t,
+      (s) {
+        s.reportMemberRefsEnabled = true;
+        return UserProfilePage(session: s, username: 'asha');
+      },
+      () async {
+        menu(t)('report');
+        await p.flush(t);
+        await t.tap(find.text('Spam'));
+        await p.flush(t);
+        expect(writes, 0);
+        await t.tap(find.text('Send report'));
+        await p.flush(t);
+        expect(writes, 1);
+        expect(t.takeException(), isNull);
+      },
+      respond: (req) async {
+        if (req.method == 'POST') {
+          writes++;
+          expect((jsonDecode(req.body) as Map)['target_public_id'], ref);
+          return p.json({});
+        }
+        return req.url.path.endsWith('/users/asha')
+            ? p.json({
+                'user': {...person(false), 'public_id': ref},
+              })
+            : p.json({'data': [], 'next_cursor': null});
+      },
+    );
+  });
   for (final action in ['report', 'block']) {
     for (final covered in [false, true]) {
       testWidgets(

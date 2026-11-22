@@ -33,14 +33,14 @@ class ReportReplayRaceTest extends TestCase
         return $owner->id;
     }
 
-    private function race(int $owner, array $targets, bool $timeout = false): array
+    private function race(int $owner, array $targets, bool $timeout = false, ?User $subject = null, bool $rename = false): array
     {
         $dir = sys_get_temp_dir().'/report-replay-race-'.bin2hex(random_bytes(6));
         mkdir($dir, 0700);
         $processes = [];
         try {
             foreach ($targets as $index => $target) {
-                $command = [PHP_BINARY, '-c', php_ini_loaded_file(), __DIR__.'/report-replay-worker.php', $dir.'/go', (string) $owner, $target, $dir.'/ready-'.$index];
+                $command = [PHP_BINARY, '-c', php_ini_loaded_file(), __DIR__.'/report-replay-worker.php', $dir.'/go', (string) $owner, $target, $dir.'/ready-'.$index, $subject?->public_id ?? ''];
                 $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, base_path());
                 $this->assertIsResource($process);
                 $processes[] = [$process, $pipes];
@@ -56,7 +56,8 @@ class ReportReplayRaceTest extends TestCase
                 if (count($pids) !== count($targets)) usleep(10000);
             }
             DB::beginTransaction();
-            DB::table('users')->where('id', $owner)->lockForUpdate()->first();
+            DB::table('users')->where('id', $subject?->id ?? $owner)->lockForUpdate()->first();
+            if ($rename) DB::table('users')->where('id', $subject->id)->update(['username' => 'renamed']);
             touch($dir.'/go');
             $blocked = 0;
             while ($blocked !== count($targets)) {
@@ -90,6 +91,29 @@ class ReportReplayRaceTest extends TestCase
             @unlink($dir.'/go');
             @rmdir($dir);
         }
+    }
+
+    public function test_member_reference_waits_for_rename_then_rejects_stale_handle(): void
+    {
+        $owner = $this->ownerId();
+        $subject = User::factory()->create(['username' => 'asha']);
+        $results = $this->race($owner, ['asha'], false, $subject, true);
+        $this->assertSame(409, $results[0]['code']);
+        $this->assertSame(0, DB::table('reports')->count());
+        $this->assertSame(0, DB::table('report_events')->count());
+    }
+
+    public function test_member_reference_lock_timeout_never_partially_records_report(): void
+    {
+        $owner = $this->ownerId();
+        $subject = User::factory()->create(['username' => 'asha']);
+        $results = $this->race($owner, ['asha'], true, $subject);
+        $this->assertSame(503, $results[0]['code']);
+        $this->assertSame(0, DB::table('reports')->count());
+        $this->assertSame(0, DB::table('report_events')->count());
+        $retry = $this->race($owner, ['asha'], false, $subject);
+        $this->assertSame(201, $retry[0]['code']);
+        $this->assertSame($subject->public_id, DB::table('reports')->sole()->target_public_id);
     }
 
     public function test_held_owner_lock_fails_closed_and_same_key_can_retry(): void

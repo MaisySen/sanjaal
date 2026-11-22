@@ -4,6 +4,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/chat_pages.dart';
 
+import 'native_text_input.dart';
+
 Future<void> nativeGroupJourney(
   WidgetTester t,
   Session session, {
@@ -24,6 +26,15 @@ Future<void> nativeGroupJourney(
     await t.tap(target);
   }
 
+  Future<void> enter(Finder field, String value, String label) =>
+      confirmedNativeTextInput(
+        t,
+        field,
+        value,
+        waitUntil: waitUntil,
+        stage: stage,
+        label: label,
+      );
   const title = 'Native group review';
   expect(session.groupOwnershipEnabled, isTrue);
   expect(session.groupMemberRemovalEnabled, isTrue);
@@ -58,13 +69,13 @@ Future<void> nativeGroupJourney(
         w.decoration?.hintText == 'Search by name or username',
   );
   await waitUntil(() => name.evaluate().isNotEmpty);
-  await t.enterText(name, title);
+  await enter(name, title, 'group name');
   for (final member in [
     ('asha_e2e', 'Asha Gurung'),
     ('bikram_e2e', 'Bikram Test'),
   ]) {
     await stage('native group searching ${member.$1}');
-    await t.enterText(search, member.$1);
+    await enter(search, member.$1, 'group member search');
     await waitUntil(() => find.text(member.$2).evaluate().isNotEmpty);
     FocusManager.instance.primaryFocus?.unfocus();
     await waitUntil(() => t.view.viewInsets.bottom == 0);
@@ -97,7 +108,7 @@ Future<void> nativeGroupJourney(
 
   Future<void> send(String body) async {
     final input = find.widgetWithText(TextField, 'Message');
-    await t.enterText(input, body);
+    await enter(input, body, 'group message');
     await t.pump(const Duration(milliseconds: 600));
     await tap(find.byTooltip('Send message'));
     await waitUntil(

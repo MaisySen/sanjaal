@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 import subprocess
+import sys
+import time
 import tempfile
 import unittest
 from unittest import mock
@@ -122,17 +124,141 @@ class MonitorTest(unittest.TestCase):
     def test_container_discovery_happens_once_and_commands_have_timeouts(self):
         def run(args, **kwargs):
             self.assertIn('timeout', kwargs)
-            if 'get_app_container' in args:
-                return subprocess.CompletedProcess(args, 0, stdout=str(self.container))
-            Path(args[-1]).write_bytes(PNG)
-            return subprocess.CompletedProcess(args, 0)
-        with mock.patch.object(module.subprocess, 'run', side_effect=run) as called:
+            return subprocess.CompletedProcess(args, 0, stdout=str(self.container))
+        def capture(device, target):
+            self.assertEqual(device, 'synthetic-device')
+            target.write_bytes(PNG)
+        with mock.patch.object(module.subprocess, 'run', side_effect=run) as called, mock.patch.object(module, 'capture_with_retries', side_effect=capture) as captured:
             monitor = module.simulator_monitor('synthetic-device', self.output)
             self.request()
             monitor.scan()
             self.request('2-ios_test')
             monitor.scan()
-            self.assertEqual(called.call_count, 3)
+            self.assertEqual(called.call_count, 1)
+            self.assertEqual(captured.call_count, 2)
+
+    def test_transient_capture_timeout_retries_fresh_then_acknowledges_once(self):
+        pending = self.request()
+        attempts = []
+        def capture(args):
+            target = Path(args[-1]); attempts.append(target)
+            self.assertEqual(args[:5], ['xcrun', 'simctl', 'io', 'synthetic-device', 'screenshot'])
+            if len(attempts) == 1:
+                target.write_bytes(PNG + b'partial')
+                raise subprocess.TimeoutExpired(args, module.CAPTURE_TIMEOUT)
+            self.assertFalse(attempts[0].exists())
+            self.assertNotEqual(attempts[0], target)
+            target.write_bytes(PNG)
+        self.monitor.capture = lambda target: module.capture_with_retries('synthetic-device', target)
+        with mock.patch.object(module, 'run_native_capture', side_effect=capture):
+            self.monitor.scan(); self.monitor.scan()
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(pending.with_suffix('.native-done').read_text(), '1-ios_test')
+        self.assertEqual((self.output / 'native_ios_test.png').read_bytes(), PNG)
+        self.assertFalse(list(self.output.glob('.*.attempt*.png')))
+
+    def test_permanent_timeouts_never_acknowledge_or_leave_partial_images(self):
+        pending = self.request()
+        def capture(args):
+            Path(args[-1]).write_bytes(PNG)
+            raise subprocess.TimeoutExpired(args, module.CAPTURE_TIMEOUT)
+        self.monitor.capture = lambda target: module.capture_with_retries('synthetic-device', target)
+        with mock.patch.object(module, 'run_native_capture', side_effect=capture) as called:
+            with self.assertRaises(subprocess.TimeoutExpired): self.monitor.scan()
+        self.assertEqual(called.call_count, module.CAPTURE_ATTEMPTS)
+        self.assertFalse(pending.with_suffix('.native-done').exists())
+        self.assertFalse(self.monitor.seen)
+        self.assertFalse(list(self.output.iterdir()))
+
+    def test_non_timeout_failure_is_not_retried(self):
+        self.request()
+        self.monitor.capture = lambda target: module.capture_with_retries('synthetic-device', target)
+        with mock.patch.object(module, 'run_native_capture', side_effect=subprocess.CalledProcessError(1, ['synthetic'])) as called:
+            with self.assertRaises(subprocess.CalledProcessError): self.monitor.scan()
+        self.assertEqual(called.call_count, 1)
+
+    def test_retry_still_cannot_acknowledge_a_changed_request(self):
+        pending = self.request()
+        attempts = 0
+        def capture(args):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1: raise subprocess.TimeoutExpired(args, module.CAPTURE_TIMEOUT)
+            Path(args[-1]).write_bytes(PNG)
+            pending.write_text('2-ios_test')
+        self.monitor.capture = lambda target: module.capture_with_retries('synthetic-device', target)
+        with mock.patch.object(module, 'run_native_capture', side_effect=capture):
+            with self.assertRaises(ValueError): self.monitor.scan()
+        self.assertFalse(pending.with_suffix('.native-done').exists())
+        self.assertFalse(self.monitor.seen)
+
+    def test_attempt_budget_leaves_at_least_ten_seconds_for_ack(self):
+        self.assertLessEqual(module.CAPTURE_ATTEMPTS * (module.CAPTURE_TIMEOUT + module.CAPTURE_REAP_TIMEOUT), 50)
+
+    def test_timeout_kills_and_reaps_own_process_group_before_retry(self):
+        child = mock.Mock(pid=123456)
+        child.wait.side_effect = [subprocess.TimeoutExpired(['synthetic'], 20), 0]
+        with mock.patch.object(module.subprocess, 'Popen', return_value=child) as launched, mock.patch.object(module.os, 'killpg') as killed:
+            with self.assertRaises(subprocess.TimeoutExpired): module.run_native_capture(['synthetic'])
+        launched.assert_called_once_with(['synthetic'], start_new_session=True)
+        killed.assert_called_once_with(child.pid, module.signal.SIGKILL)
+        self.assertEqual(child.wait.call_args_list, [mock.call(timeout=module.CAPTURE_TIMEOUT), mock.call(timeout=module.CAPTURE_REAP_TIMEOUT)])
+
+    def test_unreaped_attempt_is_terminal_not_a_second_writer(self):
+        child = mock.Mock(pid=123456)
+        child.wait.side_effect = subprocess.TimeoutExpired(['synthetic'], 20)
+        with mock.patch.object(module.subprocess, 'Popen', return_value=child), mock.patch.object(module.os, 'killpg'):
+            with self.assertRaisesRegex(RuntimeError, 'could not be reaped'): module.run_native_capture(['synthetic'])
+
+    def test_real_timed_out_process_group_cannot_write_a_late_image(self):
+        late = self.root / 'late-image.png'
+        worker = "import pathlib,sys,time;time.sleep(0.4);pathlib.Path(sys.argv[1]).write_bytes(b'late')"
+        parent = "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c',sys.argv[1],sys.argv[2]]);print('ready',flush=True);time.sleep(3)"
+        real_popen = subprocess.Popen
+        created = []
+        def launch(args, **kwargs):
+            child = real_popen(args, stdout=subprocess.PIPE, **kwargs)
+            created.append(child)
+            self.assertEqual(child.stdout.readline(), b'ready\n')
+            return child
+        try:
+            with mock.patch.object(module.subprocess, 'Popen', side_effect=launch), mock.patch.object(module, 'CAPTURE_TIMEOUT', 0.05):
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    module.run_native_capture([sys.executable, '-c', parent, worker, str(late)])
+            self.assertIsNotNone(created[0].poll())
+            time.sleep(0.5)
+            self.assertFalse(late.exists())
+        finally:
+            for child in created:
+                if child.poll() is None:
+                    module.os.killpg(child.pid, module.signal.SIGKILL)
+                    child.wait(timeout=3)
+                child.stdout.close()
+
+    def test_attempt_symlink_is_rejected_without_touching_foreign_file(self):
+        self.output.mkdir()
+        outside = self.root / 'outside'
+        outside.write_bytes(b'keep')
+        temporary = self.output / '.native_ios_test.attempt1.png'
+        temporary.symlink_to(outside)
+        with mock.patch.object(module, 'run_native_capture') as run:
+            with self.assertRaises(ValueError): module.capture_with_retries('synthetic', self.output / 'native_ios_test.png')
+        run.assert_not_called()
+        self.assertEqual(outside.read_bytes(), b'keep')
+
+    def test_nonzero_capture_process_exit_is_propagated(self):
+        child = mock.Mock()
+        child.wait.return_value = 1
+        with mock.patch.object(module.subprocess, 'Popen', return_value=child):
+            with self.assertRaises(subprocess.CalledProcessError): module.run_native_capture(['synthetic'])
+
+    def test_retry_budget_matches_actual_app_acknowledgement_deadline(self):
+        source = (Path(__file__).resolve().parents[2] / 'app/integration_test/ios_flows_test.dart').read_text()
+        callback = source.split('acknowledge: () async {', 1)[1].split('return false', 1)[0]
+        match = module.re.search(r'Duration\(\s*seconds:\s*(\d+)\s*\)', callback)
+        self.assertIsNotNone(match)
+        budget = module.CAPTURE_ATTEMPTS * (module.CAPTURE_TIMEOUT + module.CAPTURE_REAP_TIMEOUT)
+        self.assertLessEqual(budget + 10, int(match.group(1)))
 
 
 if __name__ == '__main__':

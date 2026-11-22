@@ -1,6 +1,8 @@
 """Local synthetic simulator evidence only. Never used by the shipped app."""
 from pathlib import Path
 import re
+import os
+import signal
 import subprocess
 
 
@@ -59,6 +61,59 @@ class NativeScreenshotMonitor:
                 self.seen.add(key)
 
 
+# A request has a60s app-side acknowledgement deadline. Two bounded attempts
+# including child reaping leave at least14s for polling and the atomic ack.
+CAPTURE_ATTEMPTS = 2
+CAPTURE_TIMEOUT = 20
+CAPTURE_REAP_TIMEOUT = 3
+
+
+def run_native_capture(args):
+    child = subprocess.Popen(args, start_new_session=True)
+    try:
+        code = child.wait(timeout=CAPTURE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        # Reap this attempt's process group before another capture can start.
+        # Never leave a timed-out writer racing with a later acknowledgement.
+        try:
+            os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            child.wait(timeout=CAPTURE_REAP_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError('Native capture process could not be reaped') from None
+        raise subprocess.TimeoutExpired(args, CAPTURE_TIMEOUT) from None
+    if code:
+        raise subprocess.CalledProcessError(code, args)
+
+
+def capture_with_retries(device, target):
+    target = Path(target)
+    for attempt in range(1, CAPTURE_ATTEMPTS + 1):
+        temporary = target.with_name('.' + target.stem + '.attempt' + str(attempt) + '.png')
+        if temporary.is_symlink() or (temporary.exists() and not temporary.is_file()):
+            raise ValueError('Native attempt target must be a regular file')
+        temporary.unlink(missing_ok=True)
+        print('Native capture ' + target.name + ' attempt ' + str(attempt) + '/' + str(CAPTURE_ATTEMPTS), flush=True)
+        try:
+            run_native_capture(['xcrun', 'simctl', 'io', device, 'screenshot', str(temporary)])
+            if not temporary.is_file() or temporary.is_symlink() or temporary.stat().st_size < 24:
+                raise ValueError('Native capture attempt did not produce an image')
+            if target.exists() or target.is_symlink():
+                raise ValueError('Native image target changed during capture')
+            temporary.replace(target)
+            return
+        except subprocess.TimeoutExpired:
+            print('Native capture ' + target.name + ' timed out on attempt ' + str(attempt), flush=True)
+            if attempt == CAPTURE_ATTEMPTS:
+                raise
+        finally:
+            if temporary.is_symlink() or (temporary.exists() and not temporary.is_file()):
+                raise ValueError('Native attempt target changed during capture')
+            temporary.unlink(missing_ok=True)
+
+
 def simulator_monitor(device, output):
     result = subprocess.run(
         ['xcrun', 'simctl', 'get_app_container', device, 'au.fintex.sanjaal', 'data'],
@@ -68,6 +123,5 @@ def simulator_monitor(device, output):
         raise ValueError('Simulator data container is unavailable')
 
     def capture(target):
-        subprocess.run(['xcrun', 'simctl', 'io', device, 'screenshot', str(target)],
-                       check=True, timeout=45)
+        capture_with_retries(device, target)
     return NativeScreenshotMonitor(container, output, capture)

@@ -229,6 +229,7 @@ class Session extends ChangeNotifier {
   bool videoPostersEnabled = false;
   bool discoveryEnabled = false;
   bool followListsEnabled = false;
+  bool reportHistoryEnabled = false;
   bool loading = true;
   /// Credentials belong to this API, never to a URL's claimed purpose.
   bool supportsPrivateMedia(String url) {
@@ -601,6 +602,7 @@ class Session extends ChangeNotifier {
     videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
     discoveryEnabled = (j['features'] as Map?)?['discovery_v1'] == true;
     followListsEnabled = (j['features'] as Map?)?['follow_lists'] == true;
+    reportHistoryEnabled = (j['features'] as Map?)?['report_history'] == true;
     unawaited(Push.register(this));
   }
 
@@ -657,6 +659,7 @@ class Session extends ChangeNotifier {
     videoPostersEnabled = false;
     discoveryEnabled = false;
     followListsEnabled = false;
+    reportHistoryEnabled = false;
     await _writeCredentials(RefreshStore.clear);
   }
 

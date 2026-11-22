@@ -1,3 +1,4 @@
+import 'reports_page.dart';
 import 'language_settings_page.dart';
 import 'appearance_settings_page.dart';
 import 'glass/glass_app_bar.dart';
@@ -107,6 +108,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
         ('Coin wallet payments activity', option('Coin wallet', 'wallet', () => open(WalletPage(session: session)))),
       ],
       'More info and support': [
+        if (session.reportHistoryEnabled) ('Your reports safety support history', option('Your reports', 'warning-circle', () => open(ReportsPage(session: session)))),
         ('About privacy terms licences', option('About, privacy and terms', 'info', () => open(const AboutPage()))),
         ('Help contact support', option('Contact us', 'envelope-simple', () => _openMail(), subtitle: 'contact@fintex.au')),
         ('Delete my account data', option('Delete my account', 'trash', () => _openMail(deletion: true), subtitle: 'Opens a draft in your email app')),

@@ -52,7 +52,9 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/users/{username}/block', [$s, 'block']);
     Route::delete('/users/{username}/block', [$s, 'unblock']);
     Route::get('/notifications', [$s, 'notifications']);
-    Route::post('/reports', [$s, 'report'])->middleware('throttle:20,1');
+    Route::post('/reports', [\App\Http\Controllers\ReportController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('/reports', [\App\Http\Controllers\ReportController::class, 'index'])->middleware('throttle:60,1');
+    Route::get('/reports/{receipt}', [\App\Http\Controllers\ReportController::class, 'show'])->whereUuid('receipt')->middleware('throttle:60,1');
     Route::delete('/comments/{commentId}', [$s, 'deleteComment']);
 
     $x = \App\Http\Controllers\ExtrasController::class;

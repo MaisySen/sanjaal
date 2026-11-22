@@ -116,18 +116,7 @@ class SocialController extends Controller
 
     public function report(Request $request): JsonResponse
     {
-        $d = $request->validate([
-            'type' => ['required', 'in:post,user,comment'],
-            'target' => ['required', 'string', 'max:40'],
-            'reason' => ['required', 'in:spam,abuse,nudity,violence,scam,other'],
-            'note' => ['nullable', 'string', 'max:300'],
-        ]);
-        DB::table('reports')->insert([
-            'reporter_id' => $request->user()->id, 'target_type' => $d['type'], 'target_id' => $d['target'],
-            'reason' => $d['reason'], 'note' => $d['note'] ?? null, 'created_at' => now(), 'updated_at' => now(),
-        ]);
-
-        return response()->json(['message' => 'Thanks. We review every report.'], 201);
+        return app(ReportController::class)->store($request);
     }
 
     public function deleteComment(Request $request, string $commentId): JsonResponse

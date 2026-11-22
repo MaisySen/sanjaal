@@ -1,7 +1,6 @@
 import 'ph.dart';
 import 'api.dart';
 import 'photo_gallery.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -413,6 +412,36 @@ const _ne = <String, String>{
   'Only the photos and videos you allow are shown.': 'तपाईंले अनुमति दिएका तस्बिर र भिडियो मात्र देखिन्छन्।',
   'Nothing has been posted. Discarding removes this local capture.': 'केही पनि पोस्ट भएको छैन। हटाउँदा यो स्थानीय रेकर्डिङ हट्छ।',
   'No media to show. Choose another album or allow more photos.': 'कुनै तस्बिर वा भिडियो छैन। अर्को एल्बम छान्नुहोस् वा थप तस्बिरलाई अनुमति दिनुहोस्।',
+  'Original reference': 'मूल सन्दर्भ',
+  'Time unavailable': 'समय उपलब्ध छैन',
+  'Your reports': 'तपाईंका रिपोर्टहरू',
+  'Report details': 'रिपोर्टको विवरण',
+  'Received': 'प्राप्त भयो',
+  'In review': 'समीक्षामा छ',
+  'Review closed': 'समीक्षा बन्द भयो',
+  'Reports could not be loaded. Try again.': 'रिपोर्टहरू लोड गर्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Report details could not be loaded. Try again.': 'रिपोर्टको विवरण लोड गर्न सकिएन। फेरि प्रयास गर्नुहोस्।',
+  'Only reports submitted by this account appear here. Review status does not confirm content removal.': 'यो खाताबाट पठाइएका रिपोर्टहरू मात्र यहाँ देखिन्छन्। समीक्षाको स्थितिले सामग्री हटाइएको पुष्टि गर्दैन।',
+  'Report history is not available on this server yet.': 'यो सर्भरमा रिपोर्टको इतिहास अझै उपलब्ध छैन।',
+  'No reports yet. Reports you submit from a post or profile will appear here.': 'अहिलेसम्म रिपोर्ट छैन। पोस्ट वा प्रोफाइलबाट पठाइएका रिपोर्टहरू यहाँ देखिनेछन्।',
+  'Review status does not confirm that content was removed.': 'समीक्षाको स्थितिले सामग्री हटाइएको पुष्टि गर्दैन।',
+  'Receipt': 'प्राप्तिको प्रमाण',
+  'Original report': 'मूल रिपोर्ट',
+  'Status history': 'स्थितिको इतिहास',
+  'Times are shown in your device time zone.': 'समय तपाईंको उपकरणको समय क्षेत्रमा देखाइएको छ।',
+  'Report received': 'रिपोर्ट प्राप्त भयो',
+  'Your report has a receipt. You can check its review status in Your reports.': 'तपाईंको रिपोर्टको प्रमाण उपलब्ध छ। तपाईंका रिपोर्टहरूमा समीक्षाको स्थिति हेर्न सक्नुहुन्छ।',
+  'View report': 'रिपोर्ट हेर्नुहोस्',
+  'Report submitted.': 'रिपोर्ट पठाइयो।',
+  'Report result unconfirmed. Check Your reports before submitting again.': 'रिपोर्टको नतिजा पुष्टि भएन। फेरि पठाउनुअघि तपाईंका रिपोर्टहरू हेर्नुहोस्।',
+  'Abuse or harassment': 'दुर्व्यवहार वा उत्पीडन',
+  'Scam or fraud': 'ठगी वा जालसाजी',
+  'Something else': 'अन्य कारण',
+  'Spam': 'स्प्याम',
+  'Nudity': 'नग्नता',
+  'Violence': 'हिंसा',
+  'Comment': 'टिप्पणी',
+  'Done': 'सकियो',
   'Load more': 'थप लोड गर्नुहोस्',
   'Discard this recording?': 'यो रेकर्डिङ हटाउने?',
   'Device picker': 'फोनबाट छान्नुहोस्',

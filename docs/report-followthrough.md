@@ -72,3 +72,10 @@ write had occurred before confirmation. English/Nepali light/dark pixels at
 shortening redundant help. Content can scroll independently of action buttons.
 This is source-only local validation, not a native build, live moderation report,
 backend deployment, physical-device acceptance or app distribution.
+
+Parent pixel review caught crowded Nepali send text in the first checkpoint;
+that earlier visual acceptance is withdrawn. The revised button uses explicit
+1.6 line height and 14px vertical padding. Readable context is primary and the
+post UUID is now behind an expandable secondary Reference detail. Review tests
+open/close that reference, then verify original-target submission. The four
+updated narrow/large-text captures are the replacement visual evidence.

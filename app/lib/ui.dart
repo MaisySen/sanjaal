@@ -453,6 +453,7 @@ const _ne = <String, String>{
   'No media to show. Choose another album or allow more photos.': 'कुनै तस्बिर वा भिडियो छैन। अर्को एल्बम छान्नुहोस् वा थप तस्बिरलाई अनुमति दिनुहोस्।',
   'Original reference': 'मूल सन्दर्भ',
   'Time unavailable': 'समय उपलब्ध छैन',
+  'Reference': 'सन्दर्भ',
   'Review report': 'रिपोर्ट जाँच्नुहोस्',
   'Send report': 'रिपोर्ट पठाउनुहोस्',
   'Send this report?': 'यो रिपोर्ट पठाउने हो?',

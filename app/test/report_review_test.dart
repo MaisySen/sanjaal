@@ -18,6 +18,10 @@ void main() {
         '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
       ),
       ('NotoDev', 'assets/fonts/NotoSansDevanagari.ttf'),
+      (
+        'MaterialIcons',
+        '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      ),
     ]) {
       await (FontLoader(f.$1)..addFont(
             Future.value(ByteData.sublistView(File(f.$2).readAsBytesSync())),
@@ -59,9 +63,21 @@ void main() {
               expect(writes, 0);
               expect(find.text(t_('Review report')), findsOneWidget);
               expect(
+                find.text('@asha\nCommunity music and weekend walks.'),
+                findsOneWidget,
+              );
+              expect(
+                find.text('11111111-1111-4111-8111-111111111111'),
+                findsNothing,
+              );
+              await t.tap(find.text(t_('Reference')));
+              await t.pumpAndSettle();
+              expect(
                 find.text('11111111-1111-4111-8111-111111111111'),
                 findsOneWidget,
               );
+              await t.tap(find.text(t_('Reference')));
+              await t.pumpAndSettle();
               expect(find.text(t_('Spam')), findsOneWidget);
               expect(t.takeException(), isNull);
               await p.shot(

@@ -55,11 +55,29 @@ Future<void> reportFlow(
               Text(targetLabel, maxLines: 4, overflow: TextOverflow.ellipsis),
               const SizedBox(height: 8),
             ],
-            SelectableText(
-              type == 'user' ? '@$target' : target,
-              key: const ValueKey('report-review-target'),
-              style: Theme.of(c).textTheme.bodySmall,
-            ),
+            if (targetLabel != null &&
+                targetLabel.trim().isNotEmpty &&
+                type != 'user')
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  t_('Reference'),
+                  style: Theme.of(c).textTheme.bodySmall,
+                ),
+                children: [
+                  SelectableText(
+                    target,
+                    key: const ValueKey('report-review-target'),
+                    style: Theme.of(c).textTheme.bodySmall,
+                  ),
+                ],
+              )
+            else
+              SelectableText(
+                type == 'user' ? '@$target' : target,
+                key: const ValueKey('report-review-target'),
+                style: Theme.of(c).textTheme.bodySmall,
+              ),
             const SizedBox(height: 16),
             Text(t_(reportReasons[reason]!)),
             const SizedBox(height: 12),
@@ -73,7 +91,14 @@ Future<void> reportFlow(
           ),
           FilledButton(
             onPressed: () => complete(true),
-            child: Text(t_('Send report')),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            ),
+            child: Text(
+              t_('Send report'),
+              style: const TextStyle(height: 1.6),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),

@@ -17,6 +17,7 @@ import 'package:sanjaal/main.dart' as app;
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/upload_center.dart';
 import 'package:sanjaal/feed_page.dart';
+import 'package:sanjaal/device_access_page.dart';
 import 'package:sanjaal/refresh_store.dart';
 import 'package:sanjaal/creator_draft_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -253,6 +254,23 @@ void main(){
   await until(t,()=>find.text('Settings and activity').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_settings');
+  await stage('native device access through settings search');
+  await t.enterText(find.widgetWithText(TextField,'Search settings'),'device');
+  await until(t,()=>find.text('Device access').evaluate().isNotEmpty);
+  await t.tap(find.text('Device access'));
+  await until(t,()=>find.byType(DeviceAccessPage).evaluate().isNotEmpty &&
+      find.text('Photos and videos').evaluate().isNotEmpty);
+  final access=await t.runAsync(()=>const DeviceAccessGateway().read());
+  expect(access!.platform,'ios');
+  expect(access.values['photos'],access.values['videos']);
+  for(final key in ['camera','microphone','photos']){
+    expect(access.values[key],isNot('unknown'));
+    expect(find.text(deviceAccessStates[access.values[key]]!),findsWidgets);
+  }
+  await t.pump(const Duration(milliseconds:600));
+  await capture('ios_native_device_access');
+  await t.pageBack();
+  await until(t,()=>find.text('Settings and activity').evaluate().isNotEmpty);
   await stage('logout');
   await t.runAsync(()=>session.logout());expect(await RefreshStore.read(),isNull);
   expect(p.getString('refresh_token'),isNull);

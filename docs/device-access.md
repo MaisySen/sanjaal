@@ -16,7 +16,14 @@ recoverable. Permission is not hardware, recording or playback verification.
 analyzer and diff check are clean. English/Nepali normal and large-text fixture
 pixels inspected. These are mocked-native/widget checks, not native execution.
 
-Android and iOS channel compilation, actual permission-state comparisons,
-limited-selection behavior and OS-settings return still need matching native
-validation. No new SDK dependency, manifest permission, deployment or build was
+The Android DeviceAccessChannel class now passes a targeted Kotlin 1.9.24 compile
+against official Android API 36 revision 2 and Flutter engine
+371f77202a73e8dff57a8b3bff75bca55c090aee. This is an API/signature check, not a
+Gradle application build, MainActivity integration or permission execution proof.
+The coherent iOS simulator flow now includes Settings search, the real permission
+channel and matching on-screen states, but that added flow has not run yet.
+
+Full native compilation, actual permission-state comparisons, limited-selection
+behavior and OS-settings return still need matching native validation. No new
+app dependency, manifest permission, deployment or installable build was
 introduced. This source checkpoint does not close installed-device acceptance.

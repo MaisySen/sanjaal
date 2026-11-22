@@ -3,6 +3,7 @@ name: Reviewed coherent candidate native validation
   push:
     branches:
     - coherent-native-validation
+    - reviewed-coherent-product
 permissions:
   contents: read
 concurrency:
@@ -17,17 +18,12 @@ jobs:
       with:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
-      run: 'test "$(git rev-parse HEAD:app/lib)" = 6e640f7d0df2c211efa6c00b8dcf4de2ab2f2901
-
-        test "$(git rev-parse HEAD:app/ios)" = 303290ef893d045f2a0fb143bd896e88ea9b55bd
-
-        test "$(git rev-parse HEAD:app/android)" = a3f429356827215a6ddab042ea942e278e7e2a51
-
-        test "$(git rev-parse HEAD:app/pubspec.yaml)" = 86e457493142bdf716804d12193e286efcc5ef5e
-
+      run: |
+        test "$(git rev-parse HEAD:app/lib)" = a4d991ef9c996d75b6dc0f193d628da3cd7bbe2d
+        test "$(git rev-parse HEAD:app/ios)" = ad3103d5f6f5916be739d7834990aeaa41a29ec1
+        test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
+        test "$(git rev-parse HEAD:app/pubspec.yaml)" = a70859c72405a0d40b8b3441010fcf6d8676e7a9
         test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
-
-        '
     - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
       with:
         channel: stable

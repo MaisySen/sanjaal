@@ -4,6 +4,7 @@ name: Reviewed coherent candidate native validation
     branches:
     - coherent-native-validation
     - reviewed-coherent-product
+    - reviewed-report-native
     paths:
     - app/**
     - api/**
@@ -28,17 +29,17 @@ jobs:
         persist-credentials: false
     - name: Verify frozen reviewed runtime and private fixture scope
       run: |
-        test "$(git rev-parse HEAD:app/lib)" = 2d9369b7b3922593777f009c0984665bc91b5b6d
+        test "$(git rev-parse HEAD:app/lib)" = 102bf21080214f091957183eaaa6c7960427d991
         test "$(git rev-parse HEAD:app/ios)" = ad3103d5f6f5916be739d7834990aeaa41a29ec1
         test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
         test "$(git rev-parse HEAD:app/pubspec.yaml)" = 5a697f2f5a49a12b7927174ff91f5c842ec4e2fc
         test "$(git rev-parse HEAD:app/pubspec.lock)" = d6f2d80db0abcd8fc53cbdf001fd8bac9d476eec
-        test "$(git rev-parse HEAD:app/integration_test)" = 3a4ff85634313e232f6b957a6534eb26a4cc1ab3
-        test "$(git rev-parse HEAD:api/app)" = 54ecb668b31ffb1ab47d9c58ec3664f3fe3ed011
+        test "$(git rev-parse HEAD:app/integration_test)" = 18d876a212192b2775119e0cd3dcf65e0789b229
+        test "$(git rev-parse HEAD:api/app)" = 90754418bd97b2725efa2598417b294fad5f284a
         test "$(git rev-parse HEAD:api/config)" = 14692b362a6c58d1eca3fb14ab254da3b69bdefa
         test "$(git rev-parse HEAD:api/routes)" = 519700d6eff4a62ba2b209d9bea24638f8f1ebaa
-        test "$(git rev-parse HEAD:api/database/migrations)" = ed4ebbe416b37335335a0b27b0185a8310c456b7
-        test "$(git rev-parse HEAD:api/tests/E2E)" = 03f14165fab2b02f48b0d1efc5e2b4899f8c6aec
+        test "$(git rev-parse HEAD:api/database/migrations)" = ea929ecc8dc6730b4c6f2044a1f32a60a59ad04d
+        test "$(git rev-parse HEAD:api/tests/E2E)" = 89ca47b063340ad09cb942aac2537578bc17b254
     - name: Verify pinned simulator validation host and toolchain
       run: |
         set -euo pipefail
@@ -124,63 +125,10 @@ jobs:
         # Flutter simulator log-reader discovery path to find its VM service.
         flutter build ios --simulator --debug --target=integration_test/ios_flows_test.dart --no-pub --dart-define=API_BASE_URL=http://localhost:8002/api/v1 --dart-define=E2E_TOKEN_BASE=http://localhost:8002 --dart-define=E2E_TOKEN="$(cat /tmp/ios-e2e/token.txt)" > ios-build.log 2>&1
         xcrun simctl install "$IOS_DEVICE" build/ios/iphonesimulator/Runner.app
-        # Debug-only simulator fixture, bind a fixed localhost port. Nothing
-        # listens remotely and these arguments never enter a release build.
-        xcrun simctl launch --console "$IOS_DEVICE" au.fintex.sanjaal --vm-service-host=127.0.0.1 --vm-service-port=57321 --disable-service-auth-codes > ios-native-console.log 2>&1 &
-        LAUNCH=$!
-        trap 'kill "$LAUNCH" 2>/dev/null || true' EXIT
-        set +e
-        python3 - <<'PYDRIVE'
-        import os,subprocess,signal,time,json,urllib.request,pathlib
-        endpoint='http://127.0.0.1:57321/'
-        deadline=time.monotonic()+90
-        while True:
-          try:
-            with urllib.request.urlopen(endpoint+'getVM',timeout=2) as response:
-              state=json.load(response)
-            assert state.get('result',{}).get('type')=='VM',state
-            pathlib.Path('ios-vm-probe.json').write_text(json.dumps(state,indent=2))
-            print('Direct simulator VM service verified',flush=True)
-            break
-          except Exception as error:
-            if time.monotonic()>deadline:
-              print('Direct VM service unavailable within90s: '+str(error),flush=True)
-              subprocess.run(['xcrun','simctl','spawn',os.environ['IOS_DEVICE'],'launchctl','list'])
-              raise SystemExit(125)
-            time.sleep(1)
-        import threading,importlib.util
-        spec=importlib.util.spec_from_file_location('native_monitor','../.github/ci/native-screenshot-monitor.py')
-        native_monitor=importlib.util.module_from_spec(spec);spec.loader.exec_module(native_monitor)
-        evidence=native_monitor.simulator_monitor(os.environ['IOS_DEVICE'],'build/screenshots')
-        stop=threading.Event();monitor_errors=[]
-        def native_evidence():
-          try:
-            while not stop.wait(0.2):evidence.scan()
-          except Exception as error:
-            monitor_errors.append(type(error).__name__)
-            print('Native screenshot monitor failed: '+type(error).__name__,flush=True)
-        monitor=threading.Thread(target=native_evidence,daemon=True);monitor.start()
-        args=['flutter','drive','-d',os.environ['IOS_DEVICE'],'--driver=test_driver/integration_test.dart','--use-existing-app='+endpoint,'--no-pub']
-        with open('ios-driver-output.log','w') as log:
-          child=subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-          try:code=child.wait(timeout=600)
-          except subprocess.TimeoutExpired:
-            print('Existing-app iOS driver exceeded10-minute diagnostic bound',flush=True)
-            subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/ios-timeout-native.png'])
-            os.killpg(child.pid,signal.SIGTERM)
-            try:child.wait(timeout=15)
-            except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL)
-            code=124
-        stop.set();monitor.join(timeout=50)
-        if monitor.is_alive() or monitor_errors:code=code or 126
-        pathlib.Path('ios-driver-exit.txt').write_text(str(code))
-        raise SystemExit(code)
-        PYDRIVE
-        RC=$?
-        xcrun simctl io "$IOS_DEVICE" screenshot build/screenshots/ios-final-native.png || true
-        cat ios-driver-exit.txt
-        df -h .
-        exit "$RC"
+        # One installed binary. The first process exercises the complete journey,
+        # the second restores the unresolved report from actual native storage.
+        python3 ../.github/ci/test-native-report-restart-driver.py
+        python3 ../.github/ci/native-report-restart-driver.py
     - name: Preserve native diagnostic state even after a drive failure
       if: always()
       working-directory: app

@@ -10,7 +10,7 @@ Five initial synthetic platform-channel fixtures were run against the unchanged 
 
 Contact and deletion share one pending-launch lock. They preserve the existing recipient, subject and deletion-request body, including the original username snapshot. A current screen can retry after completion. Retained callbacks cannot launch while the screen is covered or retired. False returns and native launcher errors show the same fallback only while the initiating screen and session still own the result. Disposed, covered and replacement-login completions do not show feedback on another screen.
 
-Fallback instructions now use the existing translation path, with English and Nepali messages. This does not make deletion self-service or confirm that an email was sent. The existing subtitle still states that deletion is a request by email.
+Fallback instructions now use the existing translation path, with English and Nepali messages. This does not make deletion self-service or confirm that an email was sent. The deletion subtitle now says it opens a draft in the member's email app, with matching Nepali copy. Both languages avoid implying that the request has already been sent. The visual fixtures assert the new handoff wording and reject the earlier send-claim wording.
 
 ## Verification
 

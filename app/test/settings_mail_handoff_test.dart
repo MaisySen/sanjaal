@@ -200,6 +200,14 @@ void visualMailRecoveryTests() {
                 deletion ? 'delete' : 'support',
               );
               await t.pump();
+              if (deletion) {
+                expect(
+                  find.text(t_('Opens a draft in your email app')),
+                  findsOneWidget,
+                );
+                expect(find.text('Sends a request by email'), findsNothing);
+                expect(find.text('इमेलबाट अनुरोध पठाउँछ'), findsNothing);
+              }
               final row = find.widgetWithText(
                 ListTile,
                 t_(deletion ? 'Delete my account' : 'Contact us'),

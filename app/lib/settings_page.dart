@@ -109,7 +109,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
       'More info and support': [
         ('About privacy terms licences', option('About, privacy and terms', 'info', () => open(const AboutPage()))),
         ('Help contact support', option('Contact us', 'envelope-simple', () => _openMail(), subtitle: 'contact@fintex.au')),
-        ('Delete my account data', option('Delete my account', 'trash', () => _openMail(deletion: true), subtitle: 'Sends a request by email')),
+        ('Delete my account data', option('Delete my account', 'trash', () => _openMail(deletion: true), subtitle: 'Opens a draft in your email app')),
       ],
       'Login': [
         ('Sign out logout', option('Sign out', 'sign-out', () {

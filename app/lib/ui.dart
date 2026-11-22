@@ -481,7 +481,7 @@ const _ne = <String, String>{
   'Comments and sharing': 'टिप्पणी र साझेदारी',
   'Email contact@fintex.au for help.': 'सहायताका लागि contact@fintex.au मा इमेल गर्नुहोस्।',
   'Email contact@fintex.au to request account deletion.': 'खाता मेटाउन अनुरोध गर्न contact@fintex.au मा इमेल गर्नुहोस्।',
-  'Sends a request by email': 'इमेलबाट अनुरोध पठाउँछ',
+  'Opens a draft in your email app': 'तपाईंको इमेल एपमा मस्यौदा खोल्छ',
   'Delete my account': 'मेरो खाता मेटाउनुहोस्',
   'This removes the local retry copy. It does not remove anything already posted. Check your profile before starting a new upload.': 'यसले फेरि प्रयास गर्न राखिएको स्थानीय प्रति हटाउँछ। पहिले नै पोस्ट भएको कुरा हटाउँदैन। नयाँ अपलोड सुरु गर्नुअघि आफ्नो प्रोफाइल जाँच्नुहोस्।',
   'Check the current upload before starting another.': 'अर्को अपलोड सुरु गर्नुअघि हालको अपलोड जाँच्नुहोस्।',

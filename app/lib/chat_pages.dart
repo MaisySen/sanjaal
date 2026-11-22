@@ -1,3 +1,4 @@
+import 'media_visibility.dart';
 import 'glass/glass_sheet.dart';
 import 'glass/glass_app_bar.dart';
 import 'ph.dart';
@@ -63,7 +64,13 @@ class _ChatsPageState extends State<ChatsPage> {
     _session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
     _load();
-    timer = Timer.periodic(const Duration(seconds: 12), (_) { if (widget.active) _load(quiet: true); });
+    timer = Timer.periodic(const Duration(seconds: 12), (_) {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (_active && widget.active && ModalRoute.of(context)?.isCurrent == true &&
+          (lifecycle == null || lifecycle == AppLifecycleState.resumed)) {
+        _load(quiet: true);
+      }
+    });
   }
 
   @override
@@ -522,14 +529,14 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   void _accountChanged(){
     if(_active || !mounted)return;
-    _closed=true;timer?.cancel();
+    _closed=true;timer?.cancel();_wakeVisible();
     setState((){msgs.clear();input.clear();replyTo=null;typing=[];recording=false;pickingMedia=false;});
   }
   final msgs = <Map<String, dynamic>>[];
@@ -570,15 +577,34 @@ class _ChatPageState extends State<ChatPage> {
   void _composerChanged(){if(mounted && _active)setState((){});}
 
   bool _closed = false;
+  Completer<void>? _visibilityWait;
+  void _wakeVisible() {
+    final pending = _visibilityWait;
+    _visibilityWait = null;
+    if (pending != null && !pending.isCompleted) pending.complete();
+  }
+  @override
+  void mediaVisibilityChanged(bool visible) { if (visible) _wakeVisible(); }
+  Future<void> _awaitVisible() async {
+    while (mounted && !_closed && !mediaVisible) {
+      final pending = _visibilityWait ??= Completer<void>();
+      await pending.future;
+    }
+  }
+  bool get _readingVisible => mediaVisible && ModalRoute.of(context)?.isCurrent == true;
 
   // Realtime by long poll: the server holds each request until a new message
   // arrives, so delivery is near instant without a separate socket server.
   Future<void> _loop() async {
+    await _awaitVisible();
+    if (!mounted || _closed || !_active) return;
     await _fetch();
     if (!mounted || _closed) return;
     // Do not immediately hide a first-load error behind a second read.
     if (error != null) await Future<void>.delayed(const Duration(seconds: 2));
     while (mounted && !_closed) {
+      await _awaitVisible();
+      if (!mounted || _closed || !_active) break;
       final before = DateTime.now();
       await _fetch(wait: true);
       if (!mounted || _closed) break;
@@ -591,6 +617,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     _closed = true;
+    _wakeVisible();
     _session.removeListener(_accountChanged);
     timer?.cancel();
     scroll.dispose();
@@ -641,11 +668,14 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _fetch({bool wait = false}) async {
-    if (!_active || fetching) return;
+    if (!mounted || _closed || !_active || !_readingVisible || fetching) return;
     fetching = true;
     try {
       final first = historyBoundary == null;
       final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20', 'typing': typing.join(',')}) as Map<String, dynamic>;
+      // The reply may arrive after navigation or backgrounding. Leave the
+      // cursor, rows and acknowledgement unchanged for a hidden completion.
+      if (!mounted || _closed || !_active || !_readingVisible) return;
       final nowTyping = ((j['typing'] as List?) ?? const []).map((e) => e.toString()).toList();
       if (mounted && _active && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
@@ -676,10 +706,10 @@ class _ChatPageState extends State<ChatPage> {
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
     } catch (e) {
-      if (mounted && _active) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
+      if (mounted && !_closed && _active && _readingVisible) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
     } finally {
       fetching = false;
-      if (mounted && _active && loading) setState(() => loading = false);
+      if (mounted && !_closed && _active && _readingVisible && loading) setState(() => loading = false);
     }
   }
 

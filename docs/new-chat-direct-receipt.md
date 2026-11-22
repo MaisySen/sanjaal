@@ -21,3 +21,5 @@ Limits:
 - Already-issued HTTP work is not canceled. No restart persistence, server ordering, real-device latency or final native/provider/release acceptance is claimed. Prior 231-case cross-area evidence remains anchored to its own earlier checkpoint; it is not relabeled as this run.
 
 No live search/chat creation/read receipt/account/data action, source push, native build, signing, installation, distribution, deployment or backend rollout occurred.
+
+Follow-up: [New chat return ownership](new-chat-return-ownership.md) adds the mounted creation page's covered-route and one-shot completion checks. It does not certify the parent inbox or group receipt contract.

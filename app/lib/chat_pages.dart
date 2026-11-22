@@ -374,7 +374,7 @@ class _NewChatPageState extends State<NewChatPage> {
   late final String? _owner;
   late final int _sessionGeneration;
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
-  bool get _locked => !mounted || !_active || busy || _storing || _uncertain;
+  bool get _locked => !mounted || !_active || busy || _storing || _uncertain || _completed || ModalRoute.of(context)?.isCurrent != true;
   @override void initState(){
     super.initState();_session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
@@ -430,10 +430,33 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   Future<void> _leave([Map<String, dynamic>? conversation]) async {
-    if (!mounted || !_active) return;
+    if (!mounted || !_active || _completed) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) {
+      if (conversation != null) {
+        setState(() {
+          busy = false;
+          _uncertain = true;
+          startError = t_('The chat may already exist. Check Chats before starting it again.');
+        });
+      }
+      return;
+    }
+    // This route owns one completion, not whichever route is on top later.
     setState(() { _completed = true; busy = false; });
     await WidgetsBinding.instance.endOfFrame;
-    if (mounted && _active) Navigator.of(context).pop(conversation);
+    if (!mounted || !_active) return;
+    if (!route.isCurrent) {
+      setState(() {
+        _completed = false;
+        if (conversation != null) {
+          _uncertain = true;
+          startError = t_('The chat may already exist. Check Chats before starting it again.');
+        }
+      });
+      return;
+    }
+    Navigator.of(context).pop(conversation);
   }
 
   Future<void> _start(Map<String, dynamic> body, {Map<String, dynamic>? directRecipient}) async {

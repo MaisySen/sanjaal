@@ -1,0 +1,9 @@
+# Calls and rooms list destination ownership
+
+Six offline regressions demonstrated the same entry defects in both recent Calls and Live rooms: two invocations opened two destination routes, retained callbacks survived successful row replacement, and disposed callbacks attempted to use defunct contexts. The unchanged source failed all six cases. No destination was rendered: the tests inspected synchronous route pushes and removed the widget tree before destination builders could request tokens or access media. Synthetic handlers confirmed zero non-GET calls.
+
+Both lists now require mounted active session state, the exact current row and a single-flight route lock. Calls retains its current return refresh. Rooms retains creation-to-room handoff; the creation dialog and an open room are mutually exclusive entry operations. Native call/room connection, permission and cleanup implementations are unchanged.
+
+Current entry, existing communication journey and localized communication suites passed 39 tests. Analyzer reports no errors/warnings and two existing informational Calls lints outside the new helper. Inspected current English/light Calls and Nepali/dark Rooms recovery captures at 320x640 and 1.8 text: labels, retry, row identity and destination controls remain readable. These captures do not establish the intended final reference design.
+
+The route lock is released by the destination future, but these added cases do not establish native call/room round trips or physical-device acceptance. No real call, room creation/join, media permission, account operation or provider request occurred. No build, signing, installation or distribution was attempted.

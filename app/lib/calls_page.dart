@@ -22,6 +22,7 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
   List<Map<String, dynamic>> calls = [];
   bool loading = true;
   bool reading = false;
+  bool opening = false;
   String? error;
 
   @override
@@ -43,6 +44,19 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
     } finally {
       if(mounted && sessionActive) setState((){loading=false;reading=false;});
     }
+  }
+
+  Future<void> _open(Map<String, dynamic> row) async {
+    if (!mounted || !sessionActive || opening || !calls.any((c) => identical(c, row))) return;
+    opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CallPage(session: widget.session, conversationId: row['conversation_id'] as String, title: '${row['title'] ?? 'Call'}', video: row['kind'] == 'video'),
+      ));
+    } finally {
+      opening = false;
+    }
+    if (mounted && sessionActive) _load();
   }
 
   @override void sessionRetired(){calls=[];error=null;}
@@ -83,13 +97,7 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
                         trailing: IconButton(
                           icon: PhIcon(video ? Ph.videocam_outlined : Ph.call_outlined),
                           tooltip: video ? t_('Video call') : t_('Voice call'),
-                          onPressed: () async {
-                            if(!sessionActive)return;
-                            await Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => CallPage(session: widget.session, conversationId: c['conversation_id'] as String, title: '${c['title'] ?? 'Call'}', video: video),
-                            ));
-                            if (mounted && sessionActive) _load();
-                          },
+                          onPressed: () => _open(c),
                         ),
                       );
                     },

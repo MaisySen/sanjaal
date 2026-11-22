@@ -52,6 +52,15 @@ void main(){
  });
  tearDownAll(() {suiteSemantics?.dispose();});
  Future<void> capture(String name) async {
+  final previousPolicy = binding.framePolicy;
+  binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
+  try {
+  // Present real application frames, including decoded SVGs and opacity/theme
+  // animations, while the host captures OS pixels. A widget predicate alone
+  // can otherwise leave a stale native surface under the test frame policy.
+  await binding.pump();
+  await binding.runAsync(() => Future<void>.delayed(const Duration(milliseconds:400)));
+  await binding.pump();
   final result=await binding.takeScreenshot(name);
   final bytes=result;
   final dir=await getTemporaryDirectory();
@@ -68,6 +77,9 @@ void main(){
     await Future<void>.delayed(const Duration(milliseconds:100));
   }
   });
+  } finally {
+    binding.framePolicy = previousPolicy;
+  }
  }
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
   await withNativeTransport((transport) async {

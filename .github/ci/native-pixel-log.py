@@ -34,7 +34,7 @@ MAX_TOTAL = 12 * 1024 * 1024
 CHUNK = 24000
 
 
-def emit(root):
+def emit(root, require_complete=True):
     total = 0
     found = set()
     for name in NAMES:
@@ -65,11 +65,17 @@ def emit(root):
         found.add(name)
         total += size
     print('Native frame manifest: ' + json.dumps(sorted(found)), flush=True)
-    if 'native_ios_native_device_access.png' not in found:
-        raise ValueError('Required native Device access capture is missing')
+    missing = sorted(set(NAMES) - found)
+    print('Native evidence mode: ' + ('complete required' if require_complete else 'failed-run partial diagnostics'), flush=True)
+    print('Missing declared native frames: ' + json.dumps(missing), flush=True)
+    if require_complete and missing:
+        raise ValueError('Required native captures are missing: ' + ', '.join(missing))
 
 
 if __name__ == '__main__':
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise SystemExit('Only the synthetic CI fixture may emit native evidence')
-    emit(Path(__file__).resolve().parents[2] / 'app/build/screenshots')
+    project = Path(__file__).resolve().parents[2]
+    exit_file = project / 'app/ios-driver-exit.txt'
+    complete = exit_file.is_file() and exit_file.read_text().strip() == '0'
+    emit(project / 'app/build/screenshots', require_complete=complete)

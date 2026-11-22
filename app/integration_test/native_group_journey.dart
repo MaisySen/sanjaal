@@ -11,13 +11,26 @@ Future<void> nativeGroupJourney(
   required Future<void> Function(String) capture,
   required Future<void> Function(String) stage,
 }) async {
+  Future<void> present() async {
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
+    await t.pump();
+  }
+
+  Future<void> tap(Finder target) async {
+    await t.ensureVisible(target);
+    await present();
+    expect(target.hitTestable(), findsOneWidget);
+    await t.tap(target);
+  }
+
   const title = 'Native group review';
   expect(session.groupOwnershipEnabled, isTrue);
   expect(session.groupMemberRemovalEnabled, isTrue);
   await stage('native group create through member search');
-  await t.tap(find.byTooltip('New chat'));
+  await tap(find.byTooltip('New chat'));
   await waitUntil(() => find.byTooltip('New group').evaluate().isNotEmpty);
-  await t.tap(find.byTooltip('New group'));
+  await tap(find.byTooltip('New group'));
   final name = find.byWidgetPredicate(
     (w) => w is TextField && w.decoration?.labelText == 'Group name',
   );
@@ -38,16 +51,17 @@ Future<void> nativeGroupJourney(
     await waitUntil(() => t.view.viewInsets.bottom == 0);
     await t.pump(const Duration(milliseconds: 600));
     await t.ensureVisible(find.text(member.$2));
-    await t.tap(find.text(member.$2));
+    await tap(find.text(member.$2));
     await t.pump();
   }
-  await t.tap(find.text('Create group (2)'));
+  await tap(find.text('Create group (2)'));
   await waitUntil(
     () =>
         find.byType(ChatPage).evaluate().isNotEmpty &&
         find.text(title).evaluate().isNotEmpty &&
         find.byTooltip('Send message').evaluate().isNotEmpty,
   );
+  await present();
   final groupId =
       t.widget<ChatPage>(find.byType(ChatPage)).convo['public_id'] as String;
   Future<Map> snapshot() async {
@@ -64,7 +78,7 @@ Future<void> nativeGroupJourney(
     final input = find.widgetWithText(TextField, 'Message');
     await t.enterText(input, body);
     await t.pump(const Duration(milliseconds: 600));
-    await t.tap(find.byTooltip('Send message'));
+    await tap(find.byTooltip('Send message'));
     await waitUntil(
       () =>
           find.text(body).evaluate().isNotEmpty &&
@@ -83,20 +97,20 @@ Future<void> nativeGroupJourney(
   expect(before['my_role'], 'owner');
   expect((before['members'] as List).length, 3);
 
-  await t.tap(find.text(title));
+  await tap(find.text(title));
   await waitUntil(() => find.text('Manage members').evaluate().isNotEmpty);
-  await t.tap(find.text('Manage members'));
+  await tap(find.text('Manage members'));
   await waitUntil(
     () =>
         find.byTooltip('Remove from group: @bikram_e2e').evaluate().isNotEmpty,
   );
   await t.ensureVisible(find.byTooltip('Remove from group: @bikram_e2e'));
-  await t.tap(find.byTooltip('Remove from group: @bikram_e2e'));
+  await tap(find.byTooltip('Remove from group: @bikram_e2e'));
   await waitUntil(() => find.text('Remove member?').evaluate().isNotEmpty);
   expect(find.text('Bikram Test\n@bikram_e2e'), findsOneWidget);
   await t.pump(const Duration(milliseconds: 600));
   await capture('ios_group_remove_confirm');
-  await t.tap(find.widgetWithText(FilledButton, 'Remove from group'));
+  await tap(find.widgetWithText(FilledButton, 'Remove from group'));
   await waitUntil(
     () => find
         .text('Member removed. Their earlier messages have not been deleted.')
@@ -120,18 +134,19 @@ Future<void> nativeGroupJourney(
         find.byType(GroupInfoPage).evaluate().isNotEmpty &&
         find.text('2 members').evaluate().isNotEmpty,
   );
+  await present();
   expect(find.text('Rename group'), findsOneWidget);
-  await t.tap(find.text('Group ownership'));
+  await tap(find.text('Group ownership'));
   await waitUntil(
     () => find.byTooltip('Make owner: @asha_e2e').evaluate().isNotEmpty,
   );
   await t.ensureVisible(find.byTooltip('Make owner: @asha_e2e'));
-  await t.tap(find.byTooltip('Make owner: @asha_e2e'));
+  await tap(find.byTooltip('Make owner: @asha_e2e'));
   await waitUntil(() => find.text('Make owner?').evaluate().isNotEmpty);
   expect(find.text('Asha Gurung\n@asha_e2e'), findsOneWidget);
   await t.pump(const Duration(milliseconds: 600));
   await capture('ios_group_owner_confirm');
-  await t.tap(find.widgetWithText(FilledButton, 'Make owner'));
+  await tap(find.widgetWithText(FilledButton, 'Make owner'));
   await waitUntil(
     () => find
         .text('Ownership transferred. You are still a group member.')
@@ -172,6 +187,7 @@ Future<void> nativeGroupJourney(
         find.byType(ChatPage).evaluate().isNotEmpty &&
         find.text('2 members').evaluate().isNotEmpty,
   );
+  await present();
   expect(find.text('3 members'), findsNothing);
   expect(
     find.text('Native group history remains after membership changes'),

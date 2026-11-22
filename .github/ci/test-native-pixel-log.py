@@ -37,7 +37,7 @@ class NativePixelsTest(unittest.TestCase):
             (root / 'native_ios_native_device_access.png').write_bytes(data)
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                module.emit(root)
+                module.emit(root, require_complete=False)
             rows = [json.loads(line.removeprefix('SANJAAL_NATIVE_PIXEL '))
                     for line in out.getvalue().splitlines() if line.startswith('SANJAAL_NATIVE_PIXEL ')]
             self.assertEqual(len(rows), rows[0]['parts'])
@@ -62,6 +62,23 @@ class NativePixelsTest(unittest.TestCase):
                     if line.startswith('SANJAAL_NATIVE_PIXEL ')]
             self.assertEqual([row['name'] for row in rows], list(module.NAMES))
             self.assertEqual(len(module.NAMES), len(set(module.NAMES)))
+
+    def test_device_access_alone_is_not_complete_native_coverage(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            (root / 'native_ios_native_device_access.png').write_bytes(synthetic_png())
+            with self.assertRaisesRegex(ValueError, 'Required'):
+                module.emit(root)
+
+    def test_failed_run_partial_diagnostics_are_explicit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'native_ios_first_use_intro.png').write_bytes(synthetic_png())
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                module.emit(root, require_complete=False)
+            self.assertIn('failed-run partial diagnostics', out.getvalue())
+            self.assertIn('Missing declared native frames', out.getvalue())
 
     def test_missing_required_capture_fails(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):

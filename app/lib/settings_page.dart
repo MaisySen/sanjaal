@@ -29,7 +29,27 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
   @override
   Session get viewSession => widget.session;
   String query = '';
-  void open(Widget page) { if(mounted && sessionActive) Navigator.of(context).push(MaterialPageRoute(builder: (_) => page)); }
+  final _search = TextEditingController();
+  bool _opening = false;
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+  Future<void> open(Widget page) async {
+    if (!mounted || !sessionActive || _opening) return;
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _opening = false;
+    }
+  }
+  void _clearSearch() {
+    if (!mounted || !sessionActive) return;
+    _search.clear();
+    setState(() => query = '');
+  }
   @override
   Widget build(BuildContext context) {
     if(!sessionActive)return _retiredSettingsView(context, widget.session);
@@ -90,7 +110,7 @@ class _SettingsPageState extends State<SettingsPage> with SessionBoundState<Sett
     return Scaffold(
       appBar: ReviewedAppBar(centerTitle: true, title: Text(t_('Settings and activity'))),
       body: ListView(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), child: TextField(onChanged: (value) => setState(() => query = value.trim().toLowerCase()), decoration: InputDecoration(hintText: t_('Search settings'), prefixIcon: const Center(widthFactor: 1, heightFactor: 1, child: PhIcon('magnifying-glass', size: 22)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none)))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), child: TextField(controller: _search, onChanged: (value) => setState(() => query = value.trim().toLowerCase()), decoration: InputDecoration(hintText: t_('Search settings'), suffixIcon: _search.text.isEmpty ? null : IconButton(tooltip: t_('Clear search'), onPressed: _clearSearch, icon: const PhIcon('x')), prefixIcon: const Center(widthFactor: 1, heightFactor: 1, child: PhIcon('magnifying-glass', size: 22)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none)))),
         if (visible.isEmpty) EmptyState(icon: Ph.search_off, title: t_('No matching settings')),
         for (final entry in visible.entries) ...[
           Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 10), child: Text(t_(entry.key), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
@@ -111,13 +131,20 @@ class _NotificationSettings extends StatefulWidget {
 class _NotificationSettingsState extends State<_NotificationSettings> with SessionBoundState<_NotificationSettings> {
   @override
   Session get viewSession => widget.session;
+  bool _openingActivity = false;
+  Future<void> _openActivity() async {
+    if (!mounted || !sessionActive || _openingActivity) return;
+    _openingActivity = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: widget.session)));
+    } finally {
+      _openingActivity = false;
+    }
+  }
   @override
   Widget build(BuildContext context) => !sessionActive ? _retiredSettingsView(context, widget.session) : Scaffold(appBar: ReviewedAppBar(title: Text(t_('Notifications'))), body: ListView(children: [
     ValueListenableBuilder<String>(valueListenable: Push.status, builder: (context, value, _) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(t_(value)))),
-    ListTile(title: Text(t_('Activity')), trailing: const PhIcon('caret-right'), onTap: () {
-      if(!mounted || !sessionActive)return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: widget.session)));
-    }),
+    ListTile(title: Text(t_('Activity')), trailing: const PhIcon('caret-right'), onTap: _openActivity),
   ]));
 }
 

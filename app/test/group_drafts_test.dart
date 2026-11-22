@@ -92,7 +92,7 @@ void main(){
   await fixture(t,(s,reopen)async{
    s.response=(m,p,b)async{
     if(m=='GET')return {'users':people};
-    expect((await store.read('a'))!.attempted,true);expect(b!['member_refs'],[{'public_id':'friend-id','username':'asha'}]);return {'conversation':{'public_id':'new-group'}};
+    expect((await store.read('a'))!.attempted,true);expect(b!['member_refs'],[{'public_id':'friend-id','username':'asha'}]);return {'conversation':{'public_id':'new-group','type':'group','title':'Plan','my_role':'owner','members':[{'public_id':'a','username':'a'},people.first]}};
    };
    await open(t);expect(s.reads,0);expect(s.posts,0);await create(t);expect(s.reads,1);expect(s.posts,1);expect((await store.read('a'))!.attempted,true);expect(t.takeException(),isNull);
   });

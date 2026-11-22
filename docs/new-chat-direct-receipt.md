@@ -23,3 +23,5 @@ Limits:
 No live search/chat creation/read receipt/account/data action, source push, native build, signing, installation, distribution, deployment or backend rollout occurred.
 
 Follow-up: [New chat return ownership](new-chat-return-ownership.md) adds the mounted creation page's covered-route and one-shot completion checks. It does not certify the parent inbox or group receipt contract.
+
+Group follow-up: [Group creation receipt consistency](group-creation-receipt.md) adds a separate group receipt check against the captured title/member set. It does not change server targeting or constitute complete group acceptance.

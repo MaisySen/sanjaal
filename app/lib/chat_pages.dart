@@ -462,6 +462,7 @@ class _NewChatPageState extends State<NewChatPage> {
   Future<void> _start(Map<String, dynamic> body, {Map<String, dynamic>? directRecipient}) async {
     if (_locked) return;
     if (body['type'] == 'direct' && (directRecipient == null || body['username'] != directRecipient['username'] || !results.any((user) => identical(user, directRecipient)))) return;
+    final groupRecipients = [for (final person in picked.values) Map<String, dynamic>.from(person)];
     FocusScope.of(context).unfocus();
     _debounce?.cancel();
     ++_seq;
@@ -491,7 +492,7 @@ class _NewChatPageState extends State<NewChatPage> {
       final response = await widget.session.call('POST', '/conversations', body: body);
       final conversation = body['type'] == 'direct'
           ? checkedDirectConversation(response, _owner!, directRecipient!)
-          : ((response as Map)['conversation'] as Map).cast<String, dynamic>();
+          : checkedGroupConversation(response, _owner!, groupRecipients, body['title'] as String);
       if (conversation['public_id'] is! String || (conversation['public_id'] as String).isEmpty) throw const FormatException();
       if (mounted && _active) await _leave(conversation);
     } catch (e) {

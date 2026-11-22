@@ -18,3 +18,5 @@ Verification:
 Limits: this is one mounted creation page's start/return ownership. It does not certify every navigation callback or parent inbox handoff; independent covering-route races elsewhere remain possible. Group receipt identity/type/member validation and server username targeting remain separate open work. First-result/receipt consistency is not independent authenticity. Debounced/already-issued search or server work is not canceled. Restart, provider/native, latency, release and full journey acceptance remain open.
 
 No live chat/group/message/read/account/data action, source push, deployment, backend rollout, native build, signing, installation or distribution occurred.
+
+Group follow-up: [Group creation receipt consistency](group-creation-receipt.md) now checks the response against the captured plan before this route's existing return guard. Other group and parent inbox work remains open.

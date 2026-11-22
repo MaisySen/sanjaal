@@ -24,6 +24,8 @@ class DriverTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)
             (base / 'Library/Application Support').mkdir(parents=True)
+            self.addCleanup(os.chdir, os.getcwd())
+            os.chdir(base)
             m.ROOT = base / 'output'
             m.ROOT.mkdir()
             commands, killed, waits = [], [], []

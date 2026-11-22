@@ -2,6 +2,7 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart' show RefreshIndicator;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:sanjaal/api.dart';
@@ -165,6 +166,39 @@ void main() {
       });
     }
   }
+  testWidgets('failed refresh hides stale rows without changing storage', (
+    t,
+  ) async {
+    await const ReportSubmissionStore().prepare('me', 'user', 'asha', 'spam');
+    const storage = FlutterSecureStorage();
+    final saved = Map<String, String>.from(await storage.readAll());
+    final storageKey = saved.keys.single;
+    await p.fixture(
+      t,
+      (s) {
+        s.reportHistoryEnabled = true;
+        s.reportReplayEnabled = true;
+        return PendingReportsPage(session: s);
+      },
+      () async {
+        await p.flush(t);
+        expect(find.text('@asha'), findsOneWidget);
+        await storage.write(key: storageKey, value: 'broken refresh fixture');
+        await t.drag(find.byType(RefreshIndicator), const Offset(0, 350));
+        await t.pumpAndSettle();
+        expect(find.text('@asha'), findsNothing);
+        expect(
+          find.text(
+            'Unconfirmed reports could not be read. Nothing was changed.',
+          ),
+          findsOneWidget,
+        );
+        expect(await storage.read(key: storageKey), 'broken refresh fixture');
+        expect(t.takeException(), isNull);
+      },
+      respond: (_) async => throw StateError('Local refresh must not call API'),
+    );
+  });
   testWidgets('history entry opens local attempts with no report write', (
     t,
   ) async {

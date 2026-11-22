@@ -132,3 +132,30 @@ report recovery list when original content disappears, no cross-device retry
 identity, and no immutable server subject binding. Existing retention and
 moderation policy/staffing decisions remain unchanged. Do not deploy this whole
 private tree as an unreviewed replacement for the bounded production overlay.
+
+## Combined native acceptance preparation
+
+Superseding the earlier checkpoint limitations: device-local pending recovery
+now exists, including unreadable-storage and stale-refresh fail-closed behavior.
+Capable member reports bind the reviewed immutable profile ID, reject a renamed
+or reused handle before first acceptance, preserve the first receipt on exact
+replay, and refuse client downgrade. Legacy/historical references stay unbound.
+The final focused Flutter suite passes149 tests. Full cached/uncached backend
+matrices pass SQLite270/2438 assertions/six skips and PostgreSQL269/2435/five
+skips. Independent PostgreSQL18 race coverage passes5 tests/73 assertions.
+
+The next native batch combines the existing full product journey with report
+response loss after a real local commit, followed by same-installed-app process
+termination and relaunch. It requires exact pending key/member restoration,
+other-account isolation, Cancel/no-write, explicit same-key retry, one original
+receipt and cleared local intent. Five report OS frames join the prior31
+boundaries. Host process IDs, VM PID and unchanged app/data containers are checked.
+All runtime/API tree pins are fixed in the reviewed workflow. No signed artifact,
+store upload, production migration or live report is part of this validation.
+
+Preparation checks are not native results: 4 synthetic host checks,22 screenshot
+monitor checks,13 pixel-envelope checks,7 diagnostic checks, clean two-file
+integration analysis, and actual isolated-loopback fault/replay contract passed.
+Local device discovery exposes no Android/iOS device. Native plugin/restart
+execution, physical Samsung/iPhone behavior and owner-phone delivery stay open.
+The reference appearance/launcher decision remains separate and unapplied.

@@ -226,6 +226,7 @@ class Session extends ChangeNotifier {
   bool protectedStoriesEnabled = false;
   bool storyRepliesEnabled = false;
   bool groupMemberRefsEnabled = false;
+  bool groupOwnershipEnabled = false;
   bool videoPostersEnabled = false;
   bool discoveryEnabled = false;
   bool followListsEnabled = false;
@@ -599,6 +600,7 @@ class Session extends ChangeNotifier {
     protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
     storyRepliesEnabled = (j['features'] as Map?)?['story_replies'] == true;
     groupMemberRefsEnabled = (j['features'] as Map?)?['group_member_refs'] == true;
+    groupOwnershipEnabled = (j['features'] as Map?)?['group_ownership'] == true;
     videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
     discoveryEnabled = (j['features'] as Map?)?['discovery_v1'] == true;
     followListsEnabled = (j['features'] as Map?)?['follow_lists'] == true;
@@ -656,6 +658,7 @@ class Session extends ChangeNotifier {
     protectedStoriesEnabled = false;
     storyRepliesEnabled = false;
     groupMemberRefsEnabled = false;
+    groupOwnershipEnabled = false;
     videoPostersEnabled = false;
     discoveryEnabled = false;
     followListsEnabled = false;

@@ -1,3 +1,4 @@
+import 'group_ownership_page.dart';
 import 'media_visibility.dart';
 import 'glass/glass_sheet.dart';
 import 'glass/glass_app_bar.dart';
@@ -1165,9 +1166,32 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   late List<Map<String, dynamic>> members = ((widget.convo['members'] as List?) ?? const []).cast<Map<String, dynamic>>();
   bool busy = false;
   late String title = (widget.convo['title'] ?? 'Group').toString();
-  late final bool isOwner = widget.convo['my_role'] == 'owner';
+  late bool isOwner = widget.convo['my_role'] == 'owner';
 
   void _say(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+
+  Future<void> _ownership() async {
+    if (!_active || busy || !widget.session.groupOwnershipEnabled || ModalRoute.of(context)?.isCurrent != true) return;
+    final groupId = widget.convo['public_id'] as String;
+    setState(() { busy = true; isOwner = false; });
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupOwnershipPage(session: widget.session, groupId: groupId)));
+      if (!mounted || !_active || widget.convo['public_id'] != groupId) return;
+      final value = await widget.session.call('GET', '/conversations/$groupId');
+      final current = GroupOwnershipSnapshot(value is Map ? value['conversation'] : null, groupId, widget.session.user?['public_id'] ?? '');
+      if (mounted && _active && widget.convo['public_id'] == groupId) {
+        setState(() {
+          title = current.title;
+          members = current.members;
+          isOwner = current.isOwner;
+        });
+      }
+    } catch (_) {
+      if (mounted && _active && ModalRoute.of(context)?.isCurrent == true) { _say(t_('Could not load group ownership. Try again.')); }
+    } finally {
+      if (mounted && _active) setState(() => busy = false);
+    }
+  }
 
   Future<void> _add() async {
     if(!_active || busy)return;
@@ -1280,6 +1304,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('note-pencil', size: 20)),
             title: Text(t_('Rename group'), style: const TextStyle(fontWeight: FontWeight.w600)),
             onTap: busy ? null : _rename,
+          ),
+        if (widget.session.groupOwnershipEnabled)
+          ListTile(
+            leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('users-three', size: 20)),
+            title: Text(t_('Group ownership'), style: const TextStyle(fontWeight: FontWeight.w600)),
+            onTap: busy ? null : _ownership,
           ),
         ListTile(
           leading: CircleAvatar(radius: 22, backgroundColor: scheme.surfaceContainerHigh, child: const PhIcon('plus', size: 20)),

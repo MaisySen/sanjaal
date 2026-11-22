@@ -39,10 +39,11 @@ abstract class CallConnection {
 }
 
 class NativeCallConnection implements CallConnection {
+  NativeCallConnection({lk.Room? room}) : room = room ?? lk.Room();
   final _ownedTracks = <lk.LocalTrack>{};
   final _stoppedTracks = <Object>{};
   final _closedPeers = <Object>{};
-  final room = lk.Room();
+  final lk.Room room;
   @override
   void addListener(VoidCallback listener) => room.addListener(listener);
   @override
@@ -130,10 +131,7 @@ class NativeCallConnection implements CallConnection {
             final stream = track.mediaStream;
             // Bypass LocalTrack.stop as well: it can swallow stream-disposal
             // failures. These platform futures propagate their native errors.
-            await stopCallCaptures([
-              nativeTrack.stop,
-              stream.dispose,
-            ]);
+            await stopCallCaptures([nativeTrack.stop, stream.dispose]);
             _stoppedTracks.add(nativeTrack);
           },
     ]);
@@ -141,8 +139,12 @@ class NativeCallConnection implements CallConnection {
 
   @override
   Future<void> disconnect() async {
-    // The pinned SDK's PCTransport.dispose also uses its swallowing disposer.
+    // The pinned SDK's Transport.dispose also uses its swallowing disposer.
     // Close the real peer connections before that wrapper discards them.
+    // LiveKit 2.13.2 exposes no public error-propagating peer close. This is
+    // a deliberate, narrow internal-API bridge, not a general SDK extension.
+    // Exact SDK/plugin pins and native_call_connection_test protect upgrades.
+    // ignore: invalid_use_of_internal_member
     final peers = [room.engine.publisher?.pc, room.engine.subscriber?.pc];
     Object? failure;
     StackTrace? trace;

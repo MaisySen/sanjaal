@@ -18,7 +18,9 @@ concurrency:
 jobs:
   ios-flows:
     if: github.repository == 'MaisySen/sanjaal' && github.event.repository.private == false
-    runs-on: macos-latest
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     timeout-minutes: 45
     steps:
     - uses: actions/checkout@v4
@@ -37,6 +39,19 @@ jobs:
         test "$(git rev-parse HEAD:api/routes)" = 519700d6eff4a62ba2b209d9bea24638f8f1ebaa
         test "$(git rev-parse HEAD:api/database/migrations)" = ed4ebbe416b37335335a0b27b0185a8310c456b7
         test "$(git rev-parse HEAD:api/tests/E2E)" = 03f14165fab2b02f48b0d1efc5e2b4899f8c6aec
+    - name: Verify pinned simulator validation host and toolchain
+      run: |
+        set -euo pipefail
+        python3 - <<'HOST'
+        import platform,subprocess
+        assert platform.mac_ver()[0].split('.')[0]=='15',platform.mac_ver()
+        assert platform.machine()=='arm64',platform.machine()
+        xcode=subprocess.check_output(['xcodebuild','-version'],text=True).strip()
+        assert xcode=='Xcode 26.3\nBuild version 17C529',xcode
+        sdk=subprocess.check_output(['xcrun','--sdk','iphonesimulator','--show-sdk-version'],text=True).strip()
+        assert sdk=='26.2',sdk
+        print('Verified macOS15 arm64, '+xcode.replace('\n',', ')+', simulator SDK '+sdk,flush=True)
+        HOST
     - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
       with:
         channel: stable
@@ -87,8 +102,8 @@ jobs:
         python3 - <<'PY'
         import json,os
         d=json.load(open('/tmp/ios-devices.json'))
-        eligible=[x for runtime,rows in d['devices'].items() if 'iOS' in runtime for x in rows if x['isAvailable'] and 'iPhone' in x['name']]
-        assert eligible,'No installed iPhone simulator runtime'
+        eligible=[x for runtime,rows in d['devices'].items() if runtime=='com.apple.CoreSimulator.SimRuntime.iOS-26-2' for x in rows if x['isAvailable'] and x['name']=='iPhone 17 Pro']
+        assert eligible,'Pinned iOS26.2 iPhone17Pro simulator is unavailable'
         chosen=eligible[0]
         with open(os.environ['GITHUB_ENV'],'a') as f:f.write('IOS_DEVICE='+chosen['udid']+'\n')
         print(chosen)

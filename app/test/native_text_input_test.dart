@@ -19,8 +19,9 @@ void main() {
         (call) async {
           if (call.method == 'TextInput.show') keyboard = true;
           if (call.method == 'TextInput.hide' ||
-              call.method == 'TextInput.clearClient')
+              call.method == 'TextInput.clearClient') {
             keyboard = false;
+          }
           return null;
         },
       );

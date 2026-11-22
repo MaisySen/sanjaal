@@ -17,33 +17,88 @@ class DraftExitGuard extends StatefulWidget {
 class _DraftExitGuardState extends State<DraftExitGuard> {
   bool asking = false;
   bool discard = false;
+  Route<dynamic>? _dialog;
+  NavigatorState? _dialogNavigator;
+
+  static void _retireDialog(Route<dynamic> dialog, NavigatorState navigator) {
+    // Remove this exact dialog after build, never whichever route covers it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator.mounted && dialog.isActive && identical(dialog.navigator, navigator)) {
+        navigator.removeRoute(dialog);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    final dialog = _dialog, navigator = _dialogNavigator;
+    if (dialog != null && navigator != null) _retireDialog(dialog, navigator);
+    super.dispose();
+  }
+
   Future<void> confirm() async {
-    if (asking) return;
+    if (!mounted || asking) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
     if (widget.busy) {
       showInfo(context, t_(widget.busyMessage));
       return;
     }
+    final navigator = Navigator.of(context);
+    final configuration = widget;
     asking = true;
-    final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-      scrollable: true,
-      title: Text(t_(widget.title)),
-      content: Text(t_(widget.message)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_(widget.keepLabel))),
-        TextButton(onPressed: () => Navigator.pop(c, true), child: Text(t_(widget.discardLabel))),
-      ],
-    ));
-    asking = false;
-    if (yes == true && mounted) {
+    var answered = false;
+    try {
+      final yes = await showDialog<bool>(context: context, builder: (c) {
+        final dialog = ModalRoute.of(c)!;
+        final dialogNavigator = Navigator.of(c);
+        if (mounted) {
+          _dialog = dialog;
+          _dialogNavigator = dialogNavigator;
+        } else {
+          _retireDialog(dialog, dialogNavigator);
+        }
+        void finish(bool value) {
+          if (!mounted || answered || !c.mounted || !dialog.isCurrent) return;
+          answered = true;
+          dialogNavigator.pop(value);
+        }
+        return AlertDialog(
+          scrollable: true,
+          title: Text(t_(configuration.title)),
+          content: Text(t_(configuration.message)),
+          actions: [
+            TextButton(onPressed: () => finish(false), child: Text(t_(configuration.keepLabel))),
+            TextButton(onPressed: () => finish(true), child: Text(t_(configuration.discardLabel))),
+          ],
+        );
+      });
+      _dialog = null;
+      _dialogNavigator = null;
+      if (yes != true || !mounted || !route.isCurrent) return;
+      if (widget.busy) {
+        showInfo(context, t_(widget.busyMessage));
+        return;
+      }
       setState(() => discard = true);
-      // Let PopScope publish the updated disposition before asking to leave.
+      // Let PopScope publish the disposition, then recheck the same route.
       await WidgetsBinding.instance.endOfFrame;
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      if (!route.isCurrent || widget.busy) {
+        setState(() => discard = false);
+        if (route.isCurrent && widget.busy) showInfo(context, t_(widget.busyMessage));
+        return;
+      }
+      navigator.pop();
+    } finally {
+      asking = false;
+      _dialog = null;
+      _dialogNavigator = null;
     }
   }
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: discard || (!widget.hasChanges && !widget.busy),
+    canPop: !widget.busy && (discard || !widget.hasChanges),
     onPopInvokedWithResult: (didPop, _) { if (!didPop) confirm(); },
     child: widget.child,
   );

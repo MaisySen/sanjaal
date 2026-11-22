@@ -1,5 +1,6 @@
 import 'native_transport.dart';
 import 'native_group_journey.dart';
+import 'native_first_use_journey.dart';
 // Harness adaptation for the reviewed runtime: compact tabs retain tooltips/semantics.
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
@@ -76,8 +77,6 @@ void main(){
   final p=await SharedPreferences.getInstance();await p.clear();
   await RefreshStore.clear();
   await p.setString('theme','light');
-  await p.setString('refresh_token','local-e2e');
-  expect(await RefreshStore.read(),'local-e2e');expect(p.getString('refresh_token'),isNull);
   const drafts=CreatorDraftStore();
   final draft=await drafts.save('ios-synthetic-owner',text:'Native iOS fixture');
   expect((await drafts.read('ios-synthetic-owner')).any((d)=>d.id==draft.id&&d.text=='Native iOS fixture'),isTrue);
@@ -111,6 +110,11 @@ void main(){
   await capture('ios_native_avfoundation_poster');
   await stage('app start');
   app.main();
+  final firstUseSession=await nativeFirstUseJourney(t,
+      waitUntil: (ready) => until(t, ready), capture: capture, stage: stage);
+  await p.setString('refresh_token','local-e2e');
+  expect(await RefreshStore.read(),'local-e2e');expect(p.getString('refresh_token'),isNull);
+  await t.runAsync(()=>firstUseSession.restore());
   await until(t,()=>find.textContaining('Sunrise over Phewa').evaluate().isNotEmpty);
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_home');

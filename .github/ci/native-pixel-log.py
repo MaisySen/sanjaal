@@ -14,6 +14,10 @@ import struct
 
 NAMES = (
     'native_ios_home.png',
+    'native_ios_first_use_intro.png',
+    'native_ios_first_use_native_keyboard.png',
+    'native_ios_first_use_registration_validation.png',
+    'native_ios_first_use_recovery_validation.png',
     'native_ios_settings.png',
     'native_ios_native_device_access.png',
     'native_ios_chat_native_keyboard_ready.png',

@@ -25,7 +25,7 @@ jobs:
         test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
         test "$(git rev-parse HEAD:app/pubspec.yaml)" = a70859c72405a0d40b8b3441010fcf6d8676e7a9
         test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
-        test "$(git rev-parse HEAD:app/integration_test)" = 52421ce77460d5b6eb02898b561fc9f211008540
+        test "$(git rev-parse HEAD:app/integration_test)" = e51f895739146766345e03cf4953de58673a13ba
         test "$(git rev-parse HEAD:api/app)" = 2fc600e01e4a11b437f333379caac203c218caa0
         test "$(git rev-parse HEAD:api/config)" = 14692b362a6c58d1eca3fb14ab254da3b69bdefa
         test "$(git rev-parse HEAD:api/routes)" = 519700d6eff4a62ba2b209d9bea24638f8f1ebaa

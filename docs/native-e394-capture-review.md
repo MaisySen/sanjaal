@@ -23,3 +23,15 @@ No private account or provider data is admitted by the disposable fixture.
 Local review:13packet/export tests,22capture-monitor tests,5Dart barrier tests
 passed. Focused Dart analysis reports no issues. These are harness checks, not
 native success, provider/device acceptance, signing or phone delivery.
+
+## e068 follow-up
+
+Native run45070964546 completed every requested capture without retry/timeout,
+but failed after the both-strip screenshot because its real8second success
+acknowledgement had expired. The inspected native frame actually shows both
+strips; the later teardown shows only offline, consistent with the shipped timer.
+The fixture now asserts active acknowledgement immediately before requesting
+capture, not after unbounded host latency. It does not extend or pause the shipped
+timer. Actual captured pixels still require inspection; group/device paths were
+not reached in this failed run.
+https://github.com/MaisySen/sanjaal/actions/runs/45070964546

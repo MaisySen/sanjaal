@@ -104,6 +104,24 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
   bool busy = false;
   bool loading = false;
   int read = 0;
+  bool _openingMembers = false;
+
+  Future<void> _openMembers(Map<String, dynamic> user, FollowListKind kind) async {
+    final owner = user['public_id'];
+    if (!mounted || !sessionActive || _openingMembers || busy || loading ||
+        !widget.session.followListsEnabled || !identical(u, user) ||
+        user['blocked'] == true || user['username'] != widget.username ||
+        owner is! String || owner.trim().isEmpty) {
+      return;
+    }
+    _openingMembers = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) =>
+        FollowListPage(session: widget.session, username: widget.username, ownerId: owner, kind: kind)));
+    } finally {
+      _openingMembers = false;
+    }
+  }
 
   @override
   void initState() {
@@ -209,8 +227,8 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
           if (loading) const LinearProgressIndicator(),
           ProfileHeader(
           user: user,
-          onFollowers: !widget.session.followListsEnabled || blocked ? null : () { if (mounted && sessionActive) Navigator.of(context).push(MaterialPageRoute(builder: (_) => FollowListPage(session: widget.session, username: widget.username, ownerId: user['public_id'] as String?, kind: FollowListKind.followers))); },
-          onFollowing: !widget.session.followListsEnabled || blocked ? null : () { if (mounted && sessionActive) Navigator.of(context).push(MaterialPageRoute(builder: (_) => FollowListPage(session: widget.session, username: widget.username, ownerId: user['public_id'] as String?, kind: FollowListKind.following))); },
+          onFollowers: !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.followers),
+          onFollowing: !widget.session.followListsEnabled || blocked ? null : () => _openMembers(user, FollowListKind.following),
           actions: isMe
               ? const SizedBox.shrink()
               : ProfileActions(children: [

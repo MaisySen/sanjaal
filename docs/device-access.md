@@ -20,10 +20,25 @@ The Android DeviceAccessChannel class now passes a targeted Kotlin 1.9.24 compil
 against official Android API 36 revision 2 and Flutter engine
 371f77202a73e8dff57a8b3bff75bca55c090aee. This is an API/signature check, not a
 Gradle application build, MainActivity integration or permission execution proof.
-The coherent iOS simulator flow now includes Settings search, the real permission
-channel and matching on-screen states, but that added flow has not run yet.
+The coherent iOS simulator run at immutable source
+824119bae97ca82e271865e31fe6e6323765fd74 passed:
+https://github.com/MaisySen/sanjaal/actions/runs/45026094286 . It compiled the
+actual simulator app and exercised Settings search, the real permission channel,
+matching displayed states, native host screenshot and Back. On this fresh
+simulator all three displayed permission rows were Not requested. Reconstructed
+native PNGs were checked against every packet, size and SHA256, then visually
+inspected. The screen and settings action fit and were readable. Home, Settings
+and a chat with the actual iOS keyboard were also inspected. This is synthetic
+local-API simulator evidence, not an installed-device or production-service result.
 
-Full native compilation, actual permission-state comparisons, limited-selection
-behavior and OS-settings return still need matching native validation. No new
-app dependency, manifest permission, deployment or installable build was
-introduced. This source checkpoint does not close installed-device acceptance.
+The frozen app/lib tree a4d991ef9c996d75b6dc0f193d628da3cd7bbe2d also passed
+all 175 top-level Flutter test files in successful bounded batches: 2447 passes,
+10 explicit opt-in/renderer skips. This is regression coverage, not latency proof.
+
+Granted/denied/limited permission matrices, actual OS-settings opening and return,
+Android application integration and physical-device hardware still need matching
+validation. No new app dependency, manifest permission, deployment or installable
+release was introduced. The native workflow uses the standard public macOS
+runner with no artifact upload or cache export. Its native frame log packets are
+evidence transport only, not a phone-delivery artifact. This checkpoint does not
+close installed-device acceptance.

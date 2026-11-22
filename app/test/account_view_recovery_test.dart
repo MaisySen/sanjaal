@@ -51,79 +51,90 @@ void main() {
     SharedPreferences.setMockInitialValues({'onboarded': true});
     FlutterSecureStorage.setMockInitialValues({});
   });
-  testWidgets(
-    'unverified replacement identity never reopens old shell and can retry current grant',
-    (t) async {
-      var grants = 0, meReads = 0, homeReads = 0;
-      bool failIdentity = false;
-      await http.runWithClient(
-        () async {
-          await t.pumpWidget(const SanjaalApp());
-          await flush(t);
-          final s = t.widget<AuthPage>(find.byType(AuthPage)).session;
-          await s.login('old', 'not-a-password');
-          await flush(t);
-          expect(find.byType(HomeShell), findsOneWidget);
-          expect(homeReads, 1);
-          failIdentity = true;
-          await expectLater(
-            s.login('new', 'not-a-password'),
-            throwsA(isA<ApiError>()),
-          );
-          await flush(t);
-          expect(
-            find.byType(HomeShell),
-            findsNothing,
-            reason: 'new grant with unresolved identity cannot keep old account shell',
-          );
-          expect(find.byType(RestoreSessionPage), findsOneWidget);
-          failIdentity = false;
-          await t.tap(find.text('Try again'));
-          await flush(t);
-          expect(find.byType(RestoreSessionPage), findsNothing);
-          expect(find.byType(HomeShell), findsOneWidget);
-          expect(s.user?['public_id'], 'new');
-          expect(
-            grants,
-            2,
-            reason: 'recovery uses current grant, not another password or stale refresh',
-          );
-          expect(meReads, 3);
-          expect(homeReads, 2);
-          expect(t.takeException(), isNull);
-          await t.pumpWidget(const SizedBox());
-          await t.pump(const Duration(seconds: 5));
-        },
-        () => MockClient((r) async {
-          if (r.url.path.endsWith('/oauth/token')) {
-            grants++;
-            return reply({
-              'access_token': grants == 1 ? 'old-fixture' : 'new-fixture',
-              'expires_in': 3600,
-            });
-          }
-          if (r.url.path.endsWith('/auth/me')) {
-            meReads++;
-            if (failIdentity) {
-              return reply({'message': 'fixture unavailable'}, 503);
+  for (final identityFailure in ['service', 'malformed features']) {
+    testWidgets(
+      'unverified replacement $identityFailure never reopens old shell and can retry current grant',
+      (t) async {
+        var grants = 0, meReads = 0, homeReads = 0;
+        bool failIdentity = false;
+        await http.runWithClient(
+          () async {
+            await t.pumpWidget(const SanjaalApp());
+            await flush(t);
+            final s = t.widget<AuthPage>(find.byType(AuthPage)).session;
+            await s.login('old', 'not-a-password');
+            await flush(t);
+            expect(find.byType(HomeShell), findsOneWidget);
+            expect(homeReads, 1);
+            failIdentity = true;
+            await expectLater(
+              s.login('new', 'not-a-password'),
+              throwsA(isA<ApiError>()),
+            );
+            await flush(t);
+            expect(
+              find.byType(HomeShell),
+              findsNothing,
+              reason: 'new grant with unresolved identity cannot keep old account shell',
+            );
+            expect(find.byType(RestoreSessionPage), findsOneWidget);
+            failIdentity = false;
+            await t.tap(find.text('Try again'));
+            await flush(t);
+            expect(find.byType(RestoreSessionPage), findsNothing);
+            expect(find.byType(HomeShell), findsOneWidget);
+            expect(s.user?['public_id'], 'new');
+            expect(
+              grants,
+              2,
+              reason: 'recovery uses current grant, not another password or stale refresh',
+            );
+            expect(meReads, 3);
+            expect(homeReads, 2);
+            expect(t.takeException(), isNull);
+            await t.pumpWidget(const SizedBox());
+            await t.pump(const Duration(seconds: 5));
+          },
+          () => MockClient((r) async {
+            if (r.url.path.endsWith('/oauth/token')) {
+              grants++;
+              return reply({
+                'access_token': grants == 1 ? 'old-fixture' : 'new-fixture',
+                'expires_in': 3600,
+              });
+            }
+            if (r.url.path.endsWith('/auth/me')) {
+              meReads++;
+              if (failIdentity) {
+                return identityFailure == 'service'
+                    ? reply({'message': 'fixture unavailable'}, 503)
+                    : reply({
+                        'user': {'public_id': 'new', 'username': 'new'},
+                        'features': [],
+                      });
+              }
+              return reply({
+                'user': {
+                  'public_id': grants == 1 ? 'old' : 'new',
+                  'username': grants == 1 ? 'old' : 'new',
+                },
+              });
+            }
+            if (r.url.path.endsWith('/posts')) {
+              homeReads++;
+              return reply({'data': [], 'next_cursor': null});
             }
             return reply({
-              'user': {
-                'public_id': grants == 1 ? 'old' : 'new',
-                'username': grants == 1 ? 'old' : 'new',
-              },
+              'data': [],
+              'next_cursor': null,
+              'unread_messages': 0,
             });
-          }
-          if (r.url.path.endsWith('/posts')) {
-            homeReads++;
-            return reply({'data': [], 'next_cursor': null});
-          }
-          return reply({'data': [], 'next_cursor': null, 'unread_messages': 0});
-        }),
-      );
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-  );
+          }),
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+  }
   for (final outcome in ['success', 'failure']) {
     test(
       'late identity recovery $outcome cannot overwrite or retire a replacement login',

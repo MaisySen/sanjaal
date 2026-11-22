@@ -582,7 +582,12 @@ class Session extends ChangeNotifier {
     final j = await call('GET', '/auth/me') as Map<String, dynamic>;
     _checkSession(epoch);
     final identity=j['user'] ?? j;
-    if(identity is! Map<String,dynamic> || identity['public_id'] is! String || (identity['public_id'] as String).trim().isEmpty){
+    final features = j['features'];
+    // Validate the optional container before committing either identity or its
+    // generation. A failed read must keep the account-view recovery gate closed
+    // instead of inheriting capabilities from the preceding account.
+    if(identity is! Map<String,dynamic> || identity['public_id'] is! String || (identity['public_id'] as String).trim().isEmpty ||
+        (features != null && features is! Map<String, dynamic>)){
       throw ApiError('Could not restore your sign-in. Try again.');
     }
     user = identity;

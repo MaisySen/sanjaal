@@ -63,6 +63,27 @@ class NativePixelsTest(unittest.TestCase):
             self.assertEqual([row['name'] for row in rows], list(module.NAMES))
             self.assertEqual(len(module.NAMES), len(set(module.NAMES)))
 
+    def test_total_bound_remains_enforced(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            data = synthetic_png(module.MAX_TOTAL // len(module.NAMES) + 100)
+            for name in module.NAMES:
+                (root / name).write_bytes(data)
+            with self.assertRaisesRegex(ValueError, 'bound'):
+                module.emit(root)
+
+    def test_every_journey_boundary_is_declared(self):
+        import re
+        root = Path(__file__).resolve().parents[2] / 'app/integration_test'
+        expected = set()
+        for filename in ['ios_flows_test.dart', 'native_first_use_journey.dart', 'native_group_journey.dart']:
+            for name in re.findall(r"(?:capture|picture)\('([^']+)'\)", (root / filename).read_text()):
+                if '${' not in name and name != 'ios_test_teardown':
+                    expected.add('native_' + name + '.png')
+        expected.update('native_ios_tab_' + tab + '.png' for tab in ['reels', 'chats', 'wallet', 'me', 'home'])
+        expected.add('ios-diagnostic-native.png')
+        self.assertEqual(set(module.NAMES), expected)
+
     def test_device_access_alone_is_not_complete_native_coverage(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             root = Path(folder)

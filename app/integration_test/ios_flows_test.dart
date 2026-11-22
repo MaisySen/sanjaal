@@ -82,7 +82,7 @@ void main(){
       await writing.rename(pending.path);
       // Native evidence collection can exceed20s on a hosted runner.
       // The barrier still fails closed rather than advancing a stale frame.
-      final deadline=DateTime.now().add(const Duration(seconds:60));
+      final deadline=DateTime.now().add(const Duration(seconds:120));
       while(DateTime.now().isBefore(deadline)){
         if(await done.exists() && await done.readAsString()==request)return true;
         await Future<void>.delayed(const Duration(milliseconds:100));

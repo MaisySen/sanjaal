@@ -192,8 +192,8 @@ class MonitorTest(unittest.TestCase):
         self.assertFalse(pending.with_suffix('.native-done').exists())
         self.assertFalse(self.monitor.seen)
 
-    def test_attempt_budget_leaves_at_least_ten_seconds_for_ack(self):
-        self.assertLessEqual(module.CAPTURE_ATTEMPTS * (module.CAPTURE_TIMEOUT + module.CAPTURE_REAP_TIMEOUT), 50)
+    def test_attempt_budget_is_bounded_under_two_minutes(self):
+        self.assertLessEqual(module.CAPTURE_ATTEMPTS * (module.CAPTURE_TIMEOUT + module.CAPTURE_REAP_TIMEOUT), 110)
 
     def test_timeout_kills_and_reaps_own_process_group_before_retry(self):
         child = mock.Mock(pid=123456)

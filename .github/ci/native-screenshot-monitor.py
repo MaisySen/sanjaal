@@ -61,10 +61,11 @@ class NativeScreenshotMonitor:
                 self.seen.add(key)
 
 
-# A request has a60s app-side acknowledgement deadline. Two bounded attempts
-# including child reaping leave at least14s for polling and the atomic ack.
+# Hosted simctl launch can spend over20s before capture begins (e394 logs).
+# Two45s attempts, including reaping, fit inside the120s app-side deadline.
+# This bounded retry is not proof that the simulator host hang is fixed.
 CAPTURE_ATTEMPTS = 2
-CAPTURE_TIMEOUT = 20
+CAPTURE_TIMEOUT = 45
 CAPTURE_REAP_TIMEOUT = 3
 
 

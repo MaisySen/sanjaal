@@ -13,24 +13,40 @@ from pathlib import Path
 import struct
 
 NAMES = (
-    'native_ios_home.png',
+    'native_ios_both_status_strips.png',
+    'native_ios_chat_before_send.png',
+    'native_ios_chat_native_keyboard_ready.png',
+    'native_ios_chat_server_confirmed.png',
     'native_ios_first_use_intro.png',
     'native_ios_first_use_native_keyboard.png',
-    'native_ios_first_use_registration_validation.png',
     'native_ios_first_use_recovery_validation.png',
-    'native_ios_settings.png',
-    'native_ios_native_device_access.png',
-    'native_ios_chat_native_keyboard_ready.png',
+    'native_ios_first_use_registration_validation.png',
     'native_ios_group_created.png',
+    'native_ios_group_member_role.png',
+    'native_ios_group_owner_confirm.png',
     'native_ios_group_remove_confirm.png',
     'native_ios_group_removed.png',
-    'native_ios_group_owner_confirm.png',
     'native_ios_group_transferred.png',
-    'native_ios_group_member_role.png',
+    'native_ios_home.png',
+    'native_ios_native_avfoundation_poster.png',
+    'native_ios_native_device_access.png',
+    'native_ios_offline_status_strip.png',
+    'native_ios_post_confirmed.png',
+    'native_ios_post_test_text_input.png',
+    'native_ios_rooms_loaded.png',
+    'native_ios_settings.png',
+    'native_ios_status_strips_retired.png',
+    'native_ios_tab_chats.png',
+    'native_ios_tab_home.png',
+    'native_ios_tab_me.png',
+    'native_ios_tab_reels.png',
+    'native_ios_tab_wallet.png',
+    'native_ios_upload_manual_retry_confirmed.png',
+    'native_ios_upload_reply_lost_retry_offered.png',
     'ios-diagnostic-native.png',
 )
 MAX_IMAGE = 4 * 1024 * 1024
-MAX_TOTAL = 12 * 1024 * 1024
+MAX_TOTAL = 24 * 1024 * 1024
 CHUNK = 24000
 
 

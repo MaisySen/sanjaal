@@ -196,46 +196,59 @@ void main() {
         );
       },
     );
-    testWidgets('$action confirmation belongs to its original verified read', (
-      t,
-    ) async {
-      var reads = 0, writes = 0;
-      await p.fixture(
-        t,
-        (s) => UserProfilePage(session: s, username: 'asha'),
-        () async {
-          final refresh = t
-              .widget<IconButton>(
-                find.byWidgetPredicate(
-                  (w) => w is IconButton && w.tooltip == 'Refresh profile',
-                ),
-              )
-              .onPressed!;
-          m.menu(t)(action);
-          await p.flush(t);
-          refresh();
-          await p.flush(t);
-          await t.tap(find.text(action == 'report' ? 'Spam' : 'Block'));
-          await p.flush(t);
-          await t.pumpAndSettle();
-          expect(reads, 2);
-          expect(writes, 0);
-          expect(menuEnabled(t), isTrue);
-          expect(t.takeException(), isNull);
-        },
-        respond: (r) async {
-          if (r.method != 'GET') {
-            writes++;
-            return p.json({'blocked': true});
-          }
-          if (r.url.path.endsWith('/users/asha')) {
-            reads++;
-            return p.json({'user': m.person(reads > 1)});
-          }
-          return p.json({'data': [], 'next_cursor': null});
+    for (final language in ['en', 'ne']) {
+      testWidgets(
+        '$action confirmation retires after a newer verified read $language',
+        (t) async {
+          var reads = 0, writes = 0;
+          t.view.physicalSize = const Size(320, 640);
+          t.view.devicePixelRatio = 1;
+          addTearDown(t.view.reset);
+          await p.fixture(
+            t,
+            (s) => UserProfilePage(session: s, username: 'asha'),
+            () async {
+              final refresh = t
+                  .widget<IconButton>(
+                    find.byWidgetPredicate(
+                      (w) =>
+                          w is IconButton && w.tooltip == t_('Refresh profile'),
+                    ),
+                  )
+                  .onPressed!;
+              m.menu(t)(action);
+              await p.flush(t);
+              refresh();
+              await p.flush(t);
+              await t.tap(find.text(t_(action == 'report' ? 'Spam' : 'Block')));
+              await p.flush(t);
+              await t.pumpAndSettle();
+              expect(reads, 2);
+              expect(writes, 0);
+              expect(menuEnabled(t), isTrue);
+              expect(find.byType(SimpleDialog), findsNothing);
+              expect(find.byType(AlertDialog), findsNothing);
+              expect(find.byType(LinearProgressIndicator), findsNothing);
+              expect(t.takeException(), isNull);
+              await p.shot(t, 'profile_stale_${action}_dismissed_$language');
+            },
+            language: language,
+            scale: 1.8,
+            respond: (r) async {
+              if (r.method != 'GET') {
+                writes++;
+                return p.json({'blocked': true});
+              }
+              if (r.url.path.endsWith('/users/asha')) {
+                reads++;
+                return p.json({'user': m.person(reads > 1)});
+              }
+              return p.json({'data': [], 'next_cursor': null});
+            },
+          );
         },
       );
-    });
+    }
     testWidgets(
       '$action covered confirmation requires a new explicit choice after return',
       (t) async {

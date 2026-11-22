@@ -4,7 +4,6 @@
 import 'dart:convert';
 import 'package:sanjaal/glass/glass_sheet.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -968,7 +967,12 @@ void main() {
       final h = {'content-type': 'application/json'};
       if (r.url.path.endsWith('/saved')) return http.Response(jsonEncode({'data': [post], 'next_cursor': null}), 200, headers: h);
       if (r.url.path.endsWith('/conversations')) return http.Response(jsonEncode({'data': [{'public_id': 'c1', 'type': 'direct', 'title': 'Bina Rai'}]}), 200, headers: h);
-      return http.Response(jsonEncode({'message': {}}), 201, headers: h);
+      return http.Response(jsonEncode({'message': {
+        'public_id': 'share-message', 'conversation_id': 'c1',
+        'client_id': (jsonDecode(r.body) as Map)['client_id'],
+        'kind': 'post', 'sender': {'public_id': 'me'},
+        'shared_post': {'public_id': 'p1'},
+      }}), 201, headers: h);
     }));
   });
 

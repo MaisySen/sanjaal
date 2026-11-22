@@ -219,12 +219,11 @@ class _ActionOwner {
     late final DialogRoute<T> route;
     var completed = false;
     void complete(T result) {
-      if (completed ||
-          !active ||
-          !identical(_dialog, route) ||
-          !route.isCurrent) {
-        return;
-      }
+      if (completed || !identical(_dialog, route)) return;
+      // A newer profile read can retire this choice without a session event.
+      // Remove only this owner's dialog, never a route that now covers it.
+      _changed();
+      if (!active || !route.isCurrent) return;
       completed = true;
       route.navigator?.pop<T>(result);
     }

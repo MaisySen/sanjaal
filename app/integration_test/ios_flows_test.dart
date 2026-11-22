@@ -1,4 +1,5 @@
 import 'native_transport.dart';
+import 'native_capture_barrier.dart';
 import 'native_group_journey.dart';
 import 'native_first_use_journey.dart';
 // Harness adaptation for the reviewed runtime: compact tabs retain tooltips/semantics.
@@ -67,16 +68,29 @@ void main(){
   final evidence=Directory('${dir.path}/ios-evidence');await evidence.create(recursive:true);
   await File('${evidence.path}/$name.png').writeAsBytes(bytes,flush:true);
   // Stop at each visual boundary until the host captures actual OS pixels.
-  await binding.runAsync(() async {
-  final pending=File('${evidence.path}/$name.native-pending');
-  final done=File('${evidence.path}/$name.native-done');
-  await pending.writeAsString('waiting',flush:true);
-  final deadline=DateTime.now().add(const Duration(seconds:20));
-  while(!await done.exists()){
-    if(DateTime.now().isAfter(deadline))throw TestFailure('Native display capture did not acknowledge $name');
-    await Future<void>.delayed(const Duration(milliseconds:100));
-  }
-  });
+  await stage('native capture requested $name');
+  await nativeCaptureBarrier(
+    name: name,
+    runAsync: (body) => binding.runAsync(body),
+    acknowledge: () async {
+      final pending=File('${evidence.path}/$name.native-pending');
+      final done=File('${evidence.path}/$name.native-done');
+      final request='${DateTime.now().microsecondsSinceEpoch}-$name';
+      if(await done.exists())await done.delete();
+      final writing=File('${pending.path}-tmp');
+      await writing.writeAsString(request,flush:true);
+      await writing.rename(pending.path);
+      // Native evidence collection can exceed20s on a hosted runner.
+      // The barrier still fails closed rather than advancing a stale frame.
+      final deadline=DateTime.now().add(const Duration(seconds:60));
+      while(DateTime.now().isBefore(deadline)){
+        if(await done.exists() && await done.readAsString()==request)return true;
+        await Future<void>.delayed(const Duration(milliseconds:100));
+      }
+      return false;
+    },
+  );
+  await stage('native capture acknowledged $name');
   } finally {
     binding.framePolicy = previousPolicy;
   }

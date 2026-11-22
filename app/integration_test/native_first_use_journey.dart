@@ -1,7 +1,6 @@
 // Native first-use navigation, input and validation pixels only.
 // No sign-up, sign-in or password-reset request is submitted to a provider.
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/rendering.dart' show EnginePhase;
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/api.dart';
 import 'package:sanjaal/auth_page.dart';
@@ -48,6 +47,8 @@ Future<Session> nativeFirstUseJourney(
   await waitUntil(() => t.view.viewInsets.bottom > 0);
   await t.pump(const Duration(milliseconds: 600));
   await picture('ios_first_use_native_keyboard');
+  expect(t.view.viewInsets.bottom, greaterThan(0));
+  expect(find.text('Enter a valid email'), findsNothing);
   await t.enterText(fields.at(0), 'invalid');
   await t.enterText(fields.at(1), 'x');
   await t.enterText(fields.at(2), 'short');

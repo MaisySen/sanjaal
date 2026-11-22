@@ -31,8 +31,8 @@ jobs:
         test "$(git rev-parse HEAD:app/android)" = d211060d2a948c718cd9d422b4bc9161c6d2b49d
         test "$(git rev-parse HEAD:app/pubspec.yaml)" = a70859c72405a0d40b8b3441010fcf6d8676e7a9
         test "$(git rev-parse HEAD:app/pubspec.lock)" = a14a12b7db208d079c3793bbffd41893a9883186
-        test "$(git rev-parse HEAD:app/integration_test)" = 07a2033152a08e99ede41f98ac4411ba70dd5009
-        test "$(git rev-parse HEAD:api/app)" = 2fc600e01e4a11b437f333379caac203c218caa0
+        test "$(git rev-parse HEAD:app/integration_test)" = 04a0b80e6c66e39131be0bdef7be28ae05011b4c
+        test "$(git rev-parse HEAD:api/app)" = 54ecb668b31ffb1ab47d9c58ec3664f3fe3ed011
         test "$(git rev-parse HEAD:api/config)" = 14692b362a6c58d1eca3fb14ab254da3b69bdefa
         test "$(git rev-parse HEAD:api/routes)" = 519700d6eff4a62ba2b209d9bea24638f8f1ebaa
         test "$(git rev-parse HEAD:api/database/migrations)" = ed4ebbe416b37335335a0b27b0185a8310c456b7
@@ -77,6 +77,9 @@ jobs:
           cat /tmp/ios-socket-gate.log
           exit 1
         }
+        python3 ../.github/ci/test-native-group-search-preflight.py
+        python3 ../.github/ci/native-group-search-preflight.py
+        python3 ../.github/ci/test-native-screenshot-monitor.py
     - name: Select and boot available iPhone simulator
       run: |
         defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
@@ -130,20 +133,17 @@ jobs:
               subprocess.run(['xcrun','simctl','spawn',os.environ['IOS_DEVICE'],'launchctl','list'])
               raise SystemExit(125)
             time.sleep(1)
-        import threading
-        stop=threading.Event()
+        import threading,importlib.util
+        spec=importlib.util.spec_from_file_location('native_monitor','../.github/ci/native-screenshot-monitor.py')
+        native_monitor=importlib.util.module_from_spec(spec);spec.loader.exec_module(native_monitor)
+        evidence=native_monitor.simulator_monitor(os.environ['IOS_DEVICE'],'build/screenshots')
+        stop=threading.Event();monitor_errors=[]
         def native_evidence():
-          seen=set()
-          while not stop.wait(0.4):
-            result=subprocess.run(['xcrun','simctl','get_app_container',os.environ['IOS_DEVICE'],'au.fintex.sanjaal','data'],capture_output=True,text=True)
-            if result.returncode:continue
-            container=pathlib.Path(result.stdout.strip())
-            for pending in container.rglob('*.native-pending'):
-              if str(pending) in seen:continue
-              seen.add(str(pending))
-              name=pending.stem
-              subprocess.run(['xcrun','simctl','io',os.environ['IOS_DEVICE'],'screenshot','build/screenshots/native_'+name+'.png'],check=True)
-              pending.with_suffix('.native-done').write_text('captured')
+          try:
+            while not stop.wait(0.2):evidence.scan()
+          except Exception as error:
+            monitor_errors.append(type(error).__name__)
+            print('Native screenshot monitor failed: '+type(error).__name__,flush=True)
         monitor=threading.Thread(target=native_evidence,daemon=True);monitor.start()
         args=['flutter','drive','-d',os.environ['IOS_DEVICE'],'--driver=test_driver/integration_test.dart','--use-existing-app='+endpoint,'--no-pub']
         with open('ios-driver-output.log','w') as log:
@@ -156,7 +156,8 @@ jobs:
             try:child.wait(timeout=15)
             except subprocess.TimeoutExpired:os.killpg(child.pid,signal.SIGKILL)
             code=124
-        stop.set();monitor.join(timeout=5)
+        stop.set();monitor.join(timeout=50)
+        if monitor.is_alive() or monitor_errors:code=code or 126
         pathlib.Path('ios-driver-exit.txt').write_text(str(code))
         raise SystemExit(code)
         PYDRIVE

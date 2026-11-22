@@ -38,15 +38,41 @@ import 'ui.dart';
 ImageProvider Function(String url)? feedImageProvider;
 
 /// Home tab: For you and Following, with search and notifications on top.
-class FeedPage extends StatelessWidget {
+class FeedPage extends StatefulWidget {
   const FeedPage({super.key, required this.session, required this.onCompose, this.forYouKey, this.storyRevision = 0});
   final Session session;
   final Future<void> Function() onCompose;
   final GlobalKey<FeedListState>? forYouKey;
   final int storyRevision;
+  @override
+  State<FeedPage> createState() => _FeedPageState();
+}
+
+class _FeedPageState extends State<FeedPage> with SessionBoundState<FeedPage> {
+  @override
+  Session get viewSession => widget.session;
+  Session get session => widget.session;
+  GlobalKey<FeedListState>? get forYouKey => widget.forYouKey;
+  int get storyRevision => widget.storyRevision;
+  bool _opening = false;
+  Future<void> _open(Widget page) async {
+    if (!mounted || !sessionActive || _opening) return;
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _opening = false;
+    }
+  }
+  Future<void> onCompose() async {
+    if (!mounted || !sessionActive || _opening) return;
+    _opening = true;
+    try { await widget.onCompose(); } finally { _opening = false; }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (!sessionActive) return SessionRecoveryView(session: session);
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -56,8 +82,8 @@ class FeedPage extends StatelessWidget {
           title: const FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Row(mainAxisSize: MainAxisSize.min, children: [Logo(size: 32), SizedBox(width: 8), Text('Sanjaal', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -.8))])),
           actions: [
             IconButton(tooltip: t_('Post'), icon: const PhIcon('plus-square'), onPressed: onCompose),
-            IconButton(tooltip: t_('Search'), icon: const PhIcon('magnifying-glass'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => discoveryEntry(session)))),
-            IconButton(tooltip: t_('Notifications'), icon: const PhIcon('bell'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
+            IconButton(tooltip: t_('Search'), icon: const PhIcon('magnifying-glass'), onPressed: () => _open(discoveryEntry(session))),
+            IconButton(tooltip: t_('Notifications'), icon: const PhIcon('bell'), onPressed: () => _open(NotificationsPage(session: session))),
           ],
           bottom: TabBar(
             isScrollable: true,
@@ -91,7 +117,7 @@ class FeedPage extends StatelessWidget {
             emptyIcon: Ph.group_add_outlined,
             emptyTitle: 'Follow people to fill this tab',
             emptyHint: t_('Posts from the people you follow will appear here.'),
-            emptyAction: FilledButton.icon(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SearchPage(session: session))), icon: const PhIcon('magnifying-glass', size: 18), label: Text(t_('Find people'))),
+            emptyAction: FilledButton.icon(onPressed: () => _open(SearchPage(session: session)), icon: const PhIcon('magnifying-glass', size: 18), label: Text(t_('Find people'))),
           ),
         ]),
       ),

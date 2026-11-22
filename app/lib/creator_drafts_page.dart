@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'session_bound_state.dart';
 import 'stories_page.dart' show StoryComposePage;
 import 'creator_draft_store.dart';
 import 'creator_media_draft_store.dart';
@@ -15,34 +16,49 @@ class CreatorDraftsPage extends StatefulWidget {
   State<CreatorDraftsPage> createState() => _CreatorDraftsPageState();
 }
 
-class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
+class _CreatorDraftsPageState extends State<CreatorDraftsPage> with SessionBoundState<CreatorDraftsPage> {
+  @override
+  Session get viewSession => widget.session;
   final store = const CreatorDraftStore();
   String? owner, error, textError, mediaError;
   List<CreatorDraft>? drafts;
   List<CreatorMediaDraft> mediaDrafts=[];
   final mediaStore=const CreatorMediaDraftStore();
-  late final int generation;
   bool busy = false;
-  bool get active =>
-      owner != null && widget.session.user?['public_id'] == owner && widget.session.generation==generation;
+  bool get active => sessionActive;
   @override
   void initState() {
     super.initState();
-    generation=widget.session.generation;
     owner = widget.session.user?['public_id'] as String?;
-    widget.session.addListener(_account);
     _load();
   }
 
-  void _account() {
-    if (!active && mounted)
-      setState(() {
-        drafts = null;mediaDrafts=[];
-        error = t_("Sign in again to view this account's local drafts.");
-      });
+  @override
+  void sessionRetired() {
+    drafts = null;
+    mediaDrafts = [];
+    textError = null;
+    mediaError = null;
+    error = t_("Sign in again to view this account's local drafts.");
+  }
+
+  Future<void> _openText(CreatorDraft draft) async {
+    if (!mounted || !active || busy ||
+        !(drafts?.any((current) => identical(current, draft)) ?? false)) {
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ComposePage(
+        session: widget.session, backgroundUpload: true, initialLocalDraft: draft)));
+      if (mounted && active) await _load();
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     if (!active) {
       if (mounted) setState(() => error = t_('Sign in to view saved drafts.'));
       return;
@@ -54,13 +70,15 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     catch(_){textProblem=t_('Text drafts could not be read. Nothing was replaced.');}
     try{media=await mediaStore.read(owner!);}
     catch(_){mediaProblem=t_('Media drafts could not be read. Nothing was replaced.');}
-    if(mounted && active)setState((){
-      drafts=list;mediaDrafts=media;textError=textProblem;mediaError=mediaProblem;error=null;
-    });
+    if(mounted && active) {
+      setState((){
+        drafts=list;mediaDrafts=media;textError=textProblem;mediaError=mediaProblem;error=null;
+      });
+    }
   }
 
   Future<void> _delete(CreatorDraft draft) async {
-    if (busy || !active) return;
+    if (!mounted || busy || !active) return;
     final yes = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -96,7 +114,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
   }
 
   Future<void> _openMedia(CreatorMediaDraft draft) async {
-    if(busy || !active)return;
+    if(!mounted || busy || !active)return;
     setState(()=>busy=true);
     try{
       final files=await mediaStore.open(owner!,draft);
@@ -109,7 +127,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     finally{if(mounted)setState(()=>busy=false);}
   }
   Future<void> _deleteMedia(CreatorMediaDraft draft)async{
-    if(busy || !active)return;
+    if(!mounted || busy || !active)return;
     final yes=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:Text(t_('Delete this local draft?')),content:Text(t_('This removes only the saved copy on this device, not any published post.')),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(t_('Keep'))),TextButton(onPressed:()=>Navigator.pop(c,true),child:Text(t_('Delete')))]));
     if(yes!=true || !mounted || !active)return;
     setState(()=>busy=true);
@@ -117,12 +135,6 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
     catch(e){if(mounted && active){await _load();if(mounted)showError(context,e);}}
     finally{if(mounted)setState(()=>busy=false);}
   }
-  @override
-  void dispose() {
-    widget.session.removeListener(_account);
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(t_('Saved drafts'))),
@@ -175,21 +187,7 @@ class _CreatorDraftsPageState extends State<CreatorDraftsPage> {
                 onPressed: busy ? null : () => _delete(draft),
                 icon: const PhIcon('trash'),
               ),
-              onTap: busy
-                  ? null
-                  : () async {
-                      if (!active) return;
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ComposePage(
-                            session: widget.session,
-                            backgroundUpload: true,
-                            initialLocalDraft: draft,
-                          ),
-                        ),
-                      );
-                      if (mounted && active) await _load();
-                    },
+              onTap: busy ? null : () => _openText(draft),
             ),
         if(active) for(final draft in mediaDrafts) ListTile(
           title:Text(draft.text.isEmpty?t_(draft.story?'Story draft':draft.video?'Video draft':'Photo draft'):draft.text,maxLines:2,overflow:TextOverflow.ellipsis),

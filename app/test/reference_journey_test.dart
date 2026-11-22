@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -22,7 +23,7 @@ http.Response json(Object value)=>http.Response(jsonEncode(value),200);
 Map<String,dynamic> person={'public_id':'me','username':'fixture','name':'Fixture Member','bio':'A community for everyday moments.','posts_count':6,'followers_count':12,'following_count':8};
 Map<String,dynamic> post(int i,{String kind='post'})=>{'public_id':'p$i','kind':kind,'body':'A community moment $i','media':[{'type':'image','url':'https://fixture.invalid/$i.png'}],'author':person,'likes_count':i,'comments_count':0};
 Future<void> flush(WidgetTester t)async{for(var i=0;i<4;i++){await t.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:15)));await t.pump(const Duration(milliseconds:150));}}
-Future<void> shot(WidgetTester t,String name)async{await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('reference-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/reference_$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());});}
+Future<void> shot(WidgetTester t,String name)async{await t.pumpAndSettle();await t.runAsync(()async{final b=t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('reference-shot')));final image=await b.toImage(pixelRatio:2);final bytes=await image.toByteData(format:ui.ImageByteFormat.png);File('test/renders/reference_$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());});}
 Future<void> fixture(WidgetTester t,Future<void>Function(Session,List<Uri>)run,{Brightness mode=Brightness.dark,double scale=1,String language='en',bool small=false})async{
  SharedPreferences.setMockInitialValues({});prefs.lang=language;addTearDown(()=>prefs.lang='en');
  t.view.physicalSize=small?const Size(320,640):const Size(390,844);t.view.devicePixelRatio=1;addTearDown(t.view.reset);
@@ -33,11 +34,13 @@ Future<void> fixture(WidgetTester t,Future<void>Function(Session,List<Uri>)run,{
   if(r.url.path.contains('/users/')&&!r.url.path.endsWith('/blocked'))return json({'user':person});
   if(r.url.path.endsWith('/posts'))return json({'data':[for(var i=0;i<9;i++)post(i,kind:r.url.queryParameters['kind']??'post')],'next_cursor':null});
   if(r.url.path.endsWith('/stories'))return json({'data':[{'author':{'public_id':'other','username':'community'},'items':[],'all_viewed':false}]});
+  if(r.url.path.endsWith('/wallet'))return json({'balance':0,'entries':[],'topup':{'esewa':false},'cashout':{'available':false},'transfers_available':false,'transfer_replay':false});
   return json({'data':[],'next_cursor':null,'balance':0,'entries':[],'unread_messages':0});
  }));
 }
 Future<void> select(WidgetTester t,String text)async{await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.byTooltip(t_(text))));await flush(t);}
 void main(){
+ setUp(() => FlutterSecureStorage.setMockInitialValues({}));
  setUpAll(()async{Directory('test/renders').createSync(recursive:true);
   for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}
   final pic=ui.PictureRecorder();final c=Canvas(pic);c.drawRect(const Rect.fromLTWH(0,0,400,600),Paint()..shader=ui.Gradient.linear(Offset.zero,const Offset(400,600),const [Color(0xFF123442),Color(0xFFDBAE72)]));c.drawPath(Path()..moveTo(0,600)..lineTo(180,240)..lineTo(400,600)..close(),Paint()..color=const Color(0xFF16454C));final image=await pic.endRecording().toImage(400,600);final data=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();feedImageProvider=(_)=>MemoryImage(data);
@@ -110,7 +113,7 @@ void main(){
   await fixture(t,(s,reads)async{
    await t.drag(find.byWidgetPredicate((w)=>w is ListView && w.scrollDirection==Axis.vertical).first,const Offset(0,-300));await flush(t);
    expect(t.widget<GlassNavBar>(find.byType(GlassNavBar)).compact,isTrue);
-   for(final text in ['Home','Reels','Chats','Wallet','Me'])expect(find.bySemanticsLabel(text),findsOneWidget);
+   for(final text in ['Home','Reels','Chats','Wallet','Me']){expect(find.bySemanticsLabel(text),findsOneWidget);}
    await shot(t,'nav_compact');await t.tap(find.bySemanticsLabel('Wallet'));await flush(t);
    expect(t.widget<GlassNavBar>(find.byType(GlassNavBar)).compact,isFalse);expect(t.widget<GlassNavBar>(find.byType(GlassNavBar)).index,3);expect(t.takeException(),isNull);await shot(t,'nav_expanded');
   },small:true);

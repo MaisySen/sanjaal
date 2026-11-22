@@ -1,5 +1,45 @@
 # Whole-product reconciliation
 
+## Navigation and capture correction, November 22, 2026
+
+The integrated reference review reproduced a narrow-phone navigation problem:
+with five destinations plus Search at 320 logical pixels, destination targets
+were 46 pixels wide expanded and 41.2 compact. Search was 44 pixels. The local
+correction spends horizontal capsule margin before reducing those targets and
+sets Search to 48 pixels. All five destinations and the separate Search action
+remain. The compact capsule still reduces its height; at this narrow width its
+horizontal contraction is limited to preserve touch space. Wider reviewed
+layouts retain their existing margins. No brand mark, route, API or capability
+was changed.
+
+Twelve geometry/action cases at widths 320, 360 and 390, with compact/expanded
+and Search present/absent, pass the installed Flutter SDK's Android tap-target
+guideline and explicit bounds/selection checks. This is widget evidence for
+those shapes, not a native or whole-app accessibility audit. Usable widths below
+302 pixels with all six controls are not covered by that claim.
+
+The combined changed-scope preflight passed 201 selected cases spanning the
+existing connected auth/media/chat/profile/reference routes, navigation targets
+and live glass policy. After adding the SDK guideline assertion and correcting
+its test-only semantics-handle cleanup, the twelve target cases and thirteen
+reference cases were rerun successfully. Analysis of all three changed Dart
+files is clean. Counts do not measure device speed or complete product acceptance.
+
+Pixel inspection also found that earlier Settings reference captures were made
+before route animation fully settled. Settled captures are sharp without an app
+font or glass change, so the earlier blurred captures are superseded, not proof
+of an application rendering defect. The reference fixture's incomplete wallet
+payload and missing secure-store mock also produced a false wallet-failure
+screen. The corrected fixture supplies a synthetic empty wallet with all money
+paths off. It does not establish a live balance, payment or provider availability.
+Image-only Reels fixtures remain control/navigation evidence, not playback proof.
+
+This is a local source/review correction. No native build, push, signing,
+installation, distribution or backend action was made for it. The earlier
+compiler evidence below belongs to the earlier published runtime, not to this
+changed navigation tree. Whole-product/brand and exact-device acceptance remain
+open; no feature-status row is promoted by this correction.
+
 ## Delivery continuity correction, November 22, 2026, 19:20 AEDT
 
 The review/batch condition is not a blanket source-push or engineering-build ban.

@@ -44,7 +44,7 @@ class GlassNavBar extends StatelessWidget {
         Flexible(child: SizedBox(height: largeBadge ? 76 : largeText ? 52 : (collapsed ? 50 : 54), child: Row(children: [
           for (var i = 0; i < items.length; i++)
             Expanded(child: _Item(item: items[i], compact: true, selected: i == index, onTap: () => onSelected(i))),
-          if (onSearch != null) IconButton(tooltip: t_('Search'), onPressed: onSearch, icon: PhIcon('magnifying-glass', size: 22, color: scheme.onSurfaceVariant), style: IconButton.styleFrom(minimumSize: const Size(44,44), backgroundColor: scheme.onSurface.withValues(alpha: .08))),
+          if (onSearch != null) IconButton(tooltip: t_('Search'), onPressed: onSearch, icon: PhIcon('magnifying-glass', size: 22, color: scheme.onSurfaceVariant), style: IconButton.styleFrom(minimumSize: const Size(48,48), backgroundColor: scheme.onSurface.withValues(alpha: .08))),
         ]))),
         if (largeText) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(items[index].label, maxLines: 1, style: TextStyle(fontSize: 12, height: 1.1, color: scheme.primary, fontWeight: FontWeight.w700))),
       ])),
@@ -52,15 +52,23 @@ class GlassNavBar extends StatelessWidget {
     return Theme(data: parentTheme.copyWith(colorScheme: scheme), child: SafeArea(
       top: false,
       minimum: const EdgeInsets.only(bottom: 8),
-      child: Listener(
+      child: LayoutBuilder(builder: (context, bounds) {
+        // Keep PR1's five destinations and search, without shrinking touch
+        // targets when the capsule compacts on a narrow phone. SafeArea has
+        // already removed horizontal system insets from these constraints.
+        final preferredMargin = collapsed ? 26.0 : 14.0;
+        final minimumWidth = items.length * 48.0 + (onSearch == null ? 0 : 48.0) + 14.0;
+        final margin = ((bounds.maxWidth - minimumWidth) / 2).clamp(0.0, preferredMargin);
+        return Listener(
         onPointerDown: (_) => onTouch?.call(),
         child: Padding(
-        padding: EdgeInsets.fromLTRB(collapsed ? 26 : 14, 0, collapsed ? 26 : 14, 8),
+        padding: EdgeInsets.fromLTRB(margin, 0, margin, 8),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(32),
           child: GlassSurface(refractive: true, radius: 32, blur: 12, minOpacity: .10, opacity: .22 + .26 * glassSettings.transparency, child: bar),
         ),
-      )),
+      ));
+      }),
     ));
   });
 }

@@ -53,14 +53,20 @@ void showError(BuildContext context, Object e) {
     ..showSnackBar(SnackBar(content: Semantics(liveRegion: true, child: Text(t_(failureMessage(e))))));
 }
 
-/// Runs a photo or video pick. Cancelling returns null. A refused camera or photo permission, or a picker that fails,
-/// shows a plain message and returns null instead of throwing.
+/// Runs a pick only for its current route. Cancellation, disposal or a covered
+/// completion returns null. Permission failures are explained on the owner;
+/// other failures reach the caller only while that owner is still current.
 Future<T?> guardPick<T>(BuildContext context, Future<T?> Function() pick) async {
+  if (!context.mounted) return null;
+  final route = ModalRoute.of(context);
+  bool ownsRoute() => context.mounted && (route == null || route.isCurrent);
+  if (!ownsRoute()) return null;
   try {
-    return await pick();
+    final result = await pick();
+    return ownsRoute() ? result : null;
   } on PlatformException catch (e) {
     final c = e.code.toLowerCase();
-    if (context.mounted) {
+    if (context.mounted && ownsRoute()) {
       showInfo(
         context,
         c.contains('camera_access') ? t_('Camera access is off. Turn it on in Settings to take photos or videos.')
@@ -69,6 +75,9 @@ Future<T?> guardPick<T>(BuildContext context, Future<T?> Function() pick) async 
       );
     }
     return null;
+  } catch (_) {
+    if (!ownsRoute()) return null;
+    rethrow;
   }
 }
 

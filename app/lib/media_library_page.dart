@@ -220,6 +220,16 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   bool needsAuthorize = true;
   bool launchingPicker = false;
   bool get selectionBusy=>resolving || launchingPicker;
+  bool get _current => mounted && ModalRoute.of(context)?.isCurrent == true;
+  Route<dynamic>? _pickerChoice;
+  NavigatorState? _pickerNavigator;
+  static void _retireChoice(Route<dynamic> route, NavigatorState navigator) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator.mounted && route.isActive && identical(route.navigator, navigator)) {
+        navigator.removeRoute(route);
+      }
+    });
+  }
   bool loading = false,
       resolving = false,
       more = true,
@@ -330,7 +340,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> choose(LibraryAsset asset) async {
-    if (selectionBusy) return;
+    if (!_current || selectionBusy) return;
     if (asset.video && asset.seconds > maxSeconds) {
       showInfo(
         context,
@@ -353,7 +363,8 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> resolve(List<LibraryAsset> chosen) async {
-    if (selectionBusy || chosen.isEmpty) return;
+    if (!_current || selectionBusy || chosen.isEmpty) return;
+    final route = ModalRoute.of(context)!;
     setState(() {
       resolving = true;
       error = null;
@@ -363,22 +374,24 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
       final result = <CreatorMedia>[];
       for (final asset in chosen) {
         final file = await library.file(asset);
-        if (!mounted) return;
+        if (!mounted || !route.isCurrent) return;
         if (file == null)
           throw StateError(
             t_(
               'That item is unavailable. Check your connection or choose another.',
             ),
           );
-        if (await file.length() > 25 * 1024 * 1024)
+        final length = await file.length();
+        if (!mounted || !route.isCurrent) return;
+        if (length > 25 * 1024 * 1024)
           throw StateError(
             t_('That file is over 25 MB. Choose a smaller one.'),
           );
         result.add(CreatorMedia(file, isVideo: asset.video));
       }
-      if (mounted) Navigator.pop(context, result);
+      if (mounted && route.isCurrent) Navigator.pop(context, result);
     } catch (e) {
-      if (mounted)
+      if (mounted && route.isCurrent)
         setState(() {
           retrySelection = List.of(chosen);
           error = e is StateError
@@ -393,10 +406,11 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   }
 
   Future<void> launch(Future<void> Function() action) async {
-    if(selectionBusy) return;
+    if(!_current || selectionBusy) return;
+    final route = ModalRoute.of(context)!;
     setState(()=>launchingPicker=true);
     try { await action(); }
-    catch (_) { if(mounted) showInfo(context,t_('Camera or media picker could not be opened. Try again.')); }
+    catch (_) { if(mounted && route.isCurrent) showInfo(context,t_('Camera or media picker could not be opened. Try again.')); }
     finally { if(mounted) setState(()=>launchingPicker=false); }
   }
 
@@ -404,7 +418,8 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   Future<void> fallback()=>launch(_fallback);
 
   Future<void> _capture() async {
-    if (resolving) return;
+    if (!_current || resolving) return;
+    final route = ModalRoute.of(context)!;
     final builder = widget.captureBuilder;
     final value = await Navigator.of(context).push<CreatorMedia>(
       MaterialPageRoute(
@@ -418,32 +433,41 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
             ),
       ),
     );
-    if (value != null && mounted) Navigator.pop(context, [value]);
+    if (value != null && mounted && route.isCurrent) Navigator.pop(context, [value]);
   }
 
   Future<void> _fallback() async {
-    if (resolving) return;
+    if (!_current || resolving) return;
+    final route = ModalRoute.of(context)!;
     bool video = widget.kind == CreatorKind.reel;
     if (widget.kind == CreatorKind.story) {
+      var answered = false;
       final picked = await showModalBottomSheet<bool>(
         context: context,
-        builder: (c) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: Text(t_('Choose a photo')),
-                onTap: () => Navigator.pop(c, false),
-              ),
-              ListTile(
-                title: Text(t_('Choose a video')),
-                onTap: () => Navigator.pop(c, true),
-              ),
-            ],
-          ),
-        ),
+        builder: (c) {
+          final choice = ModalRoute.of(c)!;
+          final navigator = Navigator.of(c);
+          if (mounted) { _pickerChoice = choice; _pickerNavigator = navigator; }
+          else { _retireChoice(choice, navigator); }
+          void finish(bool value) {
+            if (!mounted || !c.mounted || answered || !choice.isCurrent) return;
+            answered = true;
+            navigator.pop(value);
+          }
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(title: Text(t_('Choose a photo')), onTap: () => finish(false)),
+                ListTile(title: Text(t_('Choose a video')), onTap: () => finish(true)),
+              ],
+            ),
+          );
+        },
       );
-      if (picked == null || !mounted) return;
+      _pickerChoice = null;
+      _pickerNavigator = null;
+      if (picked == null || !mounted || !route.isCurrent) return;
       video = picked;
     }
     final picker = ImagePicker();
@@ -456,7 +480,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
           limit: maxFiles,
         ),
       );
-      if (files != null && files.isNotEmpty && mounted)
+      if (files != null && files.isNotEmpty && mounted && route.isCurrent)
         Navigator.pop(
           context,
           files
@@ -478,7 +502,7 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
                 imageQuality: 78,
               ),
       );
-      if (file != null && mounted)
+      if (file != null && mounted && route.isCurrent)
         Navigator.pop(context, [CreatorMedia(file, isVideo: video)]);
     }
   }
@@ -497,6 +521,8 @@ class _MediaLibraryPageState extends State<MediaLibraryPage>
   @override
   void dispose() {
     epoch++;
+    final choice = _pickerChoice, navigator = _pickerNavigator;
+    if (choice != null && navigator != null) _retireChoice(choice, navigator);
     WidgetsBinding.instance.removeObserver(this);
     scroll.dispose();
     super.dispose();

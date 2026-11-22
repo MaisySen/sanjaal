@@ -1,3 +1,4 @@
+import 'follow_list_page.dart';
 import 'glass/glass_app_bar.dart';
 import 'glass/glass_action.dart';
 import 'ph.dart';
@@ -43,9 +44,11 @@ class ProfileActions extends StatelessWidget {
 }
 
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key, required this.user, required this.actions});
+  const ProfileHeader({super.key, required this.user, required this.actions, this.onFollowers, this.onFollowing});
   final Map<String, dynamic> user;
   final Widget actions;
+  final VoidCallback? onFollowers;
+  final VoidCallback? onFollowing;
 
   @override
   Widget build(BuildContext context) {
@@ -53,10 +56,15 @@ class ProfileHeader extends StatelessWidget {
     final bio = (user['bio'] ?? '').toString();
     String n(String k) => shortCount((user[k] as num?)?.toInt() ?? 0);
     final large = MediaQuery.textScalerOf(context).scale(14) > 19;
-    final stats = Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      for (final stat in [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')])
-        Expanded(child: _stat(context, n(stat.$1), t_(stat.$2))),
-    ]);
+    Widget countCell((String, String) stat) {
+      final tap = stat.$1 == 'followers_count' ? onFollowers : stat.$1 == 'following_count' ? onFollowing : null;
+      final cell = Padding(padding: EdgeInsets.symmetric(vertical: onFollowers != null || onFollowing != null ? 8 : 0), child: _stat(context, n(stat.$1), t_(stat.$2)));
+      return tap == null ? cell : InkWell(onTap: tap, child: cell);
+    }
+    const items = [('posts_count', 'Posts'), ('followers_count', 'Followers'), ('following_count', 'Following')];
+    final stats = large
+        ? SizedBox(width: double.infinity, child: Wrap(alignment: WrapAlignment.spaceAround, spacing: 16, runSpacing: 8, children: [for (final item in items) countCell(item)]))
+        : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [for (final item in items) Expanded(child: countCell(item))]);
     return Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         GestureDetector(onTap: user['avatar_url'] == null ? null : () => openImage(context, user['avatar_url'].toString()), child: Avatar(user: user, radius: 44)),
@@ -200,6 +208,8 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
           if (loading) const LinearProgressIndicator(),
           ProfileHeader(
           user: user,
+          onFollowers: !widget.session.followListsEnabled || blocked ? null : () { if (mounted && sessionActive) Navigator.of(context).push(MaterialPageRoute(builder: (_) => FollowListPage(session: widget.session, username: widget.username, ownerId: user['public_id'] as String?, kind: FollowListKind.followers))); },
+          onFollowing: !widget.session.followListsEnabled || blocked ? null : () { if (mounted && sessionActive) Navigator.of(context).push(MaterialPageRoute(builder: (_) => FollowListPage(session: widget.session, username: widget.username, ownerId: user['public_id'] as String?, kind: FollowListKind.following))); },
           actions: isMe
               ? const SizedBox.shrink()
               : ProfileActions(children: [
@@ -273,6 +283,13 @@ class _MePageState extends State<MePage> {
   @override
   Widget build(BuildContext context) {
     final s = widget.session;
+    final generation = s.generation;
+    final listUsername = s.user?['username'] as String?;
+    final listOwnerId = s.user?['public_id'] as String?;
+    void openMembers(FollowListKind kind) {
+      if (!mounted || !identical(s, widget.session) || s.generation != generation || listUsername == null || listOwnerId == null || s.user?['public_id'] != listOwnerId || s.user?['username'] != listUsername || !s.followListsEnabled) return;
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FollowListPage(session: s, username: listUsername, ownerId: listOwnerId, kind: kind)));
+    }
     final me = {...?counts, ...?s.user, for (final key in ['posts_count', 'followers_count', 'following_count']) if (counts?[key] != null) key: counts![key]};
     return Scaffold(
       appBar: ReviewedAppBar(
@@ -296,6 +313,8 @@ class _MePageState extends State<MePage> {
           if (loading) const LinearProgressIndicator(),
           ProfileHeader(
           user: me,
+          onFollowers: s.followListsEnabled ? () => openMembers(FollowListKind.followers) : null,
+          onFollowing: s.followListsEnabled ? () => openMembers(FollowListKind.following) : null,
           actions: ProfileActions(children: [
             OutlinedButton.icon(
               icon: const PhIcon('pencil-simple', size: 18),

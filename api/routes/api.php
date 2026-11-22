@@ -47,6 +47,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     $s = \App\Http\Controllers\SocialController::class;
     Route::get('/users/search', [$s, 'search']);
     Route::get('/users/blocked', [$s, 'blocks']);
+    Route::get('/users/{username}/{direction}', [\App\Http\Controllers\FollowListController::class, 'index'])->where('direction', 'followers|following');
     Route::get('/users/{username}', [$s, 'profile']);
     Route::post('/users/{username}/block', [$s, 'block']);
     Route::delete('/users/{username}/block', [$s, 'unblock']);

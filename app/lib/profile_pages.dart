@@ -5,6 +5,7 @@ import 'ph.dart';
 import 'upload_center.dart';
 import 'draft_exit_guard.dart';
 import 'session_bound_state.dart';
+import 'session_recovery.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'actions.dart';
@@ -234,13 +235,42 @@ class MePage extends StatefulWidget {
   State<MePage> createState() => _MePageState();
 }
 
-class _MePageState extends State<MePage> {
+class _MePageState extends State<MePage> with SessionBoundState<MePage> {
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() {
+    counts = null;
+    error = null;
+    loading = false;
+    read++;
+  }
+  bool _opening = false;
+  Future<void> _open(Widget page, {bool refreshProfile = false}) async {
+    if (!mounted || !sessionActive || _opening) return;
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _opening = false;
+    }
+    if (mounted && sessionActive && refreshProfile) {
+      setState(() => _refresh++);
+      await _load();
+    }
+  }
+  Future<void> _compose() async {
+    if (!mounted || !sessionActive || _opening || widget.onCompose == null) return;
+    _opening = true;
+    try { await widget.onCompose!(); } finally { _opening = false; }
+  }
+
   Map<String, dynamic>? counts;
   int _refresh = 0;
   late final uploads = UploadCenter.of(widget.session);
   int _publishedRevision = -1;
   void _published() {
-    if (!mounted || _publishedRevision == uploads.revision) return;
+    if (!mounted || !sessionActive || _publishedRevision == uploads.revision) return;
     _publishedRevision = uploads.revision;
     if (uploads.confirmedPosts.isNotEmpty) _load();
   }
@@ -267,37 +297,38 @@ class _MePageState extends State<MePage> {
   }
 
   Future<void> _load() async {
-    if (!mounted) return;
+    if (!mounted || !sessionActive) return;
     final name = widget.session.user?['username'];
     if (name == null) return;
     final request = ++read;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/$name') as Map<String, dynamic>;
-      if (mounted && request == read) setState(() => counts = (j['user'] as Map).cast<String, dynamic>());
+      if (mounted && sessionActive && request == read) setState(() => counts = (j['user'] as Map).cast<String, dynamic>());
     } catch (e) {
-      if (mounted && request == read) setState(() => error = e is ApiError ? t_(e.message) : t_('Profile could not be loaded.'));
-    } finally { if (mounted && request == read) setState(() => loading = false); }
+      if (mounted && sessionActive && request == read) setState(() => error = e is ApiError ? t_(e.message) : t_('Profile could not be loaded.'));
+    } finally { if (mounted && sessionActive && request == read) setState(() => loading = false); }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!sessionActive) return SessionRecoveryView(session: widget.session);
     final s = widget.session;
     final generation = s.generation;
     final listUsername = s.user?['username'] as String?;
     final listOwnerId = s.user?['public_id'] as String?;
     void openMembers(FollowListKind kind) {
-      if (!mounted || !identical(s, widget.session) || s.generation != generation || listUsername == null || listOwnerId == null || s.user?['public_id'] != listOwnerId || s.user?['username'] != listUsername || !s.followListsEnabled) return;
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FollowListPage(session: s, username: listUsername, ownerId: listOwnerId, kind: kind)));
+      if (!mounted || !sessionActive || !identical(s, widget.session) || s.generation != generation || listUsername == null || listOwnerId == null || s.user?['public_id'] != listOwnerId || s.user?['username'] != listUsername || !s.followListsEnabled) return;
+      _open(FollowListPage(session: s, username: listUsername, ownerId: listOwnerId, kind: kind));
     }
     final me = {...?counts, ...?s.user, for (final key in ['posts_count', 'followers_count', 'following_count']) if (counts?[key] != null) key: counts![key]};
     return Scaffold(
       appBar: ReviewedAppBar(
         title: Text('@${s.user?['username'] ?? t_('Me')}'),
-        leading: IconButton(tooltip: t_('Settings'), icon: const PhIcon('list'), onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SettingsPage(session: s)))),
+        leading: IconButton(tooltip: t_('Settings'), icon: const PhIcon('list'), onPressed: () => _open(SettingsPage(session: s))),
         actions: [
           IconButton(tooltip: t_('Refresh profile'), onPressed: loading ? null : _load, icon: const PhIcon('arrow-clockwise')),
-          if (widget.onCompose != null) IconButton(tooltip: t_('Post'), onPressed: widget.onCompose, icon: const PhIcon('plus')),
+          if (widget.onCompose != null) IconButton(tooltip: t_('Post'), onPressed: _compose, icon: const PhIcon('plus')),
         ],
       ),
       body: ProfilePosts(
@@ -307,7 +338,7 @@ class _MePageState extends State<MePage> {
         emptyIcon: Ph.image_outlined,
         emptyTitle: t_('No photo or text posts yet'),
         emptyHint: t_('A photo, a thought, a little of your day.'),
-        emptyAction: widget.onCompose == null ? null : GlassAction(onPressed: widget.onCompose, icon: const PhIcon('plus', size: 18), label: t_('Create a post')),
+        emptyAction: widget.onCompose == null ? null : GlassAction(onPressed: _compose, icon: const PhIcon('plus', size: 18), label: t_('Create a post')),
         header: Column(children: [
           if (error != null) _ProfileReadNotice(message: error!, retry: loading ? null : _load),
           if (loading) const LinearProgressIndicator(),
@@ -319,18 +350,12 @@ class _MePageState extends State<MePage> {
             OutlinedButton.icon(
               icon: const PhIcon('pencil-simple', size: 18),
               label: Text(t_('Edit profile')),
-              onPressed: () async {
-                await Navigator.of(context).push(MaterialPageRoute(builder: (_) => EditProfilePage(session: s)));
-                if (mounted) {
-                  setState(() => _refresh++);
-                  _load();
-                }
-              },
+              onPressed: () => _open(EditProfilePage(session: s), refreshProfile: true),
             ),
             OutlinedButton.icon(
               icon: const PhIcon('bookmark-simple', size: 18),
               label: Text(t_('Saved')),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SavedPage(session: s))),
+              onPressed: () => _open(SavedPage(session: s)),
             ),
           ]),
         )]),

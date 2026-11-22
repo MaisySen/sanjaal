@@ -22,6 +22,7 @@ Future<void> mount(
   double scale = 1,
   void Function(CreatorMedia?)? result,
 }) async {
+  final clockStart = t.binding.clock.now();
   prefs.lang = lang;
   addTearDown(() => prefs.lang = 'en');
   t.view.physicalSize = const Size(320, 640);
@@ -52,6 +53,8 @@ Future<void> mount(
                     builder: (_) => CapturePage(
                       startVideo: video,
                       maxSeconds: maximum,
+                      recordingClock: () =>
+                          t.binding.clock.now().difference(clockStart),
                       deviceFactory: (_, _) => camera,
                     ),
                   ),

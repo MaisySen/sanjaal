@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'package:camera/camera.dart' as camera;
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -149,7 +148,7 @@ void main(){
  expect(t.widget<TextButton>(find.widgetWithText(TextButton,'Photo')).onPressed,isNull);await tapShutter(t,'Stop recording');expect(result?.isVideo,isTrue);expect(device.calls.where((v)=>v=='stop').length,1);
  });
  testWidgets('recording stops at the configured timer bound',(t)async{
- final device=FakeCamera();CreatorMedia? result;await start(t,CapturePage(startVideo:true,maxSeconds:2,deviceFactory:(_,_)=>device),result:(v)=>result=v as CreatorMedia?);await tapShutter(t,'Start recording');await t.pump(const Duration(seconds:3));await flush(t);expect(result?.isVideo,isTrue);expect(device.calls.where((v)=>v=='stop').length,1);
+ final device=FakeCamera();final clockStart=t.binding.clock.now();CreatorMedia? result;await start(t,CapturePage(startVideo:true,maxSeconds:2,recordingClock:()=>t.binding.clock.now().difference(clockStart),deviceFactory:(_,_)=>device),result:(v)=>result=v as CreatorMedia?);await tapShutter(t,'Start recording');await t.pump(const Duration(seconds:3));await flush(t);expect(result?.isVideo,isTrue);expect(device.calls.where((v)=>v=='stop').length,1);
  });
  testWidgets('background recording stops, keeps its result for explicit review, and cannot auto-post',(t)async{
  final device=FakeCamera();CreatorMedia? result;await start(t,CapturePage(startVideo:true,deviceFactory:(_,_)=>device),result:(v)=>result=v as CreatorMedia?);await tapShutter(t,'Start recording');background(t);await flush(t);expect(device.calls,contains('stop'));expect(device.calls,contains('dispose'));expect(result,isNull);foreground(t);await flush(t);expect(find.text('Review capture'),findsOneWidget);await t.tap(find.text('Review capture'));await flush(t);expect(result?.isVideo,isTrue);
@@ -193,12 +192,12 @@ void main(){
  testWidgets('long story videos cannot resolve and cancelling a pending file pick ignores its late result',(t)async{
  final library=FakeLibrary();library.rows[0]=const LibraryAsset('a0',video:true,seconds:45);await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library));await t.tap(find.byKey(const ValueKey('a0')));await flush(t);expect(library.fileReads,0);library.delayedFile=Completer<XFile?>();await t.tap(find.byKey(const ValueKey('a1')));await flush(t);await t.tap(find.byTooltip('Close'));await flush(t);await flush(t);expect(find.byType(MediaLibraryPage),findsNothing);library.delayedFile!.complete(XFile.fromData(imageBytes,name:'fixture.png'));await flush(t);await flush(t);expect(find.byType(MediaLibraryPage),findsNothing);
  });
- for(final color in [Colors.white,Colors.black])testWidgets('camera controls retain contrast on ${color==Colors.white?'bright':'dark'} scene',(t)async{
+ for(final color in [Colors.white,Colors.black]){testWidgets('camera controls retain contrast on ${color==Colors.white?'bright':'dark'} scene',(t)async{
  final device=FakeCamera()..previewColor=color;await start(t,CapturePage(deviceFactory:(_,_)=>device));
  expect(find.byKey(const ValueKey('camera-header-contrast')),findsOneWidget);expect(find.byTooltip('Close camera').hitTestable(),findsOneWidget);expect(find.byTooltip('Flash off').hitTestable(),findsOneWidget);expect(find.text('1x').hitTestable(),findsOneWidget);expect(find.bySemanticsLabel('Take a photo').hitTestable(),findsOneWidget);
  await shot(t,'camera_contrast_${color==Colors.white?'bright':'dark'}');await t.tap(find.byTooltip('Flash off'));await flush(t);expect(device.calls,contains('flash:true'));await t.pumpWidget(const SizedBox());await flush(t);
- });
- for(final lang in ['en','ne'])for(final scale in [1.0,1.8])testWidgets('screenshot-led gallery and real-preview fixture geometry $lang $scale',(t)async{
+ });}
+ for(final lang in ['en','ne']){for(final scale in [1.0,1.8]){testWidgets('screenshot-led gallery and real-preview fixture geometry $lang $scale',(t)async{
  final library=FakeLibrary()..access=scale==1?LibraryAccess.full:LibraryAccess.limited;await start(t,MediaLibraryPage(kind:CreatorKind.story,library:library),language:lang,scale:scale);expect(t.takeException(),isNull);await shot(t,'gallery_${lang}_$scale');await t.pumpWidget(const SizedBox());await flush(t);final device=FakeCamera();await start(t,CapturePage(startVideo:true,deviceFactory:(_,_)=>device),language:lang,scale:scale);await shot(t,'camera_${lang}_$scale');expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());await flush(t);
- });
+ });}}
 }

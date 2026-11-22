@@ -7,6 +7,8 @@ import 'package:photo_manager/photo_manager.dart' as photos;
 import 'package:material_ui/material_ui.dart';
 
 import 'ph.dart';
+import 'capture_recording_time.dart';
+import 'capture_release_guard.dart';
 import 'media_visibility.dart' show mediaRoutes;
 import 'ui.dart';
 
@@ -30,8 +32,21 @@ abstract class CaptureDevice {
   Future<void> dispose();
 }
 
-class NativeCaptureDevice implements CaptureDevice {
-  NativeCaptureDevice({required this.video, required this.front});
+abstract class PausableCaptureDevice {
+  Future<void> pauseRecording();
+  Future<void> resumeRecording();
+}
+
+final _nativeCaptureReleaseGuard = CaptureReleaseGuard();
+
+class NativeCaptureDevice implements CaptureDevice, PausableCaptureDevice {
+  NativeCaptureDevice({
+    required this.video,
+    required this.front,
+    CaptureReleaseGuard? releaseGuard,
+  }) : releaseGuard = releaseGuard ?? _nativeCaptureReleaseGuard;
+  final CaptureReleaseGuard releaseGuard;
+  void quarantine() => releaseGuard.markUncertain();
   final bool video, front;
   camera.CameraController? controller;
   bool closed = false;
@@ -40,6 +55,7 @@ class NativeCaptureDevice implements CaptureDevice {
   bool get canSwitch => switchable;
   @override
   Future<void> initialize() async {
+    releaseGuard.ensureAvailable();
     final devices = await camera.availableCameras();
     if (closed) return;
     switchable =
@@ -96,6 +112,10 @@ class NativeCaptureDevice implements CaptureDevice {
   @override
   Future<XFile> stop() => controller!.stopVideoRecording();
   @override
+  Future<void> pauseRecording() => controller!.pauseVideoRecording();
+  @override
+  Future<void> resumeRecording() => controller!.resumeVideoRecording();
+  @override
   Future<void> flash(bool enabled) => controller!.setFlashMode(
     enabled
         ? (video ? camera.FlashMode.torch : camera.FlashMode.always)
@@ -115,7 +135,12 @@ class NativeCaptureDevice implements CaptureDevice {
   Future<void> dispose() async {
     if (!closed) {
       closed = true;
-      await controller?.dispose();
+      try {
+        await controller?.dispose().timeout(const Duration(seconds: 8));
+      } catch (_) {
+        quarantine();
+        rethrow;
+      }
     }
   }
 }
@@ -131,12 +156,15 @@ class CapturePage extends StatefulWidget {
     this.maxSeconds = 60,
     this.deviceFactory,
     this.openSettings,
+    this.recordingClock,
   });
   final bool startVideo;
   final bool allowPhoto, allowVideo;
   final int maxSeconds;
   final CaptureDevice Function(bool video, bool front)? deviceFactory;
   final Future<void> Function()? openSettings;
+  // Controlled fixture clock only. Production uses a monotonic stopwatch.
+  final Duration Function()? recordingClock;
   @override
   State<CapturePage> createState() => _CapturePageState();
 }
@@ -149,17 +177,23 @@ class _CapturePageState extends State<CapturePage>
       ready = false,
       busy = false,
       recording = false,
+      paused = false,
+      restartRequired = false,
       torch = false,
       foreground = true,
       leaving = false;
   int epoch = 0, seconds = 0;
   double zoom = 1;
-  String? error;
+  String? error, recoveryMessage;
   bool permissionDenied = false,
       permissionRestricted = false,
       settingsBusy = false;
   XFile? recovered;
   Timer? timer;
+  final Stopwatch monotonic = Stopwatch()..start();
+  late final recordingTime = CaptureRecordingTime(
+    () => widget.recordingClock?.call() ?? monotonic.elapsed,
+  );
   Timer? countdownTimer;
   int captureDelay = 0, countdown = 0, countdownVersion = 0;
   ModalRoute<dynamic>? observedRoute;
@@ -248,7 +282,7 @@ class _CapturePageState extends State<CapturePage>
 
   Future<void> boot() async {
     cancelCountdown();
-    if (!foreground || recovered != null) return;
+    if (!mounted || !foreground || recovered != null || restartRequired) return;
     final request = ++epoch;
     final old = device;
     device = null;
@@ -260,7 +294,10 @@ class _CapturePageState extends State<CapturePage>
       torch = false;
       zoom = 1;
     });
-    await old?.dispose();
+    if (!await releaseDevice(old)) {
+      if (mounted) setState(() => error = restartMessage);
+      return;
+    }
     if (!mounted || request != epoch || !foreground) return;
     final current =
         widget.deviceFactory?.call(video, front) ??
@@ -269,13 +306,14 @@ class _CapturePageState extends State<CapturePage>
     try {
       await current.initialize();
       if (!mounted || request != epoch || !foreground) {
-        await current.dispose();
+        await releaseDevice(current);
         return;
       }
       setState(() => ready = true);
     } catch (e) {
       if (mounted && request == epoch) setState(() => error = captureError(e));
-      await current.dispose();
+      await releaseDevice(current);
+      if (mounted && restartRequired) setState(() => error = restartMessage);
     }
   }
 
@@ -298,7 +336,27 @@ class _CapturePageState extends State<CapturePage>
     }
   }
 
+  String get restartMessage => t_(
+    'Camera cleanup could not be confirmed. Force close Sanjaal, then reopen it before using the camera again. Nothing was posted.',
+  );
+
+  Future<bool> releaseDevice(CaptureDevice? current) async {
+    if (current == null) return true;
+    try {
+      await current.dispose().timeout(const Duration(seconds: 8));
+      return true;
+    } catch (_) {
+      restartRequired = true;
+      if (current is NativeCaptureDevice) current.quarantine();
+      return false;
+    }
+  }
+
   String captureError(Object e) {
+    if (e is CaptureRestartRequired) {
+      restartRequired = true;
+      return restartMessage;
+    }
     permissionRestricted =
         e is camera.CameraException && e.code.contains('Restricted');
     permissionDenied = e is camera.CameraException && e.code.contains('Denied');
@@ -329,7 +387,7 @@ class _CapturePageState extends State<CapturePage>
       }
     } else {
       foreground = true;
-      if (!busy && recovered == null) boot();
+      if (!busy && recovered == null && !restartRequired) boot();
       if (mounted) setState(() {});
     }
   }
@@ -341,6 +399,7 @@ class _CapturePageState extends State<CapturePage>
     device = null;
     epoch++;
     timer?.cancel();
+    recordingTime.pause();
     if (mounted) {
       setState(() {
         ready = false;
@@ -349,8 +408,11 @@ class _CapturePageState extends State<CapturePage>
     }
     try {
       await operation;
-      if (recording) recovered = await current.stop();
+      if (recording) {
+        recovered = await current.stop().timeout(const Duration(seconds: 8));
+      }
       recording = false;
+      paused = false;
     } catch (_) {
       if (mounted) {
         error = t_(
@@ -358,10 +420,18 @@ class _CapturePageState extends State<CapturePage>
         );
       }
     } finally {
-      await current.dispose();
+      final released = await releaseDevice(current);
       if (mounted) {
-        setState(() => busy = false);
-        if (foreground && recovered == null) boot();
+        setState(() {
+          busy = false;
+          recording = false;
+          paused = false;
+          if (!released || restartRequired) {
+            error = restartMessage;
+            recoveryMessage = restartMessage;
+          }
+        });
+        if (foreground && recovered == null && !restartRequired) boot();
       }
     }
   }
@@ -429,20 +499,19 @@ class _CapturePageState extends State<CapturePage>
           recovered = file;
         }
       } else if (!recording) {
+        recordingTime.begin();
         await current.start();
         recording = true;
         if (!mounted || request != epoch || !foreground) return;
         setState(() {
           seconds = 0;
         });
-        timer = Timer.periodic(const Duration(seconds: 1), (_) {
-          if (!mounted || !recording) return;
-          setState(() => seconds++);
-          if (seconds >= widget.maxSeconds && !busy) shutter();
-        });
+        paused = false;
+        armRecordingTimer();
       } else {
         timer?.cancel();
-        final file = await current.stop();
+        recordingTime.pause();
+        final file = await current.stop().timeout(const Duration(seconds: 8));
         recording = false;
         if (mounted && request == epoch && foreground) {
           await finish(file, isVideo: true);
@@ -453,6 +522,7 @@ class _CapturePageState extends State<CapturePage>
     } catch (e) {
       if (mounted && request == epoch) {
         timer?.cancel();
+        recordingTime.pause();
         device = null;
         epoch++;
         setState(() {
@@ -461,10 +531,128 @@ class _CapturePageState extends State<CapturePage>
           busy = false;
           error = captureError(e);
         });
-        await current.dispose();
+        final released = await releaseDevice(current);
+        if (!released && mounted) setState(() => error = restartMessage);
       }
     } finally {
       if (mounted && request == epoch) setState(() => busy = false);
+    }
+  }
+
+  void armRecordingTimer() {
+    timer?.cancel();
+    timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (!mounted || !recording || paused) return;
+      final elapsed = recordingTime.elapsed;
+      final shown = elapsed.inSeconds.clamp(0, widget.maxSeconds);
+      if (shown != seconds) setState(() => seconds = shown);
+      if (elapsed >= Duration(seconds: widget.maxSeconds) && !busy) {
+        unawaited(shutter());
+      }
+    });
+  }
+
+  Future<void> toggleRecordingPause() async {
+    final current = device;
+    if (!routeAvailable ||
+        busy ||
+        !ready ||
+        !recording ||
+        current is! PausableCaptureDevice ||
+        restartRequired) {
+      return;
+    }
+    final request = epoch;
+    final pending = changeRecordingPause(current as CaptureDevice, request);
+    operation = pending;
+    try {
+      await pending;
+    } finally {
+      if (identical(operation, pending)) operation = null;
+    }
+    if (mounted &&
+        request == epoch &&
+        recording &&
+        !busy &&
+        recordingTime.elapsed >= Duration(seconds: widget.maxSeconds)) {
+      await shutter();
+    }
+  }
+
+  Future<void> changeRecordingPause(CaptureDevice current, int request) async {
+    final controls = current as PausableCaptureDevice;
+    final wasPaused = paused;
+    setState(() => busy = true);
+    try {
+      // Count all time in which recording may already have resumed. Do not
+      // tell the user it is paused until the native operation confirms it.
+      if (wasPaused) recordingTime.resume();
+      await (wasPaused ? controls.resumeRecording() : controls.pauseRecording())
+          .timeout(const Duration(seconds: 8));
+      if (!mounted ||
+          request != epoch ||
+          !identical(current, device) ||
+          !foreground) {
+        return;
+      }
+      if (!wasPaused) {
+        recordingTime.pause();
+        timer?.cancel();
+      } else {
+        armRecordingTimer();
+      }
+      setState(() {
+        paused = !wasPaused;
+        seconds = recordingTime.elapsed.inSeconds.clamp(0, widget.maxSeconds);
+      });
+    } catch (e) {
+      if (e is TimeoutException) {
+        restartRequired = true;
+        if (current is NativeCaptureDevice) current.quarantine();
+      }
+      if (mounted && request == epoch && identical(current, device)) {
+        await recoverRecordingControlFailure(current);
+      }
+    } finally {
+      if (mounted && request == epoch) setState(() => busy = false);
+    }
+  }
+
+  Future<void> recoverRecordingControlFailure(CaptureDevice current) async {
+    timer?.cancel();
+    recordingTime.pause();
+    device = null;
+    epoch++;
+    setState(() {
+      ready = false;
+      recording = false;
+      paused = false;
+    });
+    XFile? file;
+    try {
+      file = await current.stop().timeout(const Duration(seconds: 8));
+    } catch (_) {
+      /* No claim that a clip exists without the native stop result. */
+    }
+    final released = await releaseDevice(current);
+    recovered = file;
+    if (mounted) {
+      setState(() {
+        busy = false;
+        if (!released || restartRequired) {
+          error = restartMessage;
+          recoveryMessage = restartMessage;
+        } else if (file != null) {
+          error = null;
+          recoveryMessage = t_(
+            'Recording controls failed. Your saved clip is ready to review. Nothing was posted.',
+          );
+        } else {
+          error = t_(
+            'Recording controls failed and no clip could be recovered. Nothing was posted.',
+          );
+        }
+      });
     }
   }
 
@@ -479,13 +667,31 @@ class _CapturePageState extends State<CapturePage>
         recording = false;
       });
     }
-    await current?.dispose();
+    final released = await releaseDevice(current);
     if (!mounted) return;
+    if (!released || restartRequired) {
+      setState(() {
+        busy = false;
+        recoveryMessage = restartMessage;
+      });
+      return;
+    }
     setState(() => busy = false);
     if (foreground) {
-      leaving = true;
-      Navigator.pop(context, CreatorMedia(file, isVideo: isVideo));
+      await exitCapture(CreatorMedia(file, isVideo: isVideo));
     }
+  }
+
+  Future<void> exitCapture([CreatorMedia? value]) async {
+    if (!routeAvailable) return;
+    setState(() => leaving = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent == false) {
+      setState(() => leaving = false);
+      return;
+    }
+    Navigator.pop(context, value);
   }
 
   Future<void> setting(Future<void> Function() action) async {
@@ -507,7 +713,7 @@ class _CapturePageState extends State<CapturePage>
 
   Future<void> close() async {
     cancelCountdown();
-    if (busy || leaving) return;
+    if (busy || !routeAvailable) return;
     if (recording || recovered != null) {
       final discard = await showDialog<bool>(
         context: context,
@@ -533,9 +739,10 @@ class _CapturePageState extends State<CapturePage>
       if (discard != true || !mounted) return;
       if (recording) {
         timer?.cancel();
+        recordingTime.pause();
         setState(() => busy = true);
         try {
-          recovered = await device?.stop();
+          recovered = await device?.stop().timeout(const Duration(seconds: 8));
         } catch (_) {}
         recording = false;
       }
@@ -546,13 +753,26 @@ class _CapturePageState extends State<CapturePage>
         } catch (_) {}
       }
     }
+    final current = device;
+    device = null;
+    epoch++;
     if (mounted) {
       setState(() {
-        busy = false;
-        leaving = true;
+        ready = false;
+        busy = true;
       });
-      await WidgetsBinding.instance.endOfFrame;
-      if (mounted) Navigator.pop(context);
+    }
+    final released = await releaseDevice(current);
+    if (!released && mounted) {
+      setState(() {
+        busy = false;
+        error = restartMessage;
+      });
+      return;
+    }
+    if (mounted) {
+      setState(() => busy = false);
+      await exitCapture();
     }
   }
 
@@ -562,8 +782,9 @@ class _CapturePageState extends State<CapturePage>
     mediaRoutes.unsubscribe(this);
     epoch++;
     timer?.cancel();
+    monotonic.stop();
     WidgetsBinding.instance.removeObserver(this);
-    device?.dispose();
+    unawaited(releaseDevice(device));
     super.dispose();
   }
 
@@ -590,7 +811,7 @@ class _CapturePageState extends State<CapturePage>
                       const ColoredBox(color: Color(0xFF101214)),
                     if (!ready && error == null && recovered == null)
                       const Center(child: CircularProgressIndicator()),
-                    if (error != null)
+                    if (error != null && recovered == null)
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(28, 76, 28, 24),
@@ -611,7 +832,7 @@ class _CapturePageState extends State<CapturePage>
                                         : settings,
                                     child: Text(t_('Open device settings')),
                                   ),
-                                if (!permissionRestricted)
+                                if (!permissionRestricted && !restartRequired)
                                   TextButton(
                                     onPressed: busy ? null : boot,
                                     child: Text(t_('Try again')),
@@ -627,15 +848,16 @@ class _CapturePageState extends State<CapturePage>
                       ),
                     if (recovered != null)
                       Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(24, 100, 24, 24),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                t_(
-                                  'Your interrupted capture is ready to review. Nothing has been posted.',
-                                ),
+                                recoveryMessage ??
+                                    t_(
+                                      'Your interrupted capture is ready to review. Nothing has been posted.',
+                                    ),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.white),
                               ),
@@ -643,16 +865,14 @@ class _CapturePageState extends State<CapturePage>
                               FilledButton(
                                 onPressed: busy
                                     ? null
-                                    : () {
-                                        leaving = true;
-                                        Navigator.pop(
-                                          context,
+                                    : () => unawaited(
+                                        exitCapture(
                                           CreatorMedia(
                                             recovered!,
                                             isVideo: video,
                                           ),
-                                        );
-                                      },
+                                        ),
+                                      ),
                                 child: Text(t_('Review capture')),
                               ),
                             ],
@@ -776,13 +996,48 @@ class _CapturePageState extends State<CapturePage>
                         top: 74,
                         left: 16,
                         right: 16,
-                        child: Text(
-                          '${seconds.toString().padLeft(2, '0')} / ${widget.maxSeconds}s',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            backgroundColor: Colors.red,
-                          ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${paused && !busy ? '${t_('Paused')} · ' : ''}${seconds.toString().padLeft(2, '0')} / ${widget.maxSeconds}s',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                backgroundColor: paused
+                                    ? const Color(0xCC000000)
+                                    : Colors.red,
+                              ),
+                            ),
+                            if (device is PausableCaptureDevice) ...[
+                              const SizedBox(height: 8),
+                              TextButton.icon(
+                                key: const ValueKey('recording-pause'),
+                                onPressed: busy ? null : toggleRecordingPause,
+                                style: TextButton.styleFrom(
+                                  backgroundColor: const Color(0xCC000000),
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: PhIcon(
+                                  paused
+                                      ? 'play-circle-fill'
+                                      : 'pause-circle-fill',
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  t_(
+                                    busy
+                                        ? (paused
+                                              ? 'Resuming recording...'
+                                              : 'Pausing recording...')
+                                        : (paused
+                                              ? 'Resume recording'
+                                              : 'Pause recording'),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     if (recovered == null && error == null)

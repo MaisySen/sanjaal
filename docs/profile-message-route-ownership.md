@@ -15,3 +15,5 @@ Verification:
 Limits: this covers one profile's request start and receipt-to-navigation ownership, not the parent inbox handoff or every profile/media callback. The first accepted profile and returned conversation claims are not independently authenticated. Server targeting remains username-based; this cannot prevent or undo wrong server creation. The original request body, receipt validator and default-off capabilities are unchanged. Cross-page/server ordering, persistence, provider/native, complete product/reference/release acceptance remain open. Previous wider selections remain anchored to their own commits, not relabeled as current here.
 
 No live chat/message/read/account/data action, source push, backend rollout, deployment, native build, signing, installation or distribution occurred.
+
+Parent-inbox follow-up: [Chats connected handoff](chats-connected-handoff.md) covers bounded creation > conversation > Back/recovery behavior. It does not close the broader limits above.

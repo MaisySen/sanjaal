@@ -45,15 +45,19 @@ class _ChatsPageState extends State<ChatsPage> {
   bool _settingsBusy = false;
   bool _settingsNeedRead = false;
   bool _settingsRetryingRead = false;
+  bool _creationNeedRead = false;
   static const _settingKeys = ['pinned', 'muted', 'archived'];
   bool get _active=>mounted && !_retired && identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _canEnter=>_active && widget.active && ModalRoute.of(context)?.isCurrent==true;
+  int? _entryReadVersion;
+  bool get _entryReading=>(_entryReadVersion==_loadVersion || _creationNeedRead) && _readingArchive!=null;
   BuildContext? _menuContext;
   void _accountChanged(){if(!_active && mounted){
     _retired = true;
     ++_loadVersion;timer?.cancel();
     final menu=_menuContext;
     if(menu!=null && menu.mounted && ModalRoute.of(menu)?.isCurrent==true)Navigator.of(menu).pop();
-    setState(() { convos=[];error=null;_settingsBusy=false;_settingsNeedRead=false;_settingsRetryingRead=false; });
+    setState(() { convos=[];error=null;_settingsBusy=false;_settingsNeedRead=false;_settingsRetryingRead=false;_entryReadVersion=null;_creationNeedRead=false; });
   }}
   List<Map<String, dynamic>> convos = [];
   bool loading = true;
@@ -97,6 +101,7 @@ class _ChatsPageState extends State<ChatsPage> {
     final archived=showArchived;
     _readingArchive=archived;
     final version = ++_loadVersion;
+    if (_creationNeedRead) setState(() => loading = convos.isEmpty);
     if (_settingsNeedRead && !_settingsBusy) setState(() => _settingsRetryingRead = true);
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
@@ -106,7 +111,7 @@ class _ChatsPageState extends State<ChatsPage> {
           _settingKeys.any((key) => (_settingsNeedRead || c[key] != null) && c[key] is! bool))) {
         throw const FormatException('Invalid inbox');
       }
-      setState(() { convos=rows; error=null; _settingsNeedRead=false; });
+      setState(() { convos=rows; error=null; _settingsNeedRead=false; if(!archived)_creationNeedRead=false; });
     } catch (e) {
       if (mounted && _active && version == _loadVersion && !quiet) setState(() => error=e is ApiError?t_(e.message):t_('Chats could not be loaded.'));
     } finally {
@@ -142,7 +147,7 @@ class _ChatsPageState extends State<ChatsPage> {
   }
 
   Future<void> _menu(Map<String, dynamic> c) async {
-    if (!_active || _opening || _settingsBusy || _settingsNeedRead || !convos.any((row) => identical(row, c))) return;
+    if (!_canEnter || _opening || _settingsBusy || _settingsNeedRead || !convos.any((row) => identical(row, c))) return;
     _opening = true;
     var submitted = false;
     final id = c['public_id'];
@@ -177,7 +182,7 @@ class _ChatsPageState extends State<ChatsPage> {
   }
 
   Future<void> _openAux(Widget page) async {
-    if (!_active || _opening) return;
+    if (!_canEnter || _opening) return;
     _opening = true;
     try {
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
@@ -186,24 +191,47 @@ class _ChatsPageState extends State<ChatsPage> {
     }
   }
 
+  Future<void> _refreshAfterEntry() async {
+    if (!_active) return;
+    setState(() => _entryReadVersion = _loadVersion + 1);
+    await _load(force: true);
+  }
+
   Future<void> _open(Map<String, dynamic> c) async {
-    if (!_active || _opening) return;
+    if (!_canEnter || _opening || !convos.any((row) => identical(row, c))) return;
     await _openAux(ChatPage(session: widget.session, convo: c));
-    if (_active) _load(quiet: true,force:true);
+    if (_active) _refreshAfterEntry();
   }
 
   Future<void> _new() async {
-    if (!_active || _opening) return;
+    if (!_canEnter || _opening || _entryReading || _creationNeedRead) return;
+    final route = ModalRoute.of(context)!;
+    var checkInbox = false;
+    var receivedConversation = false;
     _opening = true;
-    Map<String, dynamic>? c;
     try {
-      c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session)));
+      final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session, onUncertain: () => checkInbox = true)));
+      receivedConversation = c != null;
+      if (!mounted || !_canEnter || !route.isCurrent || !identical(ModalRoute.of(context), route) || c == null) return;
+      // The child checked its receipt. An inbox read need not delay opening it.
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: c)));
     } finally {
       _opening = false;
-    }
-    if (_active && c != null) {
-      await _load(quiet: true,force:true);
-      if (_active) _open(c);
+      // Reconcile a returned receipt or uncertainty, not an untouched cancel.
+      if (_active && (receivedConversation || checkInbox)) {
+        if (checkInbox) {
+          setState(() {
+            _creationNeedRead = true;
+            if (showArchived) {
+              showArchived = false;
+              convos = [];
+              error = null;
+              loading = true;
+            }
+          });
+        }
+        _refreshAfterEntry();
+      }
     }
   }
 
@@ -214,12 +242,12 @@ class _ChatsPageState extends State<ChatsPage> {
       appBar: ReviewedAppBar(
         title: Text(t_(showArchived ? 'Archived' : 'Chats')),
         actions: [
-          IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
+          IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _entryReading || _creationNeedRead ? null : _new),
           PopupMenuButton<String>(
             tooltip: t_('More'),
-            enabled: !_settingsBusy && !_settingsRetryingRead,
+            enabled: !_settingsBusy && !_settingsRetryingRead && !_creationNeedRead,
             onSelected: (_) {
-              if(!_active || _settingsBusy || _settingsRetryingRead)return;
+              if(!_canEnter || _opening || _settingsBusy || _settingsRetryingRead || _creationNeedRead)return;
               setState(() {
                 showArchived = !showArchived;
                 convos = [];
@@ -240,7 +268,8 @@ class _ChatsPageState extends State<ChatsPage> {
           const SizedBox(width: 12),
           Expanded(child: Semantics(liveRegion: true, child: Text(t_('Updating chat settings')))),
         ])),
-        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:_settingsBusy || _settingsRetryingRead ? null : ()=>_load()),
+        if (_entryReading) const LinearProgressIndicator(),
+        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:_settingsBusy || _settingsRetryingRead || (_creationNeedRead && _entryReading) ? null : ()=>_load()),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
           child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, runSpacing: 4, children: [
@@ -265,7 +294,7 @@ class _ChatsPageState extends State<ChatsPage> {
                     hint: error != null || showArchived ? null : t_('Find someone by name or username.'),
                     action: error != null
                         ? OutlinedButton(onPressed: _load, child: Text(t_('Try again')))
-                        : showArchived ? null : FilledButton.icon(onPressed: _new, icon: const PhIcon('note-pencil', size: 18), label: Text(t_('New chat'))),
+                        : showArchived ? null : FilledButton.icon(onPressed: _entryReading || _creationNeedRead ? null : _new, icon: const PhIcon('note-pencil', size: 18), label: Text(t_('New chat'))),
                   )])
                 : ListView.separated(
                     physics:const AlwaysScrollableScrollPhysics(),
@@ -316,8 +345,9 @@ class _ChatsPageState extends State<ChatsPage> {
 }
 
 class NewChatPage extends StatefulWidget {
-  const NewChatPage({super.key, required this.session});
+  const NewChatPage({super.key, required this.session, this.onUncertain});
   final Session session;
+  final VoidCallback? onUncertain;
   @override
   State<NewChatPage> createState() => _NewChatPageState();
 }
@@ -330,6 +360,7 @@ class _NewChatPageState extends State<NewChatPage> {
   final picked = <String, Map<String, dynamic>>{};
   bool group = false, busy = false, searched = false, searching = false;
   bool _completed = false, _uncertain = false;
+  void _noteUncertain() { _uncertain = true; widget.onUncertain?.call(); }
   bool _storing=false;
   BuildContext? _groupDraftDialog;
   GroupDraft? _savedGroup;
@@ -353,7 +384,7 @@ class _NewChatPageState extends State<NewChatPage> {
       final saved=await const GroupDraftStore().read(_owner!);
       if(!mounted || !_active)return;
       if(saved==null){showInfo(context,t_('No saved group draft.'));return;}
-      setState((){group=true;title.text=saved.title;picked.clear();for(final p in saved.people){picked[p['username'] as String]=p;}_savedGroup=saved;_savedGroupFingerprint=_groupFingerprint;_uncertain=saved.attempted;startError=saved.attempted?t_('This group may already exist. Check Chats before starting it again.'):null;});
+      setState((){group=true;title.text=saved.title;picked.clear();for(final p in saved.people){picked[p['username'] as String]=p;}_savedGroup=saved;_savedGroupFingerprint=_groupFingerprint;_uncertain=saved.attempted;if(_uncertain)widget.onUncertain?.call();startError=saved.attempted?t_('This group may already exist. Check Chats before starting it again.'):null;});
     }catch(e){if(mounted && _active)showError(context,e);}
     finally{if(mounted)setState(()=>_storing=false);}
   }
@@ -436,7 +467,7 @@ class _NewChatPageState extends State<NewChatPage> {
       if (conversation != null) {
         setState(() {
           busy = false;
-          _uncertain = true;
+          _noteUncertain();
           startError = t_('The chat may already exist. Check Chats before starting it again.');
         });
       }
@@ -450,7 +481,7 @@ class _NewChatPageState extends State<NewChatPage> {
       setState(() {
         _completed = false;
         if (conversation != null) {
-          _uncertain = true;
+          _noteUncertain();
           startError = t_('The chat may already exist. Check Chats before starting it again.');
         }
       });
@@ -506,12 +537,13 @@ class _NewChatPageState extends State<NewChatPage> {
       final rejected = e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500;
       if(rejected && _savedGroup?.attempted==true){
         try{final reset=await const GroupDraftStore().markAttempt(_owner!,_savedGroup!,attempted:false);if(!mounted || !_active)return;_savedGroup=reset;}
-        catch(_){if(mounted && _active)setState((){busy=false;_uncertain=true;startError=t_('This group may already exist. Check Chats before starting it again.');});return;}
+        catch(_){if(mounted && _active)setState((){busy=false;_noteUncertain();startError=t_('This group may already exist. Check Chats before starting it again.');});return;}
       }
       if(!mounted || !_active)return;
       setState(() {
         busy = false;
         _uncertain = !rejected;
+        if (_uncertain) widget.onUncertain?.call();
         startError = rejected ? t_(e.message) : t_('The chat may already exist. Check Chats before starting it again.');
       });
     }

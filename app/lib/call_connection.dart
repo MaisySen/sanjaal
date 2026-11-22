@@ -148,26 +148,30 @@ class NativeCallConnection implements CallConnection {
     final peers = [room.engine.publisher?.pc, room.engine.subscriber?.pc];
     Object? failure;
     StackTrace? trace;
-    try {
-      await stopCallCaptures([
-        for (final peer in peers)
-          if (peer != null && !_closedPeers.contains(peer))
-            () async {
-              await peer.close();
-              _closedPeers.add(peer);
-            },
-      ]);
-    } catch (error, stack) {
-      failure = error;
-      trace = stack;
+    // Start every native close and SDK disconnect before yielding. Native
+    // close events arrive asynchronously; SDK disconnect must set isClosed
+    // before those events can schedule reconnection. Awaiting a peer first
+    // leaves a reconnect window, even if that peer eventually closes cleanly.
+    Future<void> observe(Future<void> Function() action) async {
+      try {
+        await action();
+      } catch (error, stack) {
+        failure ??= error;
+        trace ??= stack;
+      }
     }
-    try {
-      await room.disconnect();
-    } catch (error, stack) {
-      failure ??= error;
-      trace ??= stack;
-    }
-    if (failure != null) Error.throwWithStackTrace(failure, trace!);
+
+    final pending = <Future<void>>[
+      for (final peer in peers)
+        if (peer != null && !_closedPeers.contains(peer))
+          observe(() async {
+            await peer.close();
+            _closedPeers.add(peer);
+          }),
+      observe(room.disconnect),
+    ];
+    await Future.wait(pending);
+    if (failure != null) Error.throwWithStackTrace(failure!, trace!);
   }
 
   @override

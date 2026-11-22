@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:livekit_client/src/core/engine.dart' as sdk;
+import 'package:livekit_client/src/types/internal.dart' as sdk;
 import 'package:livekit_client/src/core/transport.dart' as sdk;
 import 'package:sanjaal/call_connection.dart';
 
@@ -111,10 +112,10 @@ class _Engine implements sdk.Engine {
 }
 
 class _Room implements lk.Room {
-  _Room(this.calls);
+  _Room(this.calls, {sdk.Engine? engine}) : engine = engine ?? _Engine();
   final List<String> calls;
   @override
-  final engine = _Engine();
+  final sdk.Engine engine;
   @override
   lk.LocalParticipant? localParticipant = _Participant();
   bool failDisconnect = false;
@@ -134,8 +135,106 @@ class _Room implements lk.Room {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _ClosingEngine extends sdk.Engine {
+  _ClosingEngine()
+    : super(
+        connectOptions: const lk.ConnectOptions(),
+        roomOptions: const lk.RoomOptions(),
+      );
+  @override
+  Future<void> cleanUp() async {}
+}
+
+class _EngineRoom extends _Room {
+  _EngineRoom(super.calls, {required super.engine});
+  @override
+  Future<void> disconnect() async {
+    calls.add('room.disconnect');
+    await engine.disconnect();
+  }
+}
+
+class _DelayedPeer extends _Peer {
+  _DelayedPeer(super.name, super.events, this.onClosed);
+  final Future<void> Function() onClosed;
+  @override
+  Future<void> close() async {
+    events.add('$name.close');
+    await Future<void>.delayed(Duration.zero);
+    await onClosed();
+  }
+}
+
+class _BlockingPeer extends _Peer {
+  _BlockingPeer(super.name, super.events, this.result);
+  final Future<void> result;
+  @override
+  Future<void> close() async {
+    events.add('$name.close');
+    await result;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('real SDK engine is closed before delayed peer Closed callback can request reconnect', () async {
+    final events = <String>[];
+    final engine = _ClosingEngine();
+    final room = _EngineRoom(events, engine: engine);
+    final statesAtClosed = <bool>[];
+    engine.publisher = _Transport(
+      _DelayedPeer('publisher', events, () async {
+        statesAtClosed.add(engine.isClosed);
+        await engine.handleReconnect(
+          sdk.ClientDisconnectReason.peerConnectionClosed,
+        );
+      }),
+    );
+    engine.subscriber = _Transport(
+      _DelayedPeer('subscriber', events, () async {
+        statesAtClosed.add(engine.isClosed);
+        await engine.handleReconnect(
+          sdk.ClientDisconnectReason.peerConnectionClosed,
+        );
+      }),
+    );
+    expect(engine.isClosed, isFalse);
+    await NativeCallConnection(room: room).disconnect();
+    expect(statesAtClosed, [true, true]);
+    expect(engine.isClosed, isTrue);
+    expect(engine.isPendingReconnect, isFalse);
+    await engine.dispose();
+  });
+  test(
+    'early native errors are observed while another close remains pending',
+    () async {
+      final events = <String>[];
+      final room = _Room(events)..failDisconnect = true;
+      final blocked = Completer<void>();
+      room.engine.publisher = _Transport(
+        _BlockingPeer('publisher', events, blocked.future),
+      );
+      room.engine.subscriber = _Transport(
+        _Peer('subscriber', events)..fail = true,
+      );
+      final connection = NativeCallConnection(room: room);
+      var settled = false;
+      final close = connection.disconnect();
+      final checked = expectLater(close, throwsStateError).then((_) {
+        settled = true;
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(events, [
+        'publisher.close',
+        'subscriber.close',
+        'room.disconnect',
+      ]);
+      expect(settled, isFalse);
+      blocked.complete();
+      await checked;
+      expect(settled, isTrue);
+    },
+  );
   test(
     'adapter directly stops native handles once, not SDK track disposer',
     () async {

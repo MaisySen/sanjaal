@@ -39,6 +39,29 @@ $app->booted(function () use ($app, $file) {
 if (getenv('E2E_FAULT_AFTER_COMMIT') === '1') {
     $expected = trim((string) @file_get_contents(dirname($file).'/token.txt'));
     $authorised = $expected !== '' && hash_equals('Bearer '.$expected, $_SERVER['HTTP_AUTHORIZATION'] ?? '');
+    // Separate synthetic report fault, never arms the post/upload fixture.
+    $reportFlag = dirname($file).'/report-fault-armed';
+    if ($uri === '/e2e/report-fault-arm' && $_SERVER['REQUEST_METHOD'] === 'POST' && $authorised) {
+        file_put_contents($reportFlag, '1');
+        header('Content-Type: application/json');
+        echo json_encode(['armed' => true]);
+        exit;
+    }
+    if ($uri === '/api/v1/reports' && $_SERVER['REQUEST_METHOD'] === 'POST' && $authorised && is_file($reportFlag)) {
+        @unlink($reportFlag);
+        $kernel = $app->make(Illuminate\Contracts\Http\Kernel::class);
+        $result = $kernel->handle(Request::capture());
+        if ($result->getStatusCode() !== 201) {
+            $result->send();
+            exit;
+        }
+        header_remove('Content-Length');
+        header_remove('Content-Type');
+        http_response_code(503);
+        header('Content-Type: application/json');
+        echo json_encode(['message' => 'Synthetic report response lost after commit.']);
+        exit;
+    }
     $flag = dirname($file).'/fault-armed';
     if ($uri === '/e2e/fault-arm' && $_SERVER['REQUEST_METHOD'] === 'POST' && $authorised) {
         file_put_contents($flag, '1');

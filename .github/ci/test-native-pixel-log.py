@@ -76,7 +76,7 @@ class NativePixelsTest(unittest.TestCase):
         import re
         root = Path(__file__).resolve().parents[2] / 'app/integration_test'
         expected = set()
-        for filename in ['ios_flows_test.dart', 'native_first_use_journey.dart', 'native_group_journey.dart']:
+        for filename in ['ios_flows_test.dart', 'native_first_use_journey.dart', 'native_group_journey.dart', 'native_report_restart.dart']:
             for name in re.findall(r"(?:capture|picture)\('([^']+)'\)", (root / filename).read_text()):
                 if '${' not in name and name != 'ios_test_teardown':
                     expected.add('native_' + name + '.png')

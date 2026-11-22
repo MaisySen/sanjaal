@@ -1,4 +1,5 @@
 import 'native_transport.dart';
+import 'native_report_restart.dart';
 import 'native_capture_barrier.dart';
 import 'native_group_journey.dart';
 import 'native_first_use_journey.dart';
@@ -99,6 +100,18 @@ void main(){
   try {
   await withNativeTransport((transport) async {
   addTearDown(() async {try {await capture('ios_test_teardown');}catch(_) {}});
+  final support = await t.runAsync(getApplicationSupportDirectory);
+  final reportRecover = File('${support!.path}/report-restart-recover').existsSync();
+  if (reportRecover) {
+    final restoredSession = Session();
+    await t.runAsync(restoredSession.restore);
+    expect(restoredSession.user, isNotNull);
+    await nativeReportRestartJourney(t, restoredSession, recover: true, waitUntil: (ready) => until(t, ready), capture: capture);
+    await t.pumpWidget(const SizedBox());
+    await t.runAsync(restoredSession.logout);
+    await stage('report restart complete');
+    return;
+  }
   await stage('start');
   expect(Platform.isIOS,isTrue);
   final p=await SharedPreferences.getInstance();await p.clear();
@@ -312,14 +325,12 @@ void main(){
   await capture('ios_native_device_access');
   await t.pageBack();
   await until(t,()=>find.text('Settings and activity').evaluate().isNotEmpty);
-  await stage('logout');
-  await t.runAsync(()=>session.logout());expect(await RefreshStore.read(),isNull);
-  expect(p.getString('refresh_token'),isNull);
-  await stage('semantics end handles=${binding.debugOutstandingSemanticsHandles} platform=${ui.PlatformDispatcher.instance.semanticsEnabled}');
-  await stage('complete');
+  await stage('report restart seed');
+  await nativeReportRestartJourney(t, session, recover: false, waitUntil: (ready) => until(t, ready), capture: capture);
+  await stage('report restart seed complete');
+  // Preserve this synthetic session for a new process, not a new install.
   await t.pumpWidget(const SizedBox());
-  // ignore: avoid_print
-  print('iOS simulator local keychain/draft/restore/five-tab/post checks passed; no live service or physical iPhone proof.');
+  return;
   });
   } catch (error, stack) {
     // Preserve the test's own cause before the driver exits and OS logs swamp

@@ -13,7 +13,7 @@ PATTERN = re.compile(
     r'(?:^|\s)(?:Expected:|Actual:|#0\s)|'
     r'Lost connection to device|native journey failure'
 )
-NAMES = ('ios-driver-exit.txt', 'ios-driver-output.log', 'ios-native-console.log',
+NAMES = ('ios-driver-seed.log', 'ios-driver-recover.log', 'build/screenshots/report-process-identity.json', 'ios-driver-exit.txt', 'ios-driver-output.log', 'ios-native-console.log',
          'ios-build.log', 'build/screenshots/ios-stages.log')
 
 

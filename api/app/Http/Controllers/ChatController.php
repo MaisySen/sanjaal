@@ -162,6 +162,21 @@ class ChatController extends Controller
         return response()->json(['conversation' => $this->present($convo->load('members'), $me)], 201);
     }
 
+    /** Read one current membership snapshot, without relying on the inbox's 100-row window. */
+    public function show(Request $request, string $id): JsonResponse
+    {
+        $convo = $this->authorized($request, $id);
+
+        $result = DB::transaction(function () use ($convo, $request) {
+            $current = Conversation::whereKey($convo->id)->sharedLock()->firstOrFail();
+            abort_unless($current->hasMember($request->user()), 404);
+
+            return $this->present($current->load('members'), $request->user());
+        });
+
+        return response()->json(['conversation' => $result]);
+    }
+
     /** Any member of a group can add people by username, up to 50 members in total. */
     public function addMembers(Request $request, string $id): JsonResponse
     {
@@ -271,43 +286,55 @@ class ChatController extends Controller
     public function messages(Request $request, string $id): JsonResponse
     {
         $convo = $this->authorized($request, $id);
-        $from = (int) ($convo->members()->where('users.id', $request->user()->id)->first()?->pivot->history_from_id ?? 0);
-        $hiddenAuthors = Present::hiddenAuthors([$request->user()->id]);
-        $q = $convo->messages()->with('user', 'conversation')->where('id', '>', $from);
         if ($request->filled('after_seq')) {
             $after = (int) $request->after_seq;
-            // Long poll: hold the request open (up to 20 s) until a newer message exists.
             $deadline = microtime(true) + min(max((int) $request->query('wait', 0), 0), 20);
-            $convo->loadMissing('members');
+            $convo->load('members');
             $shown = array_filter(explode(',', (string) $request->query('typing', '')));
             do {
-                $msgs = (clone $q)->where('id', '>', $after)->orderBy('id')->limit(100)->get();
+                // Wait without a membership lock and without fetching private bodies.
+                // The final read below rechecks access and the current join boundary.
+                $hasNew = $convo->messages()->where('id', '>', $after)->exists();
                 $nowTyping = ExtrasController::typingUsers($convo, $request->user());
-                if ($msgs->isNotEmpty() || $nowTyping != $shown || microtime(true) >= $deadline) {
+                if ($hasNew || $nowTyping != $shown || microtime(true) >= $deadline) {
                     break;
                 }
                 usleep(400000);
             } while (true);
-        } else {
-            if ($request->filled('before_seq')) {
-                $q->where('id', '<', (int) $request->before_seq);
-            }
-            $msgs = $q->orderByDesc('id')->limit(50)->get()->reverse()->values();
         }
 
-        $convo->load('members');
-        // Shared-post cards and reply previews of the page are read together (same finders and soft-delete rules as before).
-        $postIds = $msgs->pluck('shared_post_id')->filter()->unique()->all();
-        $replyIds = $msgs->pluck('reply_to_id')->filter()->unique()->all();
-        $pre = [
-            'posts' => $postIds ? Post::with('user', 'media')->whereIn('id', $postIds)->get()->keyBy('id')->all() : [],
-            'replies' => $replyIds ? Message::with('user')->whereIn('id', $replyIds)->get()->keyBy('id')->all() : [],
-        ];
+        $result = DB::transaction(function () use ($convo, $request) {
+            // A removal or leave committed during the wait cannot release later
+            // content through the old request. Rejoining uses the new boundary.
+            $current = Conversation::whereKey($convo->id)->sharedLock()->firstOrFail();
+            $member = $current->members()->where('users.id', $request->user()->id)->first();
+            abort_unless($member, 404);
+            $from = (int) $member->pivot->history_from_id;
+            $hidden = Present::hiddenAuthors([$request->user()->id]);
+            $q = $current->messages()->with('user', 'conversation')->where('id', '>', $from);
+            if ($request->filled('after_seq')) {
+                $msgs = $q->where('id', '>', (int) $request->after_seq)->orderBy('id')->limit(100)->get();
+            } else {
+                if ($request->filled('before_seq')) {
+                    $q->where('id', '<', (int) $request->before_seq);
+                }
+                $msgs = $q->orderByDesc('id')->limit(50)->get()->reverse()->values();
+            }
+            $current->load('members');
+            $postIds = $msgs->pluck('shared_post_id')->filter()->unique()->all();
+            $replyIds = $msgs->pluck('reply_to_id')->filter()->unique()->all();
+            $pre = [
+                'posts' => $postIds ? Post::with('user', 'media')->whereIn('id', $postIds)->get()->keyBy('id')->all() : [],
+                'replies' => $replyIds ? Message::with('user')->whereIn('id', $replyIds)->get()->keyBy('id')->all() : [],
+            ];
 
-        return response()->json([
-            'data' => $msgs->map(fn ($m) => Present::message($m, $from, $hiddenAuthors, $pre))->values(),
-            'typing' => ExtrasController::typingUsers($convo, $request->user()),
-        ]);
+            return [
+                'data' => $msgs->map(fn ($m) => Present::message($m, $from, $hidden, $pre))->values(),
+                'typing' => ExtrasController::typingUsers($current, $request->user()),
+            ];
+        });
+
+        return response()->json($result);
     }
 
     public function send(Request $request, string $id): JsonResponse
@@ -395,7 +422,7 @@ class ChatController extends Controller
      * The text on the lock screen is generic on purpose: no message content leaves the server in a push.
      * Runs after the response, and a failure never affects the send.
      */
-    private function push(Conversation $convo, User $me, $msg): void
+    protected function push(Conversation $convo, User $me, $msg): void
     {
         $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
             ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();

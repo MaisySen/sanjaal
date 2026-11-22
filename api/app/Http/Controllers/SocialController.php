@@ -33,13 +33,15 @@ class SocialController extends Controller
         if (strlen($q) < 1) {
             return response()->json(['users' => [], 'hashtags' => []]);
         }
-        $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
+        // A declared escape marker works identically on SQLite and PostgreSQL.
+        // Backslash has different default LIKE semantics between databases.
+        $like = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $q).'%';
         $viewer = $request->user();
-        $users = User::where(fn ($w) => $w->whereRaw('lower(username) like ?', [$like])->orWhereRaw('lower(name) like ?', [$like]))
+        $users = User::where(fn ($w) => $w->whereRaw("lower(username) like ? escape '!'", [$like])->orWhereRaw("lower(name) like ? escape '!'", [$like]))
             ->where('id', '!=', $viewer->id)->orderBy('username')->limit(20)->get()
             ->reject(fn ($u) => $this->blocked($viewer, $u))
             ->map(fn ($u) => $this->card($u, $viewer))->values();
-        $tags = DB::table('hashtags')->where('tag', 'like', $like)->orderBy('tag')->limit(10)->pluck('tag');
+        $tags = DB::table('hashtags')->whereRaw("tag like ? escape '!'", [$like])->orderBy('tag')->limit(10)->pluck('tag');
 
         return response()->json(['users' => $users, 'hashtags' => $tags]);
     }

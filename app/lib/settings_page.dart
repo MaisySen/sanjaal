@@ -1,3 +1,8 @@
+import 'language_settings_page.dart';
+import 'appearance_settings_page.dart';
+import 'glass/glass_app_bar.dart';
+import 'session_bound_state.dart';
+import 'session_recovery.dart';
 import 'creator_drafts_page.dart';
 import 'member_controls_page.dart';
 import 'story_audience_page.dart';
@@ -20,11 +25,34 @@ class SettingsPage extends StatefulWidget {
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage> with SessionBoundState<SettingsPage> {
+  @override
+  Session get viewSession => widget.session;
   String query = '';
-  void open(Widget page) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  final _search = TextEditingController();
+  bool _opening = false;
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+  Future<void> open(Widget page) async {
+    if (!mounted || !sessionActive || _opening) return;
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _opening = false;
+    }
+  }
+  void _clearSearch() {
+    if (!mounted || !sessionActive) return;
+    _search.clear();
+    setState(() => query = '');
+  }
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return _retiredSettingsView(context, widget.session);
     final session = widget.session;
     Widget option(String title, String icon, VoidCallback action, {String? subtitle, bool destructive = false}) => ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
@@ -47,8 +75,8 @@ class _SettingsPageState extends State<SettingsPage> {
         ('Blocked people privacy', option('Blocked people', 'prohibit', () => open(BlockedPage(session: session)))),
       ],
       'Your app and media': [
-        ('Appearance theme light dark', option('Appearance', 'moon', () => open(const _AppearanceSettings()))),
-        ('Language translations English Nepali', option('Language', 'translate', () => open(const _LanguageSettings()))),
+        ('Appearance theme light dark', option('Appearance', 'moon', () => open(const AppearanceSettingsPage()))),
+        ('Language translations English Nepali', option('Language', 'translate', () => open(const LanguageSettingsPage()))),
       ],
       'Your balance and activity': [
         ('Coin wallet payments activity', option('Coin wallet', 'wallet', () => open(WalletPage(session: session)))),
@@ -56,17 +84,20 @@ class _SettingsPageState extends State<SettingsPage> {
       'More info and support': [
         ('About privacy terms licences', option('About, privacy and terms', 'info', () => open(const AboutPage()))),
         ('Help contact support', option('Contact us', 'envelope-simple', () async {
+          if(!mounted || !sessionActive)return;
           final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=Sanjaal'));
-          if (!ok && context.mounted) showInfo(context, 'Email contact@fintex.au for help.');
+          if (!ok && context.mounted && sessionActive) showInfo(context, 'Email contact@fintex.au for help.');
         }, subtitle: 'contact@fintex.au')),
         ('Delete my account data', option('Delete my account', 'trash', () async {
+          if(!mounted || !sessionActive)return;
           final u = (session.user?['username'] ?? '').toString();
           final ok = await launchUrl(Uri.parse('mailto:contact@fintex.au?subject=${Uri.encodeComponent('Delete my Sanjaal account')}&body=${Uri.encodeComponent('Please delete my Sanjaal account and data. Username: $u')}'));
-          if (!ok && context.mounted) showInfo(context, 'Email contact@fintex.au to request account deletion.');
+          if (!ok && context.mounted && sessionActive) showInfo(context, 'Email contact@fintex.au to request account deletion.');
         }, subtitle: 'Sends a request by email')),
       ],
       'Login': [
         ('Sign out logout', option('Sign out', 'sign-out', () {
+          if(!mounted || !sessionActive)return;
           Navigator.of(context).popUntil((r) => r.isFirst); session.logout();
         }, destructive: true)),
       ],
@@ -77,9 +108,9 @@ class _SettingsPageState extends State<SettingsPage> {
       if (rows.isNotEmpty) visible[entry.key] = rows;
     }
     return Scaffold(
-      appBar: AppBar(centerTitle: true, title: Text(t_('Settings and activity'))),
+      appBar: ReviewedAppBar(centerTitle: true, title: Text(t_('Settings and activity'))),
       body: ListView(children: [
-        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), child: TextField(onChanged: (value) => setState(() => query = value.trim().toLowerCase()), decoration: InputDecoration(hintText: t_('Search settings'), prefixIcon: const PhIcon('magnifying-glass'), border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none)))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), child: TextField(controller: _search, onChanged: (value) => setState(() => query = value.trim().toLowerCase()), decoration: InputDecoration(hintText: t_('Search settings'), suffixIcon: _search.text.isEmpty ? null : IconButton(tooltip: t_('Clear search'), onPressed: _clearSearch, icon: const PhIcon('x')), prefixIcon: const Center(widthFactor: 1, heightFactor: 1, child: PhIcon('magnifying-glass', size: 22)), border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none)))),
         if (visible.isEmpty) EmptyState(icon: Ph.search_off, title: t_('No matching settings')),
         for (final entry in visible.entries) ...[
           Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 10), child: Text(t_(entry.key), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600))),
@@ -91,32 +122,29 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 }
-class _AppearanceSettings extends StatelessWidget {
-  const _AppearanceSettings();
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => Scaffold(
-    appBar: AppBar(title: Text(t_('Appearance'))), body: ListView(children: [
-      for (final item in [(ThemeMode.system, 'System'), (ThemeMode.light, 'Light'), (ThemeMode.dark, 'Dark')])
-        ListTile(title: Text(t_(item.$2)), trailing: prefs.mode == item.$1 ? const PhIcon('check') : null, onTap: () => prefs.setMode(item.$1)),
-    ]),
-  ));
-}
-class _LanguageSettings extends StatelessWidget {
-  const _LanguageSettings();
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(listenable: prefs, builder: (context, _) => Scaffold(
-    appBar: AppBar(title: Text(t_('Language'))), body: ListView(children: [
-      for (final item in [('en', 'English'), ('ne', 'नेपाली')]) ListTile(title: Text(item.$2), trailing: prefs.lang == item.$1 ? const PhIcon('check') : null, onTap: () => prefs.setLang(item.$1)),
-    ]),
-  ));
-}
-class _NotificationSettings extends StatelessWidget {
+class _NotificationSettings extends StatefulWidget {
   const _NotificationSettings({required this.session});
   final Session session;
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(t_('Notifications'))), body: ListView(children: [
+  State<_NotificationSettings> createState() => _NotificationSettingsState();
+}
+class _NotificationSettingsState extends State<_NotificationSettings> with SessionBoundState<_NotificationSettings> {
+  @override
+  Session get viewSession => widget.session;
+  bool _openingActivity = false;
+  Future<void> _openActivity() async {
+    if (!mounted || !sessionActive || _openingActivity) return;
+    _openingActivity = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: widget.session)));
+    } finally {
+      _openingActivity = false;
+    }
+  }
+  @override
+  Widget build(BuildContext context) => !sessionActive ? _retiredSettingsView(context, widget.session) : Scaffold(appBar: ReviewedAppBar(title: Text(t_('Notifications'))), body: ListView(children: [
     ValueListenableBuilder<String>(valueListenable: Push.status, builder: (context, value, _) => ListTile(leading: const PhIcon('bell'), title: Text(t_('Push notifications')), subtitle: Text(t_(value)))),
-    ListTile(title: Text(t_('Activity')), trailing: const PhIcon('caret-right'), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(session: session)))),
+    ListTile(title: Text(t_('Activity')), trailing: const PhIcon('caret-right'), onTap: _openActivity),
   ]));
 }
 
@@ -127,7 +155,16 @@ class BlockedPage extends StatefulWidget {
   State<BlockedPage> createState() => _BlockedPageState();
 }
 
-class _BlockedPageState extends State<BlockedPage> {
+class _BlockedPageState extends State<BlockedPage> with SessionBoundState<BlockedPage> {
+  @override
+  Session get viewSession => widget.session;
+  @override
+  void sessionRetired() {
+    list = null;
+    error = null;
+    loading = false;
+    changing = false;
+  }
   List<Map<String, dynamic>>? list;
   String? error;
   bool loading = false;
@@ -136,42 +173,55 @@ class _BlockedPageState extends State<BlockedPage> {
   @override
   void initState() { super.initState(); _load(); }
 
-  Future<void> _load() async {
-    if (loading) return;
+  Future<void> _load({bool afterChange = false}) async {
+    if (!mounted || !sessionActive || loading || (changing && !afterChange)) return;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/users/blocked') as Map<String, dynamic>;
       final rows = (j['data'] as List).map((v) => (v as Map).cast<String,dynamic>()).toList();
       if (rows.any((u) => u['username'] is! String)) throw const FormatException('Invalid blocked member');
-      if (mounted) setState(() => list = rows);
+      if (mounted && sessionActive) setState(() => list = rows);
     } catch (e) {
-      if (mounted) setState(() => error = e is ApiError ? t_(e.message) : t_('Blocked people could not be loaded.'));
-    } finally { if (mounted) setState(() => loading = false); }
+      if (mounted && sessionActive) setState(() => error = e is ApiError ? t_(e.message) : t_('Blocked people could not be loaded.'));
+    } finally { if (mounted && sessionActive) setState(() => loading = false); }
+  }
+
+  Future<void> _unblock(Map<String, dynamic> user) async {
+    if (!mounted || !sessionActive || loading || changing ||
+        list?.any((current) => identical(current, user)) != true) {
+      return;
+    }
+    setState(() => changing = true);
+    try {
+      await widget.session.call('DELETE', '/users/${user['username']}/block');
+      await _load(afterChange: true);
+    } catch (e) {
+      if (mounted && sessionActive) showError(context, e);
+    } finally {
+      if (mounted && sessionActive) setState(() => changing = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Blocked people'), maxLines: 2, style: const TextStyle(fontSize: 18)), actions: [IconButton(tooltip: t_('Refresh'), onPressed: loading ? null : _load, icon: const PhIcon('arrow-clockwise'))]),
+  Widget build(BuildContext context) => !sessionActive ? _retiredSettingsView(context, widget.session) : Scaffold(
+    appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56, 96), title: Text(t_('Blocked people'), maxLines: 2, style: const TextStyle(fontSize: 18)), actions: [IconButton(tooltip: t_('Refresh'), onPressed: loading || changing ? null : _load, icon: const PhIcon('arrow-clockwise'))]),
     body: list == null && loading
       ? const Center(child: CircularProgressIndicator())
       : RefreshIndicator(onRefresh: _load, child: ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
         if (loading) const LinearProgressIndicator(),
         if (error != null) Padding(padding: const EdgeInsets.all(20), child: Column(children: [
           Text(error!, textAlign: TextAlign.center),
-          TextButton(onPressed: loading ? null : _load, child: Text(t_('Try again'))),
+          TextButton(onPressed: loading || changing ? null : _load, child: Text(t_('Try again'))),
         ])),
         if (list != null && list!.isEmpty) EmptyState(icon: Ph.block, title: t_('You have not blocked anyone')),
         for (final u in list ?? <Map<String,dynamic>>[]) ListTile(
           leading: Avatar(user: u), title: Text('@${u['username']}'),
-          trailing: TextButton(onPressed: loading || changing ? null : () async {
-            setState(() => changing = true);
-            try {
-              await widget.session.call('DELETE', '/users/${u['username']}/block');
-              await _load();
-            } catch (e) { if (context.mounted) showError(context, e); }
-            finally { if (mounted) setState(() => changing = false); }
-          }, child: Text(t_('Unblock'))),
+          trailing: TextButton(onPressed: loading || changing ? null : () => _unblock(u), child: Text(t_('Unblock'))),
         ),
       ])),
   );
 }
+
+
+// Settings and Reels share the same live-session recovery behavior.
+Widget _retiredSettingsView(BuildContext context, Session session) => SessionRecoveryView(session: session);

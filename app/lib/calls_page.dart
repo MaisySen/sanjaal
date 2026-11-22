@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'dart:async';
 import 'ph.dart';
@@ -21,6 +22,7 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
   List<Map<String, dynamic>> calls = [];
   bool loading = true;
   bool reading = false;
+  bool opening = false;
   String? error;
 
   @override
@@ -44,6 +46,19 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
     }
   }
 
+  Future<void> _open(Map<String, dynamic> row) async {
+    if (!mounted || !sessionActive || opening || !calls.any((c) => identical(c, row))) return;
+    opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CallPage(session: widget.session, conversationId: row['conversation_id'] as String, title: '${row['title'] ?? 'Call'}', video: row['kind'] == 'video'),
+      ));
+    } finally {
+      opening = false;
+    }
+    if (mounted && sessionActive) _load();
+  }
+
   @override void sessionRetired(){calls=[];error=null;}
   String _length(int s) => s <= 0 ? '' : (s >= 60 ? '${s ~/ 60}m ${s % 60}s' : '${s}s');
 
@@ -52,7 +67,7 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
     if(!sessionActive)return retiredSessionView();
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Calls')), actions:[IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise'))]),
+      appBar: ReviewedAppBar(title: Text(t_('Calls')), actions:[IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise'))]),
       body: Column(children:[
         if(error!=null && calls.isNotEmpty) RefreshReadNotice(onRetry:reading?null:_load),
         Expanded(child:RefreshIndicator(
@@ -82,13 +97,7 @@ class _CallsPageState extends State<CallsPage> with SessionBoundState<CallsPage>
                         trailing: IconButton(
                           icon: PhIcon(video ? Ph.videocam_outlined : Ph.call_outlined),
                           tooltip: video ? t_('Video call') : t_('Voice call'),
-                          onPressed: () async {
-                            if(!sessionActive)return;
-                            await Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => CallPage(session: widget.session, conversationId: c['conversation_id'] as String, title: '${c['title'] ?? 'Call'}', video: video),
-                            ));
-                            if (mounted && sessionActive) _load();
-                          },
+                          onPressed: () => _open(c),
                         ),
                       );
                     },

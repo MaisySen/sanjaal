@@ -36,7 +36,7 @@ Future<void> fixture(WidgetTester t,Future<void>Function(Session,List<Uri>)run,{
   return json({'data':[],'next_cursor':null,'balance':0,'entries':[],'unread_messages':0});
  }));
 }
-Future<void> select(WidgetTester t,String text)async{await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.text(t_(text))));await flush(t);}
+Future<void> select(WidgetTester t,String text)async{await t.tap(find.descendant(of:find.byType(GlassNavBar),matching:find.byTooltip(t_(text))));await flush(t);}
 void main(){
  setUpAll(()async{Directory('test/renders').createSync(recursive:true);
   for(final f in [('Roboto','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),('NotoDev','assets/fonts/NotoSansDevanagari.ttf'),('MaterialIcons','${Platform.environment['FLUTTER_ROOT']??''}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')]){final file=File(f.$2);if(file.existsSync()){final loader=FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));await loader.load();}}
@@ -62,7 +62,7 @@ void main(){
      final before=homeReads();
      for(final tab in ['Reels','Chats','Wallet','Me','Home']){await select(t,tab);}
      expect(feed.scroll.offset,offset);expect(homeReads(),before);
-     await t.tap(find.byTooltip('Settings'));await flush(t);await t.pageBack();await flush(t);
+     await select(t,'Me');await t.tap(find.byTooltip('Settings'));await flush(t);await t.pageBack();await flush(t);await select(t,'Home');
      expect(feed.scroll.offset,offset);expect(homeReads(),before);
      expect(t.takeException(),isNull);
    });
@@ -89,10 +89,10 @@ void main(){
      expect(t.takeException(),isNull);
    });
  });
- testWidgets('explicit top-left hamburger opens searchable Settings and a real blocked destination',(t)async{
+ testWidgets('profile Settings opens searchable controls and a real blocked destination',(t)async{
   await fixture(t,(s,reads)async{
-   final settings=find.byTooltip('Settings');expect(t.getCenter(settings).dx,lessThan(60));await t.tap(settings);await flush(t);expect(find.byType(SettingsPage),findsOneWidget);
-   await t.enterText(find.byType(TextField),'blocked');await t.pump();expect(find.text('Blocked people'),findsOneWidget);expect(find.text('Saved'),findsNothing);await t.tap(find.text('Blocked people'));await flush(t);expect(reads.any((u)=>u.path.endsWith('/users/blocked')),isTrue);expect(t.takeException(),isNull);
+   await select(t,'Me');final settings=find.byTooltip('Settings');expect(settings,findsOneWidget);await t.tap(settings);await flush(t);expect(find.byType(SettingsPage),findsOneWidget);
+   await t.enterText(find.descendant(of:find.byType(SettingsPage),matching:find.byType(TextField)),'blocked');await t.pumpAndSettle();expect(find.descendant(of:find.byType(SettingsPage),matching:find.text('Blocked people')),findsOneWidget);expect(find.descendant(of:find.byType(SettingsPage),matching:find.text('Saved')),findsNothing);await t.tap(find.descendant(of:find.byType(SettingsPage),matching:find.text('Blocked people')));await flush(t);expect(reads.any((u)=>u.path.endsWith('/users/blocked')),isTrue);expect(t.takeException(),isNull);
   });
  });
  for(final mode in [Brightness.dark,Brightness.light]){for(final language in ['en','ne']){

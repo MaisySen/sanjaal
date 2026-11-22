@@ -1,3 +1,4 @@
+import 'native_transport.dart';
 // Android emulator journey against a LOCAL, disposable copy of this API (port 8001) with replay-safe
 // uploads switched ON and a one-shot fault: the server saves the post, then the reply is lost (503).
 // Real taps and typing through the creator UI, real HTTP, real upload strip. The test checks that
@@ -10,6 +11,9 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/main.dart' as app;
+import 'package:sanjaal/api.dart' show ApiError;
+import 'package:sanjaal/upload_center.dart';
+import 'package:sanjaal/feed_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _base = String.fromEnvironment('E2E_TOKEN_BASE');
@@ -40,8 +44,9 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('upload: reply lost after the server saved it, then Try again keeps exactly one post', (tester) async {
+  await withNativeTransport((transport) async {
     expect(_token, isNotEmpty, reason: 'E2E_TOKEN dart-define missing');
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'theme':'light'});
     final p = await SharedPreferences.getInstance();
     await p.setString('refresh_token', 'local-e2e');
     app.main();
@@ -83,11 +88,13 @@ void main() {
     }
     final offeredRetry = find.text('Try again').evaluate().isNotEmpty;
     expect(offeredRetry, isTrue, reason: 'a lost reply on a replay-safe upload must offer Try again, not claim success');
-    // Client-side proof the app received the 503 body our hook sent (not the real 201): that text is only on screen if so.
-    final seen = find.byType(Text).evaluate().map((e) => (e.widget as Text).data ?? '').where((x) => x.contains('temporarily unavailable')).toList();
-    // ignore: avoid_print
-    print('Upload-retry client-visible 503 text: $seen');
-    expect(seen, isNotEmpty, reason: 'the client must show the 503 reply message, proving it received the fault response');
+    // Status proves the intended response was received. Server prose is data,
+    // deliberately replaced by reviewed fixed copy in this candidate.
+    final center = UploadCenter.of(tester.widget<app.HomeShell>(find.byType(app.HomeShell)).session);
+    expect(center.error, isA<ApiError>());
+    expect((center.error as ApiError).status, 503);
+    expect(find.text('Could not confirm the result. Check before trying again.'), findsOneWidget);
+    expect(find.textContaining('Service temporarily unavailable'), findsNothing);
     expect(find.text('Your post is up.'), findsNothing);
     // ignore: avoid_print
     print('Upload-retry after lost reply: offered Try again = $offeredRetry');
@@ -107,9 +114,28 @@ void main() {
     await _until(tester, find.text('Your post is up.'));
     await tester.pump(const Duration(seconds: 1));
     await binding.takeScreenshot('upload_retry_2_after_retry');
+    final rootSession=tester.widget<app.HomeShell>(find.byType(app.HomeShell)).session;
+    expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
+    expect(await tester.runAsync(()=>transport.proveOffline(rootSession)),isTrue,
+      reason:'Actual native Session must receive a transport error and increment the socket gate rejection count');
+  await tester.pumpAndSettle();
+    expect(find.text('Your post is up.'),findsOneWidget);
+    expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
+    await tester.runAsync(()=>Future<void>.delayed(const Duration(milliseconds:250)));
+    await binding.takeScreenshot('upload_retry_3_both_status_strips');
+    expect(rootSession.offline,isTrue);expect(find.text('Your post is up.'),findsOneWidget);
+    center.finishAcknowledgement();await tester.pump(const Duration(milliseconds:600));
+    expect(MediaQuery.paddingOf(tester.element(find.byType(FeedPage))).top,0);
+    await binding.takeScreenshot('upload_retry_4_offline_only');
+    expect(await tester.runAsync(()=>transport.proveOnline(rootSession)),isTrue,
+      reason:'Same native Session must reconnect through the socket gate');
+  await tester.pumpAndSettle();
+    await binding.takeScreenshot('upload_retry_5_status_strips_retired');
+
     expect(find.text('Try again'), findsNothing);
     expect(await _copies(tester, marker), 1, reason: 'retry must reuse the original, never create a second post');
     // ignore: avoid_print
     print('Upload failure/retry journey passed on Android: one post before and after Try again');
+  });
   });
 }

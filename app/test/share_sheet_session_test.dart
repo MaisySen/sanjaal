@@ -37,6 +37,6 @@ void main(){
   var writes=0;var closed=false;
   await http.runWithClient(()async{
    final s=Session();await s.login('fixture','not-a-password');await t.pumpWidget(shell(s,closed:()=>closed=true));await t.tap(find.text('Open share'));await flush(t);await t.tap(find.text('Private chat recipient'));await flush(t);expect(writes,1);expect(closed,isTrue);expect(find.textContaining('Sent to'),findsOneWidget);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
-  },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});if(r.method!='GET'){writes++;expect(r.url.path,endsWith('/conversations/private-chat/messages'));expect(jsonDecode(r.body)['shared_post'],'post');return reply({});}return reply(recipients());}));
+  },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});if(r.method!='GET'){writes++;expect(r.url.path,endsWith('/conversations/private-chat/messages'));expect(jsonDecode(r.body)['shared_post'],'post');return reply({'message':{'public_id':'message','conversation_id':'private-chat','client_id':jsonDecode(r.body)['client_id'],'kind':'post','sender':{'public_id':'a'},'shared_post':{'public_id':'post'}}});}return reply(recipients());}));
  });
 }

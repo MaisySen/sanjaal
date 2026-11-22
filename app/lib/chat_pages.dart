@@ -1,3 +1,6 @@
+import 'media_visibility.dart';
+import 'glass/glass_sheet.dart';
+import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'draft_exit_guard.dart';
@@ -16,6 +19,7 @@ import 'voice.dart';
 import 'share_post.dart';
 import 'post_page.dart';
 import 'private_media_image.dart';
+import 'conversation_receipt.dart';
 
 String kindLabel(Object? kind, Object? body) {
   if (kind == 'image') return 'Photo';
@@ -36,13 +40,24 @@ class _ChatsPageState extends State<ChatsPage> {
   late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool _retired = false;
+  bool _opening = false;
+  bool _settingsBusy = false;
+  bool _settingsNeedRead = false;
+  bool _settingsRetryingRead = false;
+  bool _creationNeedRead = false;
+  static const _settingKeys = ['pinned', 'muted', 'archived'];
+  bool get _active=>mounted && !_retired && identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _canEnter=>_active && widget.active && ModalRoute.of(context)?.isCurrent==true;
+  int? _entryReadVersion;
+  bool get _entryReading=>(_entryReadVersion==_loadVersion || _creationNeedRead) && _readingArchive!=null;
   BuildContext? _menuContext;
   void _accountChanged(){if(!_active && mounted){
+    _retired = true;
     ++_loadVersion;timer?.cancel();
     final menu=_menuContext;
     if(menu!=null && menu.mounted && ModalRoute.of(menu)?.isCurrent==true)Navigator.of(menu).pop();
-    setState(()=>convos=[]);
+    setState(() { convos=[];error=null;_settingsBusy=false;_settingsNeedRead=false;_settingsRetryingRead=false;_entryReadVersion=null;_creationNeedRead=false; });
   }}
   List<Map<String, dynamic>> convos = [];
   bool loading = true;
@@ -58,12 +73,19 @@ class _ChatsPageState extends State<ChatsPage> {
     _session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
     _load();
-    timer = Timer.periodic(const Duration(seconds: 12), (_) { if (widget.active) _load(quiet: true); });
+    timer = Timer.periodic(const Duration(seconds: 12), (_) {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (_active && widget.active && ModalRoute.of(context)?.isCurrent == true &&
+          (lifecycle == null || lifecycle == AppLifecycleState.resumed)) {
+        _load(quiet: true);
+      }
+    });
   }
 
   @override
   void didUpdateWidget(ChatsPage old) {
     super.didUpdateWidget(old);
+    _accountChanged();
     if (widget.active && !old.active) _load(quiet: true);
   }
 
@@ -74,21 +96,27 @@ class _ChatsPageState extends State<ChatsPage> {
     super.dispose();
   }
 
-  Future<void> _load({bool quiet = false, bool force = false}) async {
-    if(!mounted || !_active || (!force && _readingArchive==showArchived)) return;
+  Future<void> _load({bool quiet = false, bool force = false, bool afterSetting = false}) async {
+    if(!mounted || !_active || (_settingsBusy && !afterSetting) || (!force && _readingArchive==showArchived)) return;
     final archived=showArchived;
     _readingArchive=archived;
     final version = ++_loadVersion;
+    if (_creationNeedRead) setState(() => loading = convos.isEmpty);
+    if (_settingsNeedRead && !_settingsBusy) setState(() => _settingsRetryingRead = true);
     try {
       final j = await widget.session.call('GET', '/conversations', query: showArchived ? {'archived': '1'} : null) as Map<String, dynamic>;
       if (!mounted || !_active || version != _loadVersion) return;
       final rows=(j['data'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
-      if(rows.any((c)=>c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty || (c['last_message']!=null && c['last_message'] is! Map) || (c['unread']!=null && c['unread'] is! num))) throw const FormatException('Invalid inbox');
-      setState(() { convos=rows; error=null; });
+      if(rows.any((c)=>c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty || (c['last_message']!=null && c['last_message'] is! Map) || (c['unread']!=null && c['unread'] is! num) ||
+          _settingKeys.any((key) => (_settingsNeedRead || c[key] != null) && c[key] is! bool))) {
+        throw const FormatException('Invalid inbox');
+      }
+      setState(() { convos=rows; error=null; _settingsNeedRead=false; if(!archived)_creationNeedRead=false; });
     } catch (e) {
       if (mounted && _active && version == _loadVersion && !quiet) setState(() => error=e is ApiError?t_(e.message):t_('Chats could not be loaded.'));
     } finally {
       if(version==_loadVersion) _readingArchive=null;
+      if (mounted && _active && version == _loadVersion && _settingsRetryingRead) setState(() => _settingsRetryingRead = false);
       if (mounted && _active && version == _loadVersion && loading) setState(() => loading = false);
     }
   }
@@ -99,60 +127,127 @@ class _ChatsPageState extends State<ChatsPage> {
     return (last['body']??'').toString();
   }
 
-  Future<void> _menu(Map<String, dynamic> c) async {
-    if(!_active)return;
-    final id = c['public_id'];
-    Future<void> set(Map<String, dynamic> body) async {
-      if(!mounted || !_active)return;
-      Navigator.pop(context);
+  Future<void> _changeSetting(String id, Map<String, dynamic> body) async {
+    if (!_active || _settingsBusy || _settingsNeedRead) return;
+    // Retire reads begun before the change. Other reads wait for reconciliation.
+    ++_loadVersion;
+    _readingArchive = null;
+    setState(() { _settingsBusy = true; _settingsNeedRead = true; });
+    try {
       try {
         await widget.session.call('PATCH', '/conversations/$id/settings', body: body);
-        await _load(quiet: true,force:true);
       } catch (e) {
         if (mounted && _active) showError(context, e);
       }
+      // A failed/lost reply is not proof that the setting stayed unchanged.
+      if (_active) await _load(force: true, afterSetting: true);
+    } finally {
+      if (_active) setState(() => _settingsBusy = false);
     }
+  }
 
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) { _menuContext=ctx; return SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(t_(c['pinned'] == true ? 'Unpin' : 'Pin to top')), onTap: () => set({'pinned': c['pinned'] != true})),
-          ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(t_(c['muted'] == true ? 'Unmute' : 'Mute')), onTap: () => set({'muted': c['muted'] != true})),
-          ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(t_(c['archived'] == true ? 'Unarchive' : 'Archive')), onTap: () => set({'archived': c['archived'] != true})),
-        ]),
-      );},
-    );
-    _menuContext=null;
+  Future<void> _menu(Map<String, dynamic> c) async {
+    if (!_canEnter || _opening || _settingsBusy || _settingsNeedRead || !convos.any((row) => identical(row, c))) return;
+    _opening = true;
+    var submitted = false;
+    final id = c['public_id'];
+    try {
+      await showReviewedGlassSheet<void>(
+        context: context,
+        builder: (ctx) {
+          _menuContext = ctx;
+          Future<void> change(Map<String, dynamic> body) async {
+            if (!_active || submitted || _settingsBusy || _settingsNeedRead || !ctx.mounted ||
+                ModalRoute.of(ctx)?.isCurrent != true ||
+                !convos.any((row) => identical(row, c))) {
+              return;
+            }
+            submitted = true;
+            Navigator.of(ctx).pop();
+            await _changeSetting(id as String, body);
+          }
+          return SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              ListTile(leading: PhIcon(c['pinned'] == true ? Ph.push_pin : Ph.push_pin_outlined), title: Text(t_(c['pinned'] == true ? 'Unpin' : 'Pin to top')), onTap: () => change({'pinned': c['pinned'] != true})),
+              ListTile(leading: PhIcon(c['muted'] == true ? Ph.notifications_off : Ph.notifications_off_outlined), title: Text(t_(c['muted'] == true ? 'Unmute' : 'Mute')), onTap: () => change({'muted': c['muted'] != true})),
+              ListTile(leading: PhIcon(c['archived'] == true ? Ph.unarchive_outlined : Ph.archive_outlined), title: Text(t_(c['archived'] == true ? 'Unarchive' : 'Archive')), onTap: () => change({'archived': c['archived'] != true})),
+            ]),
+          );
+        },
+      );
+    } finally {
+      _menuContext = null;
+      _opening = false;
+    }
+  }
+
+  Future<void> _openAux(Widget page) async {
+    if (!_canEnter || _opening) return;
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _opening = false;
+    }
+  }
+
+  Future<void> _refreshAfterEntry() async {
+    if (!_active) return;
+    setState(() => _entryReadVersion = _loadVersion + 1);
+    await _load(force: true);
   }
 
   Future<void> _open(Map<String, dynamic> c) async {
-    if(!_active)return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: c)));
-    _load(quiet: true,force:true);
+    if (!_canEnter || _opening || !convos.any((row) => identical(row, c))) return;
+    await _openAux(ChatPage(session: widget.session, convo: c));
+    if (_active) _refreshAfterEntry();
   }
 
   Future<void> _new() async {
-    if(!_active)return;
-    final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session)));
-    if (mounted && _active && c != null) {
-      await _load(quiet: true,force:true);
-      if (mounted && _active) _open(c);
+    if (!_canEnter || _opening || _entryReading || _creationNeedRead) return;
+    final route = ModalRoute.of(context)!;
+    var checkInbox = false;
+    var receivedConversation = false;
+    _opening = true;
+    try {
+      final c = await Navigator.of(context).push<Map<String, dynamic>>(MaterialPageRoute(builder: (_) => NewChatPage(session: widget.session, onUncertain: () => checkInbox = true)));
+      receivedConversation = c != null;
+      if (!mounted || !_canEnter || !route.isCurrent || !identical(ModalRoute.of(context), route) || c == null) return;
+      // The child checked its receipt. An inbox read need not delay opening it.
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: c)));
+    } finally {
+      _opening = false;
+      // Reconcile a returned receipt or uncertainty, not an untouched cancel.
+      if (_active && (receivedConversation || checkInbox)) {
+        if (checkInbox) {
+          setState(() {
+            _creationNeedRead = true;
+            if (showArchived) {
+              showArchived = false;
+              convos = [];
+              error = null;
+              loading = true;
+            }
+          });
+        }
+        _refreshAfterEntry();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Chats'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chats'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     return Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
         title: Text(t_(showArchived ? 'Archived' : 'Chats')),
         actions: [
-          IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _new),
+          IconButton(tooltip: t_('New chat'), icon: const PhIcon('note-pencil'), onPressed: _entryReading || _creationNeedRead ? null : _new),
           PopupMenuButton<String>(
             tooltip: t_('More'),
+            enabled: !_settingsBusy && !_settingsRetryingRead && !_creationNeedRead,
             onSelected: (_) {
-              if(!_active)return;
+              if(!_canEnter || _opening || _settingsBusy || _settingsRetryingRead || _creationNeedRead)return;
               setState(() {
                 showArchived = !showArchived;
                 convos = [];
@@ -168,16 +263,22 @@ class _ChatsPageState extends State<ChatsPage> {
         ],
       ),
       body: Column(children: [
-        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:()=>_load()),
+        if (_settingsBusy || _settingsRetryingRead) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Row(children: [
+          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 12),
+          Expanded(child: Semantics(liveRegion: true, child: Text(t_('Updating chat settings')))),
+        ])),
+        if (_entryReading) const LinearProgressIndicator(),
+        if(error!=null && convos.isNotEmpty) RefreshReadNotice(onRetry:_settingsBusy || _settingsRetryingRead || (_creationNeedRead && _entryReading) ? null : ()=>_load()),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
           child: Align(alignment: Alignment.centerLeft, child: Wrap(spacing: 8, runSpacing: 4, children: [
             TextButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => CallsPage(session: widget.session))),
+              onPressed: () => _openAux(CallsPage(session: widget.session)),
               icon: const PhIcon('phone', size: 20), label: Text(t_('Calls')),
             ),
             TextButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomsPage(session: widget.session))),
+              onPressed: () => _openAux(RoomsPage(session: widget.session)),
               icon: const PhIcon('waveform', size: 20), label: Text(t_('Live rooms')),
             ),
           ])),
@@ -193,7 +294,7 @@ class _ChatsPageState extends State<ChatsPage> {
                     hint: error != null || showArchived ? null : t_('Find someone by name or username.'),
                     action: error != null
                         ? OutlinedButton(onPressed: _load, child: Text(t_('Try again')))
-                        : showArchived ? null : FilledButton.icon(onPressed: _new, icon: const PhIcon('note-pencil', size: 18), label: Text(t_('New chat'))),
+                        : showArchived ? null : FilledButton.icon(onPressed: _entryReading || _creationNeedRead ? null : _new, icon: const PhIcon('note-pencil', size: 18), label: Text(t_('New chat'))),
                   )])
                 : ListView.separated(
                     physics:const AlwaysScrollableScrollPhysics(),
@@ -208,7 +309,7 @@ class _ChatsPageState extends State<ChatsPage> {
                       final scheme = Theme.of(context).colorScheme;
                       return InkWell(
                         onTap: () => _open(c),
-                        onLongPress: () => _menu(c),
+                        onLongPress: _settingsBusy || _settingsNeedRead ? null : () => _menu(c),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           child: Row(children: [
@@ -244,8 +345,9 @@ class _ChatsPageState extends State<ChatsPage> {
 }
 
 class NewChatPage extends StatefulWidget {
-  const NewChatPage({super.key, required this.session});
+  const NewChatPage({super.key, required this.session, this.onUncertain});
   final Session session;
+  final VoidCallback? onUncertain;
   @override
   State<NewChatPage> createState() => _NewChatPageState();
 }
@@ -258,6 +360,7 @@ class _NewChatPageState extends State<NewChatPage> {
   final picked = <String, Map<String, dynamic>>{};
   bool group = false, busy = false, searched = false, searching = false;
   bool _completed = false, _uncertain = false;
+  void _noteUncertain() { _uncertain = true; widget.onUncertain?.call(); }
   bool _storing=false;
   BuildContext? _groupDraftDialog;
   GroupDraft? _savedGroup;
@@ -281,7 +384,7 @@ class _NewChatPageState extends State<NewChatPage> {
       final saved=await const GroupDraftStore().read(_owner!);
       if(!mounted || !_active)return;
       if(saved==null){showInfo(context,t_('No saved group draft.'));return;}
-      setState((){group=true;title.text=saved.title;picked.clear();for(final p in saved.people){picked[p['username'] as String]=p;}_savedGroup=saved;_savedGroupFingerprint=_groupFingerprint;_uncertain=saved.attempted;startError=saved.attempted?t_('This group may already exist. Check Chats before starting it again.'):null;});
+      setState((){group=true;title.text=saved.title;picked.clear();for(final p in saved.people){picked[p['username'] as String]=p;}_savedGroup=saved;_savedGroupFingerprint=_groupFingerprint;_uncertain=saved.attempted;if(_uncertain)widget.onUncertain?.call();startError=saved.attempted?t_('This group may already exist. Check Chats before starting it again.'):null;});
     }catch(e){if(mounted && _active)showError(context,e);}
     finally{if(mounted)setState(()=>_storing=false);}
   }
@@ -302,7 +405,7 @@ class _NewChatPageState extends State<NewChatPage> {
   late final String? _owner;
   late final int _sessionGeneration;
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
-  bool get _locked => !_active || busy || _storing || _uncertain;
+  bool get _locked => !mounted || !_active || busy || _storing || _uncertain || _completed || ModalRoute.of(context)?.isCurrent != true;
   @override void initState(){
     super.initState();_session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
@@ -326,7 +429,7 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   void _changed(String value) {
-    if(!_active)return;
+    if(_locked)return;
     final seq = ++_seq; // Invalidate immediately, not when the debounce fires.
     _debounce?.cancel();
     final query = value.trim();
@@ -345,7 +448,7 @@ class _NewChatPageState extends State<NewChatPage> {
     try {
       final response = await widget.session.call('GET', '/users/search', query: {'q': query});
       final users = ((response as Map)['users'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
-      if(users.any((u)=>u['username'] is! String || (u['username'] as String).trim().isEmpty)) throw const FormatException('Invalid member identity');
+      if(users.any((u)=>u['public_id'] is! String || (u['public_id'] as String).trim().isEmpty || u['username'] is! String || (u['username'] as String).trim().isEmpty) || users.map((u)=>u['public_id']).toSet().length!=users.length || users.map((u)=>u['username']).toSet().length!=users.length) throw const FormatException('Invalid member identity');
       if (!mounted || !_active || seq != _seq) return;
       setState(() { results = users; searched = true; searching = false; searchError = null; });
     } catch (e) {
@@ -358,14 +461,39 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   Future<void> _leave([Map<String, dynamic>? conversation]) async {
-    if (!mounted || !_active) return;
+    if (!mounted || !_active || _completed) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) {
+      if (conversation != null) {
+        setState(() {
+          busy = false;
+          _noteUncertain();
+          startError = t_('The chat may already exist. Check Chats before starting it again.');
+        });
+      }
+      return;
+    }
+    // This route owns one completion, not whichever route is on top later.
     setState(() { _completed = true; busy = false; });
     await WidgetsBinding.instance.endOfFrame;
-    if (mounted && _active) Navigator.of(context).pop(conversation);
+    if (!mounted || !_active) return;
+    if (!route.isCurrent) {
+      setState(() {
+        _completed = false;
+        if (conversation != null) {
+          _noteUncertain();
+          startError = t_('The chat may already exist. Check Chats before starting it again.');
+        }
+      });
+      return;
+    }
+    Navigator.of(context).pop(conversation);
   }
 
-  Future<void> _start(Map<String, dynamic> body) async {
+  Future<void> _start(Map<String, dynamic> body, {Map<String, dynamic>? directRecipient}) async {
     if (_locked) return;
+    if (body['type'] == 'direct' && (directRecipient == null || body['username'] != directRecipient['username'] || !results.any((user) => identical(user, directRecipient)))) return;
+    final groupRecipients = [for (final person in picked.values) Map<String, dynamic>.from(person)];
     FocusScope.of(context).unfocus();
     _debounce?.cancel();
     ++_seq;
@@ -393,7 +521,9 @@ class _NewChatPageState extends State<NewChatPage> {
       if(!mounted || !_active)return;
       handedToServer=true;
       final response = await widget.session.call('POST', '/conversations', body: body);
-      final conversation = ((response as Map)['conversation'] as Map).cast<String, dynamic>();
+      final conversation = body['type'] == 'direct'
+          ? checkedDirectConversation(response, _owner!, directRecipient!)
+          : checkedGroupConversation(response, _owner!, groupRecipients, body['title'] as String);
       if (conversation['public_id'] is! String || (conversation['public_id'] as String).isEmpty) throw const FormatException();
       if (mounted && _active) await _leave(conversation);
     } catch (e) {
@@ -407,21 +537,22 @@ class _NewChatPageState extends State<NewChatPage> {
       final rejected = e is ApiError && e.status != null && e.status! >= 400 && e.status! < 500;
       if(rejected && _savedGroup?.attempted==true){
         try{final reset=await const GroupDraftStore().markAttempt(_owner!,_savedGroup!,attempted:false);if(!mounted || !_active)return;_savedGroup=reset;}
-        catch(_){if(mounted && _active)setState((){busy=false;_uncertain=true;startError=t_('This group may already exist. Check Chats before starting it again.');});return;}
+        catch(_){if(mounted && _active)setState((){busy=false;_noteUncertain();startError=t_('This group may already exist. Check Chats before starting it again.');});return;}
       }
       if(!mounted || !_active)return;
       setState(() {
         busy = false;
         _uncertain = !rejected;
+        if (_uncertain) widget.onUncertain?.call();
         startError = rejected ? t_(e.message) : t_('The chat may already exist. Check Chats before starting it again.');
       });
     }
   }
 
   void _tap(Map<String, dynamic> user) {
-    if (_locked) return;
+    if (_locked || searching || searchError != null || !results.any((current) => identical(current, user))) return;
     final name = user['username'].toString();
-    if (!group) { _start({'type': 'direct', 'username': name}); return; }
+    if (!group) { _start({'type': 'direct', 'username': name}, directRecipient: user); return; }
     if (!picked.containsKey(name) && picked.length >= 49) {
       showInfo(context, t_('Choose up to 49 people.'));
       return;
@@ -445,13 +576,13 @@ class _NewChatPageState extends State<NewChatPage> {
 
   @override
   Widget build(BuildContext context) {
-   if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('New chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+   if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('New chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
    return DraftExitGuard(
     hasChanges: !_completed && (picked.isNotEmpty || title.text.trim().isNotEmpty) && _savedGroupFingerprint!=_groupFingerprint,
     busy: (busy || _storing) && !_completed,
     busyMessage: 'Starting the conversation. Please wait.',
     child: Scaffold(
-      appBar: AppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
+      appBar: ReviewedAppBar(title: Text(t_(group ? 'New group' : 'New chat')), actions: [
         IconButton(tooltip:t_('Open saved group draft'),onPressed:_locked?null:_openGroup,icon:const PhIcon('archive')),
         IconButton(onPressed: _locked ? null : _switchMode, icon: PhIcon(group ? Ph.person : Ph.groups), tooltip: t_(group ? 'One to one' : 'New group')),
       ]),
@@ -462,7 +593,7 @@ class _NewChatPageState extends State<NewChatPage> {
           if(_storing)const LinearProgressIndicator(),
           if (group) Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: TextField(controller: title, enabled: !_locked, onChanged: (_) => setState(() {}), maxLength: 80, decoration: InputDecoration(labelText: t_('Group name'), border: const OutlineInputBorder()))),
           if (group && picked.isNotEmpty) SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16), child: Row(children: [for (final entry in picked.entries) Padding(padding: const EdgeInsets.only(right: 6), child: InputChip(label: Text('@${entry.key}'), onDeleted: _locked ? null : () => setState(() => picked.remove(entry.key))))])),
-          Padding(padding: const EdgeInsets.all(16), child: TextField(controller: q, enabled: !_locked, autofocus: true, onChanged: _changed, decoration: InputDecoration(prefixIcon: const PhIcon('magnifying-glass'), hintText: t_('Search by name or username'), border: const OutlineInputBorder()))),
+          Padding(padding: const EdgeInsets.all(16), child: TextField(controller: q, enabled: !_locked, autofocus: true, onChanged: _changed, decoration: InputDecoration(prefixIcon: const Center(widthFactor: 1, heightFactor: 1, child: PhIcon('magnifying-glass', size: 22)), hintText: t_('Search by name or username'), border: const OutlineInputBorder()))),
           if (busy) Padding(padding: const EdgeInsets.all(16), child: Text(t_('Starting the conversation. Please wait.'))),
           if (startError != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: Text(startError!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           if (_uncertain) Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: OutlinedButton(onPressed: _leave, child: Text(t_('Back to Chats')))),
@@ -473,7 +604,7 @@ class _NewChatPageState extends State<NewChatPage> {
         if (!searching && searchError == null && searched && results.isEmpty) SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Ph.search_off, title: t_('No matches'))),
         if (!searching && results.isNotEmpty) SliverList(delegate: SliverChildBuilderDelegate((c, index) {
           final user = results[index];
-          return ListTile(leading: Avatar(user: user), title: Text((user['name'] ?? '').toString().isEmpty ? '@${user['username']}' : user['name'].toString()), subtitle: Text('@${user['username']}'), trailing: group ? Checkbox(value: picked.containsKey(user['username'].toString()), onChanged: _locked ? null : (_) => _tap(user)) : null, onTap: _locked ? null : () => _tap(user));
+          return ListTile(enabled: !_locked, leading: Avatar(user: user), title: Text((user['name'] ?? '').toString().isEmpty ? '@${user['username']}' : user['name'].toString()), subtitle: Text('@${user['username']}'), trailing: group ? Checkbox(value: picked.containsKey(user['username'].toString()), onChanged: _locked ? null : (_) => _tap(user)) : null, onTap: _locked ? null : () => _tap(user));
         }, childCount: results.length)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ]),
@@ -500,14 +631,14 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   void _accountChanged(){
     if(_active || !mounted)return;
-    _closed=true;timer?.cancel();
+    _closed=true;timer?.cancel();_wakeVisible();
     setState((){msgs.clear();input.clear();replyTo=null;typing=[];recording=false;pickingMedia=false;});
   }
   final msgs = <Map<String, dynamic>>[];
@@ -548,15 +679,34 @@ class _ChatPageState extends State<ChatPage> {
   void _composerChanged(){if(mounted && _active)setState((){});}
 
   bool _closed = false;
+  Completer<void>? _visibilityWait;
+  void _wakeVisible() {
+    final pending = _visibilityWait;
+    _visibilityWait = null;
+    if (pending != null && !pending.isCompleted) pending.complete();
+  }
+  @override
+  void mediaVisibilityChanged(bool visible) { if (visible) _wakeVisible(); }
+  Future<void> _awaitVisible() async {
+    while (mounted && !_closed && !mediaVisible) {
+      final pending = _visibilityWait ??= Completer<void>();
+      await pending.future;
+    }
+  }
+  bool get _readingVisible => mediaVisible && ModalRoute.of(context)?.isCurrent == true;
 
   // Realtime by long poll: the server holds each request until a new message
   // arrives, so delivery is near instant without a separate socket server.
   Future<void> _loop() async {
+    await _awaitVisible();
+    if (!mounted || _closed || !_active) return;
     await _fetch();
     if (!mounted || _closed) return;
     // Do not immediately hide a first-load error behind a second read.
     if (error != null) await Future<void>.delayed(const Duration(seconds: 2));
     while (mounted && !_closed) {
+      await _awaitVisible();
+      if (!mounted || _closed || !_active) break;
       final before = DateTime.now();
       await _fetch(wait: true);
       if (!mounted || _closed) break;
@@ -569,6 +719,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   void dispose() {
     _closed = true;
+    _wakeVisible();
     _session.removeListener(_accountChanged);
     timer?.cancel();
     scroll.dispose();
@@ -619,11 +770,14 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _fetch({bool wait = false}) async {
-    if (!_active || fetching) return;
+    if (!mounted || _closed || !_active || !_readingVisible || fetching) return;
     fetching = true;
     try {
       final first = historyBoundary == null;
       final j = await widget.session.call('GET', '/conversations/$id/messages', query: first ? null : {'after_seq': '$lastSeq', if (wait) 'wait': '20', 'typing': typing.join(',')}) as Map<String, dynamic>;
+      // The reply may arrive after navigation or backgrounding. Leave the
+      // cursor, rows and acknowledgement unchanged for a hidden completion.
+      if (!mounted || _closed || !_active || !_readingVisible) return;
       final nowTyping = ((j['typing'] as List?) ?? const []).map((e) => e.toString()).toList();
       if (mounted && _active && nowTyping.join(',') != typing.join(',')) setState(() => typing = nowTyping);
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
@@ -654,10 +808,10 @@ class _ChatPageState extends State<ChatPage> {
         widget.session.call('POST', '/conversations/$id/read').catchError((_) => null);
       }
     } catch (e) {
-      if (mounted && _active) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
+      if (mounted && !_closed && _active && _readingVisible) setState(() => error = e is ApiError ? t_(e.message) : t_('Messages could not be loaded.'));
     } finally {
       fetching = false;
-      if (mounted && _active && loading) setState(() => loading = false);
+      if (mounted && !_closed && _active && _readingVisible && loading) setState(() => loading = false);
     }
   }
 
@@ -774,7 +928,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _messageMenu(Map<String, dynamic> m) async {
     if (!_active || m['pending'] == true || m['failed'] == true) return;
-    await showModalBottomSheet<void>(
+    await showReviewedGlassSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -831,16 +985,19 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
           decoration: BoxDecoration(
-            color: failed ? scheme.errorContainer : (mine ? scheme.primary : scheme.surfaceContainerHigh),
+            color: failed ? scheme.errorContainer : (mine ? brandRed : scheme.surfaceContainerHighest),
             borderRadius: BorderRadius.only(topLeft: const Radius.circular(20), topRight: const Radius.circular(20), bottomLeft: Radius.circular(mine ? 20 : 6), bottomRight: Radius.circular(mine ? 6 : 20)),
           ),
-          child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: DefaultTextStyle.merge(style: TextStyle(color: failed ? scheme.onErrorContainer : (mine ? Colors.white : scheme.onSurface)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (group && !mine) Text('@${(m['sender'] as Map)['username']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             if (m['reply_to'] is Map)
               Container(
                 margin: const EdgeInsets.only(bottom: 4),
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                decoration: BoxDecoration(border: Border(left: BorderSide(color: scheme.primary, width: 3)), color: Colors.black12),
+                decoration: BoxDecoration(
+                  border: Border(left: BorderSide(color: failed ? scheme.onErrorContainer : mine ? Colors.white : scheme.primary, width: 3)),
+                  color: failed ? scheme.onErrorContainer.withValues(alpha: .08) : mine ? Colors.white.withValues(alpha: .14) : scheme.onSurface.withValues(alpha: .06),
+                  borderRadius: BorderRadius.circular(4)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${(m['reply_to'] as Map)['sender']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   Text(kindLabel((m['reply_to'] as Map)['kind'], (m['reply_to'] as Map)['body']), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
@@ -860,10 +1017,11 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             if (m['kind'] == 'image' && m['media_url'] != null && (m['media_url'] is! String || !widget.session.supportsPrivateMedia(m['media_url'] as String))) Text(t_('This photo is unavailable.')),
+            if (m['kind'] == 'storyreply') Text(t_('Story reply'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
             if (m['kind'] == 'post') SharedPostCard(post: (m['shared_post'] as Map?)?.cast<String, dynamic>(), onOpenPost: (id) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => PostPage(session: widget.session, postId: id))), onOpenAuthor: (u) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u)))),
             if (m['kind'] == 'voice' && m['media_url'] != null) VoiceBubble(url: m['media_url'] as String, session: widget.session),
             if ((m['body'] ?? '').toString().isNotEmpty) Text(m['body'].toString()),
-            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? scheme.onPrimary.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
+            Text(failed ? (m['unavailable'] == true ? t_('Original message unavailable.') : t_('Delivery unconfirmed. Tap to retry.')) : (m['pending'] == true ? 'Sending' : ago(m['created_at'].toString())), style: TextStyle(fontSize: 11, color: failed ? scheme.onErrorContainer : (mine ? Colors.white.withValues(alpha: 0.78) : scheme.onSurfaceVariant))),
           ])),
         ),
       ),
@@ -872,7 +1030,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final myId = widget.session.user?['public_id'];
     final group = widget.convo['type'] == 'group';
     return DraftExitGuard(
@@ -881,13 +1039,22 @@ class _ChatPageState extends State<ChatPage> {
       title: 'Leave chat?', message: 'Leaving removes unsent text and local retry copies, not messages that may have arrived.',
       keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: recording?'Finish or cancel the recording before leaving.':pickingMedia?'Wait for the media picker to close before leaving.':'Your message is still sending.',
       child: Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
+        toolbarHeight: (MediaQuery.textScalerOf(context).scale(16) * 2.4).clamp(56.0, 112.0),
         title: InkWell(
           onTap: group ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupInfoPage(session: widget.session, convo: widget.convo))) : null,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text((widget.convo['title'] ?? 'Chat').toString()),
-            if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
-            else if (group) Text(tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          child: Row(children: [
+            if (MediaQuery.textScalerOf(context).scale(14) < 20) ...[
+              CircleAvatar(radius: 16, backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                child: PhIcon(group ? 'users-three' : 'user', size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              const SizedBox(width: 10),
+            ],
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text((widget.convo['title'] ?? 'Chat').toString(), maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 16, fontWeight: FontWeight.w700)),
+              if (typing.isNotEmpty) Text(group ? '${typing.join(', ')} typing...' : 'typing...', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal))
+              else if (group) Text(tf_('{n} members', {'n': (widget.convo['members'] as List?)?.length ?? 0}), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ])),
           ]),
         ),
         actions: [
@@ -1097,11 +1264,11 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:AppBar(title:Text(t_('Group info'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Group info'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final scheme = Theme.of(context).colorScheme;
     final session = widget.session;
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Group info'))),
+      appBar: ReviewedAppBar(title: Text(t_('Group info'))),
       body: ListView(children: [
         const SizedBox(height: 16),
         Center(child: CircleAvatar(radius: 44, backgroundColor: scheme.surfaceContainerHigh, child: PhIcon('users-three', size: 40, color: scheme.onSurfaceVariant))),

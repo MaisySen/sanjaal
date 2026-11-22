@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'dart:async';
 import 'room_microphone.dart';
@@ -33,6 +34,7 @@ class _RoomsPageState extends State<RoomsPage> with SessionBoundState<RoomsPage>
   bool reading = false;
   String? error;
   bool starting = false;
+  bool opening = false;
 
   @override
   void initState() {
@@ -55,14 +57,19 @@ class _RoomsPageState extends State<RoomsPage> with SessionBoundState<RoomsPage>
     }
   }
 
-  Future<void> _open(String id, {Map<String, dynamic>? created}) async {
-    if(!sessionActive)return;
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomPage(session: widget.session, roomId: id, joined: created)));
+  Future<void> _open(String id, {Map<String, dynamic>? created, Map<String, dynamic>? source}) async {
+    if (!mounted || !sessionActive || opening || (starting && created == null) || (source != null && !rooms.any((r) => identical(r, source)))) return;
+    opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => RoomPage(session: widget.session, roomId: id, joined: created)));
+    } finally {
+      opening = false;
+    }
     if(mounted && sessionActive) _load();
   }
 
   Future<void> _start() async {
-    if (!sessionActive || starting) return;
+    if (!mounted || !sessionActive || starting || opening) return;
     setState(() => starting = true);
     try {
       final title = await showDialog<String>(context: context, builder: (c) { _titleDialog=c;return const _RoomTitleDialog(); });
@@ -81,7 +88,7 @@ class _RoomsPageState extends State<RoomsPage> with SessionBoundState<RoomsPage>
   Widget build(BuildContext context) {
     if(!sessionActive)return retiredSessionView();
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Live rooms')), actions: [
+      appBar: ReviewedAppBar(title: Text(t_('Live rooms')), actions: [
         IconButton(tooltip:t_('Refresh'),onPressed:reading?null:_load,icon:const PhIcon('arrow-clockwise')),
       ]),
       body: Column(children:[
@@ -106,7 +113,7 @@ class _RoomsPageState extends State<RoomsPage> with SessionBoundState<RoomsPage>
                         title: Text('${r['title']}'),
                         subtitle: Text('${t_('Hosted by')} ${r['host_name'] ?? r['host_username'] ?? t_('Member')}'),
                         trailing: const PhIcon('caret-right'),
-                        onTap: () => _open(r['public_id'] as String),
+                        onTap: () => _open(r['public_id'] as String, source: r),
                       );
                     },
                   ),
@@ -496,7 +503,7 @@ class RoomView extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(title), actions: [
+      appBar: ReviewedAppBar(title: Text(title), actions: [
         if (!isHost && !failed) IconButton(tooltip: t_('Send a gift'), onPressed: onGift, icon: const PhIcon('gift')),
         if (isHost && !failed) TextButton(onPressed: onEnd, child: Text(t_('End'))),
       ]),

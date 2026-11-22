@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'package:material_ui/material_ui.dart';
@@ -36,6 +37,17 @@ class _SearchPageState extends State<SearchPage> with SessionBoundState<SearchPa
   bool searched = false;
   String? error;
   int _seq = 0;
+  bool _openingResult = false;
+
+  Future<void> _openResult(int revision, WidgetBuilder destination) async {
+    if (!mounted || !sessionActive || loading || revision != _seq || _openingResult) return;
+    _openingResult = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: destination));
+    } finally {
+      if (mounted && sessionActive) _openingResult = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -92,8 +104,9 @@ class _SearchPageState extends State<SearchPage> with SessionBoundState<SearchPa
   @override
   Widget build(BuildContext context) {
     if (!sessionActive) return retiredSessionView();
+    final resultRevision = _seq;
     return Scaffold(
-      appBar: AppBar(
+      appBar: ReviewedAppBar(
         title: TextField(
           controller: input,
           autofocus: true,
@@ -114,14 +127,14 @@ class _SearchPageState extends State<SearchPage> with SessionBoundState<SearchPa
                         ListTile(
                           leading: const CircleAvatar(child: PhIcon('hash')),
                           title: Text('#$tg'),
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => HashtagPage(session: widget.session, tag: tg))),
+                          onTap: () => _openResult(resultRevision, (_) => HashtagPage(session: widget.session, tag: tg)),
                         ),
                       for (final u in users)
                         ListTile(
                           leading: Avatar(user: u),
                           title: Text((u['name'] ?? '').toString().isEmpty ? '@${u['username']}' : u['name'].toString()),
                           subtitle: Text('@${u['username']}${u['following'] == true ? '  ·  ${t_('Following')}' : ''}'),
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: u['username'].toString()))),
+                          onTap: () => _openResult(resultRevision, (_) => UserProfilePage(session: widget.session, username: u['username'].toString())),
                         ),
                     ]),
     );

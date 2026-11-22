@@ -395,7 +395,7 @@ class ChatController extends Controller
      * The text on the lock screen is generic on purpose: no message content leaves the server in a push.
      * Runs after the response, and a failure never affects the send.
      */
-    private function push(Conversation $convo, User $me, $msg): void
+    protected function push(Conversation $convo, User $me, $msg): void
     {
         $blocked = DB::table('blocks')->where('blocker_id', $me->id)->pluck('blocked_id')
             ->merge(DB::table('blocks')->where('blocked_id', $me->id)->pluck('blocker_id'))->all();

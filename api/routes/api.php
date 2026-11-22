@@ -25,8 +25,11 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::post('/broadcasting/auth', fn (\Illuminate\Http\Request $r) => Broadcast::auth($r));
 
     Route::get('/home', [\App\Http\Controllers\HomeController::class, 'show']);
+    Route::get('/discovery', [\App\Http\Controllers\DiscoveryController::class, 'index'])->middleware('throttle:60,1');
     Route::get('/posts', [PostController::class, 'index']);
     Route::post('/posts', [PostController::class, 'store'])->middleware('throttle:30,1');
+    Route::get('/posts/{post:public_id}/discovery', [\App\Http\Controllers\DiscoveryController::class, 'show']);
+    Route::put('/posts/{post:public_id}/discovery', [\App\Http\Controllers\DiscoveryController::class, 'update'])->middleware('throttle:30,1');
     Route::get('/posts/{post}', [PostController::class, 'show']);
     Route::delete('/posts/{post}', [PostController::class, 'destroy']);
     Route::post('/posts/{post}/poll/vote', [\App\Http\Controllers\PollController::class, 'vote'])->middleware('throttle:60,1');
@@ -44,6 +47,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     $s = \App\Http\Controllers\SocialController::class;
     Route::get('/users/search', [$s, 'search']);
     Route::get('/users/blocked', [$s, 'blocks']);
+    Route::get('/users/{username}/{direction}', [\App\Http\Controllers\FollowListController::class, 'index'])->where('direction', 'followers|following');
     Route::get('/users/{username}', [$s, 'profile']);
     Route::post('/users/{username}/block', [$s, 'block']);
     Route::delete('/users/{username}/block', [$s, 'unblock']);
@@ -57,6 +61,7 @@ Route::prefix('v1')->middleware('auth:auth0')->group(function () {
     Route::get('/stories/{id}/media', [\App\Http\Controllers\MediaController::class, 'story'])->whereUuid('id');
     Route::get('/stories', [$x, 'stories']);
     Route::post('/stories', [$x, 'storeStory'])->middleware('throttle:20,1');
+    Route::post('/stories/{id}/reply', [\App\Http\Controllers\StoryReplyController::class, 'reply'])->whereUuid('id')->middleware('throttle:30,1');
     Route::post('/stories/{id}/view', [$x, 'viewStory']);
     Route::get('/stories/{id}/viewers', [$x, 'storyViewers']);
     Route::delete('/stories/{id}', [$x, 'destroyStory']);

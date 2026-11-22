@@ -57,7 +57,7 @@ class AuthTest extends TestCase
 
     public function test_first_sight_creates_member_from_userinfo(): void
     {
-        Http::fake(['*/userinfo' => Http::response(['email' => 'New@Example.com', 'name' => 'New Person', 'nickname' => 'newbie'])]);
+        Http::fake(['*/userinfo' => Http::response(['sub' => 'auth0|fresh', 'email' => 'New@Example.com', 'name' => 'New Person', 'nickname' => 'newbie'])]);
         $t = $this->token('auth0|fresh');
         $this->getJson('/api/v1/auth/me', ['Authorization' => "Bearer $t"])
             ->assertOk()->assertJsonPath('user.username', 'newbie');

@@ -66,7 +66,7 @@ void main(){
   await http.runWithClient(()async{
    final s=Session();await s.login('fixture','not-a-password');await t.pumpWidget(MaterialApp(home:Builder(builder:(c)=>Scaffold(body:TextButton(onPressed:()async{if(action=='report'){await reportFlow(c,s,'user','target');}else{blocked=await blockFlow(c,s,'target');}},child:const Text('Open action'))))));
    await t.tap(find.text('Open action'));await flush(t);await t.tap(find.text(action=='report'?'Spam':'Block'));await flush(t);expect(writes,1);
-   await s.login('fixture','not-a-password');await flush(t);response.complete(fail?reply({'message':'Old moderation error'},422):reply({}));await flush(t);expect(find.textContaining('is blocked.'),findsNothing);expect(find.textContaining('We review every report'),findsNothing);expect(find.text('Old moderation error'),findsNothing);if(action=='block')expect(blocked,isFalse);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+   await s.login('fixture','not-a-password');await flush(t);response.complete(fail?reply({'message':'Old moderation error'},422):reply({}));await flush(t);expect(find.textContaining('is blocked.'),findsNothing);expect(find.text('Report submitted.'),findsNothing);expect(find.text('Old moderation error'),findsNothing);if(action=='block')expect(blocked,isFalse);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
   },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});writes++;return response.future;}));
  });}
  for(final action in ['report','block']){
@@ -85,7 +85,8 @@ void main(){
    await t.tap(find.text('Open action'));await flush(t);
    if(cancel){Navigator.of(t.element(find.byType(action=='report'?SimpleDialog:AlertDialog))).pop();}else{await t.tap(find.text(action=='report'?'Spam':'Block'));}
    await flush(t);expect(writes,cancel?0:1);if(action=='block')expect(blocked,!cancel);
-   if(!cancel)expect(find.textContaining(action=='report'?'We review every report':'is blocked.'),findsOneWidget);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
+   expect(find.textContaining('We review every report'),findsNothing);
+   if(!cancel)expect(find.textContaining(action=='report'?'Report submitted.':'is blocked.'),findsOneWidget);expect(t.takeException(),isNull);await t.pumpWidget(const SizedBox());
   },()=>MockClient((r)async{if(r.url.path.endsWith('/oauth/token'))return reply({'access_token':'fixture','expires_in':3600});if(r.url.path.endsWith('/auth/me'))return reply({'user':{'public_id':'a','username':'a'}});writes++;expect(r.url.path,endsWith(action=='report'?'/reports':'/users/target/block'));return reply({});}));
  });}
  testWidgets('member profile permanently retires changed route target',(t)async{

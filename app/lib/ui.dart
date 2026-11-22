@@ -53,14 +53,20 @@ void showError(BuildContext context, Object e) {
     ..showSnackBar(SnackBar(content: Semantics(liveRegion: true, child: Text(t_(failureMessage(e))))));
 }
 
-/// Runs a photo or video pick. Cancelling returns null. A refused camera or photo permission, or a picker that fails,
-/// shows a plain message and returns null instead of throwing.
+/// Runs a pick only for its current route. Cancellation, disposal or a covered
+/// completion returns null. Permission failures are explained on the owner;
+/// other failures reach the caller only while that owner is still current.
 Future<T?> guardPick<T>(BuildContext context, Future<T?> Function() pick) async {
+  if (!context.mounted) return null;
+  final route = ModalRoute.of(context);
+  bool ownsRoute() => context.mounted && (route == null || route.isCurrent);
+  if (!ownsRoute()) return null;
   try {
-    return await pick();
+    final result = await pick();
+    return ownsRoute() ? result : null;
   } on PlatformException catch (e) {
     final c = e.code.toLowerCase();
-    if (context.mounted) {
+    if (context.mounted && ownsRoute()) {
       showInfo(
         context,
         c.contains('camera_access') ? t_('Camera access is off. Turn it on in Settings to take photos or videos.')
@@ -69,6 +75,9 @@ Future<T?> guardPick<T>(BuildContext context, Future<T?> Function() pick) async 
       );
     }
     return null;
+  } catch (_) {
+    if (!ownsRoute()) return null;
+    rethrow;
   }
 }
 
@@ -87,14 +96,18 @@ class AppPrefs extends ChangeNotifier {
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
-    mode = switch (p.getString('theme')) {
+    final nextMode = switch (p.getString('theme')) {
       'dark' => ThemeMode.dark,
       'light' => ThemeMode.light,
       'system' => ThemeMode.system,
       _ => ThemeMode.dark,
     };
-    lang = p.getString('lang') ?? 'en';
-    seenOnboarding = p.getBool('onboarded') ?? false;
+    final nextLang = p.getString('lang') ?? 'en';
+    final nextOnboarding = p.getBool('onboarded') ?? false;
+    // Publish a complete snapshot only after every field was read successfully.
+    mode = nextMode;
+    lang = nextLang;
+    seenOnboarding = nextOnboarding;
     ready = true;
     notifyListeners();
   }
@@ -103,14 +116,16 @@ class AppPrefs extends ChangeNotifier {
     mode = m;
     notifyListeners();
     final p = await SharedPreferences.getInstance();
-    await p.setString('theme', m == ThemeMode.dark ? 'dark' : m == ThemeMode.light ? 'light' : 'system');
+    final saved = await p.setString('theme', m == ThemeMode.dark ? 'dark' : m == ThemeMode.light ? 'light' : 'system');
+    if (!saved) throw StateError('Theme preference was not saved');
   }
 
   Future<void> setLang(String l) async {
     lang = l;
     notifyListeners();
     final p = await SharedPreferences.getInstance();
-    await p.setString('lang', l);
+    final saved = await p.setString('lang', l);
+    if (!saved) throw StateError('Language preference was not saved');
   }
 
   Future<void> finishOnboarding() async {
@@ -124,6 +139,23 @@ class AppPrefs extends ChangeNotifier {
 final prefs = AppPrefs();
 
 const _ne = <String, String>{
+  'Post unavailable': 'पोस्ट उपलब्ध छैन',
+  'This post was removed or is no longer available to you.': 'यो पोस्ट हटाइएको छ वा अब तपाईंका लागि उपलब्ध छैन।',
+  'Post could not be loaded.': 'पोस्ट लोड गर्न सकिएन।',
+  'Glass changed for now, but could not be saved.': 'अहिलेका लागि ग्लास फेरिएको छ, तर सुरक्षित गर्न सकिएन।',
+  'Appearance changed for now, but could not be saved. Choose it again to retry.': 'अहिलेका लागि रूप फेरिएको छ, तर सुरक्षित गर्न सकिएन। फेरि प्रयास गर्न उही विकल्प छान्नुहोस्।',
+  'Language changed for now, but could not be saved. Choose it again to retry.': 'अहिलेका लागि भाषा फेरिएको छ, तर सुरक्षित गर्न सकिएन। फेरि प्रयास गर्न उही भाषा छान्नुहोस्।',
+  'Device preferences could not be loaded.': 'यन्त्रमा सुरक्षित सेटिङहरू खोल्न सकिएन।',
+  'Your saved settings were not reset. Try again. If this continues, close and reopen Sanjaal.': 'तपाईंका सुरक्षित सेटिङहरू मेटाइएका छैनन्। फेरि प्रयास गर्नुहोस्। समस्या रहिरहेमा सञ्जाल बन्द गरेर फेरि खोल्नुहोस्।',
+  'Transparency': 'पारदर्शिता',
+  'Ultra clear': 'धेरै पारदर्शी',
+  'Fully tinted': 'गाढा रङ',
+  'Reduce glass': 'पारदर्शिता घटाउनुहोस्',
+  'Solid surfaces instead of glass': 'पारदर्शीको सट्टा ठोस सतह',
+  'This screen is from an earlier sign-in. Go back to continue.': 'यो पर्दा अघिल्लो साइन-इनको हो। जारी राख्न पछाडि फर्कनुहोस्।',
+  "You're signed out. Go back to sign in.": 'तपाईं साइन आउट हुनुभएको छ। साइन इन गर्न पछाडि फर्कनुहोस्।',
+  'Back to account': 'खातामा फर्कनुहोस्',
+
   'Checking call status': 'कलको अवस्था जाँचिँदै छ',
   'Call status could not be checked. No action was repeated.': 'कलको अवस्था जाँच्न सकिएन। कुनै काम दोहोर्‍याइएको छैन।',
   'This call was answered.': 'यो कल स्वीकार गरियो।',
@@ -386,6 +418,20 @@ const _ne = <String, String>{
   'Device picker': 'फोनबाट छान्नुहोस्',
   'Close camera': 'क्यामेरा बन्द गर्नुहोस्',
   'Close': 'बन्द गर्नुहोस्',
+  'Close without confirming delivery?': 'डेलिभरी पुष्टि नगरी बन्द गर्ने?',
+  'Check the original chat before sharing this post again. This screen will not keep the retry.': 'यो पोस्ट फेरि साझा गर्नुअघि पहिले छानेको च्याट जाँच्नुहोस्। यो स्क्रिनले पुनः प्रयासको विवरण राख्ने छैन।',
+  'Keep checking': 'जाँच गरिरहनुहोस्',
+  'Sharing is still in progress.': 'साझा गर्ने काम भइरहेको छ।',
+  'Reply to story': 'स्टोरीको जवाफ दिनुहोस्',
+  'Story reply': 'स्टोरीको जवाफ',
+  'Send reply': 'जवाफ पठाउनुहोस्',
+  'Your message': 'तपाईंको सन्देश',
+  'Reply sent. Find it in your chat.': 'जवाफ पठाइयो। आफ्नो च्याटमा हेर्नुहोस्।',
+  'Only your message goes to this person. The story photo, video and caption are not copied.': 'यस व्यक्तिलाई तपाईंको सन्देश मात्र जान्छ। स्टोरीको फोटो, भिडियो र क्याप्सन प्रतिलिपि हुँदैन।',
+  'Story replies are not available on this server.': 'यस सर्भरमा स्टोरीको जवाफ उपलब्ध छैन।',
+  'Delivery is unconfirmed. Retry checks the same message, not a second copy. The story or its audience may no longer be available.': 'सन्देश पुगेको पुष्टि छैन। फेरि प्रयास गर्दा उही सन्देश जाँचिन्छ, अर्को प्रतिलिपि होइन। स्टोरी वा त्यसको दर्शक अनुमति अब उपलब्ध नहुन सक्छ।',
+  'Leave an unconfirmed reply?': 'पुष्टि नभएको जवाफ छोड्नुहुन्छ?',
+  'This message may already be in the chat. Leaving removes this retry copy. Check the chat before sending it again.': 'यो सन्देश च्याटमा पुगिसकेको हुन सक्छ। बाहिर जाँदा यो पुनः प्रयास प्रतिलिपि हट्छ। फेरि पठाउनुअघि च्याट जाँच्नुहोस्।',
   'Story viewers': 'स्टोरी हेर्नेहरू',
   'Delete story': 'स्टोरी मेटाउनुहोस्',
   'Choose photos with the device picker, or allow library access to see your Recents here.': 'फोनको फोटो छनोटबाट छान्नुहोस् वा यहाँ हालका तस्बिर हेर्न ग्यालरीको अनुमति दिनुहोस्।',
@@ -520,6 +566,7 @@ const _ne = <String, String>{
   'Photo saved. Text changes still need Save.': 'फोटो सुरक्षित भयो। लेखेका परिवर्तन सुरक्षित गर्न सेभ थिच्नुहोस्।',
   'Refresh profile': 'प्रोफाइल पुनः लोड गर्नुहोस्',
   'Profile could not be loaded.': 'प्रोफाइल लोड हुन सकेन।',
+  'Could not verify this chat. Refresh the profile and try again.': 'यो च्याट पुष्टि गर्न सकिएन। प्रोफाइल ताजा गरी फेरि प्रयास गर्नुहोस्।',
   'That member does not exist.': 'त्यो सदस्य भेटिएन।',
   'Name': 'नाम',
   'Username': 'प्रयोगकर्ता नाम',
@@ -590,6 +637,7 @@ const _ne = <String, String>{
   'File could not be read': 'फाइल पढ्न सकिएन',
   'Video preview unavailable. Your video is still selected.': 'भिडियोको पूर्वावलोकन उपलब्ध छैन। तपाईंको भिडियो चयन भएकै छ।',
   'That file is over 25 MB. Choose a smaller one.': 'यो फाइल २५ एमबीभन्दा ठूलो छ। सानो फाइल छान्नुहोस्।',
+  'Updating chat settings': 'च्याट सेटिङ अद्यावधिक हुँदैछ',
   'Could not refresh.': 'रिफ्रेस हुन सकेन।',
   'Nothing yet': 'अहिलेसम्म केही छैन',
   'Likes, comments and new followers show up here.': 'लाइक, टिप्पणी र नयाँ फलोअरहरू यहाँ देखिन्छन्।',
@@ -682,6 +730,11 @@ const _ne = <String, String>{
   'I already have an account': 'मेरो खाता छ',
   'Saved': 'सुरक्षित गरिएका',
   'You have not posted yet': 'तपाईंले अझै पोस्ट गर्नुभएको छैन',
+  'Nothing here yet': 'यहाँ अझै केही छैन',
+  'Follow people to fill this tab': 'यो ट्याबमा पोस्ट हेर्न मानिसहरूलाई फलो गर्नुहोस्',
+  'Nothing saved yet': 'अझै केही सुरक्षित गरिएको छैन',
+  'Open the menu on a post and choose Save. Only you can see this list.': 'पोस्टको मेनु खोलेर सुरक्षित गर्नुहोस् छान्नुहोस्। यो सूची तपाईंले मात्र देख्न सक्नुहुन्छ।',
+  'No posts with {tag} yet': '{tag} भएका पोस्ट अझै छैनन्',
   'No posts yet': 'अझै पोस्ट छैन',
   'Create a post': 'पोस्ट बनाउनुहोस्',
   'Posts from the people you follow will appear here.': 'तपाईंले फलो गरेका मान्छेका पोस्ट यहाँ देखिन्छन्।',
@@ -696,6 +749,26 @@ const _ne = <String, String>{
   'Me': 'म',
   'For you': 'तपाईंका लागि',
   'Following': 'फलोइङ',
+  'Explore': 'अन्वेषण',
+  // Local Discovery proposal. Nepali wording needs owner-language review.
+  'Discovery': 'अन्वेषण',
+  'Discovery settings': 'अन्वेषणको सेटिङ',
+  'Discovery is unavailable. Close this view and open Search again.': 'अन्वेषण उपलब्ध छैन। यो पृष्ठ बन्द गरेर खोजी फेरि खोल्नुहोस्।',
+  'Your choice is saved.': 'तपाईंको छनोट सुरक्षित भयो।',
+  'Allow this post in Explore': 'यो पोस्ट अन्वेषणमा देखाउन अनुमति दिनुहोस्',
+  'Your post can be recommended only after public visibility and review are confirmed. Turning this off removes it from new Explore results, not from your profile or existing public links.': 'सार्वजनिक रूपमा देखिने र समीक्षा पूरा भएको पुष्टि भएपछि मात्र तपाईंको पोस्ट सिफारिस हुन सक्छ। यो बन्द गर्दा पोस्ट अन्वेषणका नयाँ नतिजाबाट हट्छ, तपाईंको प्रोफाइल वा पहिलेका सार्वजनिक लिङ्कबाट होइन।',
+  'Public visibility confirmed': 'सार्वजनिक रूपमा देखिने पुष्टि भयो',
+  'Public visibility not confirmed': 'सार्वजनिक रूपमा देखिने पुष्टि भएको छैन',
+  'Review approved': 'समीक्षाबाट स्वीकृत',
+  'Not eligible for recommendations': 'सिफारिसका लागि योग्य छैन',
+  'Awaiting review': 'समीक्षाको प्रतीक्षामा',
+  'Discovery settings could not be loaded.': 'अन्वेषणको सेटिङ लोड गर्न सकिएन।',
+  'Reload these settings before making another change.': 'फेरि परिवर्तन गर्नुअघि यी सेटिङ पुनः लोड गर्नुहोस्।',
+  'Your settings are still updating.': 'तपाईंको सेटिङ अझै अद्यावधिक हुँदैछ।',
+  'Discard these changes?': 'यी परिवर्तन हटाउने?',
+  'Your unsaved Discovery choice will be lost.': 'सुरक्षित नगरिएको अन्वेषणको छनोट हराउनेछ।',
+  'Reload': 'पुनः लोड गर्नुहोस्',
+  'All': 'सबै',
   'Search': 'खोज्नुहोस्',
   'Push notifications are not set up for iOS yet. Reopening the app will not enable them. Use Activity while Sanjaal is open.': 'iOS मा पुश सूचनाहरू अझै सेटअप भएका छैनन्। एप फेरि खोल्दैमा ती चालु हुँदैनन्। सञ्जाल खुला हुँदा गतिविधि हेर्नुहोस्।',
   'Notifications': 'सूचना',
@@ -714,7 +787,17 @@ const _ne = <String, String>{
   'Message': 'सन्देश',
   'Edit profile': 'प्रोफाइल सम्पादन',
   'Posts': 'पोस्ट',
+  'Your profile': 'तपाईंको प्रोफाइल',
+  'Make your profile yours': 'आफ्नो प्रोफाइल तयार गर्नुहोस्',
+  'Add a name or photo so people can recognize you. This is optional.': 'अरूले तपाईंलाई चिन्न सकून् भनेर नाम वा फोटो थप्नुहोस्। यो ऐच्छिक हो।',
+  'Add a name or photo': 'नाम वा फोटो थप्नुहोस्',
+  'Continue to Sanjaal': 'सञ्जालमा जानुहोस्',
+  'You can change your profile later from Edit profile.': 'पछि प्रोफाइल सम्पादनबाट आफ्नो प्रोफाइल बदल्न सक्नुहुन्छ।',
   'Followers': 'फलोअर',
+  'This member list is unavailable.': 'यो सदस्य सूची उपलब्ध छैन।',
+  'Member list could not be loaded.': 'सदस्य सूची लोड हुन सकेन।',
+  'No followers to show': 'देखाउन कुनै फलोअर छैनन्',
+  'No followed members to show': 'फलो गरिएका सदस्यहरू छैनन्',
   'Language': 'भाषा',
   'Theme': 'थिम',
   'Dark': 'ब्ल्याक',
@@ -722,11 +805,13 @@ const _ne = <String, String>{
   'System': 'सिस्टम',
   'Report': 'रिपोर्ट',
   'Block': 'ब्लक',
+  'This member is blocked.': 'यो सदस्य ब्लक गरिएको छ।',
   'Welcome to Sanjaal': 'सञ्जालमा स्वागत छ',
   'Get started': 'सुरु गरौं',
   'Next': 'अर्को',
   'Skip': 'छोड्नुहोस्',
   'now': 'अहिले',
+  'Share with your community': 'आफ्नो समुदायसँग साझा गर्नुहोस्',
   'Your Nepali community': 'तपाईंको नेपाली समुदाय',
   'Blocked people': 'ब्लक गरिएका व्यक्तिहरू',
   'About, privacy and terms': 'हाम्रोबारे, गोपनीयता र सर्त',
@@ -747,7 +832,8 @@ const _ne = <String, String>{
   'Could not restore your sign-in. Try again.': 'तपाईंको साइन इन फेरि खोल्न सकिएन। फेरि प्रयास गर्नुहोस्।',
   'Your account has not been opened. Check your connection and try again.': 'तपाईंको खाता खोलिएको छैन। इन्टरनेट जाँचेर फेरि प्रयास गर्नुहोस्।',
   'Video preview unavailable': 'भिडियोको पूर्वावलोकन उपलब्ध छैन',
-  'Try again': 'फेरि प्रयास गर्नुहोस्',
+  'Stories could not be loaded.': 'स्टोरीहरू लोड हुन सकेनन्।',
+    'Try again': 'फेरि प्रयास गर्नुहोस्',
   'Refresh': 'रिफ्रेस',
   'Send': 'पठाउनुहोस्',
   'Send coins': 'सिक्का पठाउनुहोस्',
@@ -883,32 +969,17 @@ class Logo extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
-    return Semantics(label: 'Sanjaal', image: true, child: FittedBox(fit: BoxFit.scaleDown, child: ExcludeSemantics(child: Row(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(width: size * 0.62, height: size * 0.62, child: const CustomPaint(painter: _SanjaalMark())),
-      SizedBox(width: size * 0.14),
-      Text('Sanjaal', style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w800, letterSpacing: -0.8, color: Theme.of(context).colorScheme.onSurface)),
-    ]))));
-
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.22),
+        color: brandRed,
+      ),
+      child: Text('स', style: TextStyle(fontFamily: 'NotoDev', color: Colors.white, fontSize: size * 0.58, fontWeight: FontWeight.w700, height: 1.1)),
+    );
   }
-}
-
-class _SanjaalMark extends CustomPainter {
-  const _SanjaalMark();
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.save(); canvas.scale(size.width / 100, size.height / 100);
-    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(0, 0, 100, 100), const Radius.circular(25)), Paint()..color = brandRed);
-    canvas.drawPath(Path()..moveTo(42,69)..lineTo(66,38)..lineTo(91,69)..close(), Paint()..color = const Color(0xFFFFD6DA));
-    canvas.drawPath(Path()..moveTo(12,69)..lineTo(43,23)..lineTo(75,69)..close(), Paint()..color = Colors.white);
-    canvas.drawPath(Path()..moveTo(33,38)..lineTo(43,23)..lineTo(53,38)..lineTo(47,36)..lineTo(43,42)..lineTo(39,36)..close(), Paint()..color = const Color(0xFFFFD6DA));
-    canvas.drawPath(Path()..moveTo(28,81)..lineTo(50,78)..lineTo(72,81), Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2.4);
-    for (final point in [const Offset(28,81), const Offset(72,81)]) { canvas.drawCircle(point, 4, Paint()..color = Colors.white); }
-    canvas.drawCircle(const Offset(50,78), 6, Paint()..color = Colors.white);
-    canvas.drawCircle(const Offset(50,78), 4.5, Paint()..color = brandBlue);
-    canvas.restore();
-  }
-  @override
-  bool shouldRepaint(covariant _SanjaalMark oldDelegate) => false;
 }
 
 /// Opens a picture full screen with pinch zoom.
@@ -925,9 +996,9 @@ class RefreshReadNotice extends StatelessWidget {
   final VoidCallback? onRetry;
   @override
   Widget build(BuildContext context)=>Material(color:Theme.of(context).colorScheme.surfaceContainerHigh,child:Padding(
-    padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:Row(children:[
-      Expanded(child:Text(t_('Could not refresh.'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface))),
-      TextButton(onPressed:onRetry,child:Text(t_('Try again'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface))),
-    ]),
+    padding:const EdgeInsets.symmetric(horizontal:16,vertical:8),child:SizedBox(width:double.infinity,child:Wrap(spacing:12,runSpacing:4,alignment:WrapAlignment.spaceBetween,crossAxisAlignment:WrapCrossAlignment.center,children:[
+      Text(t_('Could not refresh.'),style:TextStyle(color:Theme.of(context).colorScheme.onSurface)),
+      TextButton(onPressed:onRetry,child:Text(t_('Try again'),style:TextStyle(color:onRetry==null?Theme.of(context).disabledColor:Theme.of(context).colorScheme.onSurface))),
+    ])),
   ));
 }

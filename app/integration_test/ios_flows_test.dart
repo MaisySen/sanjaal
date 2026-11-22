@@ -1,3 +1,5 @@
+import 'native_transport.dart';
+// Harness adaptation for frozen ca9a9ff: compact tabs retain tooltips/semantics.
 // Real iOS simulator and plugins against a disposable local API only.
 // Does not prove Auth0, APNs, phone camera/mic, store signing or physical iPhone behavior.
 import 'dart:io';
@@ -8,11 +10,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sanjaal/video_poster.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/semantics.dart';
+import 'package:sanjaal/glass_nav.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sanjaal/main.dart' as app;
 import 'package:sanjaal/api.dart';
+import 'package:sanjaal/upload_center.dart';
+import 'package:sanjaal/feed_page.dart';
 import 'package:sanjaal/refresh_store.dart';
 import 'package:sanjaal/creator_draft_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,11 +67,13 @@ void main(){
   });
  }
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
+  await withNativeTransport((transport) async {
   addTearDown(() async {try {await capture('ios_test_teardown');}catch(_) {}});
   await stage('start');
   expect(Platform.isIOS,isTrue);
   final p=await SharedPreferences.getInstance();await p.clear();
   await RefreshStore.clear();
+  await p.setString('theme','light');
   await p.setString('refresh_token','local-e2e');
   expect(await RefreshStore.read(),'local-e2e');expect(p.getString('refresh_token'),isNull);
   const drafts=CreatorDraftStore();
@@ -108,7 +114,7 @@ void main(){
   await capture('ios_home');
   await stage('five tabs');
   for(final tab in ['Reels','Chats','Wallet','Me','Home']) {
-   await t.tap(find.text(tab).last);
+   await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip(tab)).hitTestable());
    await until(t,()=>find.byType(CircularProgressIndicator).evaluate().isEmpty);
    expect(find.text('Could not load this page.'),findsNothing);
    // A predicate can observe rebuilt widgets before the native frame/route
@@ -132,6 +138,30 @@ void main(){
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   await until(t,()=>find.text(caption).evaluate().isNotEmpty&&find.text('Your post is up.').evaluate().isNotEmpty);
   await capture('ios_post_confirmed');
+  final rootSession=t.widget<app.HomeShell>(find.byType(app.HomeShell)).session;
+  final rootUploads=UploadCenter.of(rootSession);
+  final feed=find.byType(FeedPage);
+  expect(MediaQuery.paddingOf(t.element(feed)).top,0);
+  final feedState=t.state(find.byType(FeedList).first);
+  expect(await t.runAsync(()=>transport.proveOffline(rootSession)),isTrue,
+      reason:'Actual native Session must receive a transport error and increment the socket gate rejection count');
+  await t.pumpAndSettle();
+  expect(find.text('Your post is up.'),findsOneWidget);
+  expect(find.text('No connection. Some things may be out of date.'),findsOneWidget);
+  expect(MediaQuery.paddingOf(t.element(feed)).top,0);
+  await capture('ios_both_status_strips');
+  expect(rootUploads.result,isNotNull,reason:'Both-strip capture must precede real acknowledgement expiry');
+  expect(rootSession.offline,isTrue,reason:'Native capture must not silently clear offline');
+  rootUploads.finishAcknowledgement();await t.pump(const Duration(milliseconds:600));
+  expect(MediaQuery.paddingOf(t.element(feed)).top,0);
+  await capture('ios_offline_status_strip');
+  expect(await t.runAsync(()=>transport.proveOnline(rootSession)),isTrue,
+      reason:'Same native Session must reconnect through the socket gate');
+  await t.pumpAndSettle();
+  expect(MediaQuery.paddingOf(t.element(feed)).top,greaterThan(0));
+  expect(identical(feedState,t.state(find.byType(FeedList).first)),isTrue);
+  await capture('ios_status_strips_retired');
+
   await stage('manual lost-reply journey');
   const base=String.fromEnvironment('E2E_TOKEN_BASE');
   const token=String.fromEnvironment('E2E_TOKEN');
@@ -155,7 +185,11 @@ void main(){
   await t.tap(find.widgetWithText(FilledButton,'Post'));
   await until(t,()=>find.text('Try again').evaluate().isNotEmpty);
   expect(find.text('Your post is up.'),findsNothing);
-  expect(find.textContaining('Service temporarily unavailable'),findsOneWidget);
+  final uploadCenter=UploadCenter.of(t.widget<app.HomeShell>(find.byType(app.HomeShell)).session);
+  expect(uploadCenter.error,isA<ApiError>());
+  expect((uploadCenter.error as ApiError).status,503);
+  expect(find.text('Could not confirm the result. Check before trying again.'),findsOneWidget);
+  expect(find.textContaining('Service temporarily unavailable'),findsNothing);
   await t.pump(const Duration(milliseconds:600));await capture('ios_upload_reply_lost_retry_offered');
   expect(await copies(retryMarker),1,reason:'server committed before its response was lost');
   final faults=await t.runAsync(()=>http.get(Uri.parse('$base/e2e/fault-count'),headers:headers).timeout(const Duration(seconds:20)));
@@ -167,7 +201,7 @@ void main(){
   expect(find.text('Try again'),findsNothing);
   await stage('manual retry exactly one post before and after');
   await stage('chat navigation');
-  await t.tap(find.text('Chats').last);
+  await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Chats')).hitTestable());
   await until(t,()=>find.byTooltip('New chat').evaluate().isNotEmpty);
   await t.tap(find.byTooltip('New chat'));
   await until(t,()=>find.byType(TextField).evaluate().isNotEmpty);
@@ -212,7 +246,7 @@ void main(){
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_rooms_loaded');
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
-  await t.tap(find.text('Me').last);
+  await t.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Me')).hitTestable());
   await until(t,()=>find.byTooltip('Settings').evaluate().isNotEmpty);
   await stage('settings navigation');
   await t.tap(find.byTooltip('Settings'));
@@ -225,6 +259,8 @@ void main(){
   await stage('semantics end handles=${binding.debugOutstandingSemanticsHandles} platform=${ui.PlatformDispatcher.instance.semanticsEnabled}');
   await stage('complete');
   await t.pumpWidget(const SizedBox());
+  // ignore: avoid_print
   print('iOS simulator local keychain/draft/restore/five-tab/post checks passed; no live service or physical iPhone proof.');
+  });
  });
 }

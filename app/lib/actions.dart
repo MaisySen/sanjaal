@@ -20,14 +20,14 @@ Future<void> reportFlow(BuildContext context, Session s, String type, String tar
     builder: (c) => SimpleDialog(
       title: Text(t_('Report')),
       children: [
-        for (final e in reasons.entries) SimpleDialogOption(onPressed: () => Navigator.pop(c, e.key), child: Text(e.value)),
+        for (final e in reasons.entries) SimpleDialogOption(onPressed: () => owner.complete(e.key), child: Text(e.value)),
       ],
     ),
   );
   if (r == null || !owner.active || !context.mounted) return;
   try {
     await s.call('POST', '/reports', body: {'type': type, 'target': target, 'reason': r});
-    if (context.mounted && owner.active) showInfo(context, 'Thanks. We review every report.');
+    if (context.mounted && owner.active) showInfo(context, 'Report submitted.');
   } catch (e) {
     if (context.mounted && owner.active) showError(context, e);
   }
@@ -35,7 +35,8 @@ Future<void> reportFlow(BuildContext context, Session s, String type, String tar
 }
 
 /// Confirms and blocks a member. Returns true when blocked.
-Future<bool> blockFlow(BuildContext context, Session s, String username, {bool Function()? isActive}) async {
+/// [onSubmitted] runs just before the request, never when confirmation is canceled.
+Future<bool> blockFlow(BuildContext context, Session s, String username, {bool Function()? isActive, VoidCallback? onSubmitted}) async {
   final owner=_ActionOwner(s,isActive);
   if(!owner.active){owner.dispose();return false;}
   try {
@@ -45,13 +46,14 @@ Future<bool> blockFlow(BuildContext context, Session s, String username, {bool F
       title: Text(tf_('Block @{u}?', {'u': username})),
       content: Text(t_('You will not see each other\'s posts and they cannot follow you.')),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t_('Cancel'))),
-        FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t_('Block'))),
+        TextButton(onPressed: () => owner.complete(false), child: Text(t_('Cancel'))),
+        FilledButton(onPressed: () => owner.complete(true), child: Text(t_('Block'))),
       ],
     ),
   );
   if (ok != true || !owner.active || !context.mounted) return false;
   try {
+    onSubmitted?.call();
     await s.call('POST', '/users/$username/block');
     if (context.mounted && owner.active) showInfo(context, '@$username is blocked.');
     return owner.active;
@@ -75,6 +77,14 @@ class _ActionOwner {
   final int generation;
   bool retired=false;
   Route<dynamic>? _dialog;
+  bool _dialogCompleted=false;
+  // A retained choice can finish only its own current dialog, once.
+  void complete<T>(T result) {
+    final route=_dialog;
+    if(_dialogCompleted || route==null || !route.isCurrent)return;
+    _dialogCompleted=true;
+    route.navigator?.pop<T>(result);
+  }
   bool get active=>!retired && member!=null && session.user?['public_id']==member &&
       session.generation==generation && (routeActive?.call()??true);
   void _changed() {

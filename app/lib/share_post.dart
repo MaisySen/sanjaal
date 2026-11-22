@@ -1,3 +1,4 @@
+import 'glass/glass_sheet.dart';
 import 'feed_page.dart' show feedImageProvider;
 import 'ph.dart';
 import 'dart:math';
@@ -8,10 +9,12 @@ import 'ui.dart';
 
 /// Pick a chat and send a post into it. Nothing is sent until a chat is tapped.
 Future<void> shareToChat(BuildContext context, Session session, String postId) async {
-  await showModalBottomSheet<void>(
+  await showReviewedGlassSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+    isDismissible: false,
+    enableDrag: false,
+    showDragHandle: false,
     builder: (_) => _ShareSheet(session: session, postId: postId),
   );
 }
@@ -28,7 +31,49 @@ class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareS
   @override
   Session get viewSession=>widget.session;
   @override
-  void sessionRetired(){chats=null;error=null;sending=null;loading=false;}
+  void sessionRetired(){
+    chats=null;error=null;sending=null;loading=false;_pendingChat=null;_clientId=null;sendError=null;
+    final dialog = _closeDialog;
+    if (dialog != null && dialog.mounted && ModalRoute.of(dialog)?.isCurrent == true) {
+      Navigator.of(dialog).pop(false);
+    }
+  }
+
+  BuildContext? _closeDialog;
+  Map<String, dynamic>? _pendingChat;
+  String? _clientId;
+  String? sendError;
+  bool _closing = false;
+  bool _allowClose = false;
+
+  Future<void> _close() async {
+    if (!mounted || _closing) return;
+    if (sending != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_('Sharing is still in progress.'))));
+      return;
+    }
+    if (_pendingChat != null) {
+      _closing = true;
+      final leave = await showDialog<bool>(context: context, builder: (c) { _closeDialog = c; return AlertDialog(
+        scrollable: true,
+        title: Text(t_('Close without confirming delivery?')),
+        content: Text(t_('Check the original chat before sharing this post again. This screen will not keep the retry.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(c).pop(false), child: Text(t_('Keep checking'))),
+          TextButton(onPressed: () => Navigator.of(c).pop(true), child: Text(t_('Close'))),
+        ],
+      ); });
+      _closeDialog = null;
+      _closing = false;
+      if (!mounted || !sessionActive || leave != true) return;
+    }
+    if (!mounted) return;
+    setState(() => _allowClose = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.of(context).pop();
+    }
+  }
 
   List<Map<String, dynamic>>? chats;
   String? error;
@@ -42,33 +87,69 @@ class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareS
   }
 
   Future<void> _load() async {
-    if (loading || !sessionActive) return;
+    if (!mounted || loading || !sessionActive || _pendingChat != null) return;
     setState(() { loading = true; error = null; });
     try {
       final j = await widget.session.call('GET', '/conversations') as Map<String, dynamic>;
-      if (mounted && sessionActive) setState(() => chats = (j['data'] as List).cast<Map<String, dynamic>>());
-    } on ApiError catch (e) {
-      if (mounted && sessionActive) setState(() => error = t_(e.message));
+      final rows = (j['data'] as List).map((v) => (v as Map).cast<String, dynamic>()).toList();
+      final ids = <String>{};
+      if (rows.any((c) => c['public_id'] is! String || (c['public_id'] as String).trim().isEmpty ||
+          c['title'] is! String || (c['title'] as String).trim().isEmpty || !ids.add(c['public_id'] as String))) {
+        throw const FormatException('Invalid share recipients');
+      }
+      if (mounted && sessionActive) setState(() => chats = rows);
+    } catch (e) {
+      if (mounted && sessionActive) setState(() => error = e is ApiError ? t_(e.message) : t_('Chats could not be loaded.'));
     } finally {
       if (mounted && sessionActive) setState(() => loading = false);
     }
   }
 
   Future<void> _send(Map<String, dynamic> c) async {
-    if (sending != null || !sessionActive) return;
-    setState(() => sending = c['public_id'].toString());
+    if (!mounted || !sessionActive || sending != null || loading || _closing || _allowClose ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        !(chats?.any((row) => identical(row, c)) ?? false) ||
+        (_pendingChat != null && _pendingChat!['public_id'] != c['public_id'])) {
+      return;
+    }
+    final recipient = c['public_id'] as String;
+    final owner = widget.session.user?['public_id'];
+    _clientId ??= 'share-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 20)}';
+    final client = _clientId!;
+    setState(() {
+      _pendingChat ??= Map.unmodifiable(c);
+      sending = recipient;
+      sendError = null;
+    });
     try {
-      await widget.session.call('POST', '/conversations/${c['public_id']}/messages', body: {
+      final result = await widget.session.call('POST', '/conversations/$recipient/messages', body: {
         'shared_post': widget.postId,
-        'client_id': 'share-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 20)}',
+        'client_id': client,
       });
       if (!mounted || !sessionActive) return;
+      final message = result is Map ? result['message'] : null;
+      final preview = message is Map ? message['shared_post'] : null;
+      if (message is! Map || message['public_id'] is! String || (message['public_id'] as String).trim().isEmpty ||
+          message['conversation_id'] != recipient || message['client_id'] != client || message['kind'] != 'post' ||
+          message['sender'] is! Map || (message['sender'] as Map)['public_id'] != owner ||
+          (preview != null && (preview is! Map || preview['public_id'] != widget.postId))) {
+        throw const FormatException('Unconfirmed share receipt');
+      }
+      final messenger = ScaffoldMessenger.of(context);
+      final title = _pendingChat!['title'] as String;
+      setState(() { sending = null; _pendingChat = null; _clientId = null; _allowClose = true; });
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !sessionActive || ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${t_('Sent to')} ${c['title'] ?? ''}')));
-    } on ApiError catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('${t_('Sent to')} $title')));
+    } catch (e) {
       if (!mounted || !sessionActive) return;
-      setState(() => sending = null);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t_(e.message))));
+      setState(() {
+        sending = null;
+        sendError = e is ApiError ? t_(e.message) : t_('Could not confirm the result. Check before trying again.');
+      });
     }
   }
 
@@ -76,11 +157,25 @@ class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareS
   Widget build(BuildContext context) {
     if(!sessionActive)return SafeArea(child:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This screen belongs to another signed-in session. Close it and sign in again to continue.'))));
     final list = chats;
-    return SafeArea(
+    return PopScope(
+      canPop: _allowClose || (_pendingChat == null && sending == null),
+      onPopInvokedWithResult: (didPop, _) { if (!didPop) _close(); },
+      child: SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.7),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 8), child: Align(alignment: Alignment.centerLeft, child: Text(t_('Share to chat'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)))),
+          Padding(padding: const EdgeInsets.fromLTRB(20, 0, 8, 8), child: Row(children: [
+            Expanded(child: Text(t_('Share to chat'), style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700))),
+            IconButton(tooltip: t_('Close'), onPressed: _close, icon: const PhIcon('x')),
+          ])),
+          if (sendError != null) Flexible(child: SingleChildScrollView(child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Column(children: [
+              Text(t_('Delivery unconfirmed. Tap to retry.'), textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(sendError!, textAlign: TextAlign.center),
+            ]),
+          ))),
           if (error != null) Flexible(child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(error!, textAlign: TextAlign.center),
             const SizedBox(height: 12),
@@ -93,14 +188,17 @@ class _ShareSheetState extends State<_ShareSheet> with SessionBoundState<_ShareS
               child: ListView(shrinkWrap: true, children: [
                 for (final c in list)
                   ListTile(
+                    enabled: sending == null && (_pendingChat == null || _pendingChat!['public_id'] == c['public_id']),
                     leading: CircleAvatar(child: Text(((c['title'] ?? '?').toString().isEmpty ? '?' : (c['title'] as String).characters.first.toUpperCase()))),
                     title: Text((c['title'] ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: sending == null && _pendingChat?['public_id'] == c['public_id'] ? Text(t_('Try again')) : null,
                     trailing: sending == c['public_id'] ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : null,
-                    onTap: sending == null ? () => _send(c) : null,
+                    onTap: sending == null && (_pendingChat == null || _pendingChat!['public_id'] == c['public_id']) ? () => _send(c) : null,
                   ),
               ]),
             ),
         ]),
+      ),
       ),
     );
   }

@@ -1,3 +1,7 @@
+import 'profile_setup_page.dart';
+import 'glass/glass_sheet.dart';
+import 'glass/glass_settings.dart';
+import 'discovery_entry.dart';
 import 'upload_center.dart';
 import 'glass_nav.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
@@ -5,6 +9,7 @@ import 'media_visibility.dart';
 import 'ph.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -30,30 +35,32 @@ void main() {
 
 ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamilyFallback = const ['NotoDev']}) {
   final light = b == Brightness.light;
-  // Near-black surface, white primary actions, quiet greys (reviewed direction, Nov 16 2026).
+  // PR1 identity; white light-mode surfaces follow owner-provided references.
   final scheme = ColorScheme(
     brightness: b,
-    primary: light ? const Color(0xFF0B0D11) : Colors.white,
-    onPrimary: light ? Colors.white : const Color(0xFF0B0D11),
-    primaryContainer: light ? const Color(0xFFE9EBEF) : const Color(0xFF232833),
-    onPrimaryContainer: light ? const Color(0xFF0B0D11) : Colors.white,
-    secondary: light ? const Color(0xFF3A4150) : const Color(0xFFC9CED8),
-    onSecondary: light ? Colors.white : const Color(0xFF0B0D11),
-    error: light ? const Color(0xFFC62840) : const Color(0xFFFF6B7C),
-    onError: light ? Colors.white : const Color(0xFF2A0006),
-    surface: light ? Colors.white : const Color(0xFF0B0D11),
-    onSurface: light ? const Color(0xFF0B0D11) : Colors.white,
-    surfaceContainerLowest: light ? Colors.white : const Color(0xFF090B0E),
-    surfaceContainerLow: light ? const Color(0xFFF6F7F9) : const Color(0xFF12151B),
-    surfaceContainer: light ? const Color(0xFFF0F2F5) : const Color(0xFF181C23),
-    surfaceContainerHigh: light ? const Color(0xFFE9EBEF) : const Color(0xFF1F242D),
-    surfaceContainerHighest: light ? const Color(0xFFE1E4E9) : const Color(0xFF272C36),
-    onSurfaceVariant: light ? const Color(0xFF4A505C) : const Color(0xFFA6A9AF),
-    outline: light ? const Color(0xFF6B7280) : const Color(0xFF8A8E96),
-    outlineVariant: light ? const Color(0xFFDDE0E5) : const Color(0xFF2A2F39),
+    primary: light ? const Color(0xFFB3122B) : const Color(0xFFFF7A87),
+    onPrimary: light ? Colors.white : const Color(0xFF3A0008),
+    primaryContainer: light ? const Color(0xFFF3E4DF) : const Color(0xFF3A2220),
+    onPrimaryContainer: light ? const Color(0xFF5B0A17) : const Color(0xFFFFD9DC),
+    secondary: light ? const Color(0xFF24405F) : const Color(0xFF9DB8DC),
+    onSecondary: light ? Colors.white : const Color(0xFF0B2038),
+    error: light ? const Color(0xFFB3261E) : const Color(0xFFFFB4AB),
+    onError: light ? Colors.white : const Color(0xFF601410),
+    surface: light ? const Color(0xFFFFFFFF) : const Color(0xFF141311),
+    onSurface: light ? const Color(0xFF161719) : const Color(0xFFECE8E1),
+    surfaceContainerLowest: light ? Colors.white : const Color(0xFF0F0E0C),
+    surfaceContainerLow: light ? const Color(0xFFF5F5F5) : const Color(0xFF1B1A17),
+    surfaceContainer: light ? const Color(0xFFF0F1F2) : const Color(0xFF211F1C),
+    surfaceContainerHigh: light ? const Color(0xFFEBEDEF) : const Color(0xFF292723),
+    surfaceContainerHighest: light ? const Color(0xFFE5E7EB) : const Color(0xFF312F2A),
+    onSurfaceVariant: light ? const Color(0xFF60646B) : const Color(0xFFA9A398),
+    outline: light ? const Color(0xFF7A7469) : const Color(0xFF8B857A),
+    outlineVariant: light ? const Color(0xFFDDDFE2) : const Color(0xFF3A372F),
   );
-  const r = BorderRadius.all(Radius.circular(14));
-  const shape = RoundedRectangleBorder(borderRadius: r);
+  const cardR = BorderRadius.all(Radius.circular(20));
+  const buttonR = BorderRadius.all(Radius.circular(8));
+  const inputR = BorderRadius.all(Radius.circular(12));
+  const shape = RoundedRectangleBorder(borderRadius: buttonR);
   final labelStyle = TextStyle(fontFamily: fontFamily, fontFamilyFallback: fontFamilyFallback, fontWeight: FontWeight.w600, fontSize: 14, letterSpacing: 0.1);
   final base = ThemeData(brightness: b, fontFamily: fontFamily, useMaterial3: true).textTheme.apply(fontFamilyFallback: fontFamilyFallback);
   final text = base.copyWith(
@@ -92,7 +99,7 @@ ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamily
       color: scheme.surfaceContainerLowest,
       surfaceTintColor: Colors.transparent,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: r, side: BorderSide(color: scheme.outlineVariant)),
+      shape: RoundedRectangleBorder(borderRadius: cardR, side: BorderSide(color: scheme.outlineVariant)),
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: 60,
@@ -125,9 +132,9 @@ ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamily
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainerLow,
-      border: OutlineInputBorder(borderRadius: r, borderSide: BorderSide(color: scheme.outlineVariant)),
-      enabledBorder: OutlineInputBorder(borderRadius: r, borderSide: BorderSide(color: scheme.outlineVariant)),
-      focusedBorder: OutlineInputBorder(borderRadius: r, borderSide: BorderSide(color: scheme.primary, width: 1.5)),
+      border: OutlineInputBorder(borderRadius: inputR, borderSide: BorderSide(color: scheme.outlineVariant)),
+      enabledBorder: OutlineInputBorder(borderRadius: inputR, borderSide: BorderSide(color: scheme.outlineVariant)),
+      focusedBorder: OutlineInputBorder(borderRadius: inputR, borderSide: BorderSide(color: scheme.primary, width: 1.5)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     ),
     chipTheme: ChipThemeData(shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(8))), side: BorderSide(color: scheme.outlineVariant), backgroundColor: Colors.transparent),
@@ -136,16 +143,18 @@ ThemeData buildTheme(Brightness b, {String? fontFamily, List<String>? fontFamily
       showDragHandle: true,
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     ),
-    dialogTheme: DialogThemeData(backgroundColor: scheme.surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+    dialogTheme: DialogThemeData(backgroundColor: scheme.surface, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, space: 1, thickness: 1),
     listTileTheme: const ListTileThemeData(contentPadding: EdgeInsets.symmetric(horizontal: 16)),
   );
 }
 
 class SanjaalApp extends StatefulWidget {
-  const SanjaalApp({super.key});
+  const SanjaalApp({super.key, this.fontFamily});
+  // Optional host-review font. Normal launches retain platform typography.
+  final String? fontFamily;
   @override
   State<SanjaalApp> createState() => _SanjaalAppState();
 }
@@ -153,12 +162,35 @@ class SanjaalApp extends StatefulWidget {
 class _SanjaalAppState extends State<SanjaalApp> {
   final session = Session();
   bool _createAccount = false;
+  bool _preferencesLoading = true;
+  bool _preferencesFailed = false;
+  bool _preferencesReading = false;
 
   @override
   void initState() {
     super.initState();
-    prefs.load();
+    _loadPreferences();
     session.restore();
+  }
+
+  Future<void> _loadPreferences() async {
+    if (_preferencesReading) return;
+    _preferencesReading = true;
+    final reload = _preferencesFailed;
+    if (!_preferencesLoading) {
+      setState(() { _preferencesLoading = true; _preferencesFailed = false; });
+    }
+    try {
+      // Wait for both reads before presenting any account. Neither failure
+      // clears storage or authorizes silently replacing a saved preference.
+      if (reload) await (await SharedPreferences.getInstance()).reload();
+      await Future.wait([prefs.load(), glassSettings.load()]);
+      if (mounted) setState(() { _preferencesLoading = false; _preferencesFailed = false; });
+    } catch (_) {
+      if (mounted) setState(() { _preferencesLoading = false; _preferencesFailed = true; });
+    } finally {
+      _preferencesReading = false;
+    }
   }
 
   @override
@@ -169,15 +201,26 @@ class _SanjaalAppState extends State<SanjaalApp> {
         title: 'Sanjaal',
         navigatorObservers: [mediaRoutes],
         debugShowCheckedModeBanner: false,
-        theme: buildTheme(Brightness.light),
-        darkTheme: buildTheme(Brightness.dark),
+        theme: buildTheme(Brightness.light, fontFamily: widget.fontFamily),
+        darkTheme: buildTheme(Brightness.dark, fontFamily: widget.fontFamily),
         themeMode: prefs.mode,
         home: KeyedSubtree(
-          key: ValueKey(prefs.lang),
+          // Locale changes must not discard a signed-out member's form.
+          // Signed-in routes retain their existing full locale rebuild.
+          key: ValueKey(session.user == null ? 'signed-out' : prefs.lang),
           child: ListenableBuilder(
             listenable: session,
             builder: (context, _) {
-              if (session.loading || !prefs.ready) {
+              if (_preferencesFailed) {
+                return Scaffold(body: SafeArea(child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal:24, vertical:56),
+                  child: EmptyState(icon:Ph.error_outline,
+                    title:t_('Device preferences could not be loaded.'),
+                    hint:t_('Your saved settings were not reset. Try again. If this continues, close and reopen Sanjaal.'),
+                    action:OutlinedButton(onPressed:_preferencesLoading ? null : _loadPreferences, child:Text(t_('Try again')))),
+                )));
+              }
+              if (_preferencesLoading || session.loading || !prefs.ready || session.recoveringAccount || (session.authenticating && session.user!=null)) {
                 return const Scaffold(body: Center(child: Logo(size: 96)));
               }
               if (session.restoreError != null) {
@@ -191,7 +234,13 @@ class _SanjaalAppState extends State<SanjaalApp> {
                         prefs.finishOnboarding();
                       });
               }
-              return HomeShell(session: session);
+              if (session.profileSetupPending) {
+                return ProfileSetupPage(
+                  key: ValueKey('profile-setup-${session.accountViewGeneration}'),
+                  session: session,
+                );
+              }
+              return HomeShell(key: ValueKey(session.accountViewGeneration), session: session);
             },
           ),
         ),
@@ -214,7 +263,8 @@ class RestoreSessionPage extends StatelessWidget {
         title: t_('Could not restore your sign-in. Try again.'),
         hint: t_('Your account has not been opened. Check your connection and try again.'),
         action: OutlinedButton.icon(
-          onPressed: session.loading ? null : session.restore,
+          style: OutlinedButton.styleFrom(padding:const EdgeInsets.symmetric(horizontal:16,vertical:12)),
+          onPressed: session.loading || session.recoveringAccount ? null : session.accountViewNeedsRefresh ? session.recoverAccountView : session.restore,
           icon: const PhIcon('arrow-clockwise'),
           label: Text(t_('Try again')),
         ),
@@ -331,7 +381,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Future<void> _compose() async {
-    final what = await showModalBottomSheet<String>(context: context, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet());
+    final what = await showReviewedGlassSheet<String>(context: context, showDragHandle: true, isScrollControlled: true, builder: (_) => const CreateSheet());
     if (what == null || !mounted) return;
     await _create(what);
   }
@@ -364,14 +414,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final s = widget.session;
     final pages = [
       FeedPage(session: s, onCompose: _compose, forYouKey: feedKey, storyRevision: _storyRevision),
-      ReelsPage(session: s, active: tab == 1 && _foreground, contentRevision: _reelRevision, onCreate: () => _create('reel'), bottomInset: 88 + MediaQuery.viewPaddingOf(context).bottom),
+      ReelsPage(session: s, active: tab == 1 && _foreground, contentRevision: _reelRevision, onCreate: () => _create('reel'), bottomInset: GlassNavBar.contentInset(context)),
       ChatsPage(session: s, active: tab == 2 && _foreground),
       WalletPage(session: s),
       MePage(session: s, onCompose: _compose, contentRevision: _contentRevision),
     ];
     return Scaffold(
-      body: Column(children: [
-        UploadStrip(center: UploadCenter.of(s)),
+      body: ListenableBuilder(
+        listenable: Listenable.merge([s, UploadCenter.of(s)]),
+        builder: (context, child) {
+          final uploads = UploadCenter.of(s);
+          final headerVisible = s.offline || uploads.busy || uploads.restoring || uploads.error != null || uploads.result != null;
+          // A visible status strip owns the top inset for the whole stack.
+          // Without a strip, destinations retain their existing inset policy,
+          // including full-bleed Reels. Keep one subtree across transitions.
+          return SafeArea(top: headerVisible, bottom: false, left: false, right: false, child: child!);
+        },
+        child: Column(children: [
+        UploadStrip(center: UploadCenter.of(s), destination: tab),
         ListenableBuilder(
           listenable: s,
           builder: (context, _) => s.offline ? _OfflineBanner(onRetry: _refreshUnread) : const SizedBox.shrink(),
@@ -386,10 +446,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           for (var i = 0; i < pages.length; i++)
             _visited.contains(i) ? TickerMode(enabled: i == tab && _foreground, child: pages[i]) : const SizedBox.shrink(),
         ]))),
-      ]),
+      ])),
       extendBody: true,
       bottomNavigationBar: GlassNavBar(
+        immersive: tab == 1,
         index: tab,
+        onSearch: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => discoveryEntry(s))),
         compact: _navCompact,
         onTouch: _touchNav,
         onSelected: _showTab,

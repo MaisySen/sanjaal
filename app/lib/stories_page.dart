@@ -1,3 +1,5 @@
+import 'story_reply_page.dart';
+import 'glass/glass_sheet.dart';
 import 'memory_video_preview.dart';
 import 'session_bound_state.dart';
 import 'media_library_page.dart';
@@ -30,11 +32,13 @@ class StoriesBar extends StatefulWidget {
 
 class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMixin, SessionBoundState<StoriesBar> {
   @override Session get viewSession=>widget.session;
-  @override void sessionRetired(){++_loadVersion;groups=[];loaded=false;}
+  @override void sessionRetired(){++_loadVersion;groups=[];loaded=false;loadFailed=false;loading=false;}
   @override
   bool get wantKeepAlive => true;
   List<Map<String, dynamic>> groups = [];
   bool loaded = false;
+  bool loadFailed = false;
+  bool loading = false;
   int _loadVersion = 0;
   late final uploads = UploadCenter.of(widget.session);
   int _uploadRevision = -1;
@@ -72,6 +76,7 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
   Future<void> _load() async {
     if(!sessionActive)return;
     final version = ++_loadVersion;
+    setState(() { loading = true; loadFailed = false; });
     try {
       final bundled = version == 1 ? await widget.session.takeHome('stories') : null;
       if(!mounted || !sessionActive || version!=_loadVersion)return;
@@ -81,10 +86,13 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
           groups = (j['data'] as List).cast<Map<String, dynamic>>();
           _mergeLocal();
           loaded = true;
+          loading = false;
         });
       }
     } catch (_) {
-      if (mounted && sessionActive && version == _loadVersion) setState(() => loaded = true);
+      if (mounted && sessionActive && version == _loadVersion) {
+        setState(() { loaded = true; loading = false; loadFailed = true; });
+      }
     }
   }
 
@@ -104,19 +112,21 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
     Widget ring(Map<String, dynamic>? user, String label, VoidCallback onTap, {bool seen = false, bool plus = false}) => InkWell(
           onTap: onTap,
           child: SizedBox(
-            width: 84,
+            width: MediaQuery.textScalerOf(context).scale(12) > 18 ? 84 : 76,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Stack(alignment: Alignment.bottomRight, children: [
                 Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: seen ? scheme.outlineVariant : scheme.primary, width: 2.5)),
-                  child: Avatar(user: user, radius: 32),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: seen ? scheme.surface : null,
+                    gradient: seen ? null : const LinearGradient(colors: [Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFF515BD4)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    border: seen ? Border.all(color: scheme.outlineVariant, width: 1) : null),
+                  child: Container(padding: const EdgeInsets.all(2), decoration: BoxDecoration(shape: BoxShape.circle, color: scheme.surface), child: Avatar(user: user, radius: 30)),
                 ),
                 if (plus)
                   CircleAvatar(radius: 10, backgroundColor: scheme.primary, child: PhIcon('plus', size: 14, color: scheme.onPrimary)),
               ]),
               const SizedBox(height: 4),
-              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+              Text(label, textAlign: TextAlign.center, maxLines: MediaQuery.textScalerOf(context).scale(12) > 18 ? 2 : 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, height: 1.25)),
             ]),
           ),
         );
@@ -128,8 +138,8 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
       for (final g in others) ring((g['author'] as Map).cast<String, dynamic>(), '${(g['author'] as Map)['username']}', () => _open(g), seen: g['all_viewed'] == true),
     ];
 
-    return SizedBox(
-      height: 90 + 24 * (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 2.0),
+    final stories = SizedBox(
+      height: 94 + MediaQuery.textScalerOf(context).scale(12) * (MediaQuery.textScalerOf(context).scale(12) > 18 ? 2.5 : 1.25),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -144,6 +154,21 @@ class _StoriesBarState extends State<StoriesBar> with AutomaticKeepAliveClientMi
         },
       ),
     );
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      stories,
+      if (loadFailed)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(t_('Stories could not be loaded.'),
+                style: Theme.of(context).textTheme.bodySmall),
+            Align(alignment: Alignment.centerRight,
+              child: TextButton(onPressed: loading ? null : _load,
+                  child: Text(t_('Try again'), textAlign: TextAlign.end))),
+          ]),
+        ),
+      if (loading) const LinearProgressIndicator(minHeight: 2),
+    ]);
   }
 
   Future<void> _open(Map<String, dynamic> group) async {
@@ -294,6 +319,15 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
     _start();
   }
 
+  Future<void> _reply() async {
+    if (!sessionActive || isMine || !widget.session.storyRepliesEnabled || mediaLoading || mediaError != null) return;
+    final version = _startVersion;
+    final item = items[index];
+    _pause(true);
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => StoryReplyPage(session: widget.session, storyId: item['public_id'] as String, authorName: '@${author['username']}')));
+    if (mounted && sessionActive && version == _startVersion) _pause(false);
+  }
+
   Future<void> _delete() async {
     if(!sessionActive)return;
     final version=_startVersion;
@@ -334,7 +368,7 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
       if(!mounted || !sessionActive || version!=_startVersion)return;
       final list = (j['data'] as List).cast<Map<String, dynamic>>();
       if (!mounted) return;
-      await showModalBottomSheet<void>(
+      await showReviewedGlassSheet<void>(
         context: context,
         builder: (ctx) { _overlay=ctx; return SafeArea(
           child: list.isEmpty
@@ -430,7 +464,13 @@ class _StoryViewerState extends State<StoryViewer> with MediaVisibility<StoryVie
               ]),
             ),
             if (caption.isNotEmpty)
-              Positioned(left: 16, right: 16, bottom: 28, child: Text(caption, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(blurRadius: 6)]))),
+              Positioned(left: 16, right: 16, bottom: !isMine && widget.session.storyRepliesEnabled ? 92 : 28, child: Text(caption, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [Shadow(blurRadius: 6)]))),
+            if (!isMine && widget.session.storyRepliesEnabled)
+              Positioned(left: 16, right: 16, bottom: 12, child: OutlinedButton(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.white, backgroundColor: Colors.black54, side: const BorderSide(color: Colors.white70), minimumSize: const Size(44, 48)),
+                onPressed: mediaLoading || mediaError != null ? null : _reply,
+                child: Text(t_('Reply to story')),
+              )),
           ]),
         ),
       ),
@@ -581,7 +621,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
 
   Future<void> chooseAudience() async {
     if(!_active || busy || _saving || audienceLocked)return;
-    final choice=await showModalBottomSheet<String>(context:context,isScrollControlled:true,builder:(c)=>SafeArea(child:SingleChildScrollView(child:Padding(padding:const EdgeInsets.all(16),child:Column(mainAxisSize:MainAxisSize.min,children:[
+    final choice=await showReviewedGlassSheet<String>(context:context,isScrollControlled:true,builder:(c)=>SafeArea(child:SingleChildScrollView(child:Padding(padding:const EdgeInsets.all(16),child:Column(mainAxisSize:MainAxisSize.min,children:[
       Text(t_('Who can see this story'),style:Theme.of(c).textTheme.titleMedium),
       for(final option in [('followers','Followers'),('close_friends','Close friends'),('only_me','Only me')])ListTile(title:Text(t_(option.$2)),trailing:PhIcon(audience==option.$1?'check-circle-fill':'circle',size:24),onTap:()=>Navigator.of(c).pop(option.$1)),
       Text(t_('Close friends can view it even if they do not follow you. Hide my stories and blocking take priority.')),
@@ -641,7 +681,7 @@ class _StoryComposePageState extends State<StoryComposePage> {
         } : null,
         newLabel: 'Prepare a new story',
       ),
-      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: !widget.session.protectedStoriesEnabled || busy || _saving || _saved?.attempted==true || handedOff || uploadError?.terminal == true ? null : share,
+      Padding(padding: const EdgeInsets.all(16), child: SizedBox(width: double.infinity, child: FilledButton.icon(style: FilledButton.styleFrom(backgroundColor: brandRed, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: !widget.session.protectedStoriesEnabled || busy || _saving || _saved?.attempted==true || handedOff || uploadError?.terminal == true ? null : share,
         icon: busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const PhIcon('paper-plane-tilt', size: 20),
         label: Text(t_(busy ? 'Sharing...' : error != null && uploadError?.terminal != true ? 'Try again' : 'Share story'))))),
     ])),

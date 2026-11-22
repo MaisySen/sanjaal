@@ -48,6 +48,12 @@ class ApiError implements Exception {
   String toString() => message;
 }
 
+/// Signup succeeded, but a separate explicit sign-in is still required.
+class AccountCreatedSignInRequired extends ApiError {
+  AccountCreatedSignInRequired()
+      : super('Your account was created. Sign in to continue.');
+}
+
 /// Only the identity provider's explicit rejection of this refresh grant can
 /// end a stored session during startup. HTTP status alone is not that proof.
 class _RejectedRefresh extends ApiError {
@@ -172,6 +178,37 @@ class Session extends ChangeNotifier {
   Future<void>? _refreshingAccess;
   int _sessionEpoch = 0;
   int get generation => _sessionEpoch;
+  // Root account UI may be recreated only after the replacement identity has
+  // loaded, never at login-start while the prior access token is still present.
+  int _accountViewGeneration = -1;
+  int get accountViewGeneration => _accountViewGeneration;
+  int? _authenticatingEpoch, _recoveringAccountEpoch;
+  bool get authenticating => _authenticatingEpoch == _sessionEpoch;
+  bool get recoveringAccount => _recoveringAccountEpoch == _sessionEpoch;
+  bool get accountViewNeedsRefresh => _access != null && _accountViewGeneration != _sessionEpoch;
+  void _finishAuthentication(int epoch) {
+    if(epoch!=_sessionEpoch)return;
+    _authenticatingEpoch=null;
+    if(accountViewNeedsRefresh)restoreError='Could not restore your sign-in. Try again.';
+    notifyListeners();
+  }
+
+  /// Re-read identity using the current grant. Never prompt for credentials,
+  /// restore a former grant, clear a valid session, or manufacture an identity.
+  Future<void> recoverAccountView() async {
+    if(authenticating || recoveringAccount || !accountViewNeedsRefresh)return;
+    final epoch=_sessionEpoch;
+    _recoveringAccountEpoch=epoch;
+    notifyListeners();
+    try{
+      await _loadMe();
+      _checkSession(epoch);
+      restoreError=null;
+    }catch(_){if(epoch==_sessionEpoch)restoreError='Could not restore your sign-in. Try again.';}
+    finally{
+      if(epoch==_sessionEpoch){_recoveringAccountEpoch=null;notifyListeners();}
+    }
+  }
   Future<void> _credentialWrites = Future<void>.value();
   void _checkSession(int epoch) {
     if (epoch != _sessionEpoch) throw ApiError('Please sign in again.', 401);
@@ -187,8 +224,11 @@ class Session extends ChangeNotifier {
   bool uploadIntentsEnabled = false;
   bool interactionControlsEnabled = false;
   bool protectedStoriesEnabled = false;
+  bool storyRepliesEnabled = false;
   bool groupMemberRefsEnabled = false;
   bool videoPostersEnabled = false;
+  bool discoveryEnabled = false;
+  bool followListsEnabled = false;
   bool loading = true;
   /// Credentials belong to this API, never to a URL's claimed purpose.
   bool supportsPrivateMedia(String url) {
@@ -196,7 +236,7 @@ class Session extends ChangeNotifier {
     return uri != null && ['http','https'].contains(uri.scheme) && uri.hasAuthority && uri.userInfo.isEmpty && uri.origin == Uri.parse(apiBase).origin;
   }
   Map<String, String> mediaHeadersFor(String url) => {
-    if (supportsPrivateMedia(url) && _access != null) 'Authorization': 'Bearer $_access',
+    if (!accountViewNeedsRefresh && supportsPrivateMedia(url) && _access != null) 'Authorization': 'Bearer $_access',
   };
 
   /// Downloads private chat audio without following a redirect or returning an
@@ -360,7 +400,10 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> login(String id, String password) async {
-    _sessionEpoch++;
+    final epoch=++_sessionEpoch;
+    _authenticatingEpoch=epoch;
+    restoreError=null;
+    try{
     // Retire account-bound views/capture before waiting for replacement auth.
     notifyListeners();
     _home = null;
@@ -375,12 +418,16 @@ class Session extends ChangeNotifier {
     });
     await _loadMe();
     notifyListeners();
+    }finally{_finishAuthentication(epoch);}
   }
 
   /// Social sign in through Auth0 with PKCE. [connection] is an Auth0 connection name,
   /// for example google-oauth2 or facebook. Uses Auth0 development keys until we have our own.
   Future<void> loginSocial(String connection) async {
     final epoch = ++_sessionEpoch;
+    _authenticatingEpoch=epoch;
+    restoreError=null;
+    try{
     notifyListeners();
     _refreshingAccess = null;
     final rnd = Random.secure();
@@ -413,6 +460,25 @@ class Session extends ChangeNotifier {
       'redirect_uri': socialRedirect,
     });
     await _loadMe();
+    notifyListeners();
+    }finally{_finishAuthentication(epoch);}
+  }
+
+  String? _profileSetupOwner;
+  int? _profileSetupGeneration;
+  bool get profileSetupPending =>
+      _profileSetupOwner != null &&
+      user?['public_id'] == _profileSetupOwner &&
+      generation == _profileSetupGeneration &&
+      !accountViewNeedsRefresh;
+  void finishProfileSetup({required String owner, required int openedGeneration}) {
+    if (!profileSetupPending ||
+        owner != _profileSetupOwner ||
+        openedGeneration != _profileSetupGeneration) {
+      return;
+    }
+    _profileSetupOwner = null;
+    _profileSetupGeneration = null;
     notifyListeners();
   }
 
@@ -452,9 +518,16 @@ class Session extends ChangeNotifier {
             : 'Could not create your account. Try again.', r.statusCode);
     }
     try {
-      await login(email, password);
+      final signingIn = login(email, password);
+      final loginEpoch = _sessionEpoch;
+      await signingIn;
+      _checkSession(loginEpoch);
+      if (attempt != _registrationAttempt) throw ApiError('Please sign in again.', 401);
+      _profileSetupOwner = user?['public_id'] as String?;
+      _profileSetupGeneration = loginEpoch;
+      notifyListeners();
     } catch (_) {
-      throw ApiError('Your account was created. Sign in to continue.');
+      throw AccountCreatedSignInRequired();
     }
   }
 
@@ -508,13 +581,26 @@ class Session extends ChangeNotifier {
     final epoch = _sessionEpoch;
     final j = await call('GET', '/auth/me') as Map<String, dynamic>;
     _checkSession(epoch);
-    user = (j['user'] ?? j) as Map<String, dynamic>;
+    final identity=j['user'] ?? j;
+    final features = j['features'];
+    // Validate the optional container before committing either identity or its
+    // generation. A failed read must keep the account-view recovery gate closed
+    // instead of inheriting capabilities from the preceding account.
+    if(identity is! Map<String,dynamic> || identity['public_id'] is! String || (identity['public_id'] as String).trim().isEmpty ||
+        (features != null && features is! Map<String, dynamic>)){
+      throw ApiError('Could not restore your sign-in. Try again.');
+    }
+    user = identity;
+    _accountViewGeneration = epoch;
     pollsEnabled = (j['features'] as Map?)?['polls'] == true;
     uploadIntentsEnabled = (j['features'] as Map?)?['upload_intents'] == true;
     interactionControlsEnabled = (j['features'] as Map?)?['interaction_controls'] == true;
     protectedStoriesEnabled = (j['features'] as Map?)?['protected_stories'] == true;
+    storyRepliesEnabled = (j['features'] as Map?)?['story_replies'] == true;
     groupMemberRefsEnabled = (j['features'] as Map?)?['group_member_refs'] == true;
     videoPostersEnabled = (j['features'] as Map?)?['video_posters'] == true;
+    discoveryEnabled = (j['features'] as Map?)?['discovery_v1'] == true;
+    followListsEnabled = (j['features'] as Map?)?['follow_lists'] == true;
     unawaited(Push.register(this));
   }
 
@@ -523,7 +609,7 @@ class Session extends ChangeNotifier {
   /// redirects or updates local identity. Local FCM invalidation still runs if
   /// this old access token is expired or removal fails offline.
   Future<void> Function(String) capturePushRemoval() {
-    final access = _access;
+    final access = accountViewNeedsRefresh ? null : _access;
     final owner = user?['public_id'];
     return (String token) async {
       if (owner == null || access == null) throw ApiError('Please sign in again.', 401);
@@ -550,6 +636,9 @@ class Session extends ChangeNotifier {
 
   Future<void> _clear() async {
     _sessionEpoch++;
+    restoreError=null;
+    _authenticatingEpoch=null;
+    _recoveringAccountEpoch=null;
     _home = null;
     _homeData = null;
     _refreshingAccess = null;
@@ -557,16 +646,24 @@ class Session extends ChangeNotifier {
     _access = null;
     _refresh = null;
     user = null;
+    _profileSetupOwner = null;
+    _profileSetupGeneration = null;
     pollsEnabled = false;
     uploadIntentsEnabled = false;
     interactionControlsEnabled = false;
     protectedStoriesEnabled = false;
+    storyRepliesEnabled = false;
     groupMemberRefsEnabled = false;
     videoPostersEnabled = false;
+    discoveryEnabled = false;
+    followListsEnabled = false;
     await _writeCredentials(RefreshStore.clear);
   }
 
-  Future<String> _token() async {
+  Future<String> _token({bool identityRead=false}) async {
+    if(!identityRead && accountViewNeedsRefresh){
+      throw ApiError('Could not restore your sign-in. Try again.');
+    }
     if (_access != null && DateTime.now().isBefore(_expires.subtract(const Duration(seconds: 60)))) {
       return _access!;
     }
@@ -640,7 +737,7 @@ class Session extends ChangeNotifier {
     final epoch = _sessionEpoch;
     final uri = Uri.parse('$apiBase$path').replace(queryParameters: query);
     for (var attempt = 0; attempt < 2; attempt++) {
-      final token = await _token();
+      final token = await _token(identityRead: method=='GET' && path=='/auth/me');
       _checkSession(epoch);
       final headers = {
         'Authorization': 'Bearer $token',
@@ -748,10 +845,43 @@ class Session extends ChangeNotifier {
     return path == '/stories' ? _uploadResult(r, 'story', replaySafe) : jsonDecode(r.body) as Map<String, dynamic>;
   }
 
+  void _checkProfileOwner(int epoch, Object? owner) {
+    _checkSession(epoch);
+    if (owner is! String || owner.trim().isEmpty || owner != user?['public_id'] ||
+        authenticating || accountViewNeedsRefresh) {
+      throw ApiError('Please sign in again.', 401);
+    }
+  }
+
+  void _commitProfileResponse(Object? value, int epoch, Object? owner) {
+    _checkProfileOwner(epoch, owner);
+    final response = value is Map ? value['user'] : null;
+    final invalid = ApiError(apiFailureMessage(200, const [], mutating: true));
+    if (response is! Map || response.isEmpty || response.keys.any((key) => key is! String)) throw invalid;
+    if (response.containsKey('public_id') && response['public_id'] != owner) throw invalid;
+    for (final key in ['name', 'username']) {
+      if (response.containsKey(key) && response[key] is! String) throw invalid;
+    }
+    for (final key in ['bio', 'avatar_url']) {
+      if (response[key] != null && response[key] is! String) throw invalid;
+    }
+    // These are Present.user's fields. Keep existing partial-response behavior
+    // without letting unknown response keys replace unrelated session metadata.
+    final fields = <String, dynamic>{
+      for (final key in ['public_id', 'name', 'username', 'bio', 'avatar_url'])
+        if (response.containsKey(key)) key: response[key],
+    };
+    if (fields.isEmpty) throw invalid;
+    user = {...?user, ...fields};
+    notifyListeners();
+  }
+
   Future<void> uploadAvatar(UploadFile f) async {
     final epoch = _sessionEpoch;
+    final owner = user?['public_id'];
+    _checkProfileOwner(epoch, owner);
     final token = await _token();
-    _checkSession(epoch);
+    _checkProfileOwner(epoch, owner);
     final req = http.MultipartRequest('POST', Uri.parse('$apiBase/auth/me/avatar'))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
@@ -762,16 +892,25 @@ class Session extends ChangeNotifier {
     } catch (_) {
       throw ApiError('Upload failed. Check your connection and try again.');
     }
-    _checkSession(epoch);
+    _checkProfileOwner(epoch, owner);
     if (r.statusCode != 200) throw ApiError(_errorText(r, mutating: true), r.statusCode);
-    user = {...?user, ...((jsonDecode(r.body) as Map)['user'] as Map).cast<String, dynamic>()};
-    notifyListeners();
+    final Object? value;
+    try { value = jsonDecode(r.body); }
+    catch (_) { throw ApiError(apiFailureMessage(200, const [], mutating: true)); }
+    _commitProfileResponse(value, epoch, owner);
   }
 
   Future<void> updateProfile(Map<String, dynamic> fields) async {
-    final j = await call('PATCH', '/auth/me', body: fields) as Map<String, dynamic>;
-    user = {...?user, ...(j['user'] as Map).cast<String, dynamic>()};
-    notifyListeners();
+    final epoch = _sessionEpoch;
+    final owner = user?['public_id'];
+    _checkProfileOwner(epoch, owner);
+    final Object? value;
+    try { value = await call('PATCH', '/auth/me', body: fields); }
+    on FormatException {
+      _checkProfileOwner(epoch, owner);
+      throw ApiError(apiFailureMessage(200, const [], mutating: true));
+    }
+    _commitProfileResponse(value, epoch, owner);
   }
 }
 

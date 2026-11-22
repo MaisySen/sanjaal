@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'session_bound_state.dart';
 import 'draft_exit_guard.dart';
 import 'ph.dart';
 import 'ui.dart';
@@ -13,12 +14,20 @@ class StoryAudiencePage extends StatefulWidget {
   State<StoryAudiencePage> createState() => _StoryAudiencePageState();
 }
 
-class _StoryAudiencePageState extends State<StoryAudiencePage> {
-  late final String? accountOwner;
-  bool get active=>accountOwner!=null && widget.session.user?['public_id']==accountOwner;
-  void accountChanged(){
-    if(!active && mounted) setState((){members=[];cursor=null; error=t_("Sign in again to view this account's settings.");});
+class _StoryAudiencePageState extends State<StoryAudiencePage>
+    with SessionBoundState<StoryAudiencePage> {
+  @override
+  Session get viewSession => widget.session;
+  bool get active => sessionActive;
+  @override
+  void sessionRetired() {
+    members = [];
+    cursor = null;
+    username.clear();
+    loading = false;
+    error = t_("Sign in again to view this account's settings.");
   }
+
   final username = TextEditingController();
   List<Map<String, dynamic>> members = [];
   String? cursor;
@@ -27,14 +36,11 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
   @override
   void initState() {
     super.initState();
-    accountOwner=widget.session.user?['public_id'] as String?;
-    widget.session.addListener(accountChanged);
     load();
   }
 
   @override
   void dispose() {
-    widget.session.removeListener(accountChanged);
     username.dispose();
     super.dispose();
   }
@@ -55,20 +61,33 @@ class _StoryAudiencePageState extends State<StoryAudiencePage> {
       final values = (result['data'] as List)
           .map((e) => (e as Map).cast<String, dynamic>())
           .toList();
-      final nextCursor=result['next_cursor'] as String?;
-      if(values.any((m)=>m['user'] is! Map || (m['user'] as Map)['username'] is! String || ((m['user'] as Map)['username'] as String).trim().isEmpty || m['close_friend'] is! bool || m['hide_story'] is! bool || m['revision'] is! int)) throw const FormatException('Invalid audience member');
-      if (!mounted || !active || owner != widget.session.user?['public_id']) return;
+      final nextCursor = result['next_cursor'] as String?;
+      if (values.any(
+        (m) =>
+            m['user'] is! Map ||
+            (m['user'] as Map)['username'] is! String ||
+            ((m['user'] as Map)['username'] as String).trim().isEmpty ||
+            m['close_friend'] is! bool ||
+            m['hide_story'] is! bool ||
+            m['revision'] is! int,
+      )) {
+        throw const FormatException('Invalid audience member');
+      }
+      if (!mounted || !active || owner != widget.session.user?['public_id']) {
+        return;
+      }
       setState(() {
         members = more ? [...members, ...values] : values;
         cursor = nextCursor;
       });
     } catch (e) {
-      if (mounted && active)
+      if (mounted && active) {
         setState(
           () => error = e is ApiError
               ? t_(e.message)
               : t_('Story audience could not be loaded.'),
         );
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -169,12 +188,24 @@ class _StoryPersonPage extends StatefulWidget {
   State<_StoryPersonPage> createState() => _StoryPersonPageState();
 }
 
-class _StoryPersonPageState extends State<_StoryPersonPage> {
-  late final String? accountOwner;
-  bool get active=>accountOwner!=null && widget.session.user?['public_id']==accountOwner;
-  void accountChanged(){
-    if(!active && mounted) setState((){current=null;saved=false;needsReload=true; error=t_("Sign in again to view this account's settings.");});
+class _StoryPersonPageState extends State<_StoryPersonPage>
+    with SessionBoundState<_StoryPersonPage> {
+  @override
+  Session get viewSession => widget.session;
+  late final String _openingUsername = widget.username;
+  bool get active => sessionActive && widget.username == _openingUsername;
+  @override
+  void sessionRetired() {
+    current = null;
+    close = false;
+    hide = false;
+    saved = false;
+    loading = false;
+    saving = false;
+    needsReload = true;
+    error = t_("Sign in again to view this account's settings.");
   }
+
   Map<String, dynamic>? current;
   bool close = false,
       hide = false,
@@ -194,21 +225,17 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
         m['revision'] is! int ||
         m['close_friend'] is! bool ||
         m['hide_story'] is! bool ||
-        (m['user'] as Map?)?['username'] != widget.username)
+        (m['user'] as Map?)?['username'] != widget.username) {
       throw const FormatException();
+    }
     return m.cast<String, dynamic>();
   }
 
   @override
   void initState() {
     super.initState();
-    accountOwner=widget.session.user?['public_id'] as String?;
-    widget.session.addListener(accountChanged);
     load();
   }
-
-  @override
-  void dispose(){widget.session.removeListener(accountChanged);super.dispose();}
 
   Future<void> load() async {
     if (!active || loading || saving) return;
@@ -219,7 +246,9 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
     });
     try {
       final m = parse(await widget.session.call('GET', path));
-      if (!mounted || !active || owner != widget.session.user?['public_id']) return;
+      if (!mounted || !active || owner != widget.session.user?['public_id']) {
+        return;
+      }
       setState(() {
         current = m;
         close = m['close_friend'];
@@ -228,12 +257,13 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
         saved = false;
       });
     } catch (e) {
-      if (mounted && active)
+      if (mounted && active) {
         setState(
           () => error = e is ApiError
               ? t_(e.message)
               : t_('Story audience could not be loaded.'),
         );
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -254,7 +284,9 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
     });
     try {
       final m = parse(await widget.session.call('PUT', path, body: body));
-      if (!mounted || !active || owner != widget.session.user?['public_id']) return;
+      if (!mounted || !active || owner != widget.session.user?['public_id']) {
+        return;
+      }
       setState(() {
         current = m;
         close = m['close_friend'];
@@ -262,7 +294,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
         saved = true;
       });
     } catch (e) {
-      if (mounted && active)
+      if (mounted && active) {
         setState(() {
           needsReload = true;
           error = e is ApiError
@@ -271,6 +303,7 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
                   'Save result is unconfirmed. Reload before making another change.',
                 );
         });
+      }
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -278,16 +311,21 @@ class _StoryPersonPageState extends State<_StoryPersonPage> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = active && current != null && !loading && !saving && !needsReload;
+    final enabled =
+        active && current != null && !loading && !saving && !needsReload;
     return DraftExitGuard(
       hasChanges: changed,
       busy: saving,
       busyMessage: 'Your story audience is still being saved.',
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: MediaQuery.textScalerOf(context)
+              .scale(40)
+              .clamp(56, 96),
           title: Text(
-            '@${widget.username}',
-            maxLines: 1,
+            active ? '@${widget.username}' : t_('Story audience'),
+            style: const TextStyle(fontSize: 18),
+            maxLines: active ? 1 : 2,
             overflow: TextOverflow.ellipsis,
           ),
           actions: [

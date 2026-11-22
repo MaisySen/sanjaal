@@ -52,6 +52,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         final create = find.widgetWithText(FilledButton, t_('Create an account'));
+        expect(create.hitTestable(), findsOneWidget, reason: 'The first action must not be buried below the introduction');
+        expect(tester.getRect(create).bottom, lessThanOrEqualTo(640));
         await tester.ensureVisible(create);
         await tester.pumpAndSettle();
         final rect = tester.getRect(create);
@@ -82,12 +84,13 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create an account'));
     await tester.pumpAndSettle();
     expect(find.byType(AuthPage), findsOneWidget);
-    expect(find.text('Make yourself at home'), findsOneWidget);
+    expect(tester.widget<AuthPage>(find.byType(AuthPage)).initialRegister, isTrue);
+    expect(find.byType(TextFormField), findsNWidgets(3));
     expect(find.text('Username'), findsOneWidget);
     await tester.ensureVisible(find.text('I already have an account'));
     await tester.tap(find.text('I already have an account'));
     await tester.pumpAndSettle();
-    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(2));
     expect(find.text('Username'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });

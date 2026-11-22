@@ -1,3 +1,5 @@
+import 'glass/glass_surface.dart';
+import 'glass/glass_app_bar.dart';
 import 'session_bound_state.dart';
 import 'dart:convert';
 import 'wallet_transfer_store.dart';
@@ -366,7 +368,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
   Widget build(BuildContext context) {
     if (!sessionActive) {
       return Scaffold(
-      appBar: AppBar(title: Text(t_('Wallet'))),
+      appBar: ReviewedAppBar(title: Text(t_('Wallet'))),
       body: ModalRoute.of(context)?.isCurrent == false ? const SizedBox.shrink() : SingleChildScrollView(
         padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(t_('Your sign-in changed. This wallet has been closed.')),
@@ -385,7 +387,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
     final canCash = cashout['available'] == true && balance >= ((cashout['min'] as num?)?.toInt() ?? 500);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(t_('Wallet'))),
+      appBar: ReviewedAppBar(title: Text(t_('Wallet'))),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : (error != null && !loaded)
@@ -411,10 +413,8 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
                   Text(error!),
                   TextButton(onPressed: refreshing || operationBusy ? null : _load, child: Text(t_('Try again'))),
                 ],
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(28), border: Border.all(color: scheme.outlineVariant)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                GlassSurface(
+                  child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       PhIcon('coins', size: 20, color: scheme.onSurfaceVariant),
                       const SizedBox(width: 8),
@@ -422,7 +422,7 @@ class _WalletPageState extends State<WalletPage> with WidgetsBindingObserver, Se
                     ]),
                     const SizedBox(height: 8),
                     SizedBox(width: double.infinity, child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text('$balance', style: Theme.of(context).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -1, height: 1.1)))),
-                  ]),
+                  ])),
                 ),
                 const SizedBox(height: 14),
                 LayoutBuilder(builder: (context, constraints) {

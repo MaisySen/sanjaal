@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'media_visibility.dart' show mediaRoutes;
 import 'upload_pending_store.dart';
 import 'post_page.dart';
 import 'stories_page.dart' show StoryViewer;
@@ -130,6 +131,16 @@ class UploadCenter extends ChangeNotifier {
     restoring = false; error = null; result = null; _original = null; kind = null; _localId = null;
     notifyListeners();
   }
+  /// Only a clean confirmed acknowledgement can fade. Recovery state and
+  /// confirmed content lists are independent and must not be discarded here.
+  void finishAcknowledgement() {
+    if (busy || restoring || error != null || result == null) return;
+    result = null;
+    kind = null;
+    _localId = null;
+    notifyListeners();
+  }
+
   Future<void> openOriginal(BuildContext context) async {
     final id = (error is UploadError ? (error as UploadError).resourceId : null) ?? result?['public_id'];
     if (id == null || openingOriginal) return;
@@ -160,11 +171,105 @@ class UploadCenter extends ChangeNotifier {
   }
 }
 
-class UploadStrip extends StatelessWidget {
-  const UploadStrip({super.key, required this.center});
+class UploadStrip extends StatefulWidget {
+  const UploadStrip({super.key, required this.center, this.destination});
   final UploadCenter center;
+  final int? destination;
+  @override
+  State<UploadStrip> createState() => _UploadStripState();
+}
+
+class _UploadStripState extends State<UploadStrip> with WidgetsBindingObserver implements RouteAware {
+  UploadCenter get center => widget.center;
+  Timer? _acknowledgement;
+  Object? _shownResult;
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    center.addListener(_changed);
+    _changed();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (_route != route) {
+      mediaRoutes.unsubscribe(this);
+      _route = route;
+      if (route != null) mediaRoutes.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didUpdateWidget(UploadStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.center, center)) {
+      oldWidget.center.removeListener(_changed);
+      center.addListener(_changed);
+      _shownResult = null;
+      _changed();
+    }
+    if (oldWidget.destination != widget.destination) _finishAfterFrame();
+  }
+
+  void _changed() {
+    final result = !center.busy && !center.restoring && center.error == null ? center.result : null;
+    if (identical(result, _shownResult)) return;
+    _shownResult = result;
+    _acknowledgement?.cancel();
+    if (result == null) return;
+    final epoch = center.generation;
+    if (WidgetsBinding.instance.lifecycleState != null && WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      _finishAfterFrame();
+      return;
+    }
+    _acknowledgement = Timer(const Duration(seconds: 8), () {
+      if (mounted && epoch == center.generation && identical(result, center.result)) center.finishAcknowledgement();
+    });
+  }
+
+  void _finishAfterFrame() {
+    final source = center;
+    final epoch = source.generation;
+    final result = source.result;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(source, center) && epoch == center.generation && identical(result, center.result)) center.finishAcknowledgement();
+    });
+  }
+
+  @override
+  void didPushNext() { _finishAfterFrame(); }
+  @override
+  void didPopNext() {}
+  @override
+  void didPush() {}
+  @override
+  void didPop() { _finishAfterFrame(); }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) center.finishAcknowledgement();
+  }
+
+  @override
+  void dispose() {
+    _acknowledgement?.cancel();
+    center.removeListener(_changed);
+    mediaRoutes.unsubscribe(this);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(listenable: center, builder: (context, _) {
+    // Every rendered action belongs to this job and session, not whatever job
+    // happens to be current if an old callback runs after a rebuild.
+    final epoch = center.generation;
+    final marker = center._localId;
+    bool current() => mounted && (_route == null || _route!.isCurrent) && epoch == center.generation && marker == center._localId;
     if (!center.busy && center.error == null && center.result == null && !center.restoring) return const SizedBox.shrink();
     final error = center.error;
     final label = center.restoring ? t_('Checking earlier uploads...') : error != null ? t_(failureMessage(error, fallback: 'The upload result is unknown. Check your posts or stories before sharing again.')) : center.busy
@@ -177,14 +282,15 @@ class UploadStrip extends StatelessWidget {
         const SizedBox(width: 10), Expanded(child: Text(label, style: Theme.of(context).textTheme.bodySmall, maxLines: 4, overflow: TextOverflow.ellipsis)),
         ]),
         if (!center.busy && !center.restoring) Wrap(alignment: WrapAlignment.end, spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        if (!center.busy && ((error is UploadError && error.resourceId != null) || center.result != null)) TextButton(onPressed: center.openingOriginal ? null : () => center.openOriginal(context), child: Text(t_('Open original'))),
-        if (center.canRetry) TextButton(onPressed: center.retry, child: Text(t_('Try again'))),
-        if (error != null) TextButton(onPressed:()=>showDialog<void>(context:context,builder:(c)=>ListenableBuilder(listenable:center,builder:(c,_)=>AlertDialog(
+        if (!center.busy && ((error is UploadError && error.resourceId != null) || center.result != null)) TextButton(onPressed: center.openingOriginal ? null : () { if (current()) center.openOriginal(context); }, child: Text(t_('Open original'))),
+        if (center.canRetry) TextButton(onPressed: () { if (current()) center.retry(); }, child: Text(t_('Try again'))),
+        if (error != null) TextButton(onPressed:()=>current() ? showDialog<void>(context:context,builder:(c)=>ListenableBuilder(listenable:center,builder:(c,_)=>AlertDialog(
           scrollable:true,title:Text(t_('Upload details')),content:Text(center.error == null ? t_('No upload details to show.') : t_(failureMessage(center.error!, fallback: 'The upload result is unknown. Check your posts or stories before sharing again.'))),
           actions:[TextButton(onPressed:()=>Navigator.pop(c),child:Text(t_('Close')))],
-        ))),child:Text(t_('Details'))),
+        ))) : null,child:Text(t_('Details'))),
         if (!center.busy && !center.restoring) IconButton(tooltip: t_('Dismiss'), onPressed: () async {
-          if (error == null) { await center.dismiss(); return; }
+          if (!current()) return;
+          if (error == null) { center.finishAcknowledgement(); return; }
           final epoch = center.generation;
           final markerId = center._localId;
           final yes = await showDialog<bool>(context: context, builder: (c) => AlertDialog(scrollable: true,

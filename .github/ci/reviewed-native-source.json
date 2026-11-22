@@ -1,0 +1,18 @@
+{
+  "reviewed_application_source": "1d9dbb4b48bfd7bd654a5b4fa4818e7b72cc5af3",
+  "trees_and_blobs": {
+    "app/lib": "68bf3f4471ca166b14f9407f1e6d4b00e3f2421c",
+    "app/test": "b4e1b34bc2e0646cadaf38c2d93b222050eb6890",
+    "app/integration_test": "20cdba84d42704a057f81cadcf885cf0fcde5309",
+    "app/android": "a3f429356827215a6ddab042ea942e278e7e2a51",
+    "app/ios": "303290ef893d045f2a0fb143bd896e88ea9b55bd",
+    "app/assets": "daf7981198d3e7e573641287c613da1500a46d50",
+    "app/shaders": "22ec8ab81b352652282f3e8438f650b4f442aa77",
+    "app/pubspec.yaml": "a70859c72405a0d40b8b3441010fcf6d8676e7a9",
+    "app/pubspec.lock": "a14a12b7db208d079c3793bbffd41893a9883186",
+    "api": "d88351bf2471a118f5b2aead04ea7407d6965ef6"
+  },
+  "scope": "Two compiler-only debug fixture builds. No application execution, private signer, binary publication, store access or release.",
+  "local_preflight": "186 selected tests passed. This is not whole-product, device, performance or design acceptance.",
+  "publication_scope": "Application/API snapshot and isolated compiler workflow only. Unpublished project notes, review-only service prototypes and their local history are excluded. Reviewed production/runtime trees are unchanged."
+}

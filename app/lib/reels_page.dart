@@ -4,6 +4,8 @@ import 'media_visibility.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import 'api.dart';
+import 'session_bound_state.dart';
+import 'session_recovery.dart';
 import 'feed_page.dart' show CommentsSheet;
 import 'gifts.dart';
 import 'profile_pages.dart';
@@ -45,6 +47,13 @@ class ReelPlayerPool {
     for (final value in _players.keys.toList()) { if (!keep.contains(value)) _players.remove(value)!.dispose(); }
     for (final value in keep) { _players.putIfAbsent(value, () => ReelPlayback(value)); }
   }
+  bool discardFailedFor(Map<String, dynamic> reel) {
+    final value = url(reel);
+    final player = _players[value];
+    if (player == null || (!player.failed && !player.controller.value.hasError)) return false;
+    _players.remove(value)!.dispose();
+    return true;
+  }
   void discardFailed() {
     for (final url in _players.keys.toList()) {
       final player = _players[url]!;
@@ -66,7 +75,12 @@ class ReelsPage extends StatefulWidget {
   State<ReelsPage> createState() => _ReelsPageState();
 }
 
-class _ReelsPageState extends State<ReelsPage> {
+class _ReelsPageState extends State<ReelsPage> with SessionBoundState<ReelsPage> {
+  @override Session get viewSession=>widget.session;
+  @override void sessionRetired(){
+    _refreshQueued=false;reels.clear();cursor=null;error=null;
+    players.dispose();
+  }
   final reels = <Map<String, dynamic>>[];
   final pager = PageController();
   int index = 0;
@@ -80,7 +94,7 @@ class _ReelsPageState extends State<ReelsPage> {
   late final uploads = UploadCenter.of(widget.session);
   int _uploadRevision = -1;
   void _published() {
-    if (!mounted || uploads.revision == _uploadRevision) return;
+    if (!mounted || !sessionActive || uploads.revision == _uploadRevision) return;
     _uploadRevision = uploads.revision;
     final items = uploads.confirmedPosts.where((p) => p['kind'] == 'reel').toList();
     if (items.isEmpty) return;
@@ -93,7 +107,7 @@ class _ReelsPageState extends State<ReelsPage> {
       if (current != null) index = reels.indexWhere((p) => p['public_id'] == current);
       players.warm(reels, index);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && pager.hasClients) pager.jumpToPage(index); });
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && sessionActive && pager.hasClients) pager.jumpToPage(index); });
   }
 
   @override
@@ -106,7 +120,7 @@ class _ReelsPageState extends State<ReelsPage> {
   @override
   void didUpdateWidget(ReelsPage old) {
     super.didUpdateWidget(old);
-    if (old.contentRevision != widget.contentRevision) _load(refresh: true);
+    if (sessionActive && old.contentRevision != widget.contentRevision) _load(refresh: true);
   }
 
   @override
@@ -118,6 +132,7 @@ class _ReelsPageState extends State<ReelsPage> {
   }
 
   Future<void> _load({bool refresh = false}) async {
+    if(!mounted || !sessionActive)return;
     if (loading) { if (refresh) _refreshQueued = true; return; }
     if (done && !refresh) return;
     setState(() {
@@ -127,7 +142,7 @@ class _ReelsPageState extends State<ReelsPage> {
     try {
       final j = await widget.session.call('GET', '/posts', query: {'kind': 'reel', if (!refresh && cursor != null) 'cursor': cursor!}) as Map<String, dynamic>;
       final items = (j['data'] as List).cast<Map<String, dynamic>>();
-      if (!mounted) return;
+      if (!mounted || !sessionActive) return;
       setState(() {
         if (refresh) { reels.clear(); reels.addAll(uploads.confirmedPosts.where((p) => p['kind'] == 'reel')); index = 0; }
         final ids = reels.map((p) => p['public_id']).toSet();
@@ -137,13 +152,13 @@ class _ReelsPageState extends State<ReelsPage> {
         cursor = j['next_cursor'] as String?;
         done = cursor == null;
       });
-      if (refresh) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && pager.hasClients) pager.jumpToPage(0); });
+      if (refresh) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && sessionActive && pager.hasClients) pager.jumpToPage(0); });
     } on ApiError catch (e) {
-      if (mounted) setState(() => error = t_(e.message));
+      if (mounted && sessionActive) setState(() => error = t_(e.message));
     } catch (_) {
-      if (mounted) setState(() => error = 'Could not load reels. Try again.');
+      if (mounted && sessionActive) setState(() => error = 'Could not load reels. Try again.');
     } finally {
-      if (mounted) {
+      if (mounted && sessionActive) {
         setState(() => loading = false);
         if (_refreshQueued) { _refreshQueued = false; _load(refresh: true); }
       }
@@ -152,19 +167,21 @@ class _ReelsPageState extends State<ReelsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return SessionRecoveryView(session:widget.session);
     if (reels.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(t_('Reels'))),
         body: Padding(padding: const EdgeInsets.only(bottom: 88), child: loading
             ? const Center(child: CircularProgressIndicator())
-            : EmptyState(
+            : LayoutBuilder(builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(constraints: BoxConstraints(minHeight: constraints.maxHeight), child: EmptyState(
                 icon: Ph.movie_outlined,
                 title: error ?? t_('No reels yet'),
                 hint: error == null ? t_('Share a short video with your community.') : null,
                 action: error == null && widget.onCreate != null
                     ? FilledButton.icon(onPressed: widget.onCreate, icon: const PhIcon('video-camera', size: 18), label: Text(t_('Create a reel')))
                     : OutlinedButton(onPressed: () => _load(refresh: true), child: Text(t_('Try again'))),
-              )),
+              ))))),
       );
     }
     return Scaffold(
@@ -188,8 +205,18 @@ class _ReelsPageState extends State<ReelsPage> {
             playing: widget.active && i == index,
             muted: muted,
             onToggleMute: () => setState(() => muted = !muted),
+            onRetry: () {
+              if (!mounted || !sessionActive || !widget.active || i != index) return;
+              if (!players.discardFailedFor(reels[i])) return;
+              setState(() => players.warm(reels, index));
+            },
           ),
         ),
+        const Positioned(top: 0, left: 0, right: 0, height: 160,
+          child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+            begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            colors: [Color(0xB3000000), Color(0x00000000)],
+          ))))),
         SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -208,8 +235,9 @@ class _ReelsPageState extends State<ReelsPage> {
 }
 
 class ReelItem extends StatefulWidget {
-  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0, this.playback});
+  const ReelItem({super.key, required this.session, required this.reel, required this.playing, required this.muted, required this.onToggleMute, this.bottomInset = 0, this.playback, this.onRetry});
   final ReelPlayback? playback;
+  final VoidCallback? onRetry;
   final Session session;
   final Map<String, dynamic> reel;
   final bool playing;
@@ -220,7 +248,14 @@ class ReelItem extends StatefulWidget {
   State<ReelItem> createState() => _ReelItemState();
 }
 
-class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
+class _ReelItemState extends State<ReelItem> with SessionBoundState<ReelItem>, MediaVisibility<ReelItem> {
+  @override Session get viewSession=>widget.session;
+  @override void sessionRetired(){
+    ++_playerEpoch;
+    c?.removeListener(_playerChanged);
+    if(widget.playback==null){c?.dispose();}else if(!widget.playback!.disposed){c?.pause();}
+    c=null;ready=false;
+  }
   VideoPlayerController? c;
   bool ready = false;
   bool failed = false;
@@ -238,7 +273,23 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
     _attach();
   }
 
+  void _playerChanged() {
+    if (!mounted || !sessionActive || c?.value.hasError != true || failed) return;
+    setState(() { failed = true; ready = false; });
+  }
+
+  void _retry() {
+    if (!mounted || !sessionActive || !failed || !mediaVisible || !widget.playing) return;
+    if (widget.playback != null) {
+      widget.onRetry?.call();
+      return;
+    }
+    c?.removeListener(_playerChanged); c?.dispose(); c = null;
+    setState(_attach);
+  }
+
   void _attach() {
+    if(!sessionActive)return;
     final epoch = ++_playerEpoch;
     ready = false; failed = false;
     final media = (widget.reel['media'] as List).cast<Map<String, dynamic>>();
@@ -249,21 +300,26 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
     }
     final ctl = widget.playback?.controller ?? VideoPlayerController.networkUrl(Uri.parse(v.first['url'] as String));
     c = ctl;
+    ctl.addListener(_playerChanged);
     if (widget.playback == null) ctl.setLooping(true);
     (widget.playback?.initialized ?? ctl.initialize()).then((_) {
-      if (!mounted || epoch != _playerEpoch || widget.playback?.disposed == true) return;
+      if (!mounted || !sessionActive || epoch != _playerEpoch || widget.playback?.disposed == true) return;
+      if (ctl.value.hasError) { _playerChanged(); return; }
       ctl.setVolume(widget.muted ? 0 : 1);
       setState(() => ready = true);
       if (widget.playing && mediaVisible) ctl.play();
     }).catchError((_) {
-      if (mounted && epoch == _playerEpoch) setState(() => failed = true);
+      if (mounted && sessionActive && epoch == _playerEpoch) setState(() => failed = true);
     });
   }
 
   @override
   void didUpdateWidget(ReelItem old) {
     super.didUpdateWidget(old);
+    if(!sessionActive)return;
+    if(old.reel['public_id']!=id){comments=(widget.reel['comments_count'] as num?)?.toInt()??0;following=author['following']==true;followBusy=false;}
     if (!identical(old.playback, widget.playback)) {
+      c?.removeListener(_playerChanged);
       if (old.playback == null) { c?.dispose(); } else if (!old.playback!.disposed) { c?.pause(); }
       c = null; _attach(); return;
     }
@@ -278,18 +334,21 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
   @override
   void mediaVisibilityChanged(bool visible) {
     final ctl = c;
-    if (ctl == null || !ready) return;
+    if (!sessionActive || ctl == null || !ready || widget.playback?.disposed==true) return;
     visible && widget.playing ? ctl.play() : ctl.pause();
   }
 
   @override
   void dispose() {
     _playerEpoch++;
+    c?.removeListener(_playerChanged);
     if (widget.playback == null) { c?.dispose(); } else if (!widget.playback!.disposed) { c?.pause(); }
     super.dispose();
   }
 
   void _comments() async {
+    if(!mounted || !sessionActive)return;
+    final target=id;
     final added = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
@@ -297,17 +356,18 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
       enableDrag: false,
       builder: (_) => CommentsSheet(session: widget.session, postId: id, postAuthorId: author['public_id'].toString()),
     );
-    if (!mounted) return;
+    if (!mounted || !sessionActive || id!=target) return;
     if (added != null && added != 0) setState(() => comments = (comments + added).clamp(0, 1 << 31));
     try {
       final result = await widget.session.call('GET', '/posts/$id') as Map;
       final count = (result['post'] as Map)['comments_count'] as int;
-      if (mounted) setState(() => comments = count);
+      if (mounted && sessionActive && id==target) setState(() => comments = count);
     } catch (_) { /* Keep the last known count until the next feed refresh. */ }
   }
 
   Future<void> _follow() async {
-    if (followBusy) return;
+    if (!mounted || !sessionActive || followBusy) return;
+    final target=id;
     final was = following;
     setState(() {
       followBusy = true;
@@ -316,40 +376,56 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
     try {
       await widget.session.call(was ? 'DELETE' : 'POST', '/users/${author['username']}/follow');
     } catch (e) {
-      if (mounted) {
+      if (mounted && sessionActive && id==target) {
         setState(() => following = was);
         showError(context, e);
       }
     } finally {
-      if (mounted) setState(() => followBusy = false);
+      if (mounted && sessionActive && id==target) setState(() => followBusy = false);
     }
   }
 
   bool get _mine => widget.session.user?['username'] == author['username'];
 
+  Widget _followControl() => OutlinedButton(
+    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)),
+    onPressed: followBusy ? null : _follow,
+    child: Text(t_(following ? 'Following' : 'Follow')),
+  );
+
   Widget _side(PhData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Padding(
-        padding: const EdgeInsets.only(bottom: 18),
+        padding: const EdgeInsets.only(bottom: 8),
         child: Column(children: [
-          IconButton(tooltip: label, iconSize: 30, style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: 0.55), fixedSize: const Size(52, 52)), color: color, icon: PhIcon(icon), onPressed: onTap),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
+          IconButton(tooltip: label, iconSize: 30, style: IconButton.styleFrom(backgroundColor: Colors.transparent, minimumSize: const Size(44, 44), tapTargetSize: MaterialTapTargetSize.shrinkWrap), color: color, icon: PhIcon(icon), onPressed: (){if(mounted && sessionActive)onTap();}),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, shadows: [Shadow(color: Colors.black87, blurRadius: 4)])),
         ]),
       );
 
   @override
   Widget build(BuildContext context) {
+    if(!sessionActive)return const SizedBox.shrink();
     final ctl = c;
     final body = (widget.reel['body'] ?? '').toString();
     return Stack(fit: StackFit.expand, children: [
       if (failed)
-        Positioned(top: 104, left: 24, right: 84, child: Text(t_('Video could not load'), style: TextStyle(color: Colors.white70)))
+        Positioned(top: 104, left: 24, right: 84, child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(t_('Video could not load'), style: const TextStyle(color: Colors.white70)),
+          if (ReelPlayerPool.url(widget.reel) != null && (widget.playback == null || widget.onRetry != null))
+            TextButton(style: TextButton.styleFrom(foregroundColor: Colors.white, minimumSize: const Size(44, 44)), onPressed: widget.playing ? _retry : null, child: Text(t_('Try again'))),
+        ]))
       else if (!ready || ctl == null)
         const Center(child: CircularProgressIndicator())
       else
         GestureDetector(
-          onTap: () { if (mediaVisible && widget.playing) ctl.value.isPlaying ? ctl.pause() : ctl.play(); },
+          onTap: () { if (sessionActive && mediaVisible && widget.playing) ctl.value.isPlaying ? ctl.pause() : ctl.play(); },
           child: ColoredBox(
             color: Colors.black,
-            child: Center(child: AspectRatio(aspectRatio: ctl.value.aspectRatio, child: VideoPlayer(ctl))),
+            child: ClipRect(child: SizedBox.expand(child: FittedBox(
+              // Portrait clips fill the viewing surface. Landscape stays fully
+              // visible instead of losing its sides to a portrait crop.
+              fit: ctl.value.aspectRatio <= 1 ? BoxFit.cover : BoxFit.contain,
+              child: SizedBox(width: ctl.value.size.width, height: ctl.value.size.height, child: VideoPlayer(ctl)),
+            ))),
           ),
         ),
       if (ready && ctl != null && !ctl.value.isPlaying) const Center(child: IgnorePointer(child: PhIcon('play-fill', size: 88, color: Colors.white54))),
@@ -362,23 +438,19 @@ class _ReelItemState extends State<ReelItem> with MediaVisibility<ReelItem> {
         bottom: 24 + widget.bottomInset,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           GestureDetector(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString()))),
+            onTap: () {if(mounted && sessionActive)Navigator.of(context).push(MaterialPageRoute(builder: (_) => UserProfilePage(session: widget.session, username: author['username'].toString())));},
             child: Row(children: [
               Avatar(user: author, radius: 18),
               const SizedBox(width: 10),
-              Flexible(child: Text('@${author['username']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+              Flexible(child: Text('@${author['username']}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16))),
+              if (!_mine && MediaQuery.textScalerOf(context).scale(14) <= 20) ...[
+                const SizedBox(width: 8),
+                _followControl(),
+              ],
             ]),
           ),
-          if (!_mine)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: SizedBox(
-                height: 48,
-                child: following
-                    ? OutlinedButton(style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48), foregroundColor: Colors.white, side: const BorderSide(color: Colors.white70)), onPressed: _follow, child: Text(t_('Following')))
-                    : FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(0, 48), backgroundColor: Colors.white, foregroundColor: Colors.black), onPressed: _follow, child: Text(t_('Follow'))),
-              ),
-            ),
+          if (!_mine && MediaQuery.textScalerOf(context).scale(14) > 20)
+            Padding(padding: const EdgeInsets.only(top: 4), child: _followControl()),
           if (body.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white))),
         ]),
       ),

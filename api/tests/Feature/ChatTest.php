@@ -307,6 +307,30 @@ class ChatTest extends TestCase
         $this->getJson("/api/v1/conversations/$cid/messages", $ha)->assertJsonCount(1, 'data');
     }
 
+    public function test_shared_post_replay_returns_original_receipt_after_preview_disappears(): void
+    {
+        [$a, $ha] = $this->member('asha');
+        [$b, $hb] = $this->member('bina');
+        [$c, $hc] = $this->member('chandra');
+        $post = $this->postJson('/api/v1/posts', ['body' => 'Synthetic shared post'], $hc)->assertCreated()->json('post.public_id');
+        $cid = $this->postJson('/api/v1/conversations', ['type' => 'direct', 'username' => 'bina'], $ha)->assertCreated()->json('conversation.public_id');
+        $body = ['shared_post' => $post, 'client_id' => 'share-original-fixture'];
+        $first = $this->postJson("/api/v1/conversations/$cid/messages", $body, $ha)->assertCreated()
+            ->assertJsonPath('message.client_id', 'share-original-fixture')
+            ->assertJsonPath('message.conversation_id', $cid)
+            ->assertJsonPath('message.sender.public_id', $a->public_id)
+            ->assertJsonPath('message.kind', 'post');
+        $this->deleteJson("/api/v1/posts/$post", [], $hc)->assertOk();
+        $this->postJson("/api/v1/conversations/$cid/messages", $body, $ha)->assertOk()
+            ->assertJsonPath('message.public_id', $first->json('message.public_id'))
+            ->assertJsonPath('message.client_id', 'share-original-fixture')
+            ->assertJsonPath('message.conversation_id', $cid)
+            ->assertJsonPath('message.sender.public_id', $a->public_id)
+            ->assertJsonPath('message.kind', 'post')
+            ->assertJsonPath('message.shared_post', null);
+        $this->assertDatabaseCount('messages', 1);
+    }
+
     public function test_non_member_cannot_read_or_send(): void
     {
         [$a, $ha] = $this->member('asha');

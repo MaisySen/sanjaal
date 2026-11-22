@@ -1,9 +1,11 @@
+// Harness adaptation for frozen ca9a9ff: compact tabs retain tooltips/semantics.
 // Signed-in flow on an Android emulator against a LOCAL copy of this API with a synthetic member
 // (see api/tests/E2E). The app is built with E2E_TOKEN_BASE pointing at the local fixture, which answers
 // the token request with a token signed by a throwaway key that the local API trusts. Every API request is
 // real HTTP to the local API. This shows the app and API code work together. It is not evidence about
 // Auth0 or the live service. The token is a throwaway for a local database, never a real credential.
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sanjaal/glass_nav.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:sanjaal/main.dart' as app;
@@ -41,7 +43,7 @@ void main() {
     await binding.takeScreenshot('signed_in_feed');
     expect(find.textContaining('Sunrise over Phewa'), findsWidgets);
 
-    await tester.tap(find.text('Me'));
+    await tester.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Me')).hitTestable());
     for (var i = 0; i < 12; i++) {
       await tester.pump(const Duration(milliseconds: 500));
     }
@@ -54,12 +56,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
     await binding.takeScreenshot('dark_profile');
-    await tester.tap(find.text('Home'));
+    await tester.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Home')).hitTestable());
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 500));
     }
     await binding.takeScreenshot('dark_feed');
-    await tester.tap(find.text('Wallet'));
+    await tester.tap(find.descendant(of: find.byType(GlassNavBar), matching: find.byTooltip('Wallet')).hitTestable());
     for (var i = 0; i < 8; i++) {
       await tester.pump(const Duration(milliseconds: 500));
     }

@@ -1,3 +1,4 @@
+import 'glass/glass_app_bar.dart';
 import 'ph.dart';
 import 'package:material_ui/material_ui.dart';
 import 'api.dart';
@@ -25,6 +26,23 @@ class _NotificationsPageState extends State<NotificationsPage> with SessionBound
   List<Map<String, dynamic>>? items;
   String? error;
   bool loading = false;
+  bool _opening = false;
+
+  Future<void> _open(Map<String, dynamic> item) async {
+    if (!mounted || !sessionActive || _opening ||
+        !(items?.any((current) => identical(current, item)) ?? false)) {
+      return;
+    }
+    _opening = true;
+    try {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) =>
+          item['post_id'] is String
+              ? PostPage(session: widget.session, postId: item['post_id'] as String)
+              : UserProfilePage(session: widget.session, username: item['actor'] as String)));
+    } finally {
+      _opening = false;
+    }
+  }
 
   @override
   void initState() {
@@ -64,7 +82,7 @@ class _NotificationsPageState extends State<NotificationsPage> with SessionBound
         ) : ListView.separated(
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: items!.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, i) {
             final n = items![i];
             final type = n['type'];
@@ -78,9 +96,7 @@ class _NotificationsPageState extends State<NotificationsPage> with SessionBound
               leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: PhIcon(icon, color: color, size: 20)),
               title: Text(text, maxLines: MediaQuery.textScalerOf(context).scale(14)>19 ? 4 : 2, overflow: TextOverflow.ellipsis),
               subtitle: Text(type == 'like' && (n['text'] ?? '').toString().isNotEmpty ? '${n['text']}  ·  ${t_(ago(n['created_at'].toString()))}' : t_(ago(n['created_at'].toString()))),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => n['post_id'] is String
-                  ? PostPage(session: widget.session, postId: n['post_id'] as String)
-                  : UserProfilePage(session: widget.session, username: n['actor'].toString()))),
+              onTap: () => _open(n),
             );
           },
         ),
@@ -98,6 +114,6 @@ class _NotificationsPageState extends State<NotificationsPage> with SessionBound
         Expanded(child: body),
       ]);
     }
-    return Scaffold(appBar: AppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56,96), title: Text(t_('Notifications'),maxLines:2,style:const TextStyle(fontSize:18)), actions:[IconButton(tooltip:t_('Refresh'),onPressed:loading?null:_load,icon:const PhIcon('arrow-clockwise'))]), body: body);
+    return Scaffold(appBar: ReviewedAppBar(toolbarHeight: MediaQuery.textScalerOf(context).scale(40).clamp(56,96), title: Text(t_('Notifications'),maxLines:2,style:const TextStyle(fontSize:18)), actions:[IconButton(tooltip:t_('Refresh'),onPressed:loading?null:_load,icon:const PhIcon('arrow-clockwise'))]), body: body);
   }
 }

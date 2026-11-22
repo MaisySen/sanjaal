@@ -19,6 +19,7 @@ import 'voice.dart';
 import 'share_post.dart';
 import 'post_page.dart';
 import 'private_media_image.dart';
+import 'conversation_receipt.dart';
 
 String kindLabel(Object? kind, Object? body) {
   if (kind == 'image') return 'Photo';
@@ -373,7 +374,7 @@ class _NewChatPageState extends State<NewChatPage> {
   late final String? _owner;
   late final int _sessionGeneration;
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
-  bool get _locked => !_active || busy || _storing || _uncertain;
+  bool get _locked => !mounted || !_active || busy || _storing || _uncertain;
   @override void initState(){
     super.initState();_session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
@@ -397,7 +398,7 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   void _changed(String value) {
-    if(!_active)return;
+    if(_locked)return;
     final seq = ++_seq; // Invalidate immediately, not when the debounce fires.
     _debounce?.cancel();
     final query = value.trim();
@@ -416,7 +417,7 @@ class _NewChatPageState extends State<NewChatPage> {
     try {
       final response = await widget.session.call('GET', '/users/search', query: {'q': query});
       final users = ((response as Map)['users'] as List).map((v)=>(v as Map).cast<String,dynamic>()).toList();
-      if(users.any((u)=>u['username'] is! String || (u['username'] as String).trim().isEmpty)) throw const FormatException('Invalid member identity');
+      if(users.any((u)=>u['public_id'] is! String || (u['public_id'] as String).trim().isEmpty || u['username'] is! String || (u['username'] as String).trim().isEmpty) || users.map((u)=>u['public_id']).toSet().length!=users.length || users.map((u)=>u['username']).toSet().length!=users.length) throw const FormatException('Invalid member identity');
       if (!mounted || !_active || seq != _seq) return;
       setState(() { results = users; searched = true; searching = false; searchError = null; });
     } catch (e) {
@@ -435,8 +436,9 @@ class _NewChatPageState extends State<NewChatPage> {
     if (mounted && _active) Navigator.of(context).pop(conversation);
   }
 
-  Future<void> _start(Map<String, dynamic> body) async {
+  Future<void> _start(Map<String, dynamic> body, {Map<String, dynamic>? directRecipient}) async {
     if (_locked) return;
+    if (body['type'] == 'direct' && (directRecipient == null || body['username'] != directRecipient['username'] || !results.any((user) => identical(user, directRecipient)))) return;
     FocusScope.of(context).unfocus();
     _debounce?.cancel();
     ++_seq;
@@ -464,7 +466,9 @@ class _NewChatPageState extends State<NewChatPage> {
       if(!mounted || !_active)return;
       handedToServer=true;
       final response = await widget.session.call('POST', '/conversations', body: body);
-      final conversation = ((response as Map)['conversation'] as Map).cast<String, dynamic>();
+      final conversation = body['type'] == 'direct'
+          ? checkedDirectConversation(response, _owner!, directRecipient!)
+          : ((response as Map)['conversation'] as Map).cast<String, dynamic>();
       if (conversation['public_id'] is! String || (conversation['public_id'] as String).isEmpty) throw const FormatException();
       if (mounted && _active) await _leave(conversation);
     } catch (e) {
@@ -490,9 +494,9 @@ class _NewChatPageState extends State<NewChatPage> {
   }
 
   void _tap(Map<String, dynamic> user) {
-    if (_locked) return;
+    if (_locked || searching || searchError != null || !results.any((current) => identical(current, user))) return;
     final name = user['username'].toString();
-    if (!group) { _start({'type': 'direct', 'username': name}); return; }
+    if (!group) { _start({'type': 'direct', 'username': name}, directRecipient: user); return; }
     if (!picked.containsKey(name) && picked.length >= 49) {
       showInfo(context, t_('Choose up to 49 people.'));
       return;
@@ -544,7 +548,7 @@ class _NewChatPageState extends State<NewChatPage> {
         if (!searching && searchError == null && searched && results.isEmpty) SliverFillRemaining(hasScrollBody: false, child: EmptyState(icon: Ph.search_off, title: t_('No matches'))),
         if (!searching && results.isNotEmpty) SliverList(delegate: SliverChildBuilderDelegate((c, index) {
           final user = results[index];
-          return ListTile(leading: Avatar(user: user), title: Text((user['name'] ?? '').toString().isEmpty ? '@${user['username']}' : user['name'].toString()), subtitle: Text('@${user['username']}'), trailing: group ? Checkbox(value: picked.containsKey(user['username'].toString()), onChanged: _locked ? null : (_) => _tap(user)) : null, onTap: _locked ? null : () => _tap(user));
+          return ListTile(enabled: !_locked, leading: Avatar(user: user), title: Text((user['name'] ?? '').toString().isEmpty ? '@${user['username']}' : user['name'].toString()), subtitle: Text('@${user['username']}'), trailing: group ? Checkbox(value: picked.containsKey(user['username'].toString()), onChanged: _locked ? null : (_) => _tap(user)) : null, onTap: _locked ? null : () => _tap(user));
         }, childCount: results.length)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ]),

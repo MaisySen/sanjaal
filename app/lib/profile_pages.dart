@@ -11,6 +11,7 @@ import 'package:material_ui/material_ui.dart';
 import 'actions.dart';
 import 'api.dart';
 import 'chat_pages.dart';
+import 'conversation_receipt.dart';
 import 'feed_page.dart' show FeedList, SavedPage;
 import 'settings_page.dart';
 import 'ui.dart';
@@ -34,25 +35,6 @@ Map<String, dynamic> _profileRead(dynamic value, {String? owner, String? usernam
     }
   }
   return value;
-}
-
-/// A profile Message receipt must describe this selected pair before the
-/// conversation screen can fetch messages or acknowledge anything.
-Map<String, dynamic> _profileChatRead(dynamic response, String owner, Map<String, dynamic> recipient) {
-  if (response is! Map || response['conversation'] is! Map) {
-    throw const FormatException('Invalid conversation');
-  }
-  final conversation = (response['conversation'] as Map).cast<String, dynamic>();
-  final members = conversation['members'];
-  if (conversation['public_id'] is! String || (conversation['public_id'] as String).trim().isEmpty ||
-      conversation['type'] != 'direct' || members is! List || members.length != 2 ||
-      members.any((member) => member is! Map || member['public_id'] is! String || member['username'] is! String || (member['username'] as String).trim().isEmpty) ||
-      owner == recipient['public_id'] ||
-      members.where((member) => member['public_id'] == owner).length != 1 ||
-      members.where((member) => member['public_id'] == recipient['public_id'] && member['username'] == recipient['username']).length != 1) {
-    throw const FormatException('Conversation does not match selected member');
-  }
-  return conversation;
 }
 
 /// 999 stays 999, 1240 becomes 1.2K, 2500000 becomes 2.5M.
@@ -212,7 +194,7 @@ class _UserProfilePageState extends State<UserProfilePage> with SessionBoundStat
     try {
       final response = await widget.session.call('POST', '/conversations', body: {'type': 'direct', 'username': recipient['username']});
       if (!mounted || !stillSelected()) return;
-      final conversation = _profileChatRead(response, owner, recipient);
+      final conversation = checkedDirectConversation(response, owner, recipient);
       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(session: widget.session, convo: conversation)));
     } catch (e) {
       if (mounted && stillSelected()) {

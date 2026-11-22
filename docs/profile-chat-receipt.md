@@ -22,3 +22,5 @@ Limits:
 - In-flight server work is not canceled. No cross-process persistence, server ordering, native/provider validation, real-device speed, or final reference acceptance is claimed. Existing API timeouts and default-off privacy/native restrictions remain unchanged.
 
 No live conversation, message, read receipt, moderation, account or data action; no source push, deployment, backend rollout, native build, signing, installation, store or distribution action occurred.
+
+Follow-up: [New chat selection and direct receipt](new-chat-direct-receipt.md) shares the direct validator with New chat and checks its current selected result. Group receipt validation and other entry paths remain outside that correction.

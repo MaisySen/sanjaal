@@ -1,0 +1,23 @@
+# New chat selection and direct receipt
+
+Seven old-source negatives at 357cc26 showed New chat returning an inconsistent direct receipt as success, for a wrong selected ID, wrong current-member ID, group type, omitted members or blank conversation ID; retained row callbacks also issued a POST after clearing the query or replacing its results.
+
+New chat now keeps the selected current result's stable ID and username through its direct request and checks the returned receipt with the same validator as profile Message. The validator moved without a contract change to conversation_receipt.dart. It requires the direct type, nonblank conversation ID and exact two-member owner/recipient pair. Member order is irrelevant. Request bodies remain username-based and unchanged.
+
+Selection callbacks require the exact current result map, no search/read error or pending search, and an unlocked mounted page. Search results require nonblank string public IDs/usernames and unique IDs and usernames. Invalid lists show existing read recovery rather than selectable rows. Retained query callbacks cannot replace selections while creation, local draft storage or an uncertain result locks the page. Locked rows are also visibly disabled. These shared search/row gates apply in direct and group modes; they do not validate a group creation receipt.
+
+An inconsistent direct receipt enters the existing uncertain-result state. It is not handed back to Chats and cannot start message reads there. It offers Back to Chats, not an automatic POST or a claim that nothing was created. An explicit 422 rejection retains the current selection for explicit retry, as before. Stored-group replay markers, member-ref capability/default-off behavior, fresh group request bodies and group receipt validation were not changed.
+
+Verification:
+- 26 new widget cases: the seven negatives; actual inbox-to-new-chat-to-conversation/Back with either valid member order and rejection of a wrong member before any conversation read; missing/blank/numeric/duplicate search IDs or usernames in both modes; retained query/row callbacks during pending and uncertain requests; disposal; a positive replacement-row selection; explicit 422 retry; and English/light plus Nepali/dark direct uncertain recovery at 320x640 and 1.8x text.
+- One current 10-file invocation passed 211 cases with concurrency 2: new_chat_receipt_test, new_chat_journey_test, group_drafts_test, profile_chat_receipt_test, profile_identity_read_test, member_actions_session_test, chat_screen_session_test, communication_journey_test, chats_entry_ownership_test and connected_first_use_test, all .dart in app/test. It includes the 29 profile-receipt cases after extraction and the connected first-use journey. Not all tests, and counts overlap earlier runs.
+- Focused source/helper/test analysis has no errors/warnings and four existing infos. A missing setup delimiter in the expanded test fixture caused one compile failure; it was repaired before the passing run. No failed/incomplete run is counted as passing.
+- Actual direct uncertain-state EN/light and NE/dark captures were inspected after disabled-row styling. Existing group uncertain-state EN/light and NE/dark captures were also inspected after that shared styling. Error/return copy remains readable and Back to Chats is reachable; rows and controls show their locked state. Not device/reference or linguistic acceptance.
+
+Limits:
+- This is local selected-result and response consistency. It does not independently authenticate the first search result or returned conversation claims, nor stop server-side wrong-account creation before the reply. Direct server targeting still resolves usernames. No backend contract or rollout changed.
+- Group receipt membership/type/identity validation remains open. Only its shared result validation/selection/disabled-row behavior is covered here. Group draft regression tests passing is not complete group acceptance.
+- Covering routes during a pending creation and callback ownership of the later return remain a separate review, not acceptance supplied by these tests. Existing long-poll/read-cursor and backend username gaps also remain separate.
+- Already-issued HTTP work is not canceled. No restart persistence, server ordering, real-device latency or final native/provider/release acceptance is claimed. Prior 231-case cross-area evidence remains anchored to its own earlier checkpoint; it is not relabeled as this run.
+
+No live search/chat creation/read receipt/account/data action, source push, native build, signing, installation, distribution, deployment or backend rollout occurred.

@@ -80,6 +80,38 @@ class NativePixelsTest(unittest.TestCase):
             self.assertIn('failed-run partial diagnostics', out.getvalue())
             self.assertIn('Missing declared native frames', out.getvalue())
 
+    def test_failed_run_prefers_pre_exit_teardown_frame(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            expected = synthetic_png(7)
+            (root / 'ios-diagnostic-native.png').write_bytes(synthetic_png(1))
+            (root / 'native_ios_test_teardown.png').write_bytes(expected)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                module.emit(root, require_complete=False)
+            rows = [json.loads(line.removeprefix('SANJAAL_NATIVE_PIXEL ')) for line in out.getvalue().splitlines() if line.startswith('SANJAAL_NATIVE_PIXEL ')]
+            self.assertEqual(rows[0]['name'], 'ios-diagnostic-native.png')
+            self.assertEqual(base64.b64decode(rows[0]['png']), expected)
+            self.assertIn('Native diagnostic source: native_ios_test_teardown.png', out.getvalue())
+    def test_success_keeps_declared_host_frame(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            expected = synthetic_png(3)
+            for name in module.NAMES:
+                (root / name).write_bytes(expected)
+            (root / 'native_ios_test_teardown.png').write_bytes(synthetic_png(9))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                module.emit(root)
+            rows = [json.loads(line.removeprefix('SANJAAL_NATIVE_PIXEL ')) for line in out.getvalue().splitlines() if line.startswith('SANJAAL_NATIVE_PIXEL ')]
+            self.assertEqual(base64.b64decode(rows[-1]['png']), expected)
+    def test_teardown_symlink_is_not_an_evidence_input(self):
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            root = Path(folder)
+            (root / 'fixture.png').write_bytes(synthetic_png())
+            (root / 'native_ios_test_teardown.png').symlink_to(root / 'fixture.png')
+            with self.assertRaisesRegex(ValueError, 'regular'):
+                module.emit(root, require_complete=False)
     def test_missing_required_capture_fails(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(ValueError, 'Required'):

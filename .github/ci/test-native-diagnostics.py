@@ -21,6 +21,24 @@ class NativeDiagnosticsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'driver.log';path.write_text(('Error: '+'文'*3000+'\n')*900)
             self.assertLessEqual(len(module.excerpt(path).encode()),module.MAX_OUTPUT+100)
+    def test_os_error_noise_cannot_evict_real_failure_or_tail(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'driver.log'
+            noise=('OS Error: assertion acquisition failed '+'.'*300+'\n')
+            path.write_text('startup sentinel\n'+noise*7000+'TestFailure: real fixture result\nExpected: one member\nActual: no members\n'+noise*500+'final sentinel\n')
+            value=module.excerpt(path)
+            for signal in ['startup sentinel','real fixture result','Expected: one member','Actual: no members','final sentinel']:
+                self.assertIn(signal,value)
+            self.assertLessEqual(len(value.encode()),module.MAX_OUTPUT)
+    def test_repeated_test_signals_cannot_evict_latest_failure(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'driver.log'
+            path.write_text('startup sentinel\n'+('TestFailure: earlier synthetic noise '+'.'*200+'\n')*15000+'TestFailure: latest specific result\nActual: latest specific state\nfinal sentinel\n')
+            value=module.excerpt(path)
+            self.assertIn('latest specific result',value)
+            self.assertIn('latest specific state',value)
+            self.assertIn('final sentinel',value)
+            self.assertLessEqual(len(value.encode()),module.MAX_OUTPUT)
     def test_symlink_is_not_read(self):
         with tempfile.TemporaryDirectory() as folder:
             path=Path(folder)/'link';(Path(folder)/'source').write_text('not allowed');path.symlink_to(Path(folder)/'source')

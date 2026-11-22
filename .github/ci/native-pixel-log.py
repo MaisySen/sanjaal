@@ -39,6 +39,13 @@ def emit(root, require_complete=True):
     found = set()
     for name in NAMES:
         path = root / name
+        # The driver can stop the app before the host's final screenshot. A
+        # failed test's native teardown frame is the earlier, useful boundary.
+        if name == 'ios-diagnostic-native.png' and not require_complete:
+            teardown = root / 'native_ios_test_teardown.png'
+            if teardown.exists():
+                path = teardown
+            print('Native diagnostic source: ' + path.name, flush=True)
         if not path.exists():
             continue
         if path.is_symlink() or not path.is_file():

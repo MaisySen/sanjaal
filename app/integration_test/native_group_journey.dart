@@ -27,10 +27,28 @@ Future<void> nativeGroupJourney(
   const title = 'Native group review';
   expect(session.groupOwnershipEnabled, isTrue);
   expect(session.groupMemberRemovalEnabled, isTrue);
+  await stage('native group create awaiting available inbox entry');
+  // A returned chat can still be reconciling its receipt while Rooms is open.
+  // Hit testing alone does not distinguish an enabled from a disabled button.
+  await waitUntil(
+    () =>
+        find
+            .byWidgetPredicate(
+              (w) =>
+                  w is IconButton &&
+                  w.tooltip == 'New chat' &&
+                  w.onPressed != null,
+            )
+            .hitTestable()
+            .evaluate()
+            .length ==
+        1,
+  );
   await stage('native group create through member search');
   await tap(find.byTooltip('New chat'));
   await waitUntil(() => find.byTooltip('New group').evaluate().isNotEmpty);
   await tap(find.byTooltip('New group'));
+  await stage('native group mode selected');
   final name = find.byWidgetPredicate(
     (w) => w is TextField && w.decoration?.labelText == 'Group name',
   );
@@ -45,6 +63,7 @@ Future<void> nativeGroupJourney(
     ('asha_e2e', 'Asha Gurung'),
     ('bikram_e2e', 'Bikram Test'),
   ]) {
+    await stage('native group searching ${member.$1}');
     await t.enterText(search, member.$1);
     await waitUntil(() => find.text(member.$2).evaluate().isNotEmpty);
     FocusManager.instance.primaryFocus?.unfocus();
@@ -52,8 +71,10 @@ Future<void> nativeGroupJourney(
     await t.pump(const Duration(milliseconds: 600));
     await t.ensureVisible(find.text(member.$2));
     await tap(find.text(member.$2));
+    await stage('native group selected ${member.$1}');
     await t.pump();
   }
+  await stage('native group submitting two selected members');
   await tap(find.text('Create group (2)'));
   await waitUntil(
     () =>

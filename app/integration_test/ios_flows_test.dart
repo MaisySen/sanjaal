@@ -82,6 +82,7 @@ void main(){
   }
  }
  testWidgets('iOS keychain migration restore five tabs post and draft storage', (t) async {
+  try {
   await withNativeTransport((transport) async {
   addTearDown(() async {try {await capture('ios_test_teardown');}catch(_) {}});
   await stage('start');
@@ -303,5 +304,15 @@ void main(){
   // ignore: avoid_print
   print('iOS simulator local keychain/draft/restore/five-tab/post checks passed; no live service or physical iPhone proof.');
   });
+  } catch (error, stack) {
+    // Preserve the test's own cause before the driver exits and OS logs swamp
+    // stdout. Only this disposable fixture runs this integration entry point.
+    final detail = error.toString(), trace = stack.toString();
+    try {
+      await stage('native journey failure: ${detail.length > 12000 ? detail.substring(0, 12000) : detail}');
+      await stage('native journey stack: ${trace.length > 12000 ? trace.substring(0, 12000) : trace}');
+    } catch (_) { /* Diagnostic I/O must not replace the original failure. */ }
+    rethrow;
+  }
  });
 }

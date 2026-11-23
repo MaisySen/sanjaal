@@ -254,3 +254,21 @@ source/pump/media/enrollment checks pass, focused analysis clean, six Android
 sources compile using jars/activity symbol stub. No Android service/Telecom runtime,
 Swift compilation or physical acceptance occurred. SDK Android audio ownership and
 cold iOS scene-engine integration remain substantive gaps.
+
+## Gated single iOS engine/scene path
+
+Added a private compile-time false NativeCallEngine owner: one retained headless
+engine, one-time plugin configuration, failure latch and reuse by a later scene.
+When selected, AppDelegate's scene configuration omits the storyboard to avoid
+creating a second implicit engine; SceneDelegate installs that same engine's
+controller. The currently selected legacy implicit-scene path stays unchanged.
+Native wakeEngine points to the shared owner, not a second fallback engine.
+Twenty-five source/pump/media/enrollment tests pass. These source-contract checks
+cannot validate Swift signatures, actual UIScene launch, plugin callbacks or cold
+calls; Swift remains uncompiled and the gate remains false. Full native root,
+audio and provider enrollment/physical review still precede selection.
+
+References inspected:
+https://api.flutter.dev/ios-embedder/interface_flutter_scene_delegate.html
+https://api.flutter.dev/ios-embedder/interface_flutter_engine.html
+https://docs.flutter.dev/add-to-app/ios/add-flutter-screen

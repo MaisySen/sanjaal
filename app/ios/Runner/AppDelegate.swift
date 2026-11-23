@@ -10,14 +10,36 @@ import livekit_client
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    if NativeCallEngine.enabled { _ = callEngine.ensure() }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   // Process-owned, but PushKit registration remains explicitly inactive. This
   // lazy owner is attached to the ordinary scene engine only; a killed-state
   // headless-engine handoff must not create a second media owner.
+  lazy var callEngine: NativeCallEngine = {
+    let owner = NativeCallEngine()
+    owner.configure = { [weak self] engine in self?.configurePlugins(engine) }
+    return owner
+  }()
+
+  // When this private engine path is selected, omit the scene storyboard so it
+  // cannot instantiate a second implicit engine before scene connection.
+  override func application(_ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+    if !NativeCallEngine.enabled {
+      return super.application(application, configurationForConnecting: connectingSceneSession, options: options)
+    }
+    let config = UISceneConfiguration(name: "sanjaal-process-call", sessionRole: connectingSceneSession.role)
+    config.delegateClass = SceneDelegate.self
+    config.storyboard = nil
+    return config
+  }
+
   private lazy var incomingCalls: NativeIncomingCalls = {
     let owner = NativeIncomingCalls()
+    owner.wakeEngine = { [weak self] in _ = self?.callEngine.ensure() }
     owner.audioAvailability = { available in
       LiveKitPlugin.setEngineAvailability(isInputAvailable: available, isOutputAvailable: available)
     }
@@ -28,8 +50,15 @@ import livekit_client
   private let posterQueue = DispatchQueue(label: "sanjaal-poster")
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SanjaalVideoPoster") else { return }
+    // The legacy path is still selected. The private explicit-engine path
+    // registers once through its own process owner instead.
+    guard !NativeCallEngine.enabled else { return }
+    configurePlugins(engineBridge.pluginRegistry)
+  }
+
+  private func configurePlugins(_ registry: FlutterPluginRegistry) {
+    GeneratedPluginRegistrant.register(with: registry)
+    guard let registrar = registry.registrar(forPlugin: "SanjaalVideoPoster") else { return }
     incomingCalls.attach(registrar.messenger())
     registerDeviceAccess(registrar.messenger())
     registrar.register(MemoryVideoFactory(messenger: registrar.messenger()), withId: "au.fintex.sanjaal/memory-video")

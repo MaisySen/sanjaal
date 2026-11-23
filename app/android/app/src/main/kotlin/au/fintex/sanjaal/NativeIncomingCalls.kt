@@ -70,7 +70,11 @@ class NativeIncomingCalls private constructor(private val context: Context) {
                     "acknowledge" -> result.success((args["event_id"] as? String)?.let { journal.acknowledge(it) } ?: false)
                     "complete" -> {
                         if (args["call"] != current?.call || args["generation"] != journal.binding()?.lease) result.success(false)
-                        else { clear(); result.success(true) } // Telecom active-call handoff remains required.
+                        else if (args["connected"] == true) {
+                            // Do not falsely acknowledge a connected media handoff
+                            // while the Telecom/foreground service is inactive.
+                            clear(); result.success(false)
+                        } else { clear(); result.success(true) }
                     }
                     else -> result.notImplemented()
                 }

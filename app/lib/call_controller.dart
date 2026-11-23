@@ -17,6 +17,7 @@ class CallController extends ChangeNotifier {
     required this.title,
     required this.video,
     this._callId,
+    this.startCamera = true,
     CallConnection? connection,
   }) : connection = connection ?? NativeCallConnection(),
        _owner = session.user?['public_id'] as String?,
@@ -28,6 +29,12 @@ class CallController extends ChangeNotifier {
   final Session session;
   final String conversationId, title;
   final bool video;
+  /// System incoming answers must never start a camera in the background.
+  final bool startCamera;
+  Future<bool> get connected async {
+    await _joining;
+    return active && _setupComplete && !failed;
+  }
   final CallConnection connection;
   final String? _owner;
   final int _generation;
@@ -93,7 +100,7 @@ class CallController extends ChangeNotifier {
         ),
         microphone: () => connection.microphone(true),
         camera: () => connection.camera(true),
-        video: video,
+        video: video && startCamera,
       );
       if (!connected) {
         _endCall();
@@ -102,7 +109,7 @@ class CallController extends ChangeNotifier {
       }
       if (active) {
         _setupComplete = true;
-        camOn = video;
+        camOn = video && startCamera;
         _changed();
       }
     } on ApiError catch (error) {

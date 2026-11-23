@@ -103,3 +103,17 @@ journal, envelope and Telecom sources compile against Android36/Flutter jars plu
 an activity symbol stub. The edited real MainActivity and full dependency graph
 have not been packaged/compiled by this check. No Android OS Telecom execution,
 process termination, lockscreen or Samsung flow has run. iOS stays uncompiled.
+
+## Shared media owner, still unselected
+
+CallController can now connect a video call with startCamera=false while retaining
+video identity and later explicit in-app camera control. Native media actions
+reserve/release the same ActiveCallHost slot instead of creating a second hidden
+Room owner. Busy/quarantined hosts refuse reservation; native completion failure
+releases capture. Android deliberately returns false for connected completion
+until its inactive Telecom/foreground-service handoff is finished, rather than
+claiming success while clearing the system call. Native event pump/actions remain
+unselected. iOS externalCallSystem audio gating and cold-engine ownership remain
+unfinished. Fifty-one selected controller, host, coordinator, pump and media-boundary
+checks pass. No new UI is selected, no native/device media capture was tested and
+no full product build was made.

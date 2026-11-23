@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'call_controller.dart';
+import 'native_call_coordinator.dart';
 import 'call_page.dart';
 import 'ph.dart';
 import 'ui.dart' show t_, showInfo;
@@ -130,6 +131,36 @@ class ActiveCallHostState extends State<ActiveCallHost> {
     setState(() => _current = ticket);
     _present(ticket);
     return ticket.done.future;
+  }
+
+  /// Reserve the same single media slot used by foreground calls, without
+  /// navigating or enabling camera from a system/background answer.
+  CallController? reserveNative(NativeCallEvent event) {
+    if (!mounted || busy || widget.session.nativeCallLease != event.lease ||
+        widget.session.user?['public_id'] != event.owner) { return null; }
+    final call = CallController(session: widget.session,
+      conversationId: event.conversation, title: 'Sanjaal call', video: event.video,
+      callId: event.call, startCamera: false);
+    final ticket = _CallTicket(call);
+    ticket.listener = () {
+      if (!mounted || !identical(_current, ticket)) return;
+      if (!call.ownerMatches || call.closed) {
+        unawaited(_finish(ticket, endRemote: call.ownerMatches));
+      } else {
+        setState(() {});
+      }
+    };
+    call.addListener(ticket.listener);
+    setState(() => _current = ticket);
+    return call;
+  }
+
+  Future<void> releaseNative(CallController call) async {
+    final ticket = _current;
+    if (ticket == null || !identical(ticket.call, call)) return;
+    // Authenticated remote actions belong to the native coordinator, never a
+    // second implicit End here or one using a replacement login.
+    await _finish(ticket, endRemote: false);
   }
 
   void _present(_CallTicket ticket) {

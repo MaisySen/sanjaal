@@ -25,7 +25,7 @@ import livekit_client
 
   // When this private engine path is selected, omit the scene storyboard so it
   // cannot instantiate a second implicit engine before scene connection.
-  func application(_ application: UIApplication,
+  override func application(_ application: UIApplication,
     configurationForConnecting connectingSceneSession: UISceneSession,
     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
     if !NativeCallEngine.enabled {

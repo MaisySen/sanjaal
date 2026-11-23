@@ -383,3 +383,12 @@ Xcode26.3 pin and the exact runner image defaults to Xcode16.4. Correct the vali
 configuration to select26.3 explicitly. App/native/dependency input trees are unchanged.
 Do not repeat successful Android compilation for this workflow-only correction.
 iOS Swift remains unvalidated until the corrected complete graph finishes.
+
+### Compiler correction to source-review interpretation
+
+Pinned Xcode26.3 run45105735140 passes the video dependency stage but reports
+AppDelegate.swift27 requires override on the scene-configuration method. The earlier
+header-only interpretation was wrong: restore override, retaining explicit named
+legacy configuration rather than assuming an optional superclass implementation.
+This is an actual compiler-derived correction, not yet a passing Swift graph.
+Repin iOS input tree only. Android/lib/vendor/pubspec inputs remain unchanged.

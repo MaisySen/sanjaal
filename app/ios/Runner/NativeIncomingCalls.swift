@@ -95,6 +95,11 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
       case "acknowledge":
         guard let id = args["event_id"] as? String else { result(false); return }
         self.queued.removeAll { $0["event_id"] as? String == id }; result(true)
+      case "prepare":
+        guard let id = args["call"] as? String, self.current?.call.uuidString.lowercased() == id.lowercased(),
+          args["generation"] as? String == self.generation, self.answer != nil else { result(false); return }
+        // Cold engine and audio policy must be selected before this can be true.
+        result(false)
       case "complete":
         guard let id = args["call"] as? String, self.current?.call.uuidString.lowercased() == id.lowercased(),
           args["generation"] as? String == self.generation else { result(false); return }

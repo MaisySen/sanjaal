@@ -20,6 +20,10 @@ class NativeCallMediaActions implements NativeCallActions {
   @override
   Future<bool> connect(NativeCallEvent event, {required bool cameraEnabled}) async {
     if (cameraEnabled || _cancelled.contains(event.call) || _owned.isNotEmpty) return false;
+    final prepared = await _channel.invokeMethod<bool>('prepare', {
+      'call':event.call, 'generation':event.lease,
+    });
+    if (prepared != true || _cancelled.contains(event.call) || _owned.isNotEmpty) return false;
     final controller = reserve(event);
     if (controller == null) return false;
     // Fail closed even if an incorrectly supplied host enables camera or returns

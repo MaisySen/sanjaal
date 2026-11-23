@@ -24,8 +24,7 @@ class NativeIncomingCalls private constructor(private val context: Context) {
         }
     }
     internal val telecom = NativeCallTelecom(context,
-        // Fail closed until notification and foreground-media handoff are selected.
-        show = { false },
+        show = { envelope -> present(envelope) },
         action = { action, envelope -> emit(action, envelope) })
     private val journal = NativeCallJournal(context)
     private val notifications = context.getSystemService(NotificationManager::class.java)
@@ -37,20 +36,38 @@ class NativeIncomingCalls private constructor(private val context: Context) {
     private val notificationId = 82012
 
     private var foregroundReady = false
+    private var preparing: MethodChannel.Result? = null
+    private var prepareTimeout: Runnable? = null
+    private fun finishPreparation(ready: Boolean) {
+        prepareTimeout?.let { handler.removeCallbacks(it) }; prepareTimeout = null
+        val result = preparing; preparing = null; result?.success(ready)
+    }
+    private fun prepare(args: Map<*, *>, result: MethodChannel.Result) {
+        val call = args["call"] as? String
+        val lease = args["generation"] as? String
+        if (!NativeCallRollout.ENABLED || call == null || lease == null ||
+            preparing != null || !ownsRinging(call, lease)) { result.success(false); return }
+        preparing = result
+        prepareTimeout = Runnable { finishPreparation(false) }.also { handler.postDelayed(it, 4000) }
+        try {
+            context.startForegroundService(Intent(context, NativeCallForegroundService::class.java)
+                .putExtra("call", call).putExtra("generation", lease))
+        } catch (_: RuntimeException) { finishPreparation(false); clear() }
+    }
     internal fun ownsRinging(call: String, lease: String): Boolean =
         journal.binding()?.lease == lease && current?.call == call &&
             (current?.expiresAtSeconds ?: 0) > System.currentTimeMillis() / 1000
     internal fun foregroundStarted(call: String, lease: String): Boolean {
         if (!ownsRinging(call, lease)) return false
-        foregroundReady = true; return true
+        foregroundReady = true; finishPreparation(true); return true
     }
     internal fun foregroundFailed(call: String, lease: String) {
         if (journal.binding()?.lease == lease && current?.call == call) {
             current?.let { emit("end", it) }; clear()
         }
     }
-    internal fun foregroundStopped() {
-        if (!foregroundReady) return
+    internal fun foregroundStopped(call: String?, lease: String?) {
+        if (!foregroundReady || current?.call != call || journal.binding()?.lease != lease) return
         foregroundReady = false
         current?.let { emit("end", it) }; clear()
     }
@@ -87,12 +104,16 @@ class NativeIncomingCalls private constructor(private val context: Context) {
                     "drain" -> result.success(journal.events())
                     "claim" -> result.success((args["event_id"] as? String)?.let { journal.claim(it) } ?: false)
                     "acknowledge" -> result.success((args["event_id"] as? String)?.let { journal.acknowledge(it) } ?: false)
+                    "prepare" -> prepare(args, result)
                     "complete" -> {
                         if (args["call"] != current?.call || args["generation"] != journal.binding()?.lease) result.success(false)
                         else if (args["connected"] == true) {
-                            // Do not falsely acknowledge a connected media handoff
-                            // while the Telecom/foreground service is inactive.
-                            clear(); result.success(false)
+                            if (!NativeCallRollout.ENABLED || !foregroundReady || !telecom.complete(current!!.call, true)) {
+                                clear(); result.success(false)
+                            } else {
+                                expiry?.let { handler.removeCallbacks(it) }; expiry = null
+                                notifications.cancel(notificationId); result.success(true)
+                            }
                         } else { clear(); result.success(true) }
                     }
                     else -> result.notImplemented()
@@ -103,12 +124,24 @@ class NativeIncomingCalls private constructor(private val context: Context) {
 
     /** Called only from a provider-authenticated native receiver on the main thread. */
     fun receive(data: Map<String, String>): Boolean {
-        if (Build.VERSION.SDK_INT < 31 || !notifications.areNotificationsEnabled()) return false
+        if (!NativeCallRollout.ENABLED || Build.VERSION.SDK_INT < 31 || !notifications.areNotificationsEnabled()) return false
         val binding = journal.binding() ?: return false
         if (data["login_lease"] != binding.lease) return false
         val owner = binding.owner
         val envelope = CallWakeEnvelope.parse(data, owner, System.currentTimeMillis() / 1000) ?: return false
         if (current != null) return false
+        if (!journal.saveCurrent(envelope, data)) return false
+        current = envelope
+        expiry = Runnable { clear() }.also { handler.postDelayed(it,
+            (envelope.expiresAtSeconds * 1000 - System.currentTimeMillis()).coerceAtLeast(1)) }
+        if (!telecom.offer(envelope)) { clear(); return false }
+        return true
+    }
+
+    /** Only Telecom's incoming-UI grant can post a ring. */
+    private fun present(envelope: CallWakeEnvelope): Boolean {
+        if (!NativeCallRollout.ENABLED || current?.call != envelope.call ||
+            envelope.expiresAtSeconds <= System.currentTimeMillis() / 1000) return false
         val notificationChannel = NotificationChannel(channelId, "Incoming calls", NotificationManager.IMPORTANCE_HIGH)
         notificationChannel.description = "Incoming Sanjaal voice and video calls"
         notifications.createNotificationChannel(notificationChannel)
@@ -125,12 +158,8 @@ class NativeIncomingCalls private constructor(private val context: Context) {
             .setOngoing(true)
             .setTimeoutAfter((envelope.expiresAtSeconds * 1000 - System.currentTimeMillis()).coerceAtLeast(1))
             .build()
-        if (!journal.saveCurrent(envelope, data)) return false
-        current = envelope
         return try {
             notifications.notify(notificationId, notification)
-            expiry = Runnable { clear() }.also { handler.postDelayed(it,
-                (envelope.expiresAtSeconds * 1000 - System.currentTimeMillis()).coerceAtLeast(1)) }
             emit("incoming", envelope)
             true
         } catch (_: SecurityException) { clear(); false }
@@ -166,6 +195,8 @@ class NativeIncomingCalls private constructor(private val context: Context) {
     }
     private fun clear() {
         foregroundReady = false
+        finishPreparation(false)
+        context.stopService(Intent(context, NativeCallForegroundService::class.java))
         expiry?.let { handler.removeCallbacks(it) }; expiry = null
         notifications.cancel(notificationId); current = null; journal.clearCurrent(); telecom.retire()
     }

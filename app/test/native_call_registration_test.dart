@@ -40,6 +40,14 @@ void main() {
     server.complete({'registered':true}); await operation; await retiring;
     expect(session.requests.length,1); expect(session.removals.length,1);
   });
+  test('lost enrollment response remains removable without repeating enrollment',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner};
+    session.respond=(m,p,b) async { throw StateError('Synthetic receipt lost'); };
+    final registration=NativeCallRegistration(session:session,device:Device());
+    await expectLater(registration.register(),throwsStateError);
+    await registration.unregister();
+    expect(session.requests.length,1); expect(session.removals.length,1);
+  });
   test('unready native and unverified login cannot enroll',() async {
     final session=PumpSession()..user={'public_id':fixture.owner}; final device=Device()..value=null;
     final registration=NativeCallRegistration(session:session,device:device);

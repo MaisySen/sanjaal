@@ -13,6 +13,8 @@ import android.os.IBinder
  * reviewed MANAGE_OWN_CALLS/FOREGROUND_SERVICE_PHONE_CALL permissions. Never
  * restart a call from a sticky service, boot broadcast or missing intent. */
 class NativeCallForegroundService : Service() {
+    private var ownedCall: String? = null
+    private var ownedLease: String? = null
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val owner = NativeIncomingCalls.get(applicationContext)
@@ -30,6 +32,7 @@ class NativeCallForegroundService : Service() {
                 .setContentTitle("Sanjaal call").setCategory(Notification.CATEGORY_CALL)
                 .setVisibility(Notification.VISIBILITY_PRIVATE).setOngoing(true).build()
             startForeground(82013, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+            ownedCall = call; ownedLease = lease
             if (!owner.foregroundStarted(call, lease)) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(startId) }
             START_NOT_STICKY
         } catch (_: RuntimeException) {
@@ -40,7 +43,7 @@ class NativeCallForegroundService : Service() {
         }
     }
     override fun onDestroy() {
-        NativeIncomingCalls.get(applicationContext).foregroundStopped()
+        NativeIncomingCalls.get(applicationContext).foregroundStopped(ownedCall, ownedLease)
         super.onDestroy()
     }
 }

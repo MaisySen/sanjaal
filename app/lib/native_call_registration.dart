@@ -57,13 +57,22 @@ class NativeCallRegistration {
     final binding=<String,dynamic>{'transport':transport,'token':value,
       'login_lease':lease, if(transport=='apns_voip') 'environment':environment};
     final remove=session.captureCallDeviceRemoval();
-    await session.call('POST','/call-devices',body:binding);
+    // Retain the exact attempt before POST. A transport error is unknown, not
+    // proof that enrollment did not land. Unregister must still retire it.
+    _registeredBinding=binding; _remove=remove;
+    try {
+      await session.call('POST','/call-devices',body:binding);
+    } catch (_) {
+      if(!_matches(owner,lease,generation)) await remove(binding);
+      rethrow;
+    }
     if(_matches(owner,lease,generation)) {
       _registered=fingerprint; _registeredBinding=binding; _remove=remove;
     } else {
       // Enrollment may have landed after account retirement. Cleanup uses only
       // its captured access and exact lease, never current Session.call.
       await remove(binding);
+      _registeredBinding=null; _remove=null;
     }
   }
   Future<void> unregister() async {

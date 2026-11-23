@@ -235,3 +235,22 @@ future work and removes confirmed enrollment. Actual root/logout hooks remain
 unselected, and unknown-result network enrollment still needs bounded reconciliation.
 Forty-nine selected enrollment/lease/session/pump tests pass with clean analysis;
 Android sources compile against jars/activity symbol stub. No OS native execution.
+
+## Android lifecycle handoff implementation, still gated
+
+Android receive source now offers to Telecom first and posts its ring only from
+Telecom's incoming-UI callback. Native media preparation waits for the phoneCall
+foreground service acknowledgement before reserving capture, bounded to4seconds;
+connection completion requires service readiness and actual Telecom activation.
+Call expiry/account cleanup retires Telecom/service; service stop is call/lease
+bound so stale destruction cannot stop replacement work. All paths remain behind
+compile-time false rollout, no manifest/service/permission registration and no
+phone account activation. iOS prepare deliberately false until cold-engine/audio
+integration is ready. No background delivery capability is claimed.
+
+Also retained unknown-result enrollment attempts before POST, so unregister can
+remove a lost-response attempt without repeating enrollment. Twenty-eight selected
+source/pump/media/enrollment checks pass, focused analysis clean, six Android
+sources compile using jars/activity symbol stub. No Android service/Telecom runtime,
+Swift compilation or physical acceptance occurred. SDK Android audio ownership and
+cold iOS scene-engine integration remain substantive gaps.

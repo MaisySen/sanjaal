@@ -48,6 +48,9 @@ void main() {
     expect(manifest, isNot(contains('MANAGE_OWN_CALLS')));
     expect(activity, isNot(contains('.activate()')));
     expect(owner, contains('"registered" to false'));
-    expect(owner, contains('show = { false }'));
+    expect(owner, contains('show = { envelope -> present(envelope) }'));
+    expect(owner, contains('!NativeCallRollout.ENABLED'));
+    expect(owner, contains('telecom.offer(envelope)'));
+    expect(owner, contains('finishPreparation(true)'));
   });
 }

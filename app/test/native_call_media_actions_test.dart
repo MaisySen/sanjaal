@@ -8,6 +8,14 @@ import 'native_call_coordinator_test.dart' as fixture;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('au.fintex.sanjaal/incoming-calls'), (call) async => call.method=='prepare');
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('au.fintex.sanjaal/incoming-calls'), null);
+  });
   final event = NativeCallEvent.parse(fixture.event('answer'), owner:fixture.owner, lease:'lease-a', now:fixture.now)!;
   test('native video answer uses shared controller with camera off; later explicit camera remains possible', () async {
     final session = CallFixtureSession()..user={'public_id':fixture.owner};
@@ -24,6 +32,14 @@ void main() {
     await actions.stop(event);
     expect(await actions.connect(event,cameraEnabled:false),false);
   });
+  test('denied native preparation never reserves or opens media', () async {
+    const channel=MethodChannel('synthetic-denied-prepare'); var reserves=0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(_) async=>false);
+    final actions=NativeCallMediaActions(channel:channel,reserve:(_) { reserves++; return null; },
+      release:(_) async {},show:(e,r) async {});
+    expect(await actions.connect(event,cameraEnabled:false),false); expect(reserves,0);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
+  });
   test('busy host cannot start another media owner', () async {
     final actions=NativeCallMediaActions(reserve:(_)=>null,release:(_) async {},show:(e,r) async {});
     expect(await actions.connect(event,cameraEnabled:false),false);
@@ -31,7 +47,8 @@ void main() {
   });
   test('throwing native completion releases capture instead of leaking media', () async {
     const channel=MethodChannel('synthetic-throwing-media');
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(_) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {
+      if(call.method=='prepare') return true;
       throw PlatformException(code:'engine-gone');
     });
     final session=CallFixtureSession()..user={'public_id':fixture.owner}; final media=FakeCallConnection();
@@ -46,7 +63,7 @@ void main() {
   });
   test('unconfirmed native handoff releases connected capture', () async {
     const channel=MethodChannel('synthetic-media');
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(_) async=>false);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async=>call.method=='prepare');
     final session=CallFixtureSession()..user={'public_id':fixture.owner}; final media=FakeCallConnection();
     var releases=0;
     final actions=NativeCallMediaActions(channel:channel,reserve:(e)=>CallController(session:session,

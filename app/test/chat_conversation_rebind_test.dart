@@ -46,7 +46,7 @@ void main() {
         Future.value(
           ByteData.sublistView(
             File(
-              '/tmp/sj-flutter-sdk/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
+              '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
             ).readAsBytesSync(),
           ),
         ),
@@ -135,8 +135,11 @@ void main() {
               )
               .toImage(pixelRatio: 1);
           final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-          File('/downloads/sanjaal-chat-rebind-retired.png')
-              .writeAsBytesSync(bytes!.buffer.asUint8List());
+          final file = File(
+            'test/renders/chat_conversation_rebind_retired.png',
+          );
+          file.parent.createSync(recursive: true);
+          file.writeAsBytesSync(bytes!.buffer.asUint8List());
           image.dispose();
         });
         retained?.call();

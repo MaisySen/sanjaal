@@ -8,6 +8,7 @@ import 'native_call_registration.dart';
 
 /// Private source gate. Never enable from an unreviewed runtime preference.
 const nativeCallRootEnabled = false;
+final nativeCallLifecycleError = ValueNotifier<String?>(null);
 
 class NativeCallRoot extends StatefulWidget {
   const NativeCallRoot({super.key,required this.session,required this.hostKey,required this.child});
@@ -20,6 +21,13 @@ class _NativeCallRootState extends State<NativeCallRoot> {
   NativeCallEventPump? _pump;
   NativeCallRegistration? _registration;
   String? _lease;
+  void _failed(Object error) {
+    nativeCallLifecycleError.value='Call notification setup or cleanup could not be confirmed.';
+  }
+  void _refreshToken() {
+    final value=_registration;
+    if(value!=null) unawaited(value.register().catchError(_failed));
+  }
   @override void initState() {
     super.initState();
     if (!nativeCallRootEnabled) return;
@@ -27,7 +35,7 @@ class _NativeCallRootState extends State<NativeCallRoot> {
     WidgetsBinding.instance.addPostFrameCallback((_) { if(mounted) _start(); });
   }
   void _start() {
-    _pump=NativeCallEventPump(session:widget.session,actions:NativeCallMediaActions(
+    _pump=NativeCallEventPump(session:widget.session,onTokenChanged:_refreshToken,actions:NativeCallMediaActions(
       reserve:(event)=>widget.hostKey.currentState?.reserveNative(event),
       release:(call) async { await widget.hostKey.currentState?.releaseNative(call); },
       // Incoming/open metadata never navigates from a background callback.
@@ -42,11 +50,11 @@ class _NativeCallRootState extends State<NativeCallRoot> {
     if(next==_lease) return;
     final previous=_registration;
     _registration=null; _lease=next;
-    if(previous!=null) unawaited(previous.unregister().catchError((Object _) {}));
+    if(previous!=null) unawaited(previous.unregister().catchError(_failed));
     if(next==null) return;
     final value=NativeCallRegistration(session:widget.session,device:ChannelNativeCallDevice());
     _registration=value;
-    unawaited(value.register().catchError((Object _) {}));
+    unawaited(value.register().catchError(_failed));
   }
   @override void didUpdateWidget(covariant NativeCallRoot oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -56,14 +64,14 @@ class _NativeCallRootState extends State<NativeCallRoot> {
       oldWidget.session.removeListener(_account);
       _pump?.dispose(); _pump=null;
       final previous=_registration; _registration=null;
-      if(previous!=null) unawaited(previous.unregister().catchError((Object _) {}));
+      if(previous!=null) unawaited(previous.unregister().catchError(_failed));
     }
   }
   @override void dispose() {
     widget.session.removeListener(_account);
     _pump?.dispose();
     final previous=_registration;
-    if(previous!=null) unawaited(previous.unregister().catchError((Object _) {}));
+    if(previous!=null) unawaited(previous.unregister().catchError(_failed));
     super.dispose();
   }
   @override Widget build(BuildContext context)=>widget.child;

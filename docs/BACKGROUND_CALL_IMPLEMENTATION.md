@@ -288,3 +288,13 @@ with per-lease in-flight event guards. Added a real incoming-channel callback te
 which cancels Answer before the read completes. Twenty-six root/pump/media/
 enrollment/cold-root cases pass and focused analysis clean. No pixels changed by
 the false root gate; native proof remains outstanding.
+
+## Token rotation cleanup review
+
+Native tokenChanged events now route to the private enrollment owner. Before a
+new token/lease replaces its cleanup handle, the previous enrollment is removed
+using its captured request; cleanup failure blocks replacement rather than
+orphaning old tokens. The root retains a generic lifecycle error for the later
+settings/status surface instead of swallowing cleanup failure. Source gate stays
+false; that status surface and native token/provider readiness remain unfinished.
+Twenty selected registration/root/pump cases pass, focused analysis clean.

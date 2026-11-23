@@ -56,6 +56,14 @@ class NativeCallRegistration {
     if(_registered==fingerprint) return;
     final binding=<String,dynamic>{'transport':transport,'token':value,
       'login_lease':lease, if(transport=='apns_voip') 'environment':environment};
+    // Retire any older token/lease before replacing our only cleanup handle.
+    // Failure keeps the old handle and blocks new enrollment, never orphaning it.
+    final previous=_registeredBinding, previousRemove=_remove;
+    if(previous!=null && previousRemove!=null) {
+      await previousRemove(previous);
+      _registeredBinding=null; _remove=null; _registered=null;
+      if(!_matches(owner,lease,generation)) return;
+    }
     final remove=session.captureCallDeviceRemoval();
     // Retain the exact attempt before POST. A transport error is unknown, not
     // proof that enrollment did not land. Unregister must still retire it.

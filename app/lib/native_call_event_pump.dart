@@ -7,15 +7,17 @@ import 'native_call_coordinator.dart';
 /// media ownership and activation review are complete. No timer or auto-answer.
 class NativeCallEventPump {
   NativeCallEventPump({required this.session, required this.actions,
-    MethodChannel? channel}) : _channel = channel ?? const MethodChannel('au.fintex.sanjaal/incoming-calls') {
+    this.onTokenChanged, MethodChannel? channel}) : _channel = channel ?? const MethodChannel('au.fintex.sanjaal/incoming-calls') {
     session.addListener(_changed);
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'changed') _changed();
+      if (call.method == 'tokenChanged') onTokenChanged?.call();
     });
     _changed();
   }
   final Session session;
   final NativeCallActions actions;
+  final void Function()? onTokenChanged;
   final MethodChannel _channel;
   NativeCallCoordinator? _coordinator;
   String? _owner, _lease;

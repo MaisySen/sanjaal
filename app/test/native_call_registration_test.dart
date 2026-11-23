@@ -48,6 +48,15 @@ void main() {
     await registration.unregister();
     expect(session.requests.length,1); expect(session.removals.length,1);
   });
+  test('token rotation removes old captured enrollment before losing its handle',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner}; final device=Device();
+    final registration=NativeCallRegistration(session:session,device:device);
+    await registration.register(); device.value={'transport':'fcm','token':'replacement-synthetic-token'};
+    await registration.register();
+    expect(session.removals.single['token'],'synthetic-fcm-token');
+    expect(session.requests.length,2);
+    await registration.unregister(); expect(session.removals.last['token'],'replacement-synthetic-token');
+  });
   test('unready native and unverified login cannot enroll',() async {
     final session=PumpSession()..user={'public_id':fixture.owner}; final device=Device()..value=null;
     final registration=NativeCallRegistration(session:session,device:device);
@@ -56,7 +65,7 @@ void main() {
     await registration.register(); expect(session.requests,isEmpty); expect(device.reads,1);
   });
   test('enrollment deduplicates same token but rotates with login lease',() async {
-    final session=PumpSession()..user={'public_id':fixture.owner}; final device=Device();
+    final session=RemovalSession()..user={'public_id':fixture.owner}; final device=Device();
     final registration=NativeCallRegistration(session:session,device:device);
     await registration.register(); await registration.register(); expect(session.requests.length,1);
     session.change('abcdefab-1234-4234-8234-123456789abc');

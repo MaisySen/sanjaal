@@ -10,7 +10,7 @@ class NativeCallEvent {
   final bool video;
   final DateTime expires;
   static final _uuid = RegExp(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$');
-  static NativeCallEvent? parse(Object? value, {required String owner, required String lease, required DateTime now}) {
+  static NativeCallEvent? parse(Object? value, {required String owner, required String lease, required DateTime now, Set<String> activeCalls = const {}}) {
     if (value is! Map || value['recipient'] != owner || value['generation'] != lease ||
         !const ['incoming', 'answer', 'decline', 'end', 'open'].contains(value['action']) ||
         !const ['voice', 'video'].contains(value['kind'])) {
@@ -22,7 +22,8 @@ class NativeCallEvent {
     final seconds = value['expires_at'];
     if (seconds is! int) return null;
     final current = now.millisecondsSinceEpoch ~/ 1000;
-    if (seconds <= current || seconds > current + 45) return null;
+    final activeEnd = value['action'] == 'end' && activeCalls.contains(value['call']);
+    if ((!activeEnd && seconds <= current) || seconds > current + 45) return null;
     return NativeCallEvent._(value['action'] as String, owner, lease, value['call'] as String,
         value['conversation'] as String, value['kind'] == 'video',
         DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true));
@@ -87,7 +88,7 @@ class NativeCallCoordinator {
 
   Future<void> handle(Object? data) async {
     if (!active) return;
-    final event = NativeCallEvent.parse(data, owner: _owner!, lease: lease, now: _now());
+    final event = NativeCallEvent.parse(data, owner: _owner!, lease: lease, now: _now(), activeCalls: {..._connected.keys, ..._connecting.keys});
     if (event == null) return;
     final key = '${event.call}:${event.action}';
     if (_handled.contains(key) || _inFlight.contains(key)) return;

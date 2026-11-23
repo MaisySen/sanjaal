@@ -23,10 +23,10 @@ class Actions implements NativeCallActions {
   @override Future<void> stop(NativeCallEvent event) async { stops++; }
 }
 void main() {
-  late CallFixtureSession session; late Actions actions; late NativeCallCoordinator coordinator;
+  late CallFixtureSession session; late Actions actions; late NativeCallCoordinator coordinator; late DateTime clock;
   setUp(() {
     session = CallFixtureSession()..user = {'public_id': owner}..loading = false;
-    actions = Actions(); coordinator = NativeCallCoordinator(session: session, lease: 'lease-a', actions: actions, now: () => now);
+    clock = now; actions = Actions(); coordinator = NativeCallCoordinator(session: session, lease: 'lease-a', actions: actions, now: () => clock);
     session.respond = (method,path,body) async => state(method == 'POST' ? 'answered' : 'ringing');
   });
   tearDown(() => coordinator.dispose());
@@ -83,6 +83,19 @@ void main() {
     final count=session.requests.length; session.replace(owner:owner);
     await Future<void>.delayed(Duration.zero);
     expect(actions.stops,1); expect(session.requests.length,count);
+  });
+
+  test('native end of this connected call remains valid after original ring expiry', () async {
+    await coordinator.handle(event('answer')); clock=now.add(const Duration(minutes: 10));
+    session.respond=(m,p,b) async=>state(m=='GET'?'answered':'ended');
+    await coordinator.handle(event('end'));
+    expect(actions.stops,1); expect(actions.completions,[true,false]);
+    expect(session.requests.map((r)=>r.method), ['GET','POST','GET','POST']);
+  });
+  test('expired unowned native end cannot touch a different active server call', () async {
+    clock=now.add(const Duration(minutes:10));
+    await coordinator.handle(event('end'));
+    expect(session.requests,isEmpty); expect(actions.stops,0);
   });
 
 }

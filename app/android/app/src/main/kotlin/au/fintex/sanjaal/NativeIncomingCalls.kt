@@ -17,13 +17,11 @@ import io.flutter.plugin.common.MethodChannel
 /** Process-owned CallStyle presentation. Manifest/Telecom receiver integration is
  * intentionally not activated here. Metadata never authorizes authenticated actions. */
 class NativeIncomingCalls(private val context: Context) {
-    private val prefs = context.getSharedPreferences("sanjaal_native_calls", Context.MODE_PRIVATE)
+    private val journal = NativeCallJournal(context)
     private val notifications = context.getSystemService(NotificationManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
     private var channel: MethodChannel? = null
     private var current: CallWakeEnvelope? = null
-    private var events = mutableListOf<Map<String, Any>>()
-    private val seen = linkedSetOf<String>()
     private var expiry: Runnable? = null
     private val channelId = "sanjaal_incoming_calls_v1"
     private val notificationId = 82012
@@ -36,19 +34,20 @@ class NativeIncomingCalls(private val context: Context) {
                     "bind" -> {
                         val owner = args["owner"] as? String
                         val generation = args["generation"] as? String
-                        val uuid = Regex("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$")
-                        if (owner == null || !uuid.matches(owner) || generation.isNullOrEmpty()) {
-                            result.error("INVALID_OWNER", "Call account binding is invalid.", null)
+                        if (owner != journal.binding()?.owner || generation != journal.binding()?.lease) clear()
+                        if (owner == null || generation == null || !journal.bind(owner, generation)) {
+                            result.error("INVALID_OWNER", "Call account binding could not be saved.", null)
                         } else {
-                            if (prefs.getString("owner", null) != owner.lowercase() || prefs.getString("generation", null) != generation) clear()
-                            prefs.edit().putString("owner", owner.lowercase()).putString("generation", generation).commit()
+                            current = journal.current(System.currentTimeMillis() / 1000)
                             result.success(mapOf("registered" to false)) // No receiver/Telecom registration yet.
                         }
                     }
-                    "clear" -> { clear(); prefs.edit().clear().commit(); result.success(null) }
-                    "drain" -> { val copy = events.toList(); events.clear(); result.success(copy) }
+                    "clear" -> { clear(); result.success(journal.clear()) }
+                    "drain" -> result.success(journal.events())
+                    "claim" -> result.success((args["event_id"] as? String)?.let { journal.claim(it) } ?: false)
+                    "acknowledge" -> result.success((args["event_id"] as? String)?.let { journal.acknowledge(it) } ?: false)
                     "complete" -> {
-                        if (args["call"] != current?.call || args["generation"] != prefs.getString("generation", null)) result.success(false)
+                        if (args["call"] != current?.call || args["generation"] != journal.binding()?.lease) result.success(false)
                         else { clear(); result.success(true) } // Telecom active-call handoff remains required.
                     }
                     else -> result.notImplemented()
@@ -60,9 +59,9 @@ class NativeIncomingCalls(private val context: Context) {
     /** Called only from a provider-authenticated native receiver on the main thread. */
     fun receive(data: Map<String, String>): Boolean {
         if (Build.VERSION.SDK_INT < 31 || !notifications.areNotificationsEnabled()) return false
-        val owner = prefs.getString("owner", null) ?: return false
+        val owner = journal.binding()?.owner ?: return false
         val envelope = CallWakeEnvelope.parse(data, owner, System.currentTimeMillis() / 1000) ?: return false
-        if (current != null || seen.contains(envelope.call)) return false
+        if (current != null) return false
         val notificationChannel = NotificationChannel(channelId, "Incoming calls", NotificationManager.IMPORTANCE_HIGH)
         notificationChannel.description = "Incoming Sanjaal voice and video calls"
         notifications.createNotificationChannel(notificationChannel)
@@ -79,9 +78,8 @@ class NativeIncomingCalls(private val context: Context) {
             .setOngoing(true)
             .setTimeoutAfter((envelope.expiresAtSeconds * 1000 - System.currentTimeMillis()).coerceAtLeast(1))
             .build()
+        if (!journal.saveCurrent(envelope, data)) return false
         current = envelope
-        seen.add(envelope.call)
-        if (seen.size > 64) seen.remove(seen.first())
         return try {
             notifications.notify(notificationId, notification)
             expiry = Runnable { clear() }.also { handler.postDelayed(it,
@@ -96,30 +94,31 @@ class NativeIncomingCalls(private val context: Context) {
             .setAction("au.fintex.sanjaal.CALL_ACTION")
             .setData(Uri.parse("sanjaal-call://${envelope.call}/$action"))
             .putExtra("sanjaal_call", envelope.call).putExtra("sanjaal_action", action)
+            .putExtra("sanjaal_lease", journal.binding()?.lease)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         return PendingIntent.getActivity(context, request, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     fun consume(intent: Intent?) {
         if (intent?.action != "au.fintex.sanjaal.CALL_ACTION") return
-        val envelope = current ?: return
+        val envelope = current ?: journal.current(System.currentTimeMillis() / 1000) ?: return
+        current = envelope
         val action = intent.getStringExtra("sanjaal_action") ?: return
-        if (intent.getStringExtra("sanjaal_call") != envelope.call ||
+        if (intent.getStringExtra("sanjaal_lease") != journal.binding()?.lease ||
+            intent.getStringExtra("sanjaal_call") != envelope.call ||
             action !in listOf("answer", "decline", "open") ||
             envelope.expiresAtSeconds <= System.currentTimeMillis() / 1000 ||
-            envelope.recipient != prefs.getString("owner", null)) return
+            envelope.recipient != journal.binding()?.owner) return
         emit(action, envelope)
         notifications.cancel(notificationId)
         // Do not clear metadata until authenticated completion or timeout.
     }
 
     private fun emit(action: String, envelope: CallWakeEnvelope) {
-        if (events.size >= 8) return
-        events.add(envelope.values() + mapOf("action" to action, "generation" to (prefs.getString("generation", null) ?: "")))
-        channel?.invokeMethod("changed", null)
+        if (journal.append(action, envelope)) channel?.invokeMethod("changed", null)
     }
     private fun clear() {
         expiry?.let { handler.removeCallbacks(it) }; expiry = null
-        notifications.cancel(notificationId); current = null; events.clear()
+        notifications.cancel(notificationId); current = null; journal.clearCurrent()
     }
 }

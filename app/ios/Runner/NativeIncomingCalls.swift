@@ -19,6 +19,7 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   private var owner: String?
   private var generation: String?
   private var seen = Set<UUID>()
+  private var claimed = Set<String>()
   private var token: String?
   private var active = false
   private var connected = false
@@ -60,10 +61,10 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
       switch call.method {
       case "bind":
         guard let owner = args["owner"] as? String, UUID(uuidString: owner) != nil,
-          let generation = args["generation"] as? String, !generation.isEmpty else {
+          let generation = args["generation"] as? String, UUID(uuidString: generation) != nil else {
           result(FlutterError(code: "INVALID_OWNER", message: "Call account binding is invalid.", details: nil)); return
         }
-        if self.owner != owner.lowercased() || self.generation != generation { self.reset(reason: .failed) }
+        if self.owner != owner.lowercased() || self.generation != generation { self.reset(reason: .failed); self.claimed.removeAll(); self.seen.removeAll() }
         self.owner = owner.lowercased(); self.generation = generation
         self.defaults.set(self.owner, forKey: "sanjaal.call.owner")
         self.defaults.set(generation, forKey: "sanjaal.call.generation")
@@ -71,12 +72,19 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
         if let token = self.token { response["token"] = token }
         result(response)
       case "clear":
-        self.reset(reason: .failed); self.owner = nil; self.generation = nil
+        self.reset(reason: .failed); self.claimed.removeAll(); self.seen.removeAll(); self.owner = nil; self.generation = nil
         self.defaults.removeObject(forKey: "sanjaal.call.owner")
         self.defaults.removeObject(forKey: "sanjaal.call.generation")
         result(nil)
       case "drain":
-        let events = self.queued; self.queued.removeAll(); result(events)
+        result(self.queued)
+      case "claim":
+        guard let id = args["event_id"] as? String, self.queued.contains(where: { $0["event_id"] as? String == id }),
+          !self.claimed.contains(id), self.claimed.count < 320 else { result(false); return }
+        self.claimed.insert(id); result(true)
+      case "acknowledge":
+        guard let id = args["event_id"] as? String else { result(false); return }
+        self.queued.removeAll { $0["event_id"] as? String == id }; result(true)
       case "complete":
         guard let id = args["call"] as? String, self.current?.call.uuidString.lowercased() == id.lowercased(),
           args["generation"] as? String == self.generation else { result(false); return }
@@ -94,7 +102,9 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   }
 
   private func emit(_ action: String, envelope: CallWakeEnvelope) {
-    let event: [String: Any] = ["action": action, "recipient": envelope.recipient,
+    let id = "\(envelope.call.uuidString.lowercased()):\(action)"
+    guard !queued.contains(where: { $0["event_id"] as? String == id }) else { return }
+    let event: [String: Any] = ["event_id": id, "action": action, "recipient": envelope.recipient,
       "call": envelope.call.uuidString.lowercased(), "conversation": envelope.conversation.uuidString.lowercased(),
       "kind": envelope.video ? "video" : "voice", "expires_at": Int(envelope.expiresAt.timeIntervalSince1970),
       "generation": generation ?? ""]

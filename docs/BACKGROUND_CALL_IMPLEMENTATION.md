@@ -22,14 +22,19 @@ login retires pending/connected media without replacement-account cleanup reques
 The injected connection boundary explicitly requires cameraEnabled=false.
 
 This is not actual native engine/root integration. Lease persistence/rotation,
-process-death replay, native event acknowledgement, complete active-call End after
+process-death replay, native event acknowledgement, complete actual native active-call End signaling after
 the initial ring expiry, remote cancellation transport and actual SDK audio/media
 ownership still need implementation. No shortcut from this tested coordinator to
 claims of native reliability is valid.
 
+The coordinator now permits End after the original ring deadline only for a call
+this coordinator actually connected or is connecting, never an expired arbitrary
+call ID. Fourteen coordinator cases pass, including this connected-call End and
+an expired unowned End. Actual platform active-call state remains unwired.
+
 ## Active engineering still required
 
-1. Persist bounded account-bound action/replay metadata safely across Android process death, coordinate one application/process owner and bind/clear with the actual restored login lease. Never store an access token in wake preferences.
+1. Android bounded metadata journal now persists owner/UUID lease, current ring, up to8queued events and64seen call IDs. Drain is nondestructive; explicit claim-before-effect and acknowledgement prevent automatic action replay after engine death. A26-assertion in-memory SharedPreferences proxy check covers metadata reload, duplicate/expiry, lease change, claim persistence and write failure. This is not Android process-death execution. Actual restored-login lease persistence/rotation and one process owner are still unintegrated; never store an access token in these preferences.
 2. Android provider-authenticated C2DM receiver coexistence with installed FlutterFire15.2.10. Add Telecom and foreground phoneCall lifecycle, notification policy/permission state, answer/end/hold actions and API<31 policy, without competing generic messaging services.
 3. iOS process-owned PushKit/CallKit and FlutterEngine availability in cold/background scene state. Wire native CallKit audio ownership into installed LiveKit2.13.2 externalCallSystem; defer answer fulfillment until authenticated exact-call state and connection, not merely the system tap. Background video camera remains off.
 4. A native event coordinator tied to stable owner plus login lease, exact authenticated GET/action state, no route replacement or implicit acceptance from an unverified push, bounded end/expiry reconciliation, cleanup and duplicate handling. Handle queued native End/Decline without borrowing replacement credentials.

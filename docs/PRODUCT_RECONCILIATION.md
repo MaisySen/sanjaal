@@ -15,15 +15,14 @@ rows below are not current claims of missing implementation.
 | Privacy/story | Enforced comments/share controls, close-friends/hide protected stories, text-only story replies and block behavior |11:15 authenticated live features advertised interaction controls/protected stories/story replies/polls/upload intents/posters/group member refs. This is timestamped evidence, not latest current state | Native/live journey verification. Public old links cannot be made private. No claim of full consent/legal review |
 | Reports | Final review, receipts/history/operator commands, optional durable replay/member binding in source |11:15 live auth response omitted history/replay/member-ref features. Client remains on legacy keyless submission there | Migration/coordinated rollout/operator policy and staffing. No silent activation |
 | Calls/rooms | Real SDK setup/teardown adapters, active/minimized calls, consent-bound controls and failure recovery | Real two-device media/routing/reconnect/background incoming absent. No OS call-service wake implementation | Independent OS background-call integration is missing, plus provider/physical proof; not solved by foreground polling |
-| Push | Android token registration/session cleanup; iOS prepared adapter unselected. Android notification-open continuation now being added | FCM delivery never established by mocks. iOS native config/APNs entitlement/key/consent/wiring and signed-device proof missing | Android application tap behavior is independent implementation; iOS provider/capability and implementation gates remain |
+| Push | Android token registration/session cleanup; iOS prepared adapter unselected. Android recipient-bound notification-open continuation source implemented | FCM delivery never established by mocks. iOS native config/APNs entitlement/key/consent/wiring and signed-device proof missing | Android tap source and pinned-SDK channel contract are local-tested only; iOS provider/capability and implementation gates remain |
 | Wallet | Balance/history, unavailable funding/cash-out, replay-safe held transfers and review in source; provider services skeleton exists | Member transfer hold/default false; DisabledPayout; no live money movement approved | Provider/legal/product approval and bounded operational verification. Not a working cash-out product |
-| Discovery/follow lists | Default-off candidate implementations and eligibility/contracts | Hard false config; author opt-in/review producers and removal policy/cadence not a live service | Real missing operational/implementation depth plus policy approval. Do not activate to fill empty screens |
+| Discovery/follow lists | Default-off candidate implementations and eligibility/contracts | Hard false config; revision-protected author opt-in/revocation UI and endpoints exist. Public-audience verification/review producers and operator removal policy/cadence are not a live service | Real missing operational/implementation depth plus policy approval. Do not activate to fill empty screens |
 | Updates/distribution | Store-managed Play flexible-update adapter, stable-signing/finalizer contracts, iOS private archive route | No JS/Expo OTA system. Exact signed artifact/store upload/install acceptance and iOS launcher/export/tester choices remain | Reviewed complete batch and distribution/physical gates, not another slice build |
 | Nepal-specific roadmap | Nepali/English support exists | Roman Nepali typing, Global Nepali Hour, Blood Connect and festival greetings are not implemented | Unspecified roadmap service work, requires usable requirements/provenance/consent; do not mark as complete or invent decorative placeholders |
 
-Independent engineering is not exhausted. In addition to the confirmed Android
-notification-open omission, background OS incoming-call integration, Discovery
-producers/revocation operations and absent roadmap/capture depth are real open
+Independent engineering is not exhausted. After the Android notification-open source correction, background OS incoming-call integration, Discovery
+public-audience/review producers and operator operations, plus absent roadmap/capture depth are real open
 product scope. They must not be collapsed into an owner-only blocker list. Pick
 bounded work from current contracts first; service policy/money/credential scope
 still constrains effects, not local inspection and preparation.
@@ -69,6 +68,16 @@ here, deployed or activated, and supplies no erasure worker or remote-identity
 removal. Reviewed retention/processing notices, completion mechanism and provider
 scope are still unresolved. Do not duplicate that intermediate implementation or
 claim email handoff equals completed deletion.
+
+## Pinned messaging adapter contract checkpoint
+
+Four synthetic tests now exercise FirebaseMessageOpenSource through the installed
+FlutterFire messaging method channel and real SDK RemoteMessage decoding. Cold
+initial tap, opened-app event mapping, provider failure and unsupported iOS are
+covered without requesting a token/permission or calling an external provider.
+The core host and native channel replies are mocked. This narrows an adapter
+contract gap; it does not prove native delivery, background process startup, FCM
+credentials, signed-device tap behavior or the new sender's deployment.
 
 ## Navigation and capture correction, November 22, 2026
 

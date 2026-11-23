@@ -29,6 +29,21 @@ void main() {
     expect(await actions.connect(event,cameraEnabled:false),false);
     expect(await actions.connect(event,cameraEnabled:true),false);
   });
+  test('throwing native completion releases capture instead of leaking media', () async {
+    const channel=MethodChannel('synthetic-throwing-media');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(_) async {
+      throw PlatformException(code:'engine-gone');
+    });
+    final session=CallFixtureSession()..user={'public_id':fixture.owner}; final media=FakeCallConnection();
+    var releases=0;
+    final actions=NativeCallMediaActions(channel:channel,reserve:(e)=>CallController(session:session,
+      conversationId:e.conversation,title:'Member',video:true,callId:e.call,startCamera:false,connection:media),
+      release:(c) async { releases++; await c.close(endRemote:false); c.dispose(); },show:(e,r) async {});
+    expect(await actions.connect(event,cameraEnabled:false),true);
+    await expectLater(actions.complete(event,connected:true),throwsA(isA<PlatformException>()));
+    expect(releases,1); expect(media.events,contains('stopCapture'));
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
+  });
   test('unconfirmed native handoff releases connected capture', () async {
     const channel=MethodChannel('synthetic-media');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(_) async=>false);

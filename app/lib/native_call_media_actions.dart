@@ -37,15 +37,20 @@ class NativeCallMediaActions implements NativeCallActions {
   }
   @override
   Future<void> complete(NativeCallEvent event, {required bool connected}) async {
-    final acknowledged = await _channel.invokeMethod<bool>('complete', {
-      'call':event.call, 'generation':event.lease, 'connected':connected,
-    });
-    // Failure to hand off system call ownership must release capture too.
-    if (connected && acknowledged != true) {
+    try {
+      final acknowledged = await _channel.invokeMethod<bool>('complete', {
+        'call':event.call, 'generation':event.lease, 'connected':connected,
+      });
+      // Failure to hand off system call ownership must release capture too.
+      if (connected && acknowledged != true) {
+        throw StateError('Native call media handoff was not confirmed');
+      }
+    } catch (_) {
       await stop(event);
-      throw StateError('Native call media handoff was not confirmed');
+      rethrow;
     }
   }
+
   @override
   Future<void> stop(NativeCallEvent event) async {
     _cancelled.add(event.call);

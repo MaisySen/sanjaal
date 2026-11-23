@@ -34,6 +34,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {
       calls.add(call);
       switch(call.method) {
+        case 'clear': return true;
         case 'bind': return {'registered':false};
         case 'drain': return List.of(events);
         case 'claim': return pending?.future ?? claim;
@@ -75,7 +76,7 @@ void main() {
     expect(calls.where((c)=>c.method=='acknowledge'),isEmpty);
   });
   test('cold restore without ready lease does not erase persisted native journal', () async {
-    session.lease=null;
+    session.lease=null; session.loading=true;
     pump=NativeCallEventPump(session:session,actions:actions,channel:channel);
     await settle(); expect(calls,isEmpty);
   });
@@ -101,6 +102,16 @@ void main() {
     expect(actions.connects,0);
     expect(session.requests.where((r)=>r.method=='POST'),isEmpty);
     expect(calls.where((c)=>c.method=='acknowledge').length,2);
+  });
+  test('settled signed-out root clears obsolete native binding', () async {
+    session.lease=null; session.user=null; session.loading=false;
+    pump=NativeCallEventPump(session:session,actions:actions,channel:channel);
+    await settle(); expect(calls.map((c)=>c.method),['clear']);
+  });
+  test('restoration error preserves native journal without borrowed identity', () async {
+    session.lease=null; session.user=null; session.restoreError='offline';
+    pump=NativeCallEventPump(session:session,actions:actions,channel:channel);
+    await settle(); expect(calls,isEmpty); expect(session.requests,isEmpty);
   });
   test('platform failure stays closed without retry loop', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {

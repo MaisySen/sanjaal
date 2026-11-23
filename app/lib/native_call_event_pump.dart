@@ -42,8 +42,15 @@ class NativeCallEventPump {
         final lease = session.nativeCallLease;
         if (owner == null || lease == null) {
           _coordinator?.dispose(); _coordinator = null;
-          // Do not clear persisted native state merely because cold restoration
-          // is still pending or failed offline. Explicit logout/root owns clear.
+          // Preserve the cold-start journal while restoration is pending/offline.
+          // Once a known engine binding is retired, clear native metadata before
+          // a replacement bind. Also clear a settled genuinely signed-out root.
+          final retired = _owner != null || _lease != null;
+          final signedOut = !session.loading && !session.authenticating &&
+              session.user == null && session.restoreError == null;
+          if (retired || signedOut) {
+            await _channel.invokeMethod<Object?>('clear', _binding);
+          }
           _owner = null; _lease = null; registered = false;
           continue;
         }

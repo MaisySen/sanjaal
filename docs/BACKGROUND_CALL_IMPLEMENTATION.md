@@ -158,3 +158,17 @@ Installed LiveKit2.13.2 explicitly documents externalCallSystem as retaining
 ordinary audio management on Android, not standing down audio focus/routing for
 Telecom. Android handoff cannot be declared complete by choosing that mode. Actual
 SDK native audio ownership compatibility remains engineering work before selection.
+
+## Failure-path review
+
+Review caught and fixed a live-media leak if the native `complete` channel throws:
+media actions now release capture on an exception as well as a false acknowledgement.
+The event pump also clears native metadata when an established engine binding
+retires or the root settles signed out, while preserving an untouched cold journal
+during pending/offline identity restoration. These are unselected source paths.
+Thirty-three lease/pump/coordinator/media regressions pass, including throwing
+completion, settled logout and offline cold restore. Analysis clean.
+
+Pinned Android native SDK inspection confirms manageAudioFocus=false alone is not
+a complete Telecom handoff: LKAudioSwitchManager still activates communication
+mode and chooses routes. Do not select it as a workaround or claim compatibility.

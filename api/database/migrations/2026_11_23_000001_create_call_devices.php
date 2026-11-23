@@ -12,6 +12,7 @@ return new class extends Migration {
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('transport', 16);
             $table->text('token');
+            $table->string('environment', 16)->nullable();
             $table->string('token_hash', 64)->unique();
             $table->uuid('login_lease');
             $table->timestamps();

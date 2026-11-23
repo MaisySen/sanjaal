@@ -14,6 +14,7 @@ class CallDeviceController extends Controller
             'transport' => 'required|in:fcm,apns_voip',
             'token' => 'required|string|min:16|max:4096',
             'login_lease' => 'required|uuid',
+            'environment' => 'required_if:transport,apns_voip|nullable|in:sandbox,production',
         ]);
         if ($data['transport'] === 'apns_voip') {
             abort_unless((bool) preg_match('/\A[0-9a-fA-F]{64,512}\z/', $data['token']), 422);
@@ -21,7 +22,7 @@ class CallDeviceController extends Controller
         }
         // Same physical token can belong only to the latest authenticated owner.
         // Old-owner removal is scoped below so it cannot remove replacement use.
-        DB::table('call_devices')->updateOrInsert(['token_hash' => hash('sha256', $data['transport'].':'.$data['token'])], [
+        DB::table('call_devices')->updateOrInsert(['token_hash' => hash('sha256', $data['transport'].':'.($data['environment'] ?? '').':'.$data['token'])], [
             ...$data, 'user_id' => $request->user()->id,
             'created_at' => now(), 'updated_at' => now(),
         ]);
@@ -31,10 +32,11 @@ class CallDeviceController extends Controller
     {
         abort_unless(config('services.call_wake.registration_enabled') === true, 404);
         $data = $request->validate(['transport' => 'required|in:fcm,apns_voip',
-            'token' => 'required|string|max:4096', 'login_lease' => 'required|uuid']);
+            'token' => 'required|string|max:4096', 'login_lease' => 'required|uuid',
+            'environment' => 'required_if:transport,apns_voip|nullable|in:sandbox,production']);
         $token = $data['transport'] === 'apns_voip' ? strtolower($data['token']) : $data['token'];
         DB::table('call_devices')->where('user_id', $request->user()->id)
-            ->where('token_hash', hash('sha256', $data['transport'].':'.$token))
+            ->where('token_hash', hash('sha256', $data['transport'].':'.($data['environment'] ?? '').':'.$token))
             ->where('login_lease', $data['login_lease'])->delete();
         return response()->json(['removed' => true]);
     }

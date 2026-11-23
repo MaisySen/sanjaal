@@ -190,3 +190,20 @@ base-path inference to this checkout. Earlier reused bootstrap could mix old sou
 its API claims are superseded by current15tests/66assertions for CallDevice,
 CallWake and Push, all HTTP faked. Actual source/base paths were checked. Flutter
 188case consolidation is independent and unaffected by the PHP bootstrap issue.
+
+## Direct APNsVoIP transport source
+
+Separate default-off uncalled CallVoipPush now builds direct HTTP/2 APNs requests,
+ES256 provider tokens, explicit sandbox/production enrollment separation, fixed
+.voip topic, voip push type, high priority and expiration0 (no stored stale ring).
+Only minimal current eligible call metadata is sent; no chat alerts or cancellation
+VoIP pushes. No redirects/retry loop. Exact owner/lease enrollment is checked again,
+and old APNs unregistration timestamps cannot delete newer token enrollment.
+Client enrollment/cold engine/provider capability remain unselected and unfinished.
+No credential or env value was set, no live request or deployment occurred.
+Eighteen current-source API tests pass with network interception, including both
+APNs environments and stale unregistration. This is not APNs integration proof.
+
+Grounding:
+https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns.md
+https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns.md

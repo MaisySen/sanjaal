@@ -35,7 +35,7 @@ class CallDeviceTest extends TestCase
     public function test_voip_token_is_separate_normalized_and_validated(): void
     {
         config(['services.call_wake.registration_enabled'=>true]); [$u,$h]=$this->member('call_ios');
-        $data=['transport'=>'apns_voip','token'=>str_repeat('AB',32),'login_lease'=>self::LEASE];
+        $data=['transport'=>'apns_voip','token'=>str_repeat('AB',32),'login_lease'=>self::LEASE,'environment'=>'sandbox'];
         $this->postJson('/api/v1/call-devices',$data,$h)->assertOk();
         $this->assertDatabaseHas('call_devices',['transport'=>'apns_voip','token'=>str_repeat('ab',32)]);
         $this->postJson('/api/v1/call-devices',[...$data,'token'=>'not-a-voip-token'],$h)->assertStatus(422);

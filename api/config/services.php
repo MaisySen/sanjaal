@@ -69,6 +69,11 @@ return [
     'call_wake' => [
         'registration_enabled' => env('CALL_WAKE_REGISTRATION_ENABLED', false),
         'send_enabled' => env('CALL_WAKE_SEND_ENABLED', false),
+        'apns_enabled' => env('CALL_WAKE_APNS_ENABLED', false),
+        'apns_key_id' => env('CALL_WAKE_APNS_KEY_ID'),
+        'apns_team_id' => env('CALL_WAKE_APNS_TEAM_ID'),
+        'apns_private_key' => env('CALL_WAKE_APNS_PRIVATE_KEY'),
+        'apns_bundle_id' => env('CALL_WAKE_APNS_BUNDLE_ID'),
     ],
 
     'fcm' => [

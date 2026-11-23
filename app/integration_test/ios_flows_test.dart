@@ -1,5 +1,7 @@
 import 'native_transport.dart';
 import 'native_report_restart.dart';
+import 'native_chat_text_restart.dart';
+import 'package:sanjaal/chat_pages.dart';
 import 'native_capture_barrier.dart';
 import 'native_group_journey.dart';
 import 'native_first_use_journey.dart';
@@ -106,6 +108,7 @@ void main(){
     final restoredSession = Session();
     await t.runAsync(restoredSession.restore);
     expect(restoredSession.user, isNotNull);
+    await nativeChatTextRestartJourney(t, restoredSession, recover:true, waitUntil:(ready)=>until(t,ready), capture:capture, stage:stage);
     await nativeReportRestartJourney(t, restoredSession, recover: true, waitUntil: (ready) => until(t, ready), capture: capture);
     await t.pumpWidget(const SizedBox());
     await t.runAsync(restoredSession.logout);
@@ -288,6 +291,7 @@ void main(){
   expect(find.text('Delivery unconfirmed. Tap to retry.'),findsNothing);
   await t.pump(const Duration(milliseconds:600));
   await capture('ios_chat_server_confirmed');
+  final chatTextConversation=Map<String,dynamic>.of(t.widget<ChatPage>(find.byType(ChatPage)).convo);
   await t.pageBack();await t.pump(const Duration(milliseconds:600));
   await stage('rooms navigation');
   await t.tap(find.widgetWithText(TextButton,'Live rooms'));
@@ -325,6 +329,8 @@ void main(){
   await capture('ios_native_device_access');
   await t.pageBack();
   await until(t,()=>find.text('Settings and activity').evaluate().isNotEmpty);
+  await stage('chat text restart seed');
+  await nativeChatTextRestartJourney(t, session, recover:false, conversation:chatTextConversation, waitUntil:(ready)=>until(t,ready), capture:capture, stage:stage);
   await stage('report restart seed');
   await nativeReportRestartJourney(t, session, recover: false, waitUntil: (ready) => until(t, ready), capture: capture);
   await stage('report restart seed complete');

@@ -13,6 +13,10 @@ from pathlib import Path
 import struct
 
 NAMES = (
+    'native_ios_chat_text_full_width_native_keyboard.png',
+    'native_ios_chat_text_saved_before_restart.png',
+    'native_ios_chat_text_restart_no_autofill.png',
+    'native_ios_chat_text_restart_explicit_restore.png',
     'native_ios_report_review_before_send.png',
     'native_ios_report_reply_lost_pending.png',
     'native_ios_report_restart_restored.png',

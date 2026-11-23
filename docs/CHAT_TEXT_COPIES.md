@@ -51,3 +51,33 @@ unsent text, deliberate leave to profile, reopen, explicit restore/removal, then
 profile edit and back Home. Message attempts remain exactly two, one initial
 failed attempt and its retry; saving/restoring adds none. Five connected tests
 passed. The full-width composer is also inspected in that settled root capture.
+
+
+## Next combined native batch, prepared but not executed
+
+The native chat-copy helper seeds through ChatPage, captures the real-keyboard
+boundary, explicitly saves and records the synthetic conversation and copy
+revision in application support. The existing host driver terminates the seed
+process and starts the same installation. Recovery checks the exact account,
+conversation, revision/text and unchanged server messages before presenting an
+empty composer. Cancel leaves it empty; explicit Restore fills it. Removal must
+clear secure storage without clearing the composer or creating any message.
+Another synthetic account cannot read the copy. API and auth fixture origins
+must both be loopback port8002 with API path `/api/v1`.
+
+The pixel manifest now requires four additional boundaries, 40 in total. The
+existing frozen workflow tree pins deliberately remain unchanged. They must be
+re-reviewed and advanced to the complete chosen candidate before any combined
+native dispatch. No push, dispatch, native build or signing was done for this
+preparation. Earlier 311e497 native evidence does not cover these changes.
+
+Harness-only contract command, mocked storage/API/keyboard, not native proof:
+
+```
+flutter test --no-pub --dart-define=API_BASE_URL=http://localhost:8002/api/v1 --dart-define=E2E_TOKEN_BASE=http://localhost:8002 test/native_chat_text_restart_helper_test.dart
+```
+
+The dedicated contract passes save, dispose/reopen, explicit restore, removal,
+zero sends and all four capture names. Host tests pass 13 pixel-packet, four
+same-container process-driver and22screenshot-monitor checks. Native runtime
+execution and actual native pixels for this prepared harness remain unverified.

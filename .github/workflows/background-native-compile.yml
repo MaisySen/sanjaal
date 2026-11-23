@@ -1,0 +1,47 @@
+name: Batched background-call native graph compilation
+'on':
+  push:
+    branches: [reviewed-background-native-compile]
+permissions:
+  contents: read
+concurrency:
+  group: reviewed-background-native-compile
+  cancel-in-progress: false
+jobs:
+  native-graph:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - run: python3 .github/ci/check-background-native-source.py
+    - uses: actions/setup-java@v4
+      if: runner.os == 'Linux'
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+      with:
+        channel: stable
+        flutter-version: '3.50.0'
+        cache: false
+    - name: Verify toolchain and dependency resolution
+      working-directory: app
+      run: |
+        flutter --version
+        flutter pub get --enforce-lockfile
+        flutter test test/pinned_call_sdk_test.dart --no-pub
+    - name: Compile complete iOS simulator graph including Swift and retained SDK
+      if: runner.os == 'macOS'
+      working-directory: app
+      run: flutter build ios --simulator --debug --no-codesign --no-pub
+    - name: Compile complete Android graph including retained SDK
+      if: runner.os == 'Linux'
+      working-directory: app
+      run: flutter build apk --debug --no-pub
+    # Deliberately no signing, artifact distribution, provider send or deployment.

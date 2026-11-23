@@ -25,11 +25,11 @@ import livekit_client
 
   // When this private engine path is selected, omit the scene storyboard so it
   // cannot instantiate a second implicit engine before scene connection.
-  override func application(_ application: UIApplication,
+  func application(_ application: UIApplication,
     configurationForConnecting connectingSceneSession: UISceneSession,
     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
     if !NativeCallEngine.enabled {
-      return super.application(application, configurationForConnecting: connectingSceneSession, options: options)
+      return UISceneConfiguration(name: "flutter", sessionRole: connectingSceneSession.role)
     }
     let config = UISceneConfiguration(name: "sanjaal-process-call", sessionRole: connectingSceneSession.role)
     config.delegateClass = SceneDelegate.self

@@ -357,3 +357,18 @@ This narrows the compile gap, but the full LiveKitPlugin/WebRTC/dependency graph
 real MainActivity and OS audio runtime remain uncompiled/unproven in this check.
 Artifact fetched from JitPack's exact pinned Maven coordinate; SHA256
 c8240221daa9a96d4ea01a4dc6f6f6b10b4903d2a71f9b57f838bdfeb6c3fcbc.
+
+## Batched native graph validation preparation
+
+Prepared one dedicated inactive-source native compilation branch workflow for the
+complete iOS simulator/Android debug dependency graphs, including the retained SDK.
+Exact app/vendor/native/lib/pubspec trees are checked before compilation. No signing,
+artifact distribution, provider traffic or deployment step. Broad release workflow
+excludes this branch. Neither branch nor workflow has been pushed or dispatched.
+
+Source review against actual Flutter3.50.0 headers/implementation caught that the
+optional AppDelegate scene-configuration protocol method is not a superclass method:
+removed the unsafe override/super call and preserved the named legacy configuration.
+Only real Xcode compilation can settle remaining Swift/API compatibility. Local
+Swift/Xcode is unavailable; full Android Gradle/WebRTC graph is unavailable here.
+These are validation dependencies, not evidence the native implementation works.

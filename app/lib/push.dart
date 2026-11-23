@@ -76,13 +76,12 @@ class _SessionPushAccount implements PushAccount {
 class FirebaseMessageOpenSource implements MessageOpenSource {
   const FirebaseMessageOpenSource();
   @override bool get supported => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
-  bool _message(RemoteMessage message) => message.data['type']=='message';
-  @override Stream<void> get opens => FirebaseMessaging.onMessageOpenedApp.where(_message).map((_){});
-  @override Future<bool> initialOpen() async {
-    if(!supported)return false;
+  @override Stream<MessageOpenIntent> get opens => FirebaseMessaging.onMessageOpenedApp.map((message)=>MessageOpenIntent.fromData(message.data)).where((intent)=>intent!=null).cast<MessageOpenIntent>();
+  @override Future<MessageOpenIntent?> initialOpen() async {
+    if(!supported)return null;
     await Push._device._ready();
     final message=await FirebaseMessaging.instance.getInitialMessage();
-    return message!=null&&_message(message);
+    return message==null?null:MessageOpenIntent.fromData(message.data);
   }
 }
 

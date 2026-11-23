@@ -73,6 +73,22 @@ class PushTest extends TestCase
         Http::assertNotSent(fn ($r) => str_contains($r->url(), 'messages:send') && $r['message']['token'] === 'tok-'.$a->id);
     }
 
+    public function test_each_push_binds_the_actual_recipient_not_caller_data(): void
+    {
+        config(['services.fcm.credentials' => $this->fakeCreds()]);
+        Cache::forget('fcm_access_token');
+        [$a] = $this->member('asha');
+        [$b] = $this->member('bina');
+        foreach ([$a, $b] as $u) {
+            DB::table('device_tokens')->insert(['user_id' => $u->id, 'token' => 'tok-'.$u->id, 'platform' => 'android', 'created_at' => now(), 'updated_at' => now()]);
+        }
+        Http::fake(['oauth2.googleapis.com/*' => Http::response(['access_token' => 'x'], 200), 'fcm.googleapis.com/*' => Http::response(['name' => 'ok'], 200)]);
+        $this->assertSame(2, app(Push::class)->toUsers([$a->id, $b->id], 'New message', 'New message', ['type' => 'message', 'recipient' => 'wrong', 'open_version' => '999']));
+        foreach ([$a, $b] as $u) {
+            Http::assertSent(fn ($r) => str_contains($r->url(), 'messages:send') && $r['message']['token'] === 'tok-'.$u->id && $r['message']['data']['recipient'] === $u->public_id && $r['message']['data']['open_version'] === '1');
+        }
+    }
+
     private function chatWithTwo(): array
     {
         config(['services.fcm.credentials' => $this->fakeCreds()]);

@@ -28,8 +28,8 @@ class Push
         if ($creds === null || $userIds === []) {
             return 0;
         }
-        $tokens = DB::table('device_tokens')->whereIn('user_id', $userIds)->pluck('token')->all();
-        if ($tokens === []) {
+        $tokens = DB::table('device_tokens')->join('users', 'users.id', '=', 'device_tokens.user_id')->whereIn('device_tokens.user_id', $userIds)->get(['device_tokens.token', 'users.public_id']);
+        if ($tokens->isEmpty()) {
             return 0;
         }
         $access = $this->accessToken($creds);
@@ -37,14 +37,18 @@ class Push
             return 0;
         }
         $sent = 0;
-        foreach ($tokens as $token) {
+        foreach ($tokens as $device) {
+            $token = $device->token;
+            // The authenticated destination read still checks current membership.
+            // Caller-supplied data can never choose this recipient binding.
+            $recipientData = array_merge($data, ['recipient' => $device->public_id, 'open_version' => '1']);
             try {
                 $res = Http::withToken($access)->timeout(8)->post(
                     'https://fcm.googleapis.com/v1/projects/'.$creds['project_id'].'/messages:send',
                     ['message' => [
                         'token' => $token,
                         'notification' => ['title' => $title, 'body' => $body],
-                        'data' => array_map('strval', $data),
+                        'data' => array_map('strval', $recipientData),
                         'android' => ['priority' => 'high'],
                     ]]
                 );

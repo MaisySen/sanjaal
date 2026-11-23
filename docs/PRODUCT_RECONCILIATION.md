@@ -418,3 +418,35 @@ black-frame predecessors are in MEMORY_VIDEO_PREVIEW.md.
 This source is now entering combined CI, not being distributed. Physical Samsung
 acceptance, real OS-background interruption, production recovery and release
 conditions remain open. No production QA, provider activation or money action.
+
+
+## Recipient-bound notification destination, November 23
+
+Private source follow-up to9df6132. Push sender now joins each token to its
+actual user and adds recipient public ID plus open_version1 per device. Caller
+metadata cannot override the binding. No schema/config/credential change or
+provider activation is involved; existing old payloads remain supported as
+explicit current-inbox offers.
+
+The Android source parses bounded UUID destinations only for version1. Matching
+current recipient offers Open conversation; all missing/malformed/unknown-version
+or other-recipient message payloads offer only Open chats. Nothing reads or
+navigates until an explicit app action. Even bound payloads supply no displayed
+identity and never authorize a send. The authenticated conversation GET must
+return the exact ID, known type and current title before ChatPage is shown.
+404/410 is unavailable, network/malformed results are retryable without mutation.
+Same-member login replacement retires a pending read. Event revision binds
+retained callbacks to the displayed notification and prevents late cold-start
+responses from replacing newer foreground events. Existing work stays under the
+new route and returns intact.
+
+17 dedicated synthetic cases pass. The65-case selected root/push/call/startup/
+language run passes. Full disposable SQLite API suite:271tests,2441assertions,
+six skips; focusedPush7/21. These are local source/fixture results, not provider
+acceptance or PostgreSQL race proof. Current change adds no DB mutation or
+migration. Changed Dart analysis is clean. EN/NE320x640/180% offer pixels and
+English error/bound-offer pixels inspected; initial error back-arrow font was
+missing in fixture, corrected and re-inspected. Native notification delivery,
+Firebase event integration, exact signed-device/cold-start/account-switch and
+production sender rollout remain unverified. No live notification, deployment,
+build, signing, install or release was performed.

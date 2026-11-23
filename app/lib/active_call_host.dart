@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 
 import 'package:material_ui/material_ui.dart';
 
@@ -142,7 +143,15 @@ class ActiveCallHostState extends State<ActiveCallHost> {
     final call = CallController(session: widget.session,
       conversationId: event.conversation, title: 'Sanjaal call', video: event.video,
       callId: event.call, startCamera: false,
-      beforeConnect: NativeCallAudioPolicy.prepare, afterRelease: NativeCallAudioPolicy.release);
+      beforeConnect: NativeCallAudioPolicy.prepare,
+      beforeRelease: () async {
+        final retired=await const MethodChannel('au.fintex.sanjaal/incoming-calls').invokeMethod<bool>('complete', {
+          'call':event.call,'generation':event.lease,'connected':false,
+        });
+        // A false result can mean native End already retired this exact call.
+        // Audio policy still independently verifies system ownership release.
+        if(retired==null) throw StateError('Native call retirement is unavailable');
+      }, afterRelease: NativeCallAudioPolicy.release);
     final ticket = _CallTicket(call);
     ticket.listener = () {
       if (!mounted || !identical(_current, ticket)) return;

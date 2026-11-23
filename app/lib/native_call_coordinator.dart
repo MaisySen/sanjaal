@@ -55,6 +55,8 @@ class NativeCallCoordinator {
   final _handled = <String>{};
   final _inFlight = <String>{};
   final _connecting = <String, NativeCallEvent>{};
+  final _observed = <String, NativeCallEvent>{};
+  bool _reconciling = false;
   final _cancelled = <String>{};
   final _connected = <String, NativeCallEvent>{};
   final _answeredHere = <String>{};
@@ -72,7 +74,7 @@ class NativeCallCoordinator {
     }
   }
   Future<void> _failedAnswer(NativeCallEvent event) async {
-    _connected.remove(event.call);
+    _connected.remove(event.call); _observed.remove(event.call);
     await _stopSafely(event);
     await _endConfirmedAnswer(event);
   }
@@ -84,7 +86,7 @@ class NativeCallCoordinator {
   void _accountChanged() {
     if (_owner == session.user?['public_id'] && _generation == session.generation) return;
     _retired = true;
-    for (final event in {..._connected, ..._connecting}.values.toList()) {
+    for (final event in {..._observed, ..._connected, ..._connecting}.values.toList()) {
       unawaited(_stopSafely(event));
     }
   }
@@ -105,6 +107,40 @@ class NativeCallCoordinator {
     return row;
   }
 
+  /// Exact-state reconciliation while this Dart engine is already alive. This
+  /// cannot wake an OS-suspended or terminated app and is not a push substitute.
+  Future<void> reconcile() async {
+    if (!active || _reconciling) return;
+    _reconciling = true;
+    try {
+      for (final event in {..._observed, ..._connecting, ..._connected}.values.toList()) {
+        if (!active) return;
+        try {
+          if (!event.expires.isAfter(_now()) && !_answeredHere.contains(event.call) && !_inFlight.contains('${event.call}:answer')) {
+            _cancelled.add(event.call); _observed.remove(event.call);
+            await _stopSafely(event);
+            if (active) await actions.complete(event, connected:false);
+            continue;
+          }
+          final row = _state(await session.call('GET', '/calls/${event.call}'), event);
+          if (!active) return;
+          final terminal = const ['ended','declined','missed'].contains(row['status']);
+          final answeredElsewhere = row['status']=='answered' && !_answeredHere.contains(event.call) && !_inFlight.contains('${event.call}:answer');
+          if (terminal || answeredElsewhere) {
+            _cancelled.add(event.call);
+            _observed.remove(event.call); _connected.remove(event.call);
+            await _stopSafely(event);
+            if (active) await actions.complete(event, connected:false);
+          }
+        } catch (_) {
+          // Unavailable or malformed state never authorizes an action or join.
+          // Known local ownership remains until explicit stop or later evidence.
+        }
+      }
+    } finally { _reconciling=false; }
+  }
+  bool get needsReconciliation => active && (_observed.isNotEmpty || _connecting.isNotEmpty || _connected.isNotEmpty);
+
   Future<void> handle(Object? data) async {
     if (!active) return;
     final event = NativeCallEvent.parse(data, owner: _owner!, lease: lease, now: _now(), activeCalls: {..._connected.keys, ..._connecting.keys});
@@ -114,6 +150,7 @@ class NativeCallCoordinator {
     // End/decline must cancel a simultaneous pending answer locally immediately.
     if (event.action == 'end' || event.action == 'decline') {
       _cancelled.add(event.call);
+      _observed.remove(event.call);
       await _stopSafely(event);
       _connected.remove(event.call);
     }
@@ -136,6 +173,7 @@ class NativeCallCoordinator {
       }
       if (!_valid(event)) return;
       if (event.action == 'incoming' || event.action == 'open') {
+        if (row['status'] == 'ringing') _observed[event.call] = event;
         await actions.present(event, row);
         return;
       }
@@ -186,7 +224,7 @@ class NativeCallCoordinator {
     if (_retired) { session.removeListener(_accountChanged); return; }
     _retired = true;
     session.removeListener(_accountChanged);
-    for (final event in {..._connected, ..._connecting}.values.toList()) {
+    for (final event in {..._observed, ..._connected, ..._connecting}.values.toList()) {
       unawaited(_stopSafely(event));
     }
   }

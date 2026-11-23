@@ -62,6 +62,35 @@ void main() {
     await coordinator.handle(event('end'));
     expect(session.requests.where((r)=>r.method=='POST').length,2);
   });
+  test('remote End after ring deadline retires owned media without sending End', () async {
+    await coordinator.handle(event('answer')); clock=now.add(const Duration(minutes:2));
+    session.respond=(m,p,b) async=>state('ended');
+    await coordinator.reconcile();
+    expect(actions.stops,1); expect(actions.completions,[true,false]);
+    expect(session.requests.where((r)=>r.method=='POST').length,1);
+    expect(coordinator.needsReconciliation,false);
+  });
+  test('remote cancellation retires presented ring without answering or posting', () async {
+    await coordinator.handle(event('incoming'));
+    session.respond=(m,p,b) async=>state('ended');
+    await coordinator.reconcile();
+    expect(actions.stops,1); expect(actions.connects,0);
+    expect(session.requests.where((r)=>r.method=='POST'),isEmpty);
+  });
+  test('late reconciliation from retired login cannot stop new account', () async {
+    await coordinator.handle(event('answer'));
+    final pending=Completer<dynamic>();session.respond=(m,p,b)=>pending.future;
+    final work=coordinator.reconcile(); await Future<void>.delayed(Duration.zero);
+    session.replace(owner:owner);final stops=actions.stops;
+    pending.complete(state('ended'));await work;
+    expect(actions.stops,stops);
+  });
+  test('expired observed ring retires locally without endless state polling', () async {
+    await coordinator.handle(event('incoming')); clock=now.add(const Duration(minutes:1));
+    final reads=session.requests.length; await coordinator.reconcile();
+    expect(session.requests.length,reads);expect(actions.stops,1);
+    expect(coordinator.needsReconciliation,false);
+  });
   test('native incoming reads exact state and never acts or connects', () async {
     await coordinator.handle(event('incoming'));
     expect(actions.presents,1); expect(actions.connects,0);

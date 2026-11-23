@@ -6,6 +6,21 @@ import 'package:sanjaal/call_controller.dart';
 import 'call_continuity_fakes.dart';
 
 void main() {
+  test('system retirement precedes capture release even from ordinary foreground End', () async {
+    final media=FakeCallConnection(), session=CallFixtureSession();
+    final call=CallController(session:session,conversationId:'chat',title:'Member',video:false,
+      connection:media,beforeRelease:() async { media.events.add('system-retire'); });
+    await call.connected;media.events.clear();
+    expect(await call.close(),true);
+    expect(media.events.first,'system-retire');call.dispose();
+  });
+  test('failed system retirement still releases capture and quarantines ownership', () async {
+    final media=FakeCallConnection(), session=CallFixtureSession();
+    final call=CallController(session:session,conversationId:'chat',title:'Member',video:false,
+      connection:media,beforeRelease:() async { throw StateError('Synthetic system retirement failed'); });
+    await call.connected;
+    expect(await call.close(),false);expect(media.events,contains('dispose'));call.dispose();
+  });
   test('failed external audio ownership release quarantines next calls', () async {
     final session=CallFixtureSession(), media=FakeCallConnection();
     final call=CallController(session:session,conversationId:'chat',title:'Member',video:false,

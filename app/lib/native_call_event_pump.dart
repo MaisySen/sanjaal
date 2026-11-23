@@ -13,6 +13,10 @@ class NativeCallEventPump {
       if (call.method == 'changed') _changed();
       if (call.method == 'tokenChanged') onTokenChanged?.call();
     });
+    _reconcile = Timer.periodic(const Duration(seconds:5), (_) {
+      final value=_coordinator;
+      if(_ready && value!=null && value.needsReconciliation) unawaited(value.reconcile());
+    });
     _changed();
   }
   final Session session;
@@ -20,6 +24,7 @@ class NativeCallEventPump {
   final void Function()? onTokenChanged;
   final MethodChannel _channel;
   NativeCallCoordinator? _coordinator;
+  Timer? _reconcile;
   String? _owner, _lease;
   bool _disposed = false, _running = false, _again = false;
   bool registered = false;
@@ -111,6 +116,7 @@ class NativeCallEventPump {
 
   void dispose() {
     _disposed = true;
+    _reconcile?.cancel(); _reconcile=null;
     session.removeListener(_changed);
     _coordinator?.dispose(); _coordinator = null;
     _channel.setMethodCallHandler(null);

@@ -405,3 +405,21 @@ credentials. Lost Answer receipt still never grants owned cleanup. Five new test
 cover these cases and duplicate End/replacement;35 coordinator/pump/media cases
 pass, focused analyzer clean. This is later private Dart source, not the previously
 compiled complete candidate. No additional native build has been launched.
+
+## Alive-engine cancellation and foreground End bridge
+
+Private coordinator now reconciles exact known ring/connected call state on an
+already-running engine. Terminal server state stops its own media/system UI
+without sending a second End; remote answer retires only an unowned ring. Expired
+unanswered rings retire locally, and delayed reads cannot act under replacement
+login. Pump checks every5seconds only while a known call needs reconciliation.
+This does not wake a suspended/killed app, does not deliver push, and does not
+establish background reliability. No live registration/root gate selected.
+
+A native-reserved CallController now retires its native system owner before
+capture/audio release even when the foreground host's ordinary End button closes
+it. Failed system retirement still releases capture but returns unconfirmed to
+quarantine the host. Existing NativeCallMediaActions.stop retains its independent
+cleanup path.37 controller/host/media cases and34 coordinator/pump/root cases pass;
+focused analyzer clean. These later Dart changes are not covered by the earlier
+217184e complete native compilation, no new compile/build was launched.

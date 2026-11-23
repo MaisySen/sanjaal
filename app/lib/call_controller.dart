@@ -19,6 +19,7 @@ class CallController extends ChangeNotifier {
     this._callId,
     this.startCamera = true,
     this.beforeConnect,
+    this.beforeRelease,
     this.afterRelease,
     CallConnection? connection,
   }) : connection = connection ?? NativeCallConnection(),
@@ -34,6 +35,7 @@ class CallController extends ChangeNotifier {
   /// System incoming answers must never start a camera in the background.
   final bool startCamera;
   final Future<void> Function()? beforeConnect;
+  final Future<void> Function()? beforeRelease;
   final Future<void> Function()? afterRelease;
   Future<bool> get connected async {
     await _joining;
@@ -225,6 +227,7 @@ class CallController extends ChangeNotifier {
 
   Future<bool> _releaseConnection() async {
     var confirmed = true;
+    try { await beforeRelease?.call(); } catch (_) { confirmed = false; }
     try {
       await connection.stopCapture();
     } catch (_) {

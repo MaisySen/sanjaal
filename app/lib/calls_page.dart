@@ -119,7 +119,7 @@ class IncomingCallPage extends StatefulWidget {
   State<IncomingCallPage> createState() => _IncomingCallPageState();
 }
 
-class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundState<IncomingCallPage> {
+class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundState<IncomingCallPage>, WidgetsBindingObserver {
   @override Session get viewSession => widget.session;
   bool busy = false;
   bool checking = false;
@@ -127,18 +127,37 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
   bool? requestedAccept;
   Timer? expiry;
   String? error;
+  bool _foreground = true, _needsForegroundRead = false;
+  int _lifecycleRevision = 0;
 
   @override void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _foreground = WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     final end = _deadline(widget.call);
-    if (widget.call['status'] != 'ringing' || end == null || !end.isAfter(DateTime.now())) {
+    if (!_foreground || widget.call['status'] != 'ringing' || end == null || !end.isAfter(DateTime.now())) {
       phase = 'unknown';
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && sessionActive) _checkStatus(); });
     } else {
       _armExpiry(widget.call);
     }
   }
-  @override void dispose() { expiry?.cancel(); super.dispose(); }
+  @override void dispose() { WidgetsBinding.instance.removeObserver(this); expiry?.cancel(); super.dispose(); }
+  @override void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (!mounted || !sessionActive || foreground == _foreground) return;
+    _lifecycleRevision++;
+    _foreground = foreground;
+    expiry?.cancel();
+    _needsForegroundRead = true;
+    setState(() { phase = 'unknown'; error = null; });
+    if (foreground && !busy) unawaited(_checkStatus());
+  }
+  void _continueForegroundRead() {
+    if (mounted && sessionActive && _foreground && !busy && _needsForegroundRead) {
+      unawaited(_checkStatus());
+    }
+  }
   @override void sessionRetired() { expiry?.cancel(); phase = 'unknown'; error = null; }
 
   DateTime? _deadline(Map<String, dynamic> row) => DateTime.tryParse('${row['ring_expires_at'] ?? ''}') ??
@@ -173,27 +192,32 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
   }
 
   Future<void> _checkStatus() async {
-    if (!mounted || !sessionActive || busy) return;
+    if (!mounted || !sessionActive || !_foreground || busy) return;
+    final revision = _lifecycleRevision;
+    _needsForegroundRead = false;
     expiry?.cancel();
     setState(() { busy = true; checking = true; phase = 'unknown'; error = null; });
     try {
       final value = await widget.session.call('GET', '/calls/${widget.call['public_id']}');
       final row = _validated(value);
-      if (!mounted || !sessionActive) return;
+      if (!mounted || !sessionActive || !_foreground || revision != _lifecycleRevision) return;
       setState(() { phase = row['status'] as String; error = null; });
       if (phase == 'ringing') _armExpiry(row);
     } catch (_) {
-      if (mounted && sessionActive) setState(() {
-        phase = 'unknown';
-        error = t_('Call status could not be checked. No action was repeated.');
-      });
+      if (mounted && sessionActive && _foreground && revision == _lifecycleRevision) {
+        setState(() {
+          phase = 'unknown';
+          error = t_('Call status could not be checked. No action was repeated.');
+        });
+      }
     } finally {
       if (mounted && sessionActive) setState(() { busy = false; checking = false; });
+      _continueForegroundRead();
     }
   }
 
   void _join() {
-    if (!mounted || !sessionActive || phase != 'answered' || requestedAccept != true) return;
+    if (!mounted || !sessionActive || !_foreground || phase != 'answered' || requestedAccept != true) return;
     final host = ActiveCallHost.maybeOf(context);
     if (host != null) {
       final route = ModalRoute.of(context);
@@ -219,7 +243,8 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
   }
 
   Future<void> _answer(bool accept) async {
-    if (!sessionActive || busy || phase != 'ringing') return;
+    if (!sessionActive || !_foreground || busy || phase != 'ringing') return;
+    final revision = _lifecycleRevision;
     expiry?.cancel();
     requestedAccept = accept;
     setState(() { busy = true; error = null; });
@@ -228,6 +253,12 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
         body: {'action': accept ? 'answer' : 'decline'});
       final row = _validated(value);
       if (!mounted || !sessionActive) return;
+      if (!_foreground || revision != _lifecycleRevision) {
+        setState(() { busy = false; phase = 'unknown'; });
+        _needsForegroundRead = true;
+        _continueForegroundRead();
+        return;
+      }
       setState(() { busy = false; phase = row['status'] as String; });
       if (accept && phase == 'answered') { _join(); return; }
       if (!accept && phase == 'declined') { Navigator.of(context).pop(); return; }
@@ -237,7 +268,8 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
       if (!mounted || !sessionActive) return;
       setState(() { busy = false; phase = 'unknown'; });
       // Check once, read-only for this exact call. Never resend the action.
-      await _checkStatus();
+      _needsForegroundRead = true;
+      if (_foreground) await _checkStatus();
     }
   }
 

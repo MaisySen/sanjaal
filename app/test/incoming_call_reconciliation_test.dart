@@ -21,11 +21,12 @@ class CallsFixture extends Session {
   CallsFixture() { user = {'public_id': 'fixture-owner'}; }
   Object? readResult;
   Object? writeResult;
-  Completer<Object?>? readPending;
+  Completer<Object?>? readPending, writePending;
   int actions = 0, reads = 0, tokens = 0;
   @override Future<dynamic> call(String method, String path, {Map<String, dynamic>? body, Map<String, String>? query}) async {
     if (path == '/calls/call/action') {
       actions++;
+      if (writePending != null) return writePending!.future;
       if (writeResult is Exception) throw writeResult!;
       return writeResult;
     }
@@ -55,8 +56,8 @@ Future<void> screen(WidgetTester t, CallsFixture s, {String lang = 'en', bool la
 }
 void main() {
   setUpAll(() async {
-    for (final f in [('Roboto', '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),
-      ('MaterialIcons', '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),
+    for (final f in [('Roboto', '${Platform.environment['FLUTTER_ROOT'] ?? '/tmp/sj-flutter-sdk'}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf'),
+      ('MaterialIcons', '${Platform.environment['FLUTTER_ROOT'] ?? '/tmp/sj-flutter-sdk'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf'),
       ('NotoDev', 'assets/fonts/NotoSansDevanagari.ttf')]) {
       final loader = FontLoader(f.$1)..addFont(Future.value(ByteData.sublistView(File(f.$2).readAsBytesSync())));
       await loader.load();
@@ -178,4 +179,90 @@ void main() {
       await t.pumpWidget(const SizedBox()); await t.pumpAndSettle();
     });
   }
+  testWidgets('foreground return reconciles cancelled call before restoring actions', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final s = CallsFixture()..readPending = Completer<Object?>();
+    await screen(t, s);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump();
+    // Paused bindings do not draw a new frame, retained actions must still be inert.
+    await t.tap(find.byTooltip('Accept'));
+    expect(s.actions, 0);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pump();
+    expect(s.reads, 1);
+    expect(find.byTooltip('Accept'), findsNothing);
+    s.readPending!.complete({'call': row('ended')});
+    await t.pumpAndSettle();
+    expect(find.text('This call has ended.'), findsOneWidget);
+    expect(find.text('Join this call'), findsNothing);
+    expect(s.actions, 0); expect(s.tokens, 0);
+    await t.runAsync(() async {
+      final b = t.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('call-proof')));
+      final im = await b.toImage(pixelRatio: 2);
+      final bytes = await im.toByteData(format: ui.ImageByteFormat.png);
+      Directory('/downloads/sanjaal-incoming-lifecycle-review').createSync(recursive: true);
+      File('/downloads/sanjaal-incoming-lifecycle-review/returned-ended.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+      im.dispose();
+    });
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('late accepted receipt across background never auto joins', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final s = CallsFixture()..writePending = Completer<Object?>()..readResult = {'call': row('answered')};
+    await screen(t, s);
+    await t.tap(find.byTooltip('Accept')); await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump();
+    s.writePending!.complete({'call': row('answered')});
+    await t.pumpAndSettle();
+    expect(s.tokens, 0); expect(find.byType(CallPage), findsNothing);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pumpAndSettle();
+    expect(s.reads, 1); expect(s.actions, 1);
+    expect(find.text('Join this call'), findsOneWidget); expect(s.tokens, 0);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('accepted receipt spanning pause and resume requires exact read and explicit join', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final s = CallsFixture()..writePending = Completer<Object?>()..readResult = {'call': row('answered')};
+    await screen(t, s);
+    await t.tap(find.byTooltip('Accept')); await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused); await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await t.pump();
+    expect(s.reads, 0);
+    s.writePending!.complete({'call': row('answered')}); await t.pumpAndSettle();
+    expect(s.reads, 1); expect(s.actions, 1); expect(s.tokens, 0);
+    expect(find.byType(CallPage), findsNothing); expect(find.text('Join this call'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('pre-background status read is discarded and one fresh read may recover', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final oldRead = Completer<Object?>();
+    final s = CallsFixture()..readPending = oldRead;
+    await screen(t, s, initial: row('ended'));
+    expect(s.reads, 1);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused); await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await t.pump();
+    s.readPending = null; s.readResult = {'call': row('ended')};
+    oldRead.complete({'call': row('ringing')}); await t.pumpAndSettle();
+    expect(s.reads, 2); expect(s.actions, 0); expect(s.tokens, 0);
+    expect(find.text('This call has ended.'), findsOneWidget);
+    expect(find.byTooltip('Accept'), findsNothing);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('foreground status error stays explicit without read loop', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final s = CallsFixture()..readResult = ApiError('Synthetic unavailable', 503);
+    await screen(t, s);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused); await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed); await t.pumpAndSettle();
+    await t.pump(const Duration(minutes: 2));
+    expect(s.reads, 1); expect(s.actions, 0); expect(s.tokens, 0);
+    expect(find.text('Check call status'), findsOneWidget);
+    expect(find.byTooltip('Accept'), findsNothing);
+    await t.pumpWidget(const SizedBox());
+  });
+
 }

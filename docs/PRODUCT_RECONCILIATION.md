@@ -44,6 +44,16 @@ cases reproduced presentation before the fix; ordinary incoming and active-call
 continuity remain covered. This does not add OS background wake, FCM call delivery,
 CallKit/Android call-service integration or real two-device acceptance.
 
+IncomingCallPage also now invalidates ringing actions while backgrounded, checks
+that exact call read-only on foreground return, and discards status reads spanning
+another lifecycle transition. An accepted action receipt crossing pause/resume
+cannot automatically join media. If the exact current state is answered and this
+screen's user previously chose Accept, it offers explicit Join only. No action is
+resent. Five lifecycle regression cases cover cancellation on return, late accepted
+receipts both sides of resume, stale read replacement and bounded read failure.
+This is resume/expiry reconciliation, not immediate remote-cancellation delivery
+while the screen stays foregrounded and not OS background ringing.
+
 Account deletion is an additional integration/completion gap. Current integrated
 Settings opens an email draft only. Separate preserved default-off request/status
 and read-only planning source exists at account-deletion-private-regressions669470a

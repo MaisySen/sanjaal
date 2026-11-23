@@ -117,3 +117,22 @@ unselected. iOS externalCallSystem audio gating and cold-engine ownership remain
 unfinished. Fifty-one selected controller, host, coordinator, pump and media-boundary
 checks pass. No new UI is selected, no native/device media capture was tested and
 no full product build was made.
+
+## Inactive Android receiver/foreground-service source
+
+Added a separate unregistered C2DM call-only receiver, leaving FlutterFire chat
+receiver/service untouched. A compile-time false gate rejects delivery; source
+filters out notification+data and non-call payloads before parsing. Future manifest
+registration must require Google's SEND permission. No receiver is currently in
+the manifest. Added an unregistered phoneCall foreground service with same-current
+call/lease verification, explicit type, no sticky restart/boot recovery and denial
+cleanup. It is not started from the adapter and cannot claim background support.
+Foreground readiness/error callbacks exist but full Telecom/presentation/media
+selection remains unfinished. Twenty-eight selected bridge/media/coordinator/source
+checks pass and these Android sources compile against existing jars/stub activity.
+
+Sources checked for this boundary:
+https://developer.android.com/develop/background-work/services/fgs/service-types
+https://firebase.google.com/docs/cloud-messaging/android/message-priority
+Installed FlutterFire15.2.10 receiver and manifest inspected directly. This is source
+compatibility work, not delivery, current permission approval or OS execution.

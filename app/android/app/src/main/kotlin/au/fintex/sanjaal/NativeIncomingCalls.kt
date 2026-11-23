@@ -36,6 +36,24 @@ class NativeIncomingCalls private constructor(private val context: Context) {
     private val channelId = "sanjaal_incoming_calls_v1"
     private val notificationId = 82012
 
+    private var foregroundReady = false
+    internal fun ownsRinging(call: String, lease: String): Boolean =
+        journal.binding()?.lease == lease && current?.call == call &&
+            (current?.expiresAtSeconds ?: 0) > System.currentTimeMillis() / 1000
+    internal fun foregroundStarted(call: String, lease: String): Boolean {
+        if (!ownsRinging(call, lease)) return false
+        foregroundReady = true; return true
+    }
+    internal fun foregroundFailed(call: String, lease: String) {
+        if (journal.binding()?.lease == lease && current?.call == call) {
+            current?.let { emit("end", it) }; clear()
+        }
+    }
+    internal fun foregroundStopped() {
+        if (!foregroundReady) return
+        foregroundReady = false
+        current?.let { emit("end", it) }; clear()
+    }
     fun detach(messenger: BinaryMessenger) {
         if (attachedMessenger !== messenger) return
         channel?.setMethodCallHandler(null); channel = null; attachedMessenger = null
@@ -144,6 +162,7 @@ class NativeIncomingCalls private constructor(private val context: Context) {
         if (journal.append(action, envelope)) channel?.invokeMethod("changed", null)
     }
     private fun clear() {
+        foregroundReady = false
         expiry?.let { handler.removeCallbacks(it) }; expiry = null
         notifications.cancel(notificationId); current = null; journal.clearCurrent(); telecom.retire()
     }

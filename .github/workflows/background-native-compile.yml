@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   native-graph:
+    if: github.repository == 'MaisySen/sanjaal' && github.event.repository.private == false
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +43,6 @@ jobs:
       run: flutter build ios --simulator --debug --no-codesign --no-pub
     - name: Compile complete Android graph including retained SDK
       if: runner.os == 'Linux'
-      working-directory: app
-      run: flutter build apk --debug --no-pub
+      working-directory: app/android
+      run: ./gradlew :app:compileDebugSources --no-daemon --console=plain
     # Deliberately no signing, artifact distribution, provider send or deployment.

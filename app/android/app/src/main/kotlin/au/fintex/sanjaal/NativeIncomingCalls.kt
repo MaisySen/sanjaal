@@ -30,6 +30,11 @@ class NativeIncomingCalls(private val context: Context) {
         channel = MethodChannel(messenger, "au.fintex.sanjaal/incoming-calls").also { bridge ->
             bridge.setMethodCallHandler { call, result ->
                 val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
+                if (call.method in listOf("drain", "claim", "acknowledge") &&
+                    (args["owner"] != journal.binding()?.owner || args["generation"] != journal.binding()?.lease)) {
+                    result.error("STALE_OWNER", "Call account binding changed.", null)
+                    return@setMethodCallHandler
+                }
                 when (call.method) {
                     "bind" -> {
                         val owner = args["owner"] as? String

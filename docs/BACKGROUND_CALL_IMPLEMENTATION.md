@@ -66,3 +66,22 @@ Failed secure metadata persistence leaves native wake readiness disabled without
 blocking ordinary sign-in. Existing session generation checks still reject late
 work. This supplies a real credential-lifecycle binding, but no root/native bridge
 uses it yet; secure-storage mocks are not Keychain/Keystore restart proof.
+
+## Native event pump checkpoint
+
+The unselected engine-side event pump now binds only a verified Session lease,
+claims each native event before authenticated coordinator work, acknowledges only
+under that same binding, and refuses to replay an already claimed unknown-result
+action. A replacement account retires the coordinator synchronously even during a
+platform wait. Concurrent queued End can cancel an Answer waiting on a server read.
+Cold restoration with no ready lease does not erase retained native events.
+Explicit logout/native clear and actual root ownership remain unwired.
+
+Android and iOS claim/drain/acknowledge now also require matching owner/lease on
+the native side. iOS no longer evicts its seen-call replay guard at capacity, and
+a delayed CallKit report completion cannot accept an incoming call after a login
+binding change. Swift remains uncompiled, with in-memory-only action claims.
+The real channel contract was tested using Flutter's mocked platform messenger,
+not an OS call callback or process restart. Android adapter sources compile with
+the existing jars/stub activity, not a full packaged build. Seventy-five selected
+session, native coordinator and bridge cases pass; no root selects this pump yet.

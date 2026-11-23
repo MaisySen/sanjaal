@@ -58,6 +58,10 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     value.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }
       let args = call.arguments as? [String: Any] ?? [:]
+      if ["drain", "claim", "acknowledge"].contains(call.method) &&
+          (args["owner"] as? String != self.owner || args["generation"] as? String != self.generation) {
+        result(FlutterError(code: "STALE_OWNER", message: "Call account binding changed.", details: nil)); return
+      }
       switch call.method {
       case "bind":
         guard let owner = args["owner"] as? String, UUID(uuidString: owner) != nil,
@@ -124,6 +128,8 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload,
     for type: PKPushType, completion: @escaping () -> Void) {
     guard type == .voIP else { completion(); return }
+    let openedOwner = owner
+    let openedGeneration = generation
     let envelope = CallWakeEnvelope.parse(payload.dictionaryPayload, owner: owner ?? "")
     // Every VoIP callback is reported promptly, before any network/Flutter work.
     // Invalid or duplicate requests are immediately ended after reporting.
@@ -135,16 +141,16 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     update.localizedCallerName = "Sanjaal"
     update.hasVideo = envelope?.video ?? false
     update.supportsHolding = false; update.supportsGrouping = false; update.supportsUngrouping = false
-    let accepted = envelope != nil && current == nil && candidate == id && !seen.contains(id)
+    let accepted = envelope != nil && current == nil && candidate == id && !seen.contains(id) && seen.count < 64
     provider.reportNewIncomingCall(with: id, update: update) { [weak self] error in
       guard let self = self else { completion(); return }
       defer { completion() }
       guard error == nil else { return }
-      guard accepted, let envelope = envelope, envelope.expiresAt > Date(), self.current == nil else {
+      guard accepted, let envelope = envelope, envelope.expiresAt > Date(), self.current == nil,
+        self.owner == openedOwner, self.generation == openedGeneration else {
         self.provider.reportCall(with: id, endedAt: Date(), reason: .failed); return
       }
       self.seen.insert(id)
-      if self.seen.count > 64 { self.seen = [id] }
       self.current = envelope
       let expiry = DispatchWorkItem { [weak self] in self?.reset(reason: .unanswered) }
       self.expiry = expiry

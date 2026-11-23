@@ -14,6 +14,13 @@ void main() {
     expect(app,contains('owner.engineReady'));
     expect(engine,contains('var ready: Bool'));
   });
+  test('CallKit timeout retires owned call without completing expired system action', () {
+    final timeout=native.split('timedOutPerforming action: CXAction)').last.split('func provider(').first;
+    expect(timeout,isNot(contains('action.fail()')));
+    expect(timeout,contains('answer = nil'));
+    expect(timeout,contains('end = nil'));
+    expect(timeout,contains('failOwnedCall()'));
+  });
   test('CallKit source is linked and process owned without provider activation', () {
     expect(project,contains('NativeIncomingCalls.swift in Sources'));
     expect(project,contains('CallWakeEnvelope.swift in Sources'));

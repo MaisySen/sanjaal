@@ -209,7 +209,11 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     reset(reason: .remoteEnded, keepEvents: true)
   }
   func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
-    action.fail(); failOwnedCall()
+    // CallKit has already failed the timed-out action. Detach it before reset
+    // so cleanup cannot fail/fulfill that same expired action a second time.
+    if answer?.uuid == action.uuid { answer = nil }
+    if end?.uuid == action.uuid { end = nil }
+    failOwnedCall()
   }
   func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
     systemAudioActive = true

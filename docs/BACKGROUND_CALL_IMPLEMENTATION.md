@@ -272,3 +272,19 @@ References inspected:
 https://api.flutter.dev/ios-embedder/interface_flutter_scene_delegate.html
 https://api.flutter.dev/ios-embedder/interface_flutter_engine.html
 https://docs.flutter.dev/add-to-app/ios/add-flutter-screen
+
+## Root source gate and later-End race
+
+Main root now contains a compile-time false NativeCallRoot wrapper, using the
+existing ActiveCallHost key. With the gate false it makes no channel/enrollment/
+permission call. Its private path binds the pump and shared media slot, rotates
+registration by verified login lease and retires old enrollment. Native incoming/
+open callbacks do not navigate in background. Token refresh and failed-cleanup
+surfacing still need integration before selection. It is not enabled behavior.
+
+Review also found that a later native End callback was blocked behind an Answer's
+pending network read. Pump dispatch now lets later callbacks drain independently,
+with per-lease in-flight event guards. Added a real incoming-channel callback test
+which cancels Answer before the read completes. Twenty-six root/pump/media/
+enrollment/cold-root cases pass and focused analysis clean. No pixels changed by
+the false root gate; native proof remains outstanding.

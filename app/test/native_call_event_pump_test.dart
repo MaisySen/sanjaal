@@ -113,6 +113,27 @@ void main() {
     pump=NativeCallEventPump(session:session,actions:actions,channel:channel);
     await settle(); expect(calls,isEmpty); expect(session.requests,isEmpty);
   });
+  test('a later native End callback cancels Answer without waiting for its read', () async {
+    final read=Completer<dynamic>();
+    events=[event('answer')];
+    session.respond=(m,p,b) async {
+      if(session.requests.length==1) return read.future;
+      return {'call':{'public_id':fixture.id,'conversation_id':fixture.conversation,'kind':'video','status':'ended'}};
+    };
+    pump=NativeCallEventPump(session:session,actions:actions,channel:channel);
+    await settle(); expect(actions.stops,0);
+    events=[event('end')];
+    final completer=Completer<void>();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+      channel.name, const StandardMethodCodec().encodeMethodCall(const MethodCall('changed')),
+      (_) => completer.complete());
+    await completer.future; await settle();
+    expect(actions.stops,1);
+    read.complete({'call':{'public_id':fixture.id,'conversation_id':fixture.conversation,'kind':'video',
+      'status':'ringing','ring_expires_at':DateTime.now().add(const Duration(seconds:39)).toIso8601String()}});
+    await settle(); expect(actions.connects,0);
+    expect(session.requests.where((r)=>r.method=='POST'),isEmpty);
+  });
   test('platform failure stays closed without retry loop', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {
       calls.add(call); throw PlatformException(code:'storage');

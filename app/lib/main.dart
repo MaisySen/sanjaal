@@ -1,4 +1,5 @@
 import 'active_call_host.dart';
+import 'native_call_root.dart';
 import 'message_open_host.dart';
 import 'push.dart';
 import 'profile_setup_page.dart';
@@ -165,6 +166,7 @@ class SanjaalApp extends StatefulWidget {
 class _SanjaalAppState extends State<SanjaalApp> {
   final session = Session();
   final _navigatorKey = GlobalKey<NavigatorState>();
+  final _activeCallKey = GlobalKey<ActiveCallHostState>();
   final _messageOpens = const FirebaseMessageOpenSource();
   bool _createAccount = false;
   bool _preferencesLoading = true;
@@ -206,8 +208,9 @@ class _SanjaalAppState extends State<SanjaalApp> {
         title: 'Sanjaal',
         navigatorObservers: [mediaRoutes],
         navigatorKey: _navigatorKey,
-        builder: (context, child) => ActiveCallHost(session: session,
-            navigatorKey: _navigatorKey, child: MessageOpenHost(session: session, navigatorKey: _navigatorKey, source: _messageOpens, child: child ?? const SizedBox.shrink())),
+        builder: (context, child) => ActiveCallHost(key: _activeCallKey, session: session,
+            navigatorKey: _navigatorKey, child: NativeCallRoot(session: session, hostKey: _activeCallKey,
+              child: MessageOpenHost(session: session, navigatorKey: _navigatorKey, source: _messageOpens, child: child ?? const SizedBox.shrink()))),
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light, fontFamily: widget.fontFamily),
         darkTheme: buildTheme(Brightness.dark, fontFamily: widget.fontFamily),

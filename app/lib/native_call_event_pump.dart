@@ -21,6 +21,7 @@ class NativeCallEventPump {
   String? _owner, _lease;
   bool _disposed = false, _running = false, _again = false;
   bool registered = false;
+  final _dispatching = <String>{};
   bool get _ready => !_disposed && session.nativeCallLease != null &&
       session.user?['public_id'] == _owner && session.nativeCallLease == _lease;
   Map<String, Object?> get _binding => {'owner': _owner, 'generation': _lease};
@@ -67,9 +68,16 @@ class NativeCallEventPump {
         final events = await _channel.invokeMethod<Object?>('drain', binding);
         if (!_ready || !identical(coordinator, _coordinator)) continue;
         if (events is! List || events.length > 8) continue;
-        // Dispatch together so a queued End cancels an in-flight Answer rather
-        // than waiting for its network/media connection to finish.
-        await Future.wait(events.map((event) => _handle(event, coordinator, binding)));
+        // Do not block subsequent native callbacks on an Answer's network/media
+        // wait. A later End must be drained and cancel it immediately too.
+        for (final event in events) {
+          if (event is! Map || event['event_id'] is! String) continue;
+          final key = '$lease:${event['event_id']}';
+          if (!_dispatching.add(key)) continue;
+          unawaited(_handle(event, coordinator, binding).catchError((Object _) {
+            registered = false;
+          }).whenComplete(() => _dispatching.remove(key)));
+        }
       }
     } catch (_) {
       // Platform absence/storage failure fails closed. Retry on the next real

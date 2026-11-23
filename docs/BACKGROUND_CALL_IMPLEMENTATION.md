@@ -340,3 +340,20 @@ native failure propagates into existing quarantine. A later replacement call
 cannot inherit an old deactivation-release success. Twenty-six selected media/
 audio/coordinator/iOS-source cases pass, focused analysis clean. Swift callbacks
 remain uncompiled/unexecuted; bounded source ordering is not OS audio proof.
+
+## Native action provenance and manager compilation
+
+Review removed native call actions from the exported launcher activity. Immutable
+PendingIntents now target a separate private activity whose eventual manifest must
+be non-exported; it consumes the action and opens the launcher without forwarding
+untrusted action extras. The private activity is currently unregistered. An external
+app cannot gain native Answer semantics through an exported launcher extra when
+this source is selected. Twenty-eight source/pump/coordinator cases pass and the
+seven Android call sources compile with jars/activity stub.
+
+The patched LKAudioSwitchManager plus ExternalTelecomGate also compiles against
+Android36 and the actual pinned AudioSwitch039a35a artifact, not AudioSwitch stubs.
+This narrows the compile gap, but the full LiveKitPlugin/WebRTC/dependency graph,
+real MainActivity and OS audio runtime remain uncompiled/unproven in this check.
+Artifact fetched from JitPack's exact pinned Maven coordinate; SHA256
+c8240221daa9a96d4ea01a4dc6f6f6b10b4903d2a71f9b57f838bdfeb6c3fcbc.

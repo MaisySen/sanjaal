@@ -166,7 +166,7 @@ class NativeIncomingCalls private constructor(private val context: Context) {
     }
 
     private fun action(envelope: CallWakeEnvelope, action: String, request: Int): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java)
+        val intent = Intent(context, NativeCallActionActivity::class.java)
             .setAction("au.fintex.sanjaal.CALL_ACTION")
             .setData(Uri.parse("sanjaal-call://${envelope.call}/$action"))
             .putExtra("sanjaal_call", envelope.call).putExtra("sanjaal_action", action)

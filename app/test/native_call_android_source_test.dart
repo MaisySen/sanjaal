@@ -9,13 +9,15 @@ void main() {
   final receiver = File('$root/NativeCallWakeReceiver.kt').readAsStringSync();
   final service = File('$root/NativeCallForegroundService.kt').readAsStringSync();
   final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-  test('activity delegates initial and replacement intents to process singleton', () {
+  test('launcher only attaches bridge, private activity owns native call intents', () {
     expect(owner, contains('private constructor'));
     expect(owner, contains('context.applicationContext'));
     expect(owner, contains('@Volatile private var instance'));
-    expect(activity, contains('override fun onNewIntent'));
+    expect(activity, isNot(contains('consume(intent)')));
+    expect(owner,contains('Intent(context, NativeCallActionActivity::class.java)'));
+    expect(File('$root/NativeCallActionActivity.kt').readAsStringSync(),contains('MUST be android:exported=false'));
+    expect(manifest,isNot(contains('NativeCallActionActivity')));
     expect(activity, contains('override fun cleanUpFlutterEngine'));
-    expect(activity.split('consume(intent)').length - 1, 2);
     expect(owner, contains('attachedMessenger !== messenger'));
   });
   test('telecom source defers active until explicit connected completion', () {

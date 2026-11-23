@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15] # Android identical input trees already passed run45103695557.
+        os: [macos-15, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:
@@ -56,4 +56,11 @@ jobs:
         chmod +x gradlew
         printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$FLUTTER_ROOT" "$ANDROID_HOME" > local.properties
         ./gradlew :app:compileDebugSources --no-daemon --console=plain
-    # Deliberately no signing, artifact distribution, provider send or deployment.
+    - name: Package exact Android engineering APK, no artifact upload or distribution
+      if: runner.os == 'Linux'
+      working-directory: app
+      run: |
+        flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --obfuscate --split-debug-info=build/debug-info --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1
+        python3 ../.github/ci/check_engineering_package.py
+    # Generated debug-key engineering package only, never stable user signing.
+    # No artifact/cache upload, distribution, provider send or deployment.

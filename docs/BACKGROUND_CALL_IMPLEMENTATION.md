@@ -11,6 +11,22 @@ Base complete candidate:0ee9af1. Shared wake contract checkpoint:1c3d2c0.
 
 Neither adapter is selected or called from the app. Swift files are not added to the target or compiled. No manifest, background mode, entitlement, provider registration or live sender activation changed. Android registered status deliberately remains false until the missing receiver/Telecom lifecycle is integrated. No full-screen grant is assumed. No new call plugin/dependency was installed.
 
+## Native event coordinator checkpoint
+
+A private unselected Dart coordinator now binds native event identity to a supplied
+restored-login lease plus the current Session generation. It reads the exact call,
+requires a verified ringing state before one Answer action, never joins an answer
+already made elsewhere, and does not repeat an unknown-result action. End/Decline
+cancel in-flight local connection before authenticated state handling. Replacement
+login retires pending/connected media without replacement-account cleanup requests.
+The injected connection boundary explicitly requires cameraEnabled=false.
+
+This is not actual native engine/root integration. Lease persistence/rotation,
+process-death replay, native event acknowledgement, complete active-call End after
+the initial ring expiry, remote cancellation transport and actual SDK audio/media
+ownership still need implementation. No shortcut from this tested coordinator to
+claims of native reliability is valid.
+
 ## Active engineering still required
 
 1. Persist bounded account-bound action/replay metadata safely across Android process death, coordinate one application/process owner and bind/clear with the actual restored login lease. Never store an access token in wake preferences.

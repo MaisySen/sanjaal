@@ -1,4 +1,6 @@
 import 'active_call_host.dart';
+import 'message_open_host.dart';
+import 'push.dart';
 import 'profile_setup_page.dart';
 import 'glass/glass_sheet.dart';
 import 'glass/glass_settings.dart';
@@ -163,6 +165,7 @@ class SanjaalApp extends StatefulWidget {
 class _SanjaalAppState extends State<SanjaalApp> {
   final session = Session();
   final _navigatorKey = GlobalKey<NavigatorState>();
+  final _messageOpens = const FirebaseMessageOpenSource();
   bool _createAccount = false;
   bool _preferencesLoading = true;
   bool _preferencesFailed = false;
@@ -204,7 +207,7 @@ class _SanjaalAppState extends State<SanjaalApp> {
         navigatorObservers: [mediaRoutes],
         navigatorKey: _navigatorKey,
         builder: (context, child) => ActiveCallHost(session: session,
-            navigatorKey: _navigatorKey, child: child ?? const SizedBox.shrink()),
+            navigatorKey: _navigatorKey, child: MessageOpenHost(session: session, navigatorKey: _navigatorKey, source: _messageOpens, child: child ?? const SizedBox.shrink())),
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light, fontFamily: widget.fontFamily),
         darkTheme: buildTheme(Brightness.dark, fontFamily: widget.fontFamily),

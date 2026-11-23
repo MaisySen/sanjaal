@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'api.dart';
 import 'push_registration.dart';
+import 'message_open_host.dart';
 
 /// Public client identifiers. Project authorization, not hidden identifiers,
 /// controls delivery. No provider key or sending credential ships in the app.
@@ -72,8 +73,22 @@ class _SessionPushAccount implements PushAccount {
   }
 }
 
+class FirebaseMessageOpenSource implements MessageOpenSource {
+  const FirebaseMessageOpenSource();
+  @override bool get supported => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool _message(RemoteMessage message) => message.data['type']=='message';
+  @override Stream<void> get opens => FirebaseMessaging.onMessageOpenedApp.where(_message).map((_){});
+  @override Future<bool> initialOpen() async {
+    if(!supported)return false;
+    await Push._device._ready();
+    final message=await FirebaseMessaging.instance.getInitialMessage();
+    return message!=null&&_message(message);
+  }
+}
+
 class Push {
-  static final _registration = PushRegistration(_FirebaseDevice());
+  static final _device = _FirebaseDevice();
+  static final _registration = PushRegistration(_device);
   static final _accounts = Expando<_SessionPushAccount>();
   static _SessionPushAccount _account(Session session) =>
       _accounts[session] ??= _SessionPushAccount(session);

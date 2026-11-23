@@ -184,10 +184,14 @@ void main() {
     final h = CallHarness();
     h.session.respond = (method, path, body) async {
       if (path == '/calls/incoming') return {'data': [{
-        'public_id': 'incoming', 'conversation_id': 'chat', 'title': 'Synthetic caller',
+        'public_id': 'current-call', 'conversation_id': 'chat', 'title': 'Synthetic caller',
         'caller': {'username': 'fixture'}, 'kind': 'voice', 'status': 'ringing',
         'ring_expires_at': DateTime.now().toUtc().add(const Duration(minutes: 1)).toIso8601String(),
       }]};
+      if (path == '/calls/current-call') return {'call': {
+        'public_id': 'current-call', 'conversation_id': 'chat', 'kind': 'voice',
+        'status': 'ringing', 'ring_expires_at': DateTime.now().toUtc().add(const Duration(seconds: 35)).toIso8601String(),
+      }};
       return {'data': [], 'unread_messages': 0};
     };
     await h.mount(t, screen: HomeShell(session: h.session));

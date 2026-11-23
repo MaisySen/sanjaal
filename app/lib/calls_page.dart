@@ -168,8 +168,14 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
     final end = _deadline(row);
     if (end == null) return;
     final wait = end.difference(DateTime.now());
-    expiry = Timer(wait.isNegative ? Duration.zero : wait, () {
-      if (mounted && sessionActive && !busy) _checkStatus();
+    // Only the foreground incoming screen reconciles this exact call. Never
+    // keep a server-ended call ringing until the original forty-second expiry.
+    final delay = wait.isNegative ? Duration.zero
+        : wait < const Duration(seconds: 5) ? wait : const Duration(seconds: 5);
+    expiry = Timer(delay, () {
+      if (!mounted || !sessionActive || !_foreground || busy) return;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      unawaited(_checkStatus(quiet: true));
     });
   }
 
@@ -191,12 +197,16 @@ class _IncomingCallPageState extends State<IncomingCallPage> with SessionBoundSt
     return row;
   }
 
-  Future<void> _checkStatus() async {
+  Future<void> _checkStatus({bool quiet = false}) async {
     if (!mounted || !sessionActive || !_foreground || busy) return;
     final revision = _lifecycleRevision;
     _needsForegroundRead = false;
     expiry?.cancel();
-    setState(() { busy = true; checking = true; phase = 'unknown'; error = null; });
+    setState(() {
+      busy = true; checking = !quiet;
+      if (!quiet) phase = 'unknown';
+      error = null;
+    });
     try {
       final value = await widget.session.call('GET', '/calls/${widget.call['public_id']}');
       final row = _validated(value);

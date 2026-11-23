@@ -51,8 +51,15 @@ cannot automatically join media. If the exact current state is answered and this
 screen's user previously chose Accept, it offers explicit Join only. No action is
 resent. Five lifecycle regression cases cover cancellation on return, late accepted
 receipts both sides of resume, stale read replacement and bounded read failure.
-This is resume/expiry reconciliation, not immediate remote-cancellation delivery
-while the screen stays foregrounded and not OS background ringing.
+A following bounded foreground refresh now reads that exact call at most every
+five seconds while the ringing route is current, stopping on terminal state,
+error/malformed response, background, account retirement or disposal. The server
+ring deadline remains authoritative. A quiet successful ringing refresh does not
+replace the ringing label with an unknown-state flash. The consumer learns remote
+end or answer-elsewhere without automatically answering, joining or repeating an
+action. This is bounded foreground HTTP reconciliation, not immediate events or
+OS background ringing. Four additional synthetic refresh cases cover remote end,
+answer-elsewhere, single-flight malformed failure and lifecycle/account stop.
 
 Account deletion is an additional integration/completion gap. Current integrated
 Settings opens an email draft only. Separate preserved default-off request/status

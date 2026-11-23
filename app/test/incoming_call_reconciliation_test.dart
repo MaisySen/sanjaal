@@ -265,4 +265,51 @@ void main() {
     await t.pumpWidget(const SizedBox());
   });
 
+  testWidgets('foreground ringing refresh learns remote end without answering', (t) async {
+    final s = CallsFixture()..readResult = {'call': row('ended')};
+    await screen(t, s);
+    await t.pump(const Duration(seconds: 5)); await t.pumpAndSettle();
+    expect(s.reads, 1); expect(s.actions, 0); expect(s.tokens, 0);
+    expect(find.text('This call has ended.'), findsOneWidget);
+    expect(find.byTooltip('Accept'), findsNothing);
+    await t.pump(const Duration(minutes: 2)); expect(s.reads, 1);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('foreground answered elsewhere never offers join or repeats refresh', (t) async {
+    final s = CallsFixture()..readResult = {'call': row('answered')};
+    await screen(t, s);
+    await t.pump(const Duration(seconds: 5)); await t.pumpAndSettle();
+    expect(s.reads, 1); expect(s.actions, 0); expect(s.tokens, 0);
+    expect(find.text('This call was answered.'), findsOneWidget);
+    expect(find.text('Join this call'), findsNothing);
+    await t.pump(const Duration(minutes: 2)); expect(s.reads, 1);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('ringing refresh is single flight and stops after malformed response', (t) async {
+    final pending = Completer<Object?>();
+    final s = CallsFixture()..readPending = pending;
+    await screen(t, s);
+    await t.pump(const Duration(seconds: 5));
+    await t.pump(const Duration(seconds: 15)); expect(s.reads, 1);
+    pending.complete({'call': row('ringing', id: 'wrong')}); await t.pumpAndSettle();
+    await t.pump(const Duration(minutes: 2)); expect(s.reads, 1);
+    expect(find.text('Check call status'), findsOneWidget);
+    expect(s.actions, 0); expect(s.tokens, 0);
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('ringing refresh stops while backgrounded and after account retirement', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final s = CallsFixture()..readResult = {'call': row('ringing')};
+    await screen(t, s);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump(const Duration(seconds: 10)); expect(s.reads, 0);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pumpAndSettle(); expect(s.reads, 1);
+    s.user = {'public_id': 'replacement'}; s.notifyListeners(); await t.pump();
+    await t.pump(const Duration(minutes: 2)); expect(s.reads, 1);
+    expect(s.actions, 0); expect(s.tokens, 0);
+    await t.pumpWidget(const SizedBox());
+  });
+
 }

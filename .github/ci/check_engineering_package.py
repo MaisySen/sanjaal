@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Inspect the current-run APK without signing, publishing or claiming install proof."""
-import hashlib, importlib.util, json, os, pathlib, re, subprocess
+import argparse, hashlib, importlib.util, json, os, pathlib, re, subprocess
 root=pathlib.Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location('preview',root/'.github/ci/finalize_phone_preview.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
-app=root/'app'
-head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
-if os.environ.get('GITHUB_SHA') != head: raise SystemExit('Exact source mismatch')
-if subprocess.check_output(['git','diff','--name-only','HEAD'],cwd=root,text=True).strip():
+parser=argparse.ArgumentParser()
+parser.add_argument('--source-repo',default=str(root))
+parser.add_argument('--source-sha',required=True)
+args=parser.parse_args()
+source=pathlib.Path(args.source_repo).resolve();app=source/'app'
+head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=source,text=True).strip()
+if args.source_sha != head: raise SystemExit('Exact source mismatch')
+if subprocess.check_output(['git','diff','--name-only','HEAD'],cwd=source,text=True).strip():
     raise SystemExit('Tracked source changed during package')
 version=re.search(r'^version: ([^+]+)\+(\d+)$',(app/'pubspec.yaml').read_text(),re.M)
 if not version: raise SystemExit('Version missing')

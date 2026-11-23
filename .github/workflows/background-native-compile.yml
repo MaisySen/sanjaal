@@ -1,4 +1,4 @@
-name: Batched background-call native graph compilation
+name: Exact reviewed df1b7ce Android package verification
 'on':
   push:
     branches: [reviewed-background-native-compile]
@@ -8,27 +8,28 @@ concurrency:
   group: reviewed-background-native-compile
   cancel-in-progress: false
 jobs:
-  native-graph:
+  exact-reviewed-package:
     if: github.repository == 'MaisySen/sanjaal' && github.event.repository.private == false
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-15, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      REVIEWED_SOURCE: df1b7ced4daf1773aa4fb9490bd1dad4ea48c103
     steps:
     - uses: actions/checkout@v4
       with:
         persist-credentials: false
-    - run: python3 .github/ci/check-background-native-source.py
-    - name: Select reviewed Xcode toolchain, not runner default16.4
-      if: runner.os == 'macOS'
+    - uses: actions/checkout@v4
+      with:
+        ref: df1b7ced4daf1773aa4fb9490bd1dad4ea48c103
+        path: exact-source
+        persist-credentials: false
+    - name: Verify exact reviewed source, no substituted app tree
+      working-directory: exact-source
       run: |
-        test -d /Applications/Xcode_26.3.app/Contents/Developer
-        echo 'DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer' >> "$GITHUB_ENV"
-        DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer xcodebuild -version
+        test "$(git rev-parse HEAD)" = "$REVIEWED_SOURCE"
+        test "$(git rev-parse HEAD:app)" = "5e1d6562b4f0ba0fa51d5ed75cc3bcda444cff5a"
+        test -z "$(git status --porcelain)"
     - uses: actions/setup-java@v4
-      if: runner.os == 'Linux'
       with:
         distribution: temurin
         java-version: '17'
@@ -37,30 +38,13 @@ jobs:
         channel: stable
         flutter-version: '3.50.0'
         cache: false
-    - name: Verify toolchain and dependency resolution
-      working-directory: app
+    - name: Build release only from fresh reviewed source workspace
+      working-directory: exact-source/app
       run: |
         flutter --version
+        flutter clean
         flutter pub get --enforce-lockfile
-        flutter test test/pinned_call_sdk_test.dart --no-pub
-    - name: Compile complete iOS simulator graph including Swift and retained SDK
-      if: runner.os == 'macOS'
-      working-directory: app
-      run: flutter build ios --simulator --debug --no-codesign --no-pub
-    - name: Compile complete Android graph including retained SDK
-      if: runner.os == 'Linux'
-      working-directory: app/android
-      run: |
-        cp "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradlew" ./gradlew
-        cp "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/
-        chmod +x gradlew
-        printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$FLUTTER_ROOT" "$ANDROID_HOME" > local.properties
-        ./gradlew :app:compileDebugSources --no-daemon --console=plain
-    - name: Package exact Android engineering APK, no artifact upload or distribution
-      if: runner.os == 'Linux'
-      working-directory: app
-      run: |
-        flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --obfuscate --split-debug-info=build/debug-info --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1
-        python3 ../.github/ci/check_engineering_package.py
-    # Generated debug-key engineering package only, never stable user signing.
-    # No artifact/cache upload, distribution, provider send or deployment.
+        flutter build apk --release --split-per-abi --target-platform android-arm64 --obfuscate --split-debug-info=build/debug-info --dart-define=API_BASE_URL=https://sanjaal-api.onrender.com/api/v1
+    - name: Independently verify exact source and engineering APK checksum
+      run: python3 .github/ci/check_engineering_package.py --source-repo exact-source --source-sha "$REVIEWED_SOURCE"
+    # No artifact/cache upload, stable signing, distribution, deployment or provider activation.

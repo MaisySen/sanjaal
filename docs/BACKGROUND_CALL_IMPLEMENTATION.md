@@ -372,3 +372,14 @@ removed the unsafe override/super call and preserved the named legacy configurat
 Only real Xcode compilation can settle remaining Swift/API compatibility. Local
 Swift/Xcode is unavailable; full Android Gradle/WebRTC graph is unavailable here.
 These are validation dependencies, not evidence the native implementation works.
+
+### First complete graph run, then corrected iOS validation toolchain
+
+Run45103695557 at a2f3079 compiled complete Android compileDebugSources, including
+patched LiveKitPlugin, flutter_webrtc and real app Kotlin/Java. Actual logs show
+BUILD SUCCESSFUL. iOS failed at video_player_avfoundation2.12.4 VideoPlayer.swift568
+with an isolation argument mismatch. This workflow had omitted the existing reviewed
+Xcode26.3 pin and the exact runner image defaults to Xcode16.4. Correct the validation
+configuration to select26.3 explicitly. App/native/dependency input trees are unchanged.
+Do not repeat successful Android compilation for this workflow-only correction.
+iOS Swift remains unvalidated until the corrected complete graph finishes.

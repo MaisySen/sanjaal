@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, ubuntu-latest]
+        os: [macos-15] # Android identical input trees already passed run45103695557.
     runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:
@@ -21,6 +21,12 @@ jobs:
       with:
         persist-credentials: false
     - run: python3 .github/ci/check-background-native-source.py
+    - name: Select reviewed Xcode toolchain, not runner default16.4
+      if: runner.os == 'macOS'
+      run: |
+        test -d /Applications/Xcode_26.3.app/Contents/Developer
+        echo 'DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer' >> "$GITHUB_ENV"
+        DEVELOPER_DIR=/Applications/Xcode_26.3.app/Contents/Developer xcodebuild -version
     - uses: actions/setup-java@v4
       if: runner.os == 'Linux'
       with:

@@ -143,7 +143,8 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     update.localizedCallerName = "Sanjaal"
     update.hasVideo = envelope?.video ?? false
     update.supportsHolding = false; update.supportsGrouping = false; update.supportsUngrouping = false
-    let accepted = envelope != nil && current == nil && candidate == id && !seen.contains(id) && seen.count < 64
+    let leaseMatches = payload.dictionaryPayload["login_lease"] as? String == generation && generation != nil
+    let accepted = leaseMatches && envelope != nil && current == nil && candidate == id && !seen.contains(id) && seen.count < 64
     provider.reportNewIncomingCall(with: id, update: update) { [weak self] error in
       guard let self = self else { completion(); return }
       defer { completion() }

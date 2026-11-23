@@ -59,7 +59,7 @@ class CallDeviceTest extends TestCase
         Http::assertSent(function ($r) use ($b,$call) {
             $m=$r['message'];
             return $m['token']==='fcm-synthetic' && !isset($m['notification']) && !isset($m['apns']) &&
-                $m['data']['recipient']===$b->public_id && $m['data']['call']===$call &&
+                $m['data']['recipient']===$b->public_id && $m['data']['call']===$call && $m['data']['login_lease']===self::LEASE &&
                 $m['android']['priority']==='high' && (int)$m['android']['ttl']<=40 &&
                 !isset($m['data']['token']) && !isset($m['data']['caller']);
         });

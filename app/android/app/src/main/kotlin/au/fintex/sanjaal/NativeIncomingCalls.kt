@@ -103,7 +103,9 @@ class NativeIncomingCalls private constructor(private val context: Context) {
     /** Called only from a provider-authenticated native receiver on the main thread. */
     fun receive(data: Map<String, String>): Boolean {
         if (Build.VERSION.SDK_INT < 31 || !notifications.areNotificationsEnabled()) return false
-        val owner = journal.binding()?.owner ?: return false
+        val binding = journal.binding() ?: return false
+        if (data["login_lease"] != binding.lease) return false
+        val owner = binding.owner
         val envelope = CallWakeEnvelope.parse(data, owner, System.currentTimeMillis() / 1000) ?: return false
         if (current != null) return false
         val notificationChannel = NotificationChannel(channelId, "Incoming calls", NotificationManager.IMPORTANCE_HIGH)

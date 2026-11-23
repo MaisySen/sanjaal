@@ -44,7 +44,7 @@ class CallVoipPushTest extends TestCase
         foreach (['api.sandbox.push.apple.com','api.push.apple.com'] as $host) Http::assertSent(fn ($r) =>
             str_contains($r->url(),$host) && $r->hasHeader('apns-push-type','voip') &&
             $r->hasHeader('apns-topic','test.synthetic.voip') && $r->hasHeader('apns-expiration','0') &&
-            $r['recipient']===$b->public_id && $r['call']===$call && !isset($r['aps']->alert));
+            $r['recipient']===$b->public_id && $r['call']===$call && $r['login_lease']==='12345678-1234-4234-8234-123456789abc' && !isset($r['aps']->alert));
         Http::assertSentCount(2);
         DB::table('calls')->where('public_id',$call)->update(['status'=>'ended']);
         $this->assertSame(0,app(CallVoipPush::class)->incomingCall($call)); Http::assertSentCount(2);

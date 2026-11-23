@@ -46,7 +46,7 @@ class CallVoipPush
                     ->withHeaders(['apns-push-type'=>'voip', 'apns-topic'=>$bundle.'.voip',
                         'apns-priority'=>'10', 'apns-expiration'=>'0'])
                     ->timeout(min(8, $remaining))->post('https://'.$host.'/3/device/'.$device->token,
-                        ['aps'=>(object)[], ...$row['data']]);
+                        ['aps'=>(object)[], ...$row['data'], 'login_lease'=>$device->login_lease]);
                 if ($response->successful()) $sent++;
                 // No retries: provider acceptance can be ambiguous on transport loss.
                 // Only a confirmed invalid registration retires this exact binding.

@@ -34,6 +34,8 @@ void main() {
     expect(receiver, contains('gcm.n.'));
     expect(receiver, contains('gcm.notification.'));
     expect(receiver, contains('incoming_call'));
+    expect(receiver, contains('login_lease'));
+    expect(owner, contains('data["login_lease"] != binding.lease'));
     expect(service, contains('START_NOT_STICKY'));
     expect(service, isNot(contains('START_STICKY')));
     expect(service, contains('FOREGROUND_SERVICE_TYPE_PHONE_CALL'));

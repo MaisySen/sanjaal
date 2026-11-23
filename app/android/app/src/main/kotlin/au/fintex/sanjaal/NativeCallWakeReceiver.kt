@@ -17,7 +17,7 @@ class NativeCallWakeReceiver : BroadcastReceiver() {
         if (extras.getString("type") != "incoming_call" ||
             extras.keySet().any { it.startsWith("gcm.n.") || it.startsWith("gcm.notification.") }) return
         val data = mutableMapOf<String, String>()
-        for (key in listOf("type", "call_version", "recipient", "call", "conversation", "kind", "issued_at", "expires_at")) {
+        for (key in listOf("type", "call_version", "recipient", "call", "conversation", "kind", "issued_at", "expires_at", "login_lease")) {
             data[key] = extras.getString(key) ?: return
         }
         NativeIncomingCalls.get(context).receive(data)

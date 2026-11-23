@@ -94,7 +94,7 @@ class Push
             try {
                 $res = Http::withToken($access)->timeout(min(8, $seconds))->post(
                     'https://fcm.googleapis.com/v1/projects/'.$creds['project_id'].'/messages:send',
-                    ['message' => ['token' => $device->token, 'data' => $eligible['data'],
+                    ['message' => ['token' => $device->token, 'data' => [...$eligible['data'], 'login_lease' => $device->login_lease],
                         'android' => ['priority' => 'high', 'ttl' => $seconds.'s']]]);
                 if ($res->successful()) $sent++;
                 elseif ($this->isUnregistered($res)) {

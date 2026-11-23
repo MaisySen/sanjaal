@@ -17,6 +17,8 @@ void main() {
     expect(app,contains('import livekit_client'));
     expect(app,contains('LiveKitPlugin.setEngineAvailability'));
     expect(native,contains('audioAvailability?(true) == true'));
+    expect(native,contains('let accepted = leaseMatches'));
+    expect(native,contains('payload.dictionaryPayload["login_lease"]'));
     expect(native,contains('self.owner == openedOwner, self.generation == openedGeneration'));
     expect(native,isNot(contains('self.seen = [id]')));
   });

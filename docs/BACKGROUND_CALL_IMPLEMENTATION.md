@@ -207,3 +207,18 @@ APNs environments and stale unregistration. This is not APNs integration proof.
 Grounding:
 https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns.md
 https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns.md
+
+## Enrollment and delayed prior-login wake guard
+
+Private unselected NativeCallRegistration now requires verified UUID owner/login
+lease, platform-ready token and explicit APNs environment, deduplicates current
+enrollment and rechecks login generation after a token wait. No platform token
+adapter/root selects it yet and removal/logout network integration remains open.
+
+Review found same-account prior-login delivery could otherwise be rebound by the
+native process. Dispatch now includes the exact enrolled login_lease and both
+native receive paths require it before accepting the call. Android receiver retains
+that field and iOS still reports then ends invalid VoIP callbacks per CallKit rules.
+Nineteen client/source/pump cases and18current-source API tests78assertions pass;
+Android six call sources compile against jars/activity symbol stub. Swift remains
+uncompiled and no platform registration or delivery occurred.

@@ -44,5 +44,10 @@ jobs:
     - name: Compile complete Android graph including retained SDK
       if: runner.os == 'Linux'
       working-directory: app/android
-      run: ./gradlew :app:compileDebugSources --no-daemon --console=plain
+      run: |
+        cp "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradlew" ./gradlew
+        cp "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar" gradle/wrapper/
+        chmod +x gradlew
+        printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$FLUTTER_ROOT" "$ANDROID_HOME" > local.properties
+        ./gradlew :app:compileDebugSources --no-daemon --console=plain
     # Deliberately no signing, artifact distribution, provider send or deployment.

@@ -9,7 +9,7 @@ Base complete candidate:0ee9af1. Shared wake contract checkpoint:1c3d2c0.
 - Private native adapter scaffolds now provide Android31+ CallStyle notification/action buffering and native iOS PushKit/CallKit reporting, short expiry and audio-availability hooks.
 - Android scaffold compiles against existing Android36 and Flutter engine jars with a stub MainActivity solely for symbol resolution. This is not a merged app/package/native runtime build.
 
-Neither adapter is selected or called from the app. Swift files are not added to the target or compiled. No manifest, background mode, entitlement, provider registration or live sender activation changed. Android registered status deliberately remains false until the missing receiver/Telecom lifecycle is integrated. No full-screen grant is assumed. No new call plugin/dependency was installed.
+Android process channel is attached by MainActivity but has no receiver/provider selection; the iOS adapter is not constructed. Swift files are not added to the target or compiled. No manifest, background mode, entitlement, provider registration or live sender activation changed. Android registered status deliberately remains false until the missing receiver/Telecom lifecycle is integrated. No full-screen grant is assumed. No new call plugin/dependency was installed.
 
 ## Native event coordinator checkpoint
 
@@ -34,7 +34,7 @@ an expired unowned End. Actual platform active-call state remains unwired.
 
 ## Active engineering still required
 
-1. Android bounded metadata journal now persists owner/UUID lease, current ring, up to8queued events and64seen call IDs. Drain is nondestructive; explicit claim-before-effect and acknowledgement prevent automatic action replay after engine death. A26-assertion in-memory SharedPreferences proxy check covers metadata reload, duplicate/expiry, lease change, claim persistence and write failure. This is not Android process-death execution. Actual restored-login lease persistence/rotation and one process owner are still unintegrated; never store an access token in these preferences.
+1. Android bounded metadata journal now persists owner/UUID lease, current ring, up to8queued events and64seen call IDs. Drain is nondestructive; explicit claim-before-effect and acknowledgement prevent automatic action replay after engine death. A26-assertion in-memory SharedPreferences proxy check covers metadata reload, duplicate/expiry, lease change, claim persistence and write failure. This is not Android process-death execution. Actual restored-login lease persistence/rotation and one process owner are now implemented in source, while receiver activation and full runtime remain unintegrated; never store an access token in these preferences.
 2. Android provider-authenticated C2DM receiver coexistence with installed FlutterFire15.2.10. Add Telecom and foreground phoneCall lifecycle, notification policy/permission state, answer/end/hold actions and API<31 policy, without competing generic messaging services.
 3. iOS process-owned PushKit/CallKit and FlutterEngine availability in cold/background scene state. Wire native CallKit audio ownership into installed LiveKit2.13.2 externalCallSystem; defer answer fulfillment until authenticated exact-call state and connection, not merely the system tap. Background video camera remains off.
 4. A native event coordinator tied to stable owner plus login lease, exact authenticated GET/action state, no route replacement or implicit acceptance from an unverified push, bounded end/expiry reconciliation, cleanup and duplicate handling. Handle queued native End/Decline without borrowing replacement credentials.
@@ -85,3 +85,21 @@ The real channel contract was tested using Flutter's mocked platform messenger,
 not an OS call callback or process restart. Android adapter sources compile with
 the existing jars/stub activity, not a full packaged build. Seventy-five selected
 session, native coordinator and bridge cases pass; no root selects this pump yet.
+
+## Android process/Telecom source checkpoint
+
+MainActivity now attaches the application-context process singleton and routes its
+initial/new call intents to that owner, with identity-guarded engine detachment.
+No receiver, phone account, Telecom service manifest, permission or foreground
+service is activated. Native `registered` remains false. A private ConnectionService
+implementation is present but unregistered: self-managed VoIP metadata, checked
+incoming offer, failed incoming handling, Bluetooth/system answer/reject/end
+callbacks and deferred active transition until explicit authenticated media
+completion. Presentation callback fails closed until the whole notification and
+foreground-media handoff is selected. No inactive scaffold is called delivery proof.
+
+Thirty selected Dart/coordinator/pump/source-boundary cases pass; native adapter,
+journal, envelope and Telecom sources compile against Android36/Flutter jars plus
+an activity symbol stub. The edited real MainActivity and full dependency graph
+have not been packaged/compiled by this check. No Android OS Telecom execution,
+process termination, lockscreen or Samsung flow has run. iOS stays uncompiled.

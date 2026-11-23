@@ -16,7 +16,17 @@ import io.flutter.plugin.common.MethodChannel
 
 /** Process-owned CallStyle presentation. Manifest/Telecom receiver integration is
  * intentionally not activated here. Metadata never authorizes authenticated actions. */
-class NativeIncomingCalls(private val context: Context) {
+class NativeIncomingCalls private constructor(private val context: Context) {
+    companion object {
+        @Volatile private var instance: NativeIncomingCalls? = null
+        fun get(context: Context): NativeIncomingCalls = instance ?: synchronized(this) {
+            instance ?: NativeIncomingCalls(context.applicationContext).also { instance = it }
+        }
+    }
+    internal val telecom = NativeCallTelecom(context,
+        // Fail closed until notification and foreground-media handoff are selected.
+        show = { false },
+        action = { action, envelope -> emit(action, envelope) })
     private val journal = NativeCallJournal(context)
     private val notifications = context.getSystemService(NotificationManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
@@ -26,7 +36,14 @@ class NativeIncomingCalls(private val context: Context) {
     private val channelId = "sanjaal_incoming_calls_v1"
     private val notificationId = 82012
 
+    fun detach(messenger: BinaryMessenger) {
+        if (attachedMessenger !== messenger) return
+        channel?.setMethodCallHandler(null); channel = null; attachedMessenger = null
+    }
+    private var attachedMessenger: BinaryMessenger? = null
     fun attach(messenger: BinaryMessenger) {
+        channel?.setMethodCallHandler(null)
+        attachedMessenger = messenger
         channel = MethodChannel(messenger, "au.fintex.sanjaal/incoming-calls").also { bridge ->
             bridge.setMethodCallHandler { call, result ->
                 val args = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
@@ -124,6 +141,6 @@ class NativeIncomingCalls(private val context: Context) {
     }
     private fun clear() {
         expiry?.let { handler.removeCallbacks(it) }; expiry = null
-        notifications.cancel(notificationId); current = null; journal.clearCurrent()
+        notifications.cancel(notificationId); current = null; journal.clearCurrent(); telecom.retire()
     }
 }

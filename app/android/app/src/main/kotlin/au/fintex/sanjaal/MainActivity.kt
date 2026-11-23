@@ -33,6 +33,8 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(engine: FlutterEngine) {
         super.configureFlutterEngine(engine)
+        NativeIncomingCalls.get(applicationContext).attach(engine.dartExecutor.binaryMessenger)
+        NativeIncomingCalls.get(applicationContext).consume(intent)
         DeviceAccessChannel(this).register(engine.dartExecutor.binaryMessenger)
         VideoPosterChannel(this).register(engine.dartExecutor.binaryMessenger)
         engine.platformViewsController.registry.registerViewFactory("au.fintex.sanjaal/memory-video", MemoryVideoFactory(engine.dartExecutor.binaryMessenger))
@@ -79,6 +81,15 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        NativeIncomingCalls.get(applicationContext).consume(intent)
+    }
+    override fun cleanUpFlutterEngine(engine: FlutterEngine) {
+        NativeIncomingCalls.get(applicationContext).detach(engine.dartExecutor.binaryMessenger)
+        super.cleanUpFlutterEngine(engine)
     }
     private fun finishConsent(status: String) {
         val result = pendingConsent

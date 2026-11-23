@@ -1,0 +1,23 @@
+{
+  "checked_on": "2026-11-23",
+  "submitting_source": "https://developer.apple.com/app-store/submitting/",
+  "guidelines_source": "https://developer.apple.com/app-store/review/guidelines/",
+  "future_upload_gate": {
+    "effective_month": "2027-04",
+    "effective_day": null,
+    "scope": "iOS and iPadOS apps uploaded to App Store Connect",
+    "minimum_sdk_major": 27,
+    "minimum_deployment_target": "15.0",
+    "unknown_exact_day_handling": "Reverify in March and before any April upload; do not infer a day from month-only wording.",
+    "current_candidate_target": "15.0",
+    "current_compile_toolchain": "Xcode26.3, simulator SDK26.2",
+    "current_rejection_evidence": false
+  },
+  "code_update_gate": {
+    "rule": "2.5.2",
+    "downloaded_feature_changing_code": "not permitted by the general rule",
+    "current_app_model": "No executable patch engine/provider in application dependency or update source. Android uses Google Play full-build updates, iOS uses signed TestFlight/App Store distribution.",
+    "enablement": "held pending exact payload, execution mechanism, signing, review/policy and rollback assessment; no generic OTA approval",
+    "signed_distribution_replacement": false
+  }
+}

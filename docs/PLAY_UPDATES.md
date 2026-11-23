@@ -73,3 +73,22 @@ required; none of this proves a Play-owned device download or installation.
 Enum sources checked November21:
 - https://developer.android.com/reference/com/google/android/play/core/install/model/UpdateAvailability
 - https://developer.android.com/reference/com/google/android/play/core/install/model/InstallStatus
+
+## Apple check, November23 2026
+
+Verified https://developer.apple.com/app-store/submitting/ on November23: starting
+April2027, iOS/iPadOS uploads to App Store Connect require SDK27+ and target iOS15+.
+Apple gives a month, not an exact day. This is a future dated gate, not evidence of
+current rejection. Current project target is15.0; current verified simulator compile
+used Xcode26.3, so SDK migration remains required before that future upload window.
+
+Verified https://developer.apple.com/app-store/review/guidelines/ rule2.5.2: the
+general rule prohibits downloading/installing/executing code that introduces or
+changes app features/functionality. Sanjaal has no executable patch provider or
+engine in current dependencies/update source. Android's existing in-app update
+bridge is a Play-managed full-build update, not a Dart/native patch channel. iOS
+continues to require signed TestFlight/App Store distribution. No OTA enablement or
+store-compliance claim follows from this check. Any future proposal must specify
+actual payload and execution model and pass policy review before activation.
+
+Machine-readable dated review record: policy/apple-upload-and-update-gates-2026-11-23.json.

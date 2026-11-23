@@ -43,3 +43,11 @@ No new native dependency, backend flag, report migration, launcher, build,
 signing, TestFlight audience, compliance attestation or production change.
 Native process restart and physical Samsung/iPhone review remain required in
 the next reviewed combined candidate, not a build solely for this slice.
+
+
+Connected root integration now also exercises the actual first-use path: signup,
+post, member search/profile/follow, failed message/retry, explicit save of newer
+unsent text, deliberate leave to profile, reopen, explicit restore/removal, then
+profile edit and back Home. Message attempts remain exactly two, one initial
+failed attempt and its retry; saving/restoring adds none. Five connected tests
+passed. The full-width composer is also inspected in that settled root capture.

@@ -6,6 +6,7 @@ import 'ph.dart';
 import 'dart:async';
 import 'draft_exit_guard.dart';
 import 'group_draft_store.dart';
+import 'chat_text_draft_store.dart';
 import 'dart:convert' show jsonEncode;
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -639,7 +640,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   void _accountChanged(){
     if(_active || !mounted)return;
-    _closed=true;timer?.cancel();_wakeVisible();
+    _closed=true;timer?.cancel();_wakeVisible();_retireDraftDialog();
     setState((){msgs.clear();input.clear();replyTo=null;typing=[];recording=false;pickingMedia=false;});
   }
   final msgs = <Map<String, dynamic>>[];
@@ -704,7 +705,110 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
     widget.session.addListener(_accountChanged);
     input.addListener(_composerChanged);
     scroll.addListener(() { if (unseen > 0 && nearEnd && mounted) setState(() => unseen = 0); });
+    _loadTextDraft();
     _loop();
+  }
+
+  Route<dynamic>? _draftDialog;
+  NavigatorState? _draftNavigator;
+  bool _draftAsking = false;
+  void _retireDraftDialog() {
+    final dialog = _draftDialog, navigator = _draftNavigator;
+    _draftDialog = null; _draftNavigator = null;
+    if (dialog != null && navigator != null) { WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigator.mounted && dialog.isActive && identical(dialog.navigator, navigator)) navigator.removeRoute(dialog);
+    }); }
+  }
+  ChatTextDraft? _savedText;
+  bool _draftBusy = false;
+  bool _draftRead = false;
+  bool _draftLoading = false;
+  String? _draftError;
+  bool get _draftRouteActive => mounted && _active && ModalRoute.of(context)?.isCurrent == true;
+  Future<void> _loadTextDraft() async {
+    if (_owner == null || _draftLoading || _draftBusy) return;
+    _draftLoading = true;
+    final conversation = id;
+    try {
+      final saved = await const ChatTextDraftStore().read(_owner, conversation);
+      if (mounted && _active && id == conversation) setState(() { _savedText = saved; _draftRead = true; _draftError = null; });
+    } catch (_) {
+      if (mounted && _active && id == conversation) setState(() { _draftRead = false; _draftError = 'Saved text could not be read. Nothing was changed.'; });
+    } finally { if (mounted && _active) setState(() => _draftLoading = false); }
+  }
+  Future<void> _saveTextDraft() async {
+    if (!_draftRouteActive || !_draftRead || _draftBusy || recording || pickingMedia || replyTo != null || input.text.trim().isEmpty) return;
+    final text = input.text, conversation = id;
+    setState(() => _draftBusy = true);
+    try {
+      final saved = await const ChatTextDraftStore().save(_owner!, conversation, text, expectedRevision: _savedText?.revision);
+      if (mounted && _active && id == conversation) setState(() { _savedText = saved; _draftError = null; });
+    } catch (error) {
+      if (_draftRouteActive) setState(() { _draftRead = false; _draftError = error is ChatTextDraftLimit ? 'This device has 20 saved chat copies. Remove a saved copy in another chat first.' : 'Text could not be saved. Keep this chat open and try again.'; });
+    } finally { if (mounted && _active) setState(() => _draftBusy = false); }
+  }
+  Future<void> _openSavedText() async {
+    if (!_draftRouteActive || !_draftRead || _draftBusy || _draftAsking || _savedText == null) return;
+    _draftAsking = true;
+    String? action;
+    try {
+      var answered = false;
+      action = await showDialog<String>(context: context, builder: (c) {
+        _draftDialog = ModalRoute.of(c); _draftNavigator = Navigator.of(c);
+        void finish(String value) {
+          if (answered || !mounted || !_active || !c.mounted || ModalRoute.of(c)?.isCurrent != true) return;
+          answered = true; Navigator.of(c).pop(value);
+        }
+        Widget action(String text, String value, {bool enabled = true}) => Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: TextButton(style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)),
+            onPressed: enabled ? () => finish(value) : null,
+            child: Text(t_(text), style: const TextStyle(height: 1.5))));
+        return AlertDialog(scrollable: true, title: Text(t_('Saved text')),
+          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(t_('Device-only text copy, not an outbox. It stays after sending. Restore to edit it.')),
+            action('Restore text', 'restore', enabled: replyTo == null),
+            action('Remove saved copy', 'remove'),
+            action('Cancel', 'close'),
+          ]));
+      });
+    } finally { _draftAsking = false; _draftDialog = null; _draftNavigator = null; }
+    if (!_draftRouteActive) return;
+    if (action == 'restore') await _restoreTextDraft();
+    if (action == 'remove') await _removeTextDraft();
+  }
+  Future<void> _restoreTextDraft() async {
+    if (!_draftRouteActive || !_draftRead || _draftBusy || _draftAsking || _savedText == null || recording || pickingMedia || replyTo != null) return;
+    final saved = _savedText!, original = input.text;
+    if (original.isNotEmpty && original != saved.text) {
+      var answered = false;
+      _draftAsking = true;
+      bool? replace;
+      try { replace = await showDialog<bool>(context: context, builder: (c) {
+        _draftDialog = ModalRoute.of(c); _draftNavigator = Navigator.of(c);
+        void finish(bool value) {
+          if (answered || !mounted || !_active || !c.mounted || ModalRoute.of(c)?.isCurrent != true) return;
+          answered = true; Navigator.of(c).pop(value);
+        }
+        return AlertDialog(
+        scrollable: true, title: Text(t_('Replace unsent text?')),
+        content: Text(t_('Restore the saved text instead of the text currently in this box. Nothing will be sent.')),
+        actions: [TextButton(style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)), onPressed: () => finish(false), child: Text(t_('Cancel'))), TextButton(style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)), onPressed: () => finish(true), child: Text(t_('Restore text'), style: const TextStyle(height: 1.5)))],
+      );}); } finally { _draftAsking = false; _draftDialog = null; _draftNavigator = null; }
+      if (replace != true || !_draftRouteActive || input.text != original || !identical(_savedText, saved)) return;
+    }
+    if (!_draftRouteActive) return;
+    setState(() { input.text = saved.text; replyTo = null; });
+  }
+  Future<void> _removeTextDraft() async {
+    if (!_draftRouteActive || !_draftRead || _draftBusy || _savedText == null) return;
+    final saved = _savedText!;
+    setState(() => _draftBusy = true);
+    try {
+      await const ChatTextDraftStore().remove(_owner!, id, saved);
+      if (mounted && _active && identical(_savedText, saved)) setState(() { _savedText = null; _draftError = null; });
+    } catch (_) { if (_draftRouteActive) setState(() { _draftRead = false; _draftError = 'Saved text could not be removed. Nothing was sent.'; }); }
+    finally { if (mounted && _active) setState(() => _draftBusy = false); }
   }
 
   void _composerChanged(){if(mounted && _active)setState((){});}
@@ -765,6 +869,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   @override
   void dispose() {
     _closed = true;
+    _retireDraftDialog();
     _wakeVisible();
     _session.removeListener(_accountChanged);
     timer?.cancel();
@@ -868,6 +973,8 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   Future<void> _send() async {
     final t = input.text.trim();
     if (!_canContact || t.isEmpty) return;
+    if (_draftBusy) return;
+    // A saved text is a reusable local copy, never delivery/replay state.
     input.clear();
     final cid = newUploadIntent();
     final me = widget.session.user!;
@@ -1086,9 +1193,9 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
     final group = conversation['type'] == 'group';
     return DraftExitGuard(
       hasChanges: hasLocalMedia || input.text.trim().isNotEmpty || replyTo!=null || recording || msgs.any((m)=>m['failed']==true || m['pending']==true),
-      busy: pickingMedia || recording || msgs.any((m)=>m['pending']==true),
-      title: 'Leave chat?', message: 'Leaving removes unsent text and local retry copies, not messages that may have arrived.',
-      keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: recording?'Finish or cancel the recording before leaving.':pickingMedia?'Wait for the media picker to close before leaving.':'Your message is still sending.',
+      busy: _draftBusy || pickingMedia || recording || msgs.any((m)=>m['pending']==true),
+      title: 'Leave chat?', message: _savedText != null && input.text == _savedText!.text ? 'Your saved text copy stays on this device. Other unsent changes and retry copies are removed when you leave.' : 'Leaving removes unsent text and local retry copies, not messages that may have arrived.',
+      keepLabel: 'Stay here', discardLabel: 'Leave', busyMessage: _draftBusy?'Wait for the saved text operation to finish.':recording?'Finish or cancel the recording before leaving.':pickingMedia?'Wait for the media picker to close before leaving.':'Your message is still sending.',
       child: Scaffold(
       appBar: ReviewedAppBar(
         toolbarHeight: (MediaQuery.textScalerOf(context).scale(16) * 2.4).clamp(56.0, 112.0),
@@ -1167,6 +1274,13 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (_draftBusy) const LinearProgressIndicator(),
+              if (_draftError != null) Text(t_(_draftError!), style: Theme.of(context).textTheme.bodySmall),
+              Wrap(spacing: 8, children: [
+                if (input.text.trim().isNotEmpty && replyTo == null) TextButton(onPressed: _draftBusy || !_draftRead ? null : _saveTextDraft, child: Text(t_('Save chat text'))),
+                if (_savedText != null) TextButton(onPressed: _draftBusy || !_draftRead ? null : _openSavedText, child: Text(t_('Saved text'))),
+                if (!_draftRead && _draftError != null) TextButton(onPressed: _draftBusy || _draftLoading ? null : _loadTextDraft, child: Text(t_('Try again'))),
+              ]),
               if (replyTo != null)
                 Container(
                   width: double.infinity,
@@ -1190,9 +1304,9 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
                 )
               else
               Row(children: [
-                IconButton(tooltip: t_('Attach photo'), onPressed: hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
-                Expanded(child: TextField(controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: 'Message', hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
-                IconButton(onPressed: hasLocalMedia || pickingMedia ? null : () { if (_canContact) setState(() => recording = true); }, icon: const PhIcon('microphone'), tooltip: 'Voice message'),
+                IconButton(tooltip: t_('Attach photo'), onPressed: _draftBusy || hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
+                Expanded(child: TextField(enabled: !_draftBusy, controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: t_('Message'), hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
+                IconButton(onPressed: _draftBusy || hasLocalMedia || pickingMedia ? null : () { if (_canContact) setState(() => recording = true); }, icon: const PhIcon('microphone'), tooltip: 'Voice message'),
                 IconButton.filled(tooltip: t_('Send message'), onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
               ]),
             ]),

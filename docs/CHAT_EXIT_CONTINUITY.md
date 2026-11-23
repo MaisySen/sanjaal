@@ -20,3 +20,9 @@ The isolated workflow tests actual ChatPage route navigation with synthetic
 responses, the existing retry and session tests, a historical unguarded-exit
 negative control, full Flutter regressions and four320px/180%text prompt images.
 Passing tests alone does not settle pixels or physical-device behavior.
+
+## Later private source candidate
+
+Explicit local text copies are now covered by CHAT_TEXT_COPIES.md. The earlier
+no-persistence statement above describes the original route-back slice only.
+Unexplicitly saved text, replies and media remain in-memory.

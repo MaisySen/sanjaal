@@ -40,6 +40,7 @@ import livekit_client
   private lazy var incomingCalls: NativeIncomingCalls = {
     let owner = NativeIncomingCalls()
     owner.wakeEngine = { [weak self] in _ = self?.callEngine.ensure() }
+    owner.engineReady = { [weak self] in self?.callEngine.ready == true }
     owner.audioAvailability = { available in
       LiveKitPlugin.setEngineAvailability(isInputAvailable: available, isOutputAvailable: available)
     }

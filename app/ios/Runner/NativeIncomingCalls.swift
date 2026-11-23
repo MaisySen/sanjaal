@@ -23,6 +23,8 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   private var token: String?
   private var active = false
   private var connected = false
+  private var prepared = false
+  var engineReady: (() -> Bool)?
   private var systemAudioActive = false
   private var audioRelease: FlutterResult?
   private var audioReleaseTimeout: DispatchWorkItem?
@@ -110,12 +112,19 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
       case "prepare":
         guard let id = args["call"] as? String, self.current?.call.uuidString.lowercased() == id.lowercased(),
           args["generation"] as? String == self.generation, self.answer != nil else { result(false); return }
-        // Cold engine and audio policy must be selected before this can be true.
-        result(false)
+        guard NativeCallEngine.enabled, self.engineReady?() == true,
+          self.current!.expiresAt > Date(), !self.systemAudioActive,
+          self.audioAvailability?(false) == true else { result(false); return }
+        // Configure/publish while the pinned SDK engine is gated off. CallKit
+        // activates audio only after successful Answer fulfillment, never wait
+        // for didActivate here or preparation and fulfillment would deadlock.
+        self.prepared = true
+        result(true)
       case "complete":
         guard let id = args["call"] as? String, self.current?.call.uuidString.lowercased() == id.lowercased(),
           args["generation"] as? String == self.generation else { result(false); return }
         if args["connected"] as? Bool == true {
+          guard self.prepared, self.answer != nil else { result(false); return }
           self.answer?.fulfill(); self.answer = nil; self.expiry?.cancel(); self.connected = true
           result(true)
         } else {
@@ -200,11 +209,11 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     reset(reason: .remoteEnded, keepEvents: true)
   }
   func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
-    action.fail(); reset(reason: .failed)
+    action.fail(); failOwnedCall()
   }
   func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
     systemAudioActive = true
-    guard audioAvailability?(true) == true else { reset(reason: .failed); return }
+    guard audioAvailability?(true) == true else { failOwnedCall(); return }
   }
   func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
     systemAudioActive = false
@@ -217,12 +226,16 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     audioReleaseTimeout?.cancel(); audioReleaseTimeout = nil
     let result = audioRelease; audioRelease = nil; result?(success)
   }
-  func providerDidReset(_ provider: CXProvider) { reset(reason: .failed) }
+  private func failOwnedCall() {
+    if let envelope = current { emit("end", envelope: envelope) }
+    reset(reason: .failed, keepEvents: true)
+  }
+  func providerDidReset(_ provider: CXProvider) { failOwnedCall() }
   private func reset(reason: CXCallEndedReason, keepEvents: Bool = false) {
     expiry?.cancel(); expiry = nil
     answer?.fail(); answer = nil; end?.fail(); end = nil
     if let envelope = current { provider.reportCall(with: envelope.call, endedAt: Date(), reason: reason) }
-    current = nil; connected = false
+    current = nil; connected = false; prepared = false
     if !keepEvents { queued.removeAll() }
     _ = audioAvailability?(false)
   }

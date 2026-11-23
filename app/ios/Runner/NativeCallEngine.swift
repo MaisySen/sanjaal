@@ -10,6 +10,7 @@ final class NativeCallEngine {
   private var failed = false
   private var configured = false
   var configure: ((FlutterEngine) -> Void)?
+  var ready: Bool { Self.enabled && engine != nil && configured && !failed }
 
   func ensure() -> FlutterEngine? {
     precondition(Thread.isMainThread)

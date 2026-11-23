@@ -423,3 +423,25 @@ quarantine the host. Existing NativeCallMediaActions.stop retains its independen
 cleanup path.37 controller/host/media cases and34 coordinator/pump/root cases pass;
 focused analyzer clean. These later Dart changes are not covered by the earlier
 217184e complete native compilation, no new compile/build was launched.
+
+## iOS private preparation implementation after compiler baseline
+
+Replaced constant-denied prepare with exact pending Answer + unexpired call +
+selected single-engine readiness + actual closed SDK audio-gate acknowledgement.
+The engine selection staysfalse, so this does not activate or advertise readiness.
+Room/microphone publication may be prepared with the pinned engine gated off;
+CallKit Answer fulfillment precedes didActivate which opens the audio engine.
+Do not wait for didActivate in prepare, which would deadlock fulfillment.
+Successful complete additionally requires prepared pending Answer. Audio gate
+activation failure, system action timeout and provider reset now queue owned End
+before resetting system UI so an already-running pump can retire media/server.
+
+Grounding: https://raw.githubusercontent.com/livekit-examples/flutter-callkit/main/README.md
+and https://developer.apple.com/videos/play/wwdc2016/230/ document that activation
+follows successful fulfillment. https://developer.apple.com/documentation/callkit/cxanswercallaction
+explains successful-action fulfillment. Installed LiveKit2.13.2 native source owns
+actual acknowledged gate semantics. Seven iOS/audio source-policy tests passed,
+not Swift compiler or CallKit/device proof for this later change. Full prior graph
+baseline remains217184e. No new build, provider activation, permission/capability
+change or physical acceptance. Latest owner no push/merge main/repo-security
+mutation applies regardless of live protection state; all logos remain unapproved.

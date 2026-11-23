@@ -7,6 +7,13 @@ void main() {
   final engine=File('ios/Runner/NativeCallEngine.swift').readAsStringSync();
   final scene=File('ios/Runner/SceneDelegate.swift').readAsStringSync();
   final plist=File('ios/Runner/Info.plist').readAsStringSync();
+  test('private prepare requires one ready engine and closed actual audio gate', () {
+    expect(native,contains('guard NativeCallEngine.enabled, self.engineReady?() == true'));
+    expect(native,contains('self.audioAvailability?(false) == true'));
+    expect(native,contains('guard self.prepared, self.answer != nil'));
+    expect(app,contains('owner.engineReady'));
+    expect(engine,contains('var ready: Bool'));
+  });
   test('CallKit source is linked and process owned without provider activation', () {
     expect(project,contains('NativeIncomingCalls.swift in Sources'));
     expect(project,contains('CallWakeEnvelope.swift in Sources'));

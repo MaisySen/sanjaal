@@ -318,3 +318,14 @@ selected audio/controller/host/media/SDK-pin tests pass and focused analysis cle
 iOS return from external audio ownership to ordinary foreground mode still needs
 ordering integration with CallKit termination. Full native candidate review and
 physical routing/audio acceptance remain mandatory before selecting either path.
+
+## SDK ownership guard/provenance verification
+
+Extracted a pure Kotlin external-ownership latch from the private SDK patch:
+failed stop and failed release both remain closed; successful release only unlocks
+a later explicit owner. Twelve standalone Kotlin assertions pass, no Android
+framework. Nineteen SDK-provenance/audio-policy/native-connection tests pass.
+Recorded upstream hashes are now checked for every retained file except the two
+reviewed Android edits, with added gate source listed separately. This detects
+accidental unrelated edits to the vendored SDK. Native manager/plugin/full graph
+compilation is still outstanding; pure Kotlin/provenance tests do not replace it.

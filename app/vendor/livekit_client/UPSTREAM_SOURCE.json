@@ -274,5 +274,12 @@
     "windows/task_runner_windows.h": "9c18f4c0c37c3ad439548fba2012ab6975e00ab068ef0e4588d6b2b21ab9345a",
     "windows/include/livekit_client/live_kit_plugin.h": "e85dfc39b2875c3180ecb98c4f18d8a19678720271774d55544b2737ee7e04f3"
   },
-  "private_patch": "Android serialized external Telecom audio ownership, explicit acknowledgement and fail-closed cleanup. Not runtime verified."
+  "private_patch": "Android serialized external Telecom audio ownership, explicit acknowledgement and fail-closed cleanup. Not runtime verified.",
+  "added_patch_files": [
+    "android/src/main/kotlin/io/livekit/plugin/ExternalTelecomGate.kt"
+  ],
+  "changed_patch_files": [
+    "android/src/main/kotlin/io/livekit/plugin/LKAudioSwitchManager.kt",
+    "android/src/main/kotlin/io/livekit/plugin/LiveKitPlugin.kt"
+  ]
 }

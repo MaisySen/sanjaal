@@ -49,7 +49,7 @@ internal class LKAudioSwitchManager(private val context: Context) {
 
   private var audioSwitch: AbstractAudioSwitch? = null
   private var isActive = false
-  @Volatile private var externalTelecom = false
+  private val externalGate = ExternalTelecomGate()
 
   // Configuration. Defaults mirror a communication/VoIP session and match the
   // AudioSwitchHandler defaults in the LiveKit Android SDK.
@@ -84,7 +84,7 @@ internal class LKAudioSwitchManager(private val context: Context) {
     val speakerRouting = speakerRoutingSnapshot()
 
     handler.post {
-      if (externalTelecom) return@post
+      if (externalGate.owned) return@post
       val switch = audioSwitch ?: return@post
       applyConfiguration(switch, sessionConfig)
       // AudioSwitch applies the audio mode, focus, and attributes at activate()
@@ -118,7 +118,7 @@ internal class LKAudioSwitchManager(private val context: Context) {
     val sessionConfig = sessionConfigSnapshot()
     val speakerRouting = speakerRoutingSnapshot()
     handler.post {
-      if (externalTelecom) return@post
+      if (externalGate.owned) return@post
       val switch = audioSwitch ?: createSwitch(sessionConfig, speakerRouting).also { audioSwitch = it }
       if (!isActive) {
         switch.activate()
@@ -143,18 +143,10 @@ internal class LKAudioSwitchManager(private val context: Context) {
    * chooses its own policy. Callback reports actual stop completion, not enqueue. */
   fun externalTelecomOwnership(owned: Boolean, completion: (Boolean) -> Unit) {
     if (!handler.post {
-      try {
-        if (owned) {
-          externalTelecom = true // Latch before a stop which may fail.
-          audioSwitch?.stop()
-          audioSwitch = null; isActive = false
-        } else {
-          // Release cannot hide a failed previous native stop.
-          audioSwitch?.stop()
-          audioSwitch = null; isActive = false; externalTelecom = false
-        }
-        completion(true)
-      } catch (_: Throwable) { completion(false) }
+      completion(externalGate.change(owned) {
+        audioSwitch?.stop()
+        audioSwitch = null; isActive = false
+      })
     }) completion(false)
   }
 
@@ -179,7 +171,7 @@ internal class LKAudioSwitchManager(private val context: Context) {
     speakerOutputForced = enable && force
     val speakerRouting = speakerRoutingSnapshot()
     handler.post {
-      if (externalTelecom) return@post
+      if (externalGate.owned) return@post
       val switch = audioSwitch ?: return@post
       applySpeakerRouting(switch, speakerRouting)
     }

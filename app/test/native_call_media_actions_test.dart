@@ -40,6 +40,19 @@ void main() {
     expect(await actions.connect(event,cameraEnabled:false),false); expect(reserves,0);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
   });
+  test('system termination precedes controller audio release', () async {
+    const channel=MethodChannel('synthetic-release-order'); final order=<String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {
+      order.add(call.method); return true;
+    });
+    final session=CallFixtureSession()..user={'public_id':fixture.owner};
+    final actions=NativeCallMediaActions(channel:channel,reserve:(e)=>CallController(session:session,
+      conversationId:e.conversation,title:'Member',video:true,callId:e.call,startCamera:false,connection:FakeCallConnection()),
+      release:(c) async { order.add('release-controller'); await c.close(endRemote:false); c.dispose(); },show:(e,r) async {});
+    await actions.connect(event,cameraEnabled:false); order.clear(); await actions.stop(event);
+    expect(order,['complete','release-controller']);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
+  });
   test('busy host cannot start another media owner', () async {
     final actions=NativeCallMediaActions(reserve:(_)=>null,release:(_) async {},show:(e,r) async {});
     expect(await actions.connect(event,cameraEnabled:false),false);

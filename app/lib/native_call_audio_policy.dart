@@ -22,7 +22,17 @@ class NativeCallAudioPolicy {
     await lk.AudioManager.instance.setAudioSessionManagementMode(lk.AudioSessionManagementMode.externalCallSystem);
   }
   static Future<void> release() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    if (kIsWeb) return;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final available=await const MethodChannel('au.fintex.sanjaal/incoming-calls')
+          .invokeMethod<bool>('releaseAudio');
+      if(available!=true) throw StateError('CallKit audio ownership release failed');
+      // Only after CallKit retired and the native gate acknowledged availability.
+      // ignore: experimental_member_use
+      await lk.AudioManager.instance.setAudioSessionManagementMode(lk.AudioSessionManagementMode.automatic);
+      return;
+    }
+    if (defaultTargetPlatform != TargetPlatform.android) return;
     final released = await const MethodChannel('livekit_client').invokeMethod<bool>(
       'sanjaalExternalTelecomAudio', {'owned':false});
     if (released != true) throw StateError('Native audio ownership release failed');

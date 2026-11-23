@@ -19,6 +19,14 @@ void main() {
     expect((calls.first.arguments as Map)['owned'],true);
     expect((calls.last.arguments as Map)['owned'],false);
   });
+  test('iOS waits native system release before returning SDK to automatic',() async {
+    debugDefaultTargetPlatformOverride=TargetPlatform.iOS;
+    final events=<String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('au.fintex.sanjaal/incoming-calls'),(call) async { events.add(call.method); return false; });
+    await expectLater(NativeCallAudioPolicy.release(),throwsStateError);
+    expect(events,['releaseAudio']);
+  });
   test('native ownership failure propagates instead of opening media',() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('livekit_client'),(_) async { throw PlatformException(code:'native-stop'); });

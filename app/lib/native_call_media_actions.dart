@@ -59,6 +59,14 @@ class NativeCallMediaActions implements NativeCallActions {
   Future<void> stop(NativeCallEvent event) async {
     _cancelled.add(event.call);
     final controller = _owned.remove(event.call);
-    if (controller != null) await release(controller);
+    try {
+      // End native system ownership before returning audio to ordinary calls.
+      // This also stops a prepared service when End wins before reservation.
+      await _channel.invokeMethod<bool>('complete', {
+        'call':event.call, 'generation':event.lease, 'connected':false,
+      });
+    } finally {
+      if (controller != null) await release(controller);
+    }
   }
 }

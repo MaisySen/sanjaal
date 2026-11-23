@@ -329,3 +329,14 @@ Recorded upstream hashes are now checked for every retained file except the two
 reviewed Android edits, with added gate source listed separately. This detects
 accidental unrelated edits to the vendored SDK. Native manager/plugin/full graph
 compilation is still outstanding; pure Kotlin/provenance tests do not replace it.
+
+## System termination before audio return
+
+Native media stop now completes system-call termination before controller capture/
+peer release and audio ownership return. iOS releaseAudio refuses active/replaced
+calls, waits at most3seconds for CallKit deactivation when needed, then requires
+the pinned native availability gate before SDK automatic mode resumes. Timeout or
+native failure propagates into existing quarantine. A later replacement call
+cannot inherit an old deactivation-release success. Twenty-six selected media/
+audio/coordinator/iOS-source cases pass, focused analysis clean. Swift callbacks
+remain uncompiled/unexecuted; bounded source ordering is not OS audio proof.

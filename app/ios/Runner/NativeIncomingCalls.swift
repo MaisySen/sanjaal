@@ -23,6 +23,9 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   private var token: String?
   private var active = false
   private var connected = false
+  private var systemAudioActive = false
+  private var audioRelease: FlutterResult?
+  private var audioReleaseTimeout: DispatchWorkItem?
   var wakeEngine: (() -> Void)?
   // Enabling must be acknowledged by the pinned native SDK. Disabling before
   // engine creation may be deferred there, but enabling may never be assumed.
@@ -74,7 +77,7 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
           let generation = args["generation"] as? String, UUID(uuidString: generation) != nil else {
           result(FlutterError(code: "INVALID_OWNER", message: "Call account binding is invalid.", details: nil)); return
         }
-        if self.owner != owner.lowercased() || self.generation != generation { self.reset(reason: .failed); self.claimed.removeAll(); self.seen.removeAll() }
+        if self.owner != owner.lowercased() || self.generation != generation { self.finishAudioRelease(false); self.reset(reason: .failed); self.claimed.removeAll(); self.seen.removeAll() }
         self.owner = owner.lowercased(); self.generation = generation
         self.defaults.set(self.owner, forKey: "sanjaal.call.owner")
         self.defaults.set(generation, forKey: "sanjaal.call.generation")
@@ -82,6 +85,7 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
         if let token = self.token { response["token"] = token }
         result(response)
       case "clear":
+        self.finishAudioRelease(false)
         self.reset(reason: .failed); self.claimed.removeAll(); self.seen.removeAll(); self.owner = nil; self.generation = nil
         self.defaults.removeObject(forKey: "sanjaal.call.owner")
         self.defaults.removeObject(forKey: "sanjaal.call.generation")
@@ -95,6 +99,14 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
       case "acknowledge":
         guard let id = args["event_id"] as? String else { result(false); return }
         self.queued.removeAll { $0["event_id"] as? String == id }; result(true)
+      case "releaseAudio":
+        guard self.current == nil, self.answer == nil, !self.connected else { result(false); return }
+        guard self.audioRelease == nil else { result(false); return }
+        if !self.systemAudioActive { result(self.audioAvailability?(true) == true); return }
+        self.audioRelease = result
+        let timeout = DispatchWorkItem { [weak self] in self?.finishAudioRelease(false) }
+        self.audioReleaseTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timeout)
       case "prepare":
         guard let id = args["call"] as? String, self.current?.call.uuidString.lowercased() == id.lowercased(),
           args["generation"] as? String == self.generation, self.answer != nil else { result(false); return }
@@ -191,9 +203,20 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     action.fail(); reset(reason: .failed)
   }
   func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+    systemAudioActive = true
     guard audioAvailability?(true) == true else { reset(reason: .failed); return }
   }
-  func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) { _ = audioAvailability?(false) }
+  func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+    systemAudioActive = false
+    _ = audioAvailability?(false)
+    if audioRelease != nil {
+      finishAudioRelease(current == nil && answer == nil && !connected && audioAvailability?(true) == true)
+    }
+  }
+  private func finishAudioRelease(_ success: Bool) {
+    audioReleaseTimeout?.cancel(); audioReleaseTimeout = nil
+    let result = audioRelease; audioRelease = nil; result?(success)
+  }
   func providerDidReset(_ provider: CXProvider) { reset(reason: .failed) }
   private func reset(reason: CXCallEndedReason, keepEvents: Bool = false) {
     expiry?.cancel(); expiry = nil

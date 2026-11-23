@@ -29,6 +29,7 @@ class NativeCallRegistration {
   final NativeCallDevice device;
   bool _disposed=false;
   Future<void>? _running;
+  bool _again=false;
   String? _registered;
   Map<String,dynamic>? _registeredBinding;
   Future<void> Function(Map<String,dynamic>)? _remove;
@@ -36,10 +37,19 @@ class NativeCallRegistration {
   bool _matches(String owner,String lease,int generation) => !_disposed &&
       session.user?['public_id']==owner && session.nativeCallLease==lease && session.generation==generation;
   Future<void> register() {
-    if (_running!=null) return _running!;
-    final operation=_register();
+    if (_disposed) return Future<void>.value();
+    if (_running!=null) { _again=true; return _running!; }
+    final operation=_drain();
     _running=operation;
     return operation.whenComplete(() { if(identical(_running,operation)) _running=null; });
+  }
+  Future<void> _drain() async {
+    do { _again=false; await _register(); } while(_again && !_disposed);
+  }
+  Future<void> _retireBinding() async {
+    final binding=_registeredBinding, remove=_remove;
+    if(binding!=null && remove!=null) await remove(binding);
+    _registeredBinding=null; _remove=null; _registered=null;
   }
   Future<void> _register() async {
     final owner=session.user?['public_id'] as String?;
@@ -47,11 +57,12 @@ class NativeCallRegistration {
     final generation=session.generation;
     if(_disposed || owner==null || lease==null || !_uuid.hasMatch(owner) || !_uuid.hasMatch(lease)) return;
     final token=await device.binding();
-    if(!_matches(owner,lease,generation) || token==null) return;
+    if(!_matches(owner,lease,generation)) return;
+    if(token==null) { await _retireBinding(); return; }
     final transport=token['transport'], value=token['token'], environment=token['environment'];
-    if(value==null || value.length<16 || value.length>4096 || !const ['fcm','apns_voip'].contains(transport)) return;
+    if(value==null || value.length<16 || value.length>4096 || !const ['fcm','apns_voip'].contains(transport)) { await _retireBinding(); return; }
     if(transport=='apns_voip' && (!const ['sandbox','production'].contains(environment) ||
-      !RegExp(r'^[a-fA-F0-9]{64,512}$').hasMatch(value))) { return; }
+      !RegExp(r'^[a-fA-F0-9]{64,512}$').hasMatch(value))) { await _retireBinding(); return; }
     final fingerprint='$owner:$lease:$transport:$environment:$value';
     if(_registered==fingerprint) return;
     final binding=<String,dynamic>{'transport':transport,'token':value,

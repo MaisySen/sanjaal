@@ -14,6 +14,12 @@ class RemovalSession extends PumpSession {
   final removals=<Map<String,dynamic>>[];
   @override Future<void> Function(Map<String,dynamic>) captureCallDeviceRemoval() => (binding) async { removals.add(binding); };
 }
+class FailingRemovalSession extends RemovalSession {
+  bool fail=true;
+  @override Future<void> Function(Map<String,dynamic>) captureCallDeviceRemoval() => (binding) async {
+    removals.add(binding); if(fail) throw StateError('Synthetic retirement unavailable');
+  };
+}
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test('platform readiness false never enrolls token possession alone',() async {
@@ -77,6 +83,46 @@ void main() {
     final work=registration.register(); session.change(null);
     device.wait!.complete({'transport':'fcm','token':'synthetic-fcm-token'}); await work;
     expect(session.requests,isEmpty);
+  });
+  test('native readiness loss retires the captured token without new enrollment',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner}; final device=Device();
+    final registration=NativeCallRegistration(session:session,device:device);
+    await registration.register(); device.value=null;
+    await registration.register(); await registration.register();
+    expect(session.removals.length,1);
+    expect(session.removals.single['token'],'synthetic-fcm-token');
+    expect(session.requests.length,1);
+  });
+  test('invalid rotated binding retires the old enrollment and never enrolls invalid token',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner}; final device=Device();
+    final registration=NativeCallRegistration(session:session,device:device);
+    await registration.register(); device.value={'transport':'fcm','token':'bad'};
+    await registration.register();
+    expect(session.removals.length,1); expect(session.requests.length,1);
+  });
+  test('token notification during a pending read rechecks the latest token',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner}; final device=Device()..wait=Completer();
+    final registration=NativeCallRegistration(session:session,device:device);
+    final first=registration.register();
+    final refresh=registration.register();
+    final pending=device.wait!; device.wait=null;
+    device.value={'transport':'fcm','token':'replacement-synthetic-token'};
+    pending.complete({'transport':'fcm','token':'synthetic-fcm-token'});
+    await first; await refresh;
+    expect(device.reads,2); expect(session.requests.length,2);
+    expect(session.removals.single['token'],'synthetic-fcm-token');
+  });
+  test('failed token retirement keeps its cleanup handle and blocks replacement',() async {
+    final session=FailingRemovalSession()..user={'public_id':fixture.owner}; final device=Device();
+    final registration=NativeCallRegistration(session:session,device:device);
+    await registration.register(); device.value=null;
+    await expectLater(registration.register(),throwsStateError);
+    device.value={'transport':'fcm','token':'replacement-synthetic-token'};
+    await expectLater(registration.register(),throwsStateError);
+    expect(session.requests.length,1);
+    session.fail=false; await registration.register();
+    expect(session.requests.length,2);
+    expect(session.removals.every((b)=>b['token']=='synthetic-fcm-token'),true);
   });
   test('APNs requires explicit environment and valid token',() async {
     final session=PumpSession()..user={'public_id':fixture.owner}; final device=Device()

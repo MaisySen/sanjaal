@@ -1,10 +1,24 @@
 import 'dart:async';
 import 'api.dart';
+import 'package:flutter/services.dart';
 
 abstract class NativeCallDevice {
   /// No permission/provider activation here. Returns only an already registered
   /// native token after the platform confirms the complete implementation.
   Future<Map<String,String>?> binding();
+}
+
+/// Reads readiness only; never initializes Firebase, registers PushKit or asks
+/// permission. Native implementation stays false until its full flow is ready.
+class ChannelNativeCallDevice implements NativeCallDevice {
+  ChannelNativeCallDevice({MethodChannel? channel}) : _channel=channel ?? const MethodChannel('au.fintex.sanjaal/incoming-calls');
+  final MethodChannel _channel;
+  @override Future<Map<String,String>?> binding() async {
+    final value=await _channel.invokeMethod<Object?>('registration');
+    if(value is! Map || value['registered']!=true || value['token'] is! String || value['transport'] is! String) return null;
+    return {'transport':value['transport'] as String, 'token':value['token'] as String,
+      if(value['environment'] is String) 'environment':value['environment'] as String};
+  }
 }
 
 /// Unselected enrollment owner. Unlike ordinary chat push this needs a verified
@@ -16,6 +30,8 @@ class NativeCallRegistration {
   bool _disposed=false;
   Future<void>? _running;
   String? _registered;
+  Map<String,dynamic>? _registeredBinding;
+  Future<void> Function(Map<String,dynamic>)? _remove;
   final _uuid=RegExp(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$');
   bool _matches(String owner,String lease,int generation) => !_disposed &&
       session.user?['public_id']==owner && session.nativeCallLease==lease && session.generation==generation;
@@ -38,9 +54,25 @@ class NativeCallRegistration {
       !RegExp(r'^[a-fA-F0-9]{64,512}$').hasMatch(value))) { return; }
     final fingerprint='$owner:$lease:$transport:$environment:$value';
     if(_registered==fingerprint) return;
-    await session.call('POST','/call-devices',body:{'transport':transport,'token':value,
-      'login_lease':lease, if(transport=='apns_voip') 'environment':environment});
-    if(_matches(owner,lease,generation)) _registered=fingerprint;
+    final binding=<String,dynamic>{'transport':transport,'token':value,
+      'login_lease':lease, if(transport=='apns_voip') 'environment':environment};
+    final remove=session.captureCallDeviceRemoval();
+    await session.call('POST','/call-devices',body:binding);
+    if(_matches(owner,lease,generation)) {
+      _registered=fingerprint; _registeredBinding=binding; _remove=remove;
+    } else {
+      // Enrollment may have landed after account retirement. Cleanup uses only
+      // its captured access and exact lease, never current Session.call.
+      await remove(binding);
+    }
+  }
+  Future<void> unregister() async {
+    _disposed=true;
+    final pending=_running;
+    try { await pending; } catch (_) { /* Still try any confirmed enrollment. */ }
+    final binding=_registeredBinding, remove=_remove;
+    if(binding!=null && remove!=null) await remove(binding);
+    _registered=null; _registeredBinding=null; _remove=null;
   }
   void dispose() { _disposed=true; _registered=null; }
 }

@@ -71,6 +71,7 @@ class NativeIncomingCalls private constructor(private val context: Context) {
                     return@setMethodCallHandler
                 }
                 when (call.method) {
+                    "registration" -> result.success(mapOf("registered" to false))
                     "bind" -> {
                         val owner = args["owner"] as? String
                         val generation = args["generation"] as? String

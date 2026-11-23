@@ -65,6 +65,10 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
         result(FlutterError(code: "STALE_OWNER", message: "Call account binding changed.", details: nil)); return
       }
       switch call.method {
+      case "registration":
+        // Full cold-engine/audio/enrollment path not ready. Token possession or
+        // PushKit registration alone must never advertise reliable readiness.
+        result(["registered": false])
       case "bind":
         guard let owner = args["owner"] as? String, UUID(uuidString: owner) != nil,
           let generation = args["generation"] as? String, UUID(uuidString: generation) != nil else {
@@ -74,7 +78,7 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
         self.owner = owner.lowercased(); self.generation = generation
         self.defaults.set(self.owner, forKey: "sanjaal.call.owner")
         self.defaults.set(generation, forKey: "sanjaal.call.generation")
-        var response: [String: Any] = ["registered": self.active]
+        var response: [String: Any] = ["registered": false]
         if let token = self.token { response["token"] = token }
         result(response)
       case "clear":

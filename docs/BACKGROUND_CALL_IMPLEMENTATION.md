@@ -222,3 +222,16 @@ that field and iOS still reports then ends invalid VoIP callbacks per CallKit ru
 Nineteen client/source/pump cases and18current-source API tests78assertions pass;
 Android six call sources compile against jars/activity symbol stub. Swift remains
 uncompiled and no platform registration or delivery occurred.
+
+## Enrollment removal and readiness channel
+
+ChannelNativeCallDevice now reads native readiness without requesting permissions,
+starting Firebase/PushKit or treating possession of a token as readiness. Android
+audio/Telecom and iOS cold-engine gaps keep native registration responses false.
+Enrollment captures a fixed authenticated removal request before registration;
+retirement during an in-flight enrollment removes its late receipt using that
+old access/lease only, not replacement Session.call. Explicit unregister retires
+future work and removes confirmed enrollment. Actual root/logout hooks remain
+unselected, and unknown-result network enrollment still needs bounded reconciliation.
+Forty-nine selected enrollment/lease/session/pump tests pass with clean analysis;
+Android sources compile against jars/activity symbol stub. No OS native execution.

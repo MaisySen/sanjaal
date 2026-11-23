@@ -658,6 +658,27 @@ class Session extends ChangeNotifier {
     };
   }
 
+  /// Fixed native-call token cleanup captured while this login is verified.
+  /// It cannot refresh, redirect or borrow a replacement account's credentials.
+  Future<void> Function(Map<String, dynamic>) captureCallDeviceRemoval() {
+    final access = nativeCallLease == null ? null : _access;
+    final lease = nativeCallLease;
+    return (Map<String, dynamic> binding) async {
+      if (access == null || lease == null || binding['login_lease'] != lease) {
+        throw ApiError('Please sign in again.', 401);
+      }
+      final request = http.Request('POST', Uri.parse('$apiBase/call-devices/remove'))
+        ..followRedirects = false
+        ..headers.addAll({'Authorization':'Bearer $access', 'Content-Type':'application/json'})
+        ..body = jsonEncode(binding);
+      final response = await http.Response.fromStream(await request.send().timeout(const Duration(seconds:10)))
+          .timeout(const Duration(seconds:10));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiError('Call token cleanup could not be confirmed.', response.statusCode);
+      }
+    };
+  }
+
   Future<void> logout() async {
     // Stop push registration synchronously, then invalidate local work before
     // waiting for network/device cleanup. No late cleanup may clear a new login.

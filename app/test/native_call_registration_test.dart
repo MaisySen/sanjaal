@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sanjaal/native_call_registration.dart';
 import 'native_call_event_pump_test.dart' show PumpSession;
@@ -9,7 +10,36 @@ class Device implements NativeCallDevice {
   int reads=0;
   @override Future<Map<String,String>?> binding() async { reads++; return wait?.future ?? value; }
 }
+class RemovalSession extends PumpSession {
+  final removals=<Map<String,dynamic>>[];
+  @override Future<void> Function(Map<String,dynamic>) captureCallDeviceRemoval() => (binding) async { removals.add(binding); };
+}
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test('platform readiness false never enrolls token possession alone',() async {
+    const channel=MethodChannel('synthetic-registration');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,(_) async =>
+      {'registered':false,'transport':'apns_voip','token':'synthetic-token'});
+    expect(await ChannelNativeCallDevice(channel:channel).binding(),isNull);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel,null);
+  });
+  test('unregister uses captured enrollment binding once and blocks future registration',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner};
+    final registration=NativeCallRegistration(session:session,device:Device());
+    await registration.register(); await registration.unregister(); await registration.register();
+    expect(session.requests.length,1); expect(session.removals.length,1);
+    expect(session.removals.single['login_lease'],'12345678-1234-1234-1234-123456789aaa');
+  });
+  test('retirement during server enrollment cleans late result using old binding',() async {
+    final session=RemovalSession()..user={'public_id':fixture.owner}; final server=Completer<dynamic>();
+    session.respond=(m,p,b)=>server.future;
+    final registration=NativeCallRegistration(session:session,device:Device());
+    final operation=registration.register();
+    await Future<void>.delayed(Duration.zero);
+    final retiring=registration.unregister(); session.change(null);
+    server.complete({'registered':true}); await operation; await retiring;
+    expect(session.requests.length,1); expect(session.removals.length,1);
+  });
   test('unready native and unverified login cannot enroll',() async {
     final session=PumpSession()..user={'public_id':fixture.owner}; final device=Device()..value=null;
     final registration=NativeCallRegistration(session:session,device:device);

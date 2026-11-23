@@ -68,6 +68,44 @@ class Push
         return $sent;
     }
 
+    /** Separate default-off native call path. Not called by the ring producer yet.
+     * Rebuild recipient eligibility after provider auth and for every device. */
+    public function incomingCall(string $callId): int
+    {
+        if (config('services.call_wake.send_enabled') !== true) return 0;
+        $creds = $this->credentials();
+        if ($creds === null) return 0;
+        $access = $this->accessToken($creds);
+        if ($access === null) return 0;
+        $wake = app(CallWake::class);
+        $rows = $wake->recipients($callId);
+        $users = array_column($rows, 'user_id');
+        if ($users === []) return 0;
+        $sent = 0;
+        $devices = DB::table('call_devices')->where('transport', 'fcm')->whereIn('user_id', $users)->get();
+        foreach ($devices as $device) {
+            $eligible = collect($wake->recipients($callId))->firstWhere('user_id', $device->user_id);
+            // Token ownership/login lease may have changed since snapshot too.
+            $current = DB::table('call_devices')->where('id', $device->id)->where('user_id', $device->user_id)
+                ->where('login_lease', $device->login_lease)->where('token_hash', $device->token_hash)->exists();
+            if (! $eligible || ! $current) continue;
+            $seconds = (int) $eligible['data']['expires_at'] - now()->timestamp;
+            if ($seconds <= 0 || $seconds > 40) continue;
+            try {
+                $res = Http::withToken($access)->timeout(min(8, $seconds))->post(
+                    'https://fcm.googleapis.com/v1/projects/'.$creds['project_id'].'/messages:send',
+                    ['message' => ['token' => $device->token, 'data' => $eligible['data'],
+                        'android' => ['priority' => 'high', 'ttl' => $seconds.'s']]]);
+                if ($res->successful()) $sent++;
+                elseif ($this->isUnregistered($res)) {
+                    DB::table('call_devices')->where('id', $device->id)->where('user_id', $device->user_id)
+                        ->where('login_lease', $device->login_lease)->where('token_hash', $device->token_hash)->delete();
+                }
+            } catch (\Throwable) { Log::warning('native call push send error'); }
+        }
+        return $sent;
+    }
+
     private function isUnregistered($res): bool
     {
         foreach ((array) $res->json('error.details', []) as $d) {

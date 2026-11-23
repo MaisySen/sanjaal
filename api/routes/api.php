@@ -22,6 +22,8 @@ Route::prefix('v1/auth')->middleware('auth:auth0')->group(function () {
 });
 
 Route::prefix('v1')->middleware('auth:auth0')->group(function () {
+    Route::post('/call-devices', [\App\Http\Controllers\CallDeviceController::class, 'store'])->middleware('throttle:30,1');
+    Route::post('/call-devices/remove', [\App\Http\Controllers\CallDeviceController::class, 'destroy'])->middleware('throttle:30,1');
     Route::post('/broadcasting/auth', fn (\Illuminate\Http\Request $r) => Broadcast::auth($r));
 
     Route::get('/home', [\App\Http\Controllers\HomeController::class, 'show']);

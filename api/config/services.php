@@ -66,6 +66,11 @@ return [
 
     // Push sender (FCM HTTP v1). Credentials are a Google service account JSON, as a path or the JSON itself.
     // Unset means push is off and sending is a no-op.
+    'call_wake' => [
+        'registration_enabled' => env('CALL_WAKE_REGISTRATION_ENABLED', false),
+        'send_enabled' => env('CALL_WAKE_SEND_ENABLED', false),
+    ],
+
     'fcm' => [
         'credentials' => env('FCM_CREDENTIALS'),
     ],

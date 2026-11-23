@@ -172,3 +172,21 @@ completion, settled logout and offline cold restore. Analysis clean.
 Pinned Android native SDK inspection confirms manageAudioFocus=false alone is not
 a complete Telecom handoff: LKAudioSwitchManager still activates communication
 mode and chooses routes. Do not select it as a workaround or claim compatibility.
+
+## Separate server token/data-only transport, inactive
+
+Added a distinct call_devices migration and authenticated default-off registration/
+removal routes for FCM and APNsVoIP tokens, bound to user plus login lease. No
+migration was applied outside the isolated test DB. Old-owner/old-lease removal
+cannot delete replacement enrollment. Chat device_tokens remain separate.
+Push::incomingCall is a separate default-off, uncalled data-only Android path:
+no notification/title/body, high priority, remaining ring TTL, current eligibility
+and token-owner/lease recheck before each dispatch. APNsVoIP transport sending and
+client enrollment remain unfinished. No existing ring producer calls the sender.
+No config/credential activation, deployment or live network send occurred.
+
+Corrected test bootstrap resolves optimized application class maps AND Laravel
+base-path inference to this checkout. Earlier reused bootstrap could mix old source;
+its API claims are superseded by current15tests/66assertions for CallDevice,
+CallWake and Push, all HTTP faked. Actual source/base paths were checked. Flutter
+188case consolidation is independent and unaffected by the PHP bootstrap issue.

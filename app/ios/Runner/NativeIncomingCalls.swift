@@ -24,7 +24,9 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   private var active = false
   private var connected = false
   var wakeEngine: (() -> Void)?
-  var audioAvailability: ((Bool) -> Void)?
+  // Enabling must be acknowledged by the pinned native SDK. Disabling before
+  // engine creation may be deferred there, but enabling may never be assumed.
+  var audioAvailability: ((Bool) -> Bool)?
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -45,7 +47,7 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   func activate() {
     guard !active else { return }
     active = true
-    audioAvailability?(false)
+    _ = audioAvailability?(false)
     let value = PKPushRegistry(queue: .main)
     value.delegate = self
     value.desiredPushTypes = [.voIP]
@@ -178,8 +180,10 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
   func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
     action.fail(); reset(reason: .failed)
   }
-  func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) { audioAvailability?(true) }
-  func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) { audioAvailability?(false) }
+  func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+    guard audioAvailability?(true) == true else { reset(reason: .failed); return }
+  }
+  func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) { _ = audioAvailability?(false) }
   func providerDidReset(_ provider: CXProvider) { reset(reason: .failed) }
   private func reset(reason: CXCallEndedReason, keepEvents: Bool = false) {
     expiry?.cancel(); expiry = nil
@@ -187,6 +191,6 @@ final class NativeIncomingCalls: NSObject, PKPushRegistryDelegate, CXProviderDel
     if let envelope = current { provider.reportCall(with: envelope.call, endedAt: Date(), reason: reason) }
     current = nil; connected = false
     if !keepEvents { queued.removeAll() }
-    audioAvailability?(false)
+    _ = audioAvailability?(false)
   }
 }

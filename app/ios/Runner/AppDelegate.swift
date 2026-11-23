@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import Photos
 import AVFoundation
+import livekit_client
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -12,12 +13,24 @@ import AVFoundation
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  // Process-owned, but PushKit registration remains explicitly inactive. This
+  // lazy owner is attached to the ordinary scene engine only; a killed-state
+  // headless-engine handoff must not create a second media owner.
+  private lazy var incomingCalls: NativeIncomingCalls = {
+    let owner = NativeIncomingCalls()
+    owner.audioAvailability = { available in
+      LiveKitPlugin.setEngineAvailability(isInputAvailable: available, isOutputAvailable: available)
+    }
+    return owner
+  }()
+
   private var posterBusy = false
   private let posterQueue = DispatchQueue(label: "sanjaal-poster")
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "SanjaalVideoPoster") else { return }
+    incomingCalls.attach(registrar.messenger())
     registerDeviceAccess(registrar.messenger())
     registrar.register(MemoryVideoFactory(messenger: registrar.messenger()), withId: "au.fintex.sanjaal/memory-video")
     let channel = FlutterMethodChannel(name: "au.fintex.sanjaal/video-poster", binaryMessenger: registrar.messenger())

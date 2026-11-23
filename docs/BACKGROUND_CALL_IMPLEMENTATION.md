@@ -9,7 +9,7 @@ Base complete candidate:0ee9af1. Shared wake contract checkpoint:1c3d2c0.
 - Private native adapter scaffolds now provide Android31+ CallStyle notification/action buffering and native iOS PushKit/CallKit reporting, short expiry and audio-availability hooks.
 - Android scaffold compiles against existing Android36 and Flutter engine jars with a stub MainActivity solely for symbol resolution. This is not a merged app/package/native runtime build.
 
-Android process channel is attached by MainActivity but has no receiver/provider selection; the iOS adapter is not constructed. Swift files are not added to the target or compiled. No manifest, background mode, entitlement, provider registration or live sender activation changed. Android registered status deliberately remains false until the missing receiver/Telecom lifecycle is integrated. No full-screen grant is assumed. No new call plugin/dependency was installed.
+Android process channel is attached by MainActivity but has no receiver/provider selection; the iOS adapter is attached lazily to the ordinary scene engine without PushKit registration. Swift files are now added to the target but have not been compiled. No manifest, background mode, entitlement, provider registration or live sender activation changed. Android registered status deliberately remains false until the missing receiver/Telecom lifecycle is integrated. No full-screen grant is assumed. No new call plugin/dependency was installed.
 
 ## Native event coordinator checkpoint
 
@@ -136,3 +136,25 @@ https://developer.android.com/develop/background-work/services/fgs/service-types
 https://firebase.google.com/docs/cloud-messaging/android/message-priority
 Installed FlutterFire15.2.10 receiver and manifest inspected directly. This is source
 compatibility work, not delivery, current permission approval or OS execution.
+
+## iOS scene/audio source integration, not cold wake proof
+
+The process-owned lazy CallKit adapter and envelope are now linked into the Xcode
+target and attached from the existing implicit scene-engine callback. A native
+LiveKit2.13.2 audio gate is wired to CallKit activation/deactivation, and activation
+must return a successful live-device-module acknowledgement or fail the call.
+No PushKit activation, background mode, entitlement or token/send action changed.
+Swift compilation is still unperformed; a source-linked file is not a native pass.
+A headless killed-state Flutter engine and single-owner handoff to the foreground
+scene are not implemented and must not be faked with a second independent engine.
+
+The optional CallController preflight and unselected Dart audio policy support
+externalCallSystem before connection. It is deliberately not selected globally:
+it would otherwise change ordinary foreground audio ownership before every call
+has a native system owner. Thirty-nine selected source/controller/media/pump/
+coordinator cases pass, focused analysis clean, no actual native audio operation.
+
+Installed LiveKit2.13.2 explicitly documents externalCallSystem as retaining
+ordinary audio management on Android, not standing down audio focus/routing for
+Telecom. Android handoff cannot be declared complete by choosing that mode. Actual
+SDK native audio ownership compatibility remains engineering work before selection.

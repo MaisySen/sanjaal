@@ -6,6 +6,15 @@ import 'package:sanjaal/call_controller.dart';
 import 'call_continuity_fakes.dart';
 
 void main() {
+  test('native audio preflight failure never requests token or opens capture', () async {
+    final session=CallFixtureSession(), media=FakeCallConnection();
+    final call=CallController(session:session,conversationId:'chat',title:'Member',video:true,
+      startCamera:false,connection:media,beforeConnect:() async { throw StateError('Synthetic audio policy rejection'); });
+    expect(await call.connected,false);
+    expect(session.requests,isEmpty);
+    expect(media.events.where((e)=>e.startsWith('microphone') || e=='connect' || e.startsWith('camera')),isEmpty);
+    await call.close(); call.dispose();
+  });
   test(
     'native microphone and camera snapshot changes update presentation',
     () async {

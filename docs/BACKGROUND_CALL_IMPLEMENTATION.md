@@ -392,3 +392,16 @@ header-only interpretation was wrong: restore override, retaining explicit named
 legacy configuration rather than assuming an optional superclass implementation.
 This is an actual compiler-derived correction, not yet a passing Swift graph.
 Repin iOS input tree only. Android/lib/vendor/pubspec inputs remain unchanged.
+
+## Post-compile private end-path review
+
+After217184e compiled, three new red regressions exposed missing server End after
+confirmed native Answer with media/setup rejection, missing cleanup after system
+connected handoff failure, and platform stop error preventing authenticated End.
+Coordinator now records only exact successful Answer receipts as its own, makes
+one non-replayed End attempt after failed owned media, and does not let platform
+cleanup error suppress exact server termination. Replacement login cannot borrow
+credentials. Lost Answer receipt still never grants owned cleanup. Five new tests
+cover these cases and duplicate End/replacement;35 coordinator/pump/media cases
+pass, focused analyzer clean. This is later private Dart source, not the previously
+compiled complete candidate. No additional native build has been launched.

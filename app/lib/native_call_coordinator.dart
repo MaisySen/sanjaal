@@ -57,6 +57,25 @@ class NativeCallCoordinator {
   final _connecting = <String, NativeCallEvent>{};
   final _cancelled = <String>{};
   final _connected = <String, NativeCallEvent>{};
+  final _answeredHere = <String>{};
+  final _remoteEndAttempted = <String>{};
+  Future<void> _stopSafely(NativeCallEvent event) async {
+    try { await actions.stop(event); } catch (_) {
+      // The media owner quarantines unconfirmed release. Still attempt exact
+      // authenticated server termination, never let platform failure skip it.
+    }
+  }
+  Future<void> _endConfirmedAnswer(NativeCallEvent event) async {
+    if (!active || !_answeredHere.contains(event.call) || !_remoteEndAttempted.add(event.call)) return;
+    try { await session.call('POST', '/calls/${event.call}/action', body: {'action':'end'}); } catch (_) {
+      // Unknown result is not replayed with this or a replacement login.
+    }
+  }
+  Future<void> _failedAnswer(NativeCallEvent event) async {
+    _connected.remove(event.call);
+    await _stopSafely(event);
+    await _endConfirmedAnswer(event);
+  }
   bool get active => !_retired && _owner != null && session.user?['public_id'] == _owner &&
       session.generation == _generation && !session.loading && !session.authenticating &&
       !session.recoveringAccount && !session.accountViewNeedsRefresh;
@@ -66,7 +85,7 @@ class NativeCallCoordinator {
     if (_owner == session.user?['public_id'] && _generation == session.generation) return;
     _retired = true;
     for (final event in {..._connected, ..._connecting}.values.toList()) {
-      unawaited(actions.stop(event));
+      unawaited(_stopSafely(event));
     }
   }
   Map<String, dynamic> _state(Object? value, NativeCallEvent event) {
@@ -95,7 +114,7 @@ class NativeCallCoordinator {
     // End/decline must cancel a simultaneous pending answer locally immediately.
     if (event.action == 'end' || event.action == 'decline') {
       _cancelled.add(event.call);
-      await actions.stop(event);
+      await _stopSafely(event);
       _connected.remove(event.call);
     }
     _inFlight.add(key);
@@ -107,7 +126,7 @@ class NativeCallCoordinator {
       final row = _state(await session.call('GET', '/calls/${event.call}'), event);
       if (!active) return;
       if (event.action == 'end' || event.action == 'decline') {
-        if (const ['ringing', 'answered'].contains(row['status'])) {
+        if (const ['ringing', 'answered'].contains(row['status']) && _remoteEndAttempted.add(event.call)) {
           await session.call('POST', '/calls/${event.call}/action', body: {
             'action': row['status'] == 'ringing' && event.action == 'decline' ? 'decline' : 'end',
           });
@@ -137,21 +156,26 @@ class NativeCallCoordinator {
         }
         return;
       }
+      if (receipt['status'] == 'answered') _answeredHere.add(event.call);
       if (!_valid(event) || receipt['status'] != 'answered') {
         if (active) await actions.complete(event, connected: false);
+        await _endConfirmedAnswer(event);
         return;
       }
       _connecting[event.call] = event;
       final connected = await actions.connect(event, cameraEnabled: false);
       if (!_valid(event)) {
-        await actions.stop(event);
+        await _failedAnswer(event);
         return;
       }
       if (connected) _connected[event.call] = event;
       await actions.complete(event, connected: connected);
-      if (!connected) await actions.stop(event);
+      if (!connected) await _failedAnswer(event);
     } catch (_) {
-      if (active) await actions.complete(event, connected: false);
+      if (event.action == 'answer') await _failedAnswer(event);
+      if (active) {
+        try { await actions.complete(event, connected: false); } catch (_) {}
+      }
     } finally {
       _inFlight.remove(key);
       _connecting.remove(event.call);
@@ -163,7 +187,7 @@ class NativeCallCoordinator {
     _retired = true;
     session.removeListener(_accountChanged);
     for (final event in {..._connected, ..._connecting}.values.toList()) {
-      unawaited(actions.stop(event));
+      unawaited(_stopSafely(event));
     }
   }
 }

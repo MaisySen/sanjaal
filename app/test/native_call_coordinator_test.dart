@@ -15,12 +15,13 @@ class Actions implements NativeCallActions {
   int presents = 0, connects = 0, stops = 0;
   final completions = <bool>[];
   Completer<bool>? pending;
+  bool failConnect=false, failConnectedCompletion=false, failStop=false;
   @override Future<void> present(NativeCallEvent event, Map<String,dynamic> call) async { presents++; }
   @override Future<bool> connect(NativeCallEvent event, {required bool cameraEnabled}) async {
-    expect(cameraEnabled, isFalse); connects++; return pending?.future ?? true;
+    expect(cameraEnabled, isFalse); connects++; return pending?.future ?? !failConnect;
   }
-  @override Future<void> complete(NativeCallEvent event, {required bool connected}) async { completions.add(connected); }
-  @override Future<void> stop(NativeCallEvent event) async { stops++; }
+  @override Future<void> complete(NativeCallEvent event, {required bool connected}) async { completions.add(connected); if(connected && failConnectedCompletion) throw StateError('Synthetic handoff failure'); }
+  @override Future<void> stop(NativeCallEvent event) async { stops++; if(failStop) throw StateError('Synthetic stop failure'); }
 }
 void main() {
   late CallFixtureSession session; late Actions actions; late NativeCallCoordinator coordinator; late DateTime clock;
@@ -30,6 +31,37 @@ void main() {
     session.respond = (method,path,body) async => state(method == 'POST' ? 'answered' : 'ringing');
   });
   tearDown(() => coordinator.dispose());
+  test('failed prepared media ends only this confirmed answer once', () async {
+    actions.failConnect=true;
+    await coordinator.handle(event('answer'));
+    expect(session.requests.where((r)=>r.method=='POST').length,2);
+    expect(actions.completions,[false]);
+  });
+  test('failed system connected handoff stops media and ends confirmed answer', () async {
+    actions.failConnectedCompletion=true;
+    await coordinator.handle(event('answer'));
+    expect(actions.stops,greaterThanOrEqualTo(1));
+    expect(session.requests.where((r)=>r.method=='POST').length,2);
+  });
+  test('native stop failure cannot prevent exact authenticated End attempt', () async {
+    await coordinator.handle(event('answer')); actions.failStop=true;
+    session.respond=(m,p,b) async=>state(m=='GET'?'answered':'ended');
+    await coordinator.handle(event('end'));
+    expect(session.requests.where((r)=>r.method=='POST').length,2);
+    actions.failStop=false;
+  });
+  test('failed media after replacement login never sends captured cleanup through new account', () async {
+    actions.pending=Completer<bool>();
+    final work=coordinator.handle(event('answer')); await Future<void>.delayed(Duration.zero);
+    session.replace(owner:owner); actions.pending!.complete(false); await work;
+    expect(session.requests.where((r)=>r.method=='POST').length,1);
+  });
+  test('failed answer then native End never repeats uncertain server end', () async {
+    actions.failConnect=true; await coordinator.handle(event('answer'));
+    session.respond=(m,p,b) async=>state('answered');
+    await coordinator.handle(event('end'));
+    expect(session.requests.where((r)=>r.method=='POST').length,2);
+  });
   test('native incoming reads exact state and never acts or connects', () async {
     await coordinator.handle(event('incoming'));
     expect(actions.presents,1); expect(actions.connects,0);

@@ -709,6 +709,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
     _loop();
   }
 
+  final _savedTextScroll = ScrollController();
   Route<dynamic>? _draftDialog;
   NavigatorState? _draftNavigator;
   bool _draftAsking = false;
@@ -750,6 +751,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   Future<void> _openSavedText() async {
     if (!_draftRouteActive || !_draftRead || _draftBusy || _draftAsking || _savedText == null) return;
     _draftAsking = true;
+    if (_savedTextScroll.hasClients) _savedTextScroll.jumpTo(0);
     String? action;
     try {
       var answered = false;
@@ -764,13 +766,17 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
           child: TextButton(style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)),
             onPressed: enabled ? () => finish(value) : null,
             child: Text(t_(text), style: const TextStyle(height: 1.5))));
-        return AlertDialog(scrollable: true, title: Text(t_('Saved text')),
-          content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(t_('Device-only text copy, not an outbox. It stays after sending. Restore to edit it.')),
-            action('Restore text', 'restore', enabled: replyTo == null),
-            action('Remove saved copy', 'remove'),
-            action('Cancel', 'close'),
-          ]));
+        final height = MediaQuery.sizeOf(c).height - MediaQuery.viewInsetsOf(c).vertical;
+        final controller = _savedTextScroll;
+        return AlertDialog(title: Text(t_('Saved text')),
+          content: SizedBox(width: double.maxFinite, height: (height * 0.42).clamp(80.0, 360.0),
+            child: Scrollbar(controller: controller, thumbVisibility: true, child: SingleChildScrollView(controller: controller,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(t_('Device-only text copy, not an outbox. It stays after sending. Restore to edit it.')),
+                action('Restore text', 'restore', enabled: replyTo == null),
+                action('Remove saved copy', 'remove'),
+              ])))),
+          actions: [action('Cancel', 'close')]);
       });
     } finally { _draftAsking = false; _draftDialog = null; _draftNavigator = null; }
     if (!_draftRouteActive) return;
@@ -870,6 +876,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   void dispose() {
     _closed = true;
     _retireDraftDialog();
+    _savedTextScroll.dispose();
     _wakeVisible();
     _session.removeListener(_accountChanged);
     timer?.cancel();
@@ -1276,11 +1283,6 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               if (_draftBusy) const LinearProgressIndicator(),
               if (_draftError != null) Text(t_(_draftError!), style: Theme.of(context).textTheme.bodySmall),
-              Wrap(spacing: 8, children: [
-                if (input.text.trim().isNotEmpty && replyTo == null) TextButton(onPressed: _draftBusy || !_draftRead ? null : _saveTextDraft, child: Text(t_('Save chat text'))),
-                if (_savedText != null) TextButton(onPressed: _draftBusy || !_draftRead ? null : _openSavedText, child: Text(t_('Saved text'))),
-                if (!_draftRead && _draftError != null) TextButton(onPressed: _draftBusy || _draftLoading ? null : _loadTextDraft, child: Text(t_('Try again'))),
-              ]),
               if (replyTo != null)
                 Container(
                   width: double.infinity,
@@ -1303,11 +1305,16 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
                   },
                 )
               else
-              Row(children: [
-                IconButton(tooltip: t_('Attach photo'), onPressed: _draftBusy || hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
-                Expanded(child: TextField(enabled: !_draftBusy, controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: t_('Message'), hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
-                IconButton(onPressed: _draftBusy || hasLocalMedia || pickingMedia ? null : () { if (_canContact) setState(() => recording = true); }, icon: const PhIcon('microphone'), tooltip: 'Voice message'),
-                IconButton.filled(tooltip: t_('Send message'), onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(enabled: !_draftBusy, controller: input, onChanged: (_) => _typingPing(), minLines: 1, maxLines: 4, maxLength: 4000, textCapitalization: TextCapitalization.sentences, decoration: InputDecoration(hintText: t_('Message'), hintMaxLines: 1, counterText: '', filled: true, fillColor: Theme.of(context).colorScheme.surfaceContainerHigh, contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none))),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  IconButton(tooltip: t_('Attach photo'), onPressed: _draftBusy || hasLocalMedia || pickingMedia ? null : _attach, icon: const PhIcon('image')),
+                  IconButton(onPressed: _draftBusy || hasLocalMedia || pickingMedia ? null : () { if (_canContact) setState(() => recording = true); }, icon: const PhIcon('microphone'), tooltip: 'Voice message'),
+                  if (input.text.trim().isNotEmpty && replyTo == null) IconButton(tooltip: t_('Save chat text'), onPressed: _draftBusy || !_draftRead ? null : _saveTextDraft, icon: const PhIcon('bookmark-simple')),
+                  if (_savedText != null) IconButton(tooltip: t_('Saved text'), onPressed: _draftBusy || !_draftRead ? null : _openSavedText, icon: const PhIcon('archive')),
+                  if (!_draftRead && _draftError != null) IconButton(tooltip: t_('Try again'), onPressed: _draftBusy || _draftLoading ? null : _loadTextDraft, icon: const PhIcon('arrow-clockwise')),
+                  IconButton.filled(tooltip: t_('Send message'), onPressed: _send, icon: PhIcon('paper-plane-tilt-fill', color: Theme.of(context).colorScheme.onPrimary)),
+                ]),
               ]),
             ]),
           ),

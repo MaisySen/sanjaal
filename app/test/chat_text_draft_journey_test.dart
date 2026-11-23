@@ -100,8 +100,8 @@ void main() {
           scale: 1.8,
         );
         await t.pumpAndSettle();
-        expect(find.text(t_('Saved text')), findsOneWidget);
-        await t.ensureVisible(find.text(t_('Saved text')));
+        expect(find.byTooltip(t_('Saved text')), findsOneWidget);
+        await t.ensureVisible(find.byTooltip(t_('Saved text')));
         await t.pumpAndSettle();
         expect(t.takeException(), isNull);
         await t.runAsync(() async {
@@ -115,7 +115,7 @@ void main() {
             'test/renders/chat_saved_text_${lang}_${dark ? 'dark' : 'light'}.png',
           ).writeAsBytesSync(bytes!.buffer.asUint8List());
         });
-        await t.tap(find.text(t_('Saved text')));
+        await t.tap(find.byTooltip(t_('Saved text')));
         await h.settle(t);
         expect(t.takeException(), isNull);
         await t.runAsync(() async {
@@ -128,7 +128,12 @@ void main() {
             'test/renders/chat_saved_dialog_${lang}_${dark ? 'dark' : 'light'}.png',
           ).writeAsBytesSync(bytes!.buffer.asUint8List());
         });
-        await t.ensureVisible(find.widgetWithText(TextButton, t_('Cancel')));
+        await t.ensureVisible(
+          find.widgetWithText(TextButton, t_('Remove saved copy')),
+        );
+        await t.pumpAndSettle();
+        expect(find.text(t_('Saved text')), findsOneWidget);
+        expect(find.text(t_('Cancel')), findsOneWidget);
         await h.settle(t);
         expect(t.takeException(), isNull);
         await t.runAsync(() async {
@@ -147,6 +152,8 @@ void main() {
         await h.settle(t);
         await t.enterText(find.byType(TextField), 'Synthetic keyboard text');
         await h.settle(t);
+        expect(t.getSize(find.byType(TextField)).width, greaterThan(290));
+        expect(t.getBottomLeft(find.byType(TextField)).dy, lessThan(360));
         expect(t.takeException(), isNull);
         await t.runAsync(() async {
           final boundary = t.renderObject<RenderRepaintBoundary>(
@@ -172,7 +179,7 @@ void main() {
       await h.settle(t);
       await t.enterText(find.byType(TextField), 'Private old-session text');
       await h.settle(t);
-      await t.tap(find.text('Save chat text'));
+      await t.tap(find.byTooltip('Save chat text'));
       await h.settle(t);
       expect(storage.writes, 1);
       await t.pageBack();
@@ -186,7 +193,7 @@ void main() {
       storage.hold!.complete();
       await h.settle(t);
       expect(find.text('Private old-session text'), findsNothing);
-      expect(find.text('Saved text'), findsNothing);
+      expect(find.byTooltip('Saved text'), findsNothing);
       expect(
         (await const ChatTextDraftStore().read('me', 'chat'))!.text,
         'Private old-session text',
@@ -205,7 +212,7 @@ void main() {
       await h.settle(t);
       await t.enterText(find.byType(TextField), 'Saved while covered');
       await h.settle(t);
-      await t.tap(find.text('Save chat text'));
+      await t.tap(find.byTooltip('Save chat text'));
       await h.settle(t);
       final nav = Navigator.of(t.element(find.byType(TextField)));
       nav.push(
@@ -218,7 +225,7 @@ void main() {
       expect(session.sends, 0);
       nav.pop();
       await h.settle(t);
-      expect(find.text('Saved text'), findsOneWidget);
+      expect(find.byTooltip('Saved text'), findsOneWidget);
       expect(find.text('Saved while covered'), findsOneWidget);
     },
   );
@@ -232,7 +239,7 @@ void main() {
     await h.settle(t);
     await t.enterText(find.byType(TextField), 'Old route text');
     await h.settle(t);
-    await t.tap(find.text('Save chat text'));
+    await t.tap(find.byTooltip('Save chat text'));
     await h.settle(t);
     await t.pumpWidget(const SizedBox());
     await t.pump();
@@ -255,16 +262,16 @@ void main() {
       await h.settle(t);
       await t.enterText(find.byType(TextField), 'Saved despite lost reply');
       await h.settle(t);
-      await t.tap(find.text('Save chat text'));
+      await t.tap(find.byTooltip('Save chat text'));
       await h.settle(t);
-      expect(find.text('Try again'), findsOneWidget);
+      expect(find.byTooltip('Try again'), findsOneWidget);
       expect(find.text('Saved despite lost reply'), findsOneWidget);
       expect(storage.writes, 1);
       storage.throwAfterWrite = false;
-      await t.tap(find.text('Try again'));
+      await t.tap(find.byTooltip('Try again'));
       await h.settle(t);
-      expect(find.text('Saved text'), findsOneWidget);
-      await t.tap(find.text('Save chat text'));
+      expect(find.byTooltip('Saved text'), findsOneWidget);
+      await t.tap(find.byTooltip('Save chat text'));
       await h.settle(t);
       expect(storage.writes, 2);
       expect(session.sends, 0);
@@ -280,25 +287,29 @@ void main() {
     final session = h.ExitSession();
     await h.open(t, session);
     await h.settle(t);
-    await t.tap(find.text('Saved text'));
+    await t.tap(find.byTooltip('Saved text'));
     await h.settle(t);
     await t.tap(find.text('Remove saved copy'));
     await h.settle(t);
-    expect(find.text('Try again'), findsOneWidget);
+    expect(find.byTooltip('Try again'), findsOneWidget);
     expect(
       t
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Saved text'))
+          .widget<IconButton>(
+            find.byWidgetPredicate(
+              (w) => w is IconButton && w.tooltip == 'Saved text',
+            ),
+          )
           .onPressed,
       isNull,
     );
     storage.loseDelete = false;
-    await t.tap(find.text('Try again'));
+    await t.tap(find.byTooltip('Try again'));
     await h.settle(t);
-    await t.tap(find.text('Saved text'));
+    await t.tap(find.byTooltip('Saved text'));
     await h.settle(t);
     await t.tap(find.text('Remove saved copy'));
     await h.settle(t);
-    expect(find.text('Saved text'), findsNothing);
+    expect(find.byTooltip('Saved text'), findsNothing);
     expect(session.sends, 0);
   });
   testWidgets(
@@ -311,17 +322,17 @@ void main() {
       await h.settle(t);
       await t.enterText(find.byType(TextField), 'Keep current text');
       await h.settle(t);
-      await t.tap(find.text('Save chat text'));
+      await t.tap(find.byTooltip('Save chat text'));
       await h.settle(t);
       expect(find.text('Keep current text'), findsOneWidget);
-      expect(find.text('Saved text'), findsNothing);
-      expect(find.text('Try again'), findsOneWidget);
+      expect(find.byTooltip('Saved text'), findsNothing);
+      expect(find.byTooltip('Try again'), findsOneWidget);
       storage.loseWrite = false;
-      await t.tap(find.text('Try again'));
+      await t.tap(find.byTooltip('Try again'));
       await h.settle(t);
-      await t.tap(find.text('Save chat text'));
+      await t.tap(find.byTooltip('Save chat text'));
       await h.settle(t);
-      expect(find.text('Saved text'), findsOneWidget);
+      expect(find.byTooltip('Saved text'), findsOneWidget);
       expect(session.sends, 0);
     },
   );
@@ -339,16 +350,18 @@ void main() {
       await h.settle(t);
       expect(
         t
-            .widget<TextButton>(
-              find.widgetWithText(TextButton, 'Save chat text'),
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (w) => w is IconButton && w.tooltip == 'Save chat text',
+              ),
             )
             .onPressed,
         isNull,
       );
       storage.failRead = false;
-      await t.tap(find.text('Try again'));
+      await t.tap(find.byTooltip('Try again'));
       await h.settle(t);
-      expect(find.text('Saved text'), findsOneWidget);
+      expect(find.byTooltip('Saved text'), findsOneWidget);
       expect(find.text('Existing copy'), findsNothing);
       expect(find.text('New text'), findsOneWidget);
       expect(session.sends, 0);
@@ -363,7 +376,7 @@ void main() {
     await h.settle(t);
     await t.tap(find.text('Reply'));
     await h.settle(t);
-    await t.tap(find.text('Saved text'));
+    await t.tap(find.byTooltip('Saved text'));
     await h.settle(t);
     expect(
       t
@@ -383,7 +396,7 @@ void main() {
     final session = h.ExitSession();
     await h.open(t, session);
     await t.pumpAndSettle();
-    await t.tap(find.text('Saved text'));
+    await t.tap(find.byTooltip('Saved text'));
     await h.settle(t);
     expect(find.byType(AlertDialog), findsOneWidget);
     session.epoch++;
@@ -400,7 +413,7 @@ void main() {
       final session = h.ExitSession();
       await h.open(t, session);
       await t.pumpAndSettle();
-      await t.tap(find.text('Saved text'));
+      await t.tap(find.byTooltip('Saved text'));
       await h.settle(t);
       final restore = t
           .widget<TextButton>(find.widgetWithText(TextButton, 'Restore text'))
@@ -426,7 +439,7 @@ void main() {
       await h.open(t, session);
       await t.pumpAndSettle();
       expect(session.sends, 0);
-      await t.tap(find.text('Saved text'));
+      await t.tap(find.byTooltip('Saved text'));
       await h.settle(t);
       await t.tap(find.text('Restore text'));
       await h.settle(t);
@@ -449,7 +462,7 @@ void main() {
     await h.open(t, s);
     await t.enterText(find.byType(TextField), 'Private synthetic text');
     await h.settle(t);
-    await t.tap(find.text('Save chat text'));
+    await t.tap(find.byTooltip('Save chat text'));
     await t.pumpAndSettle();
     expect(
       (await const ChatTextDraftStore().read('me', 'chat'))!.text,
@@ -467,8 +480,8 @@ void main() {
       t.widget<TextField>(find.byType(TextField)).controller!.text,
       isEmpty,
     );
-    expect(find.text('Saved text'), findsOneWidget);
-    await t.tap(find.text('Saved text'));
+    expect(find.byTooltip('Saved text'), findsOneWidget);
+    await t.tap(find.byTooltip('Saved text'));
     await h.settle(t);
     await t.tap(find.text('Restore text'));
     await h.settle(t);
@@ -477,7 +490,7 @@ void main() {
       'Private synthetic text',
     );
     expect(second.sends, 0);
-    await t.tap(find.text('Saved text'));
+    await t.tap(find.byTooltip('Saved text'));
     await h.settle(t);
     await t.tap(find.text('Remove saved copy'));
     await t.pumpAndSettle();
@@ -496,7 +509,7 @@ void main() {
       await t.pumpAndSettle();
       await t.enterText(find.byType(TextField), 'Current synthetic');
       await h.settle(t);
-      await t.tap(find.text('Saved text'));
+      await t.tap(find.byTooltip('Saved text'));
       await h.settle(t);
       await t.tap(find.text('Restore text'));
       await h.settle(t);
@@ -508,7 +521,7 @@ void main() {
         'Current synthetic',
       );
       expect(s.sends, 0);
-      await t.tap(find.text('Saved text'));
+      await t.tap(find.byTooltip('Saved text'));
       await h.settle(t);
       await t.tap(find.text('Restore text'));
       await h.settle(t);

@@ -32,9 +32,12 @@ routes and retained dialog callbacks. They do not prove native persistence.
 
 Pixels: 320x640 logical size, 180% text, English/Nepali, light/dark. Saved entry,
 scrollable explanation/actions and simulated 280px keyboard inset inspected.
-Nepali Cancel is below the first dialog viewport and was separately scrolled
-into view and inspected. The keyboard fixture is an inset, not a real IME.
-The existing narrow composer wraps long text heavily at this accessibility size.
+The initial keyboard layout and scrolling-title evidence was rejected on review.
+The corrected composer is full width above a single icon-action row with named
+tooltips and accessibility labels. The dialog title and Cancel are fixed; an
+always-visible scrollbar marks the bounded content region. Opening and
+scrolled-to-remove states are separately inspected in all four combinations.
+The keyboard fixture is an inset, not a real IME.
 
 No new native dependency, backend flag, report migration, launcher, build,
 signing, TestFlight audience, compliance attestation or production change.

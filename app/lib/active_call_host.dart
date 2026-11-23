@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'call_controller.dart';
 import 'native_call_coordinator.dart';
+import 'native_call_audio_policy.dart';
 import 'call_page.dart';
 import 'ph.dart';
 import 'ui.dart' show t_, showInfo;
@@ -140,7 +141,8 @@ class ActiveCallHostState extends State<ActiveCallHost> {
         widget.session.user?['public_id'] != event.owner) { return null; }
     final call = CallController(session: widget.session,
       conversationId: event.conversation, title: 'Sanjaal call', video: event.video,
-      callId: event.call, startCamera: false);
+      callId: event.call, startCamera: false,
+      beforeConnect: NativeCallAudioPolicy.prepare, afterRelease: NativeCallAudioPolicy.release);
     final ticket = _CallTicket(call);
     ticket.listener = () {
       if (!mounted || !identical(_current, ticket)) return;

@@ -6,6 +6,14 @@ import 'package:sanjaal/call_controller.dart';
 import 'call_continuity_fakes.dart';
 
 void main() {
+  test('failed external audio ownership release quarantines next calls', () async {
+    final session=CallFixtureSession(), media=FakeCallConnection();
+    final call=CallController(session:session,conversationId:'chat',title:'Member',video:false,
+      connection:media,afterRelease:() async { throw StateError('Synthetic audio ownership release failed'); });
+    await call.connected;
+    expect(await call.close(endRemote:false),false);
+    expect(media.events,contains('dispose')); call.dispose();
+  });
   test('native audio preflight failure never requests token or opens capture', () async {
     final session=CallFixtureSession(), media=FakeCallConnection();
     final call=CallController(session:session,conversationId:'chat',title:'Member',video:true,

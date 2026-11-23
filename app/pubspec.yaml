@@ -126,3 +126,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Exact2.13.2 upstream retained with a narrow reviewed native ownership patch.
+# No dependency update/range; see vendor provenance and source guard tests.
+dependency_overrides:
+  livekit_client:
+    path: vendor/livekit_client

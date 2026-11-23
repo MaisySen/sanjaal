@@ -298,3 +298,23 @@ orphaning old tokens. The root retains a generic lifecycle error for the later
 settings/status surface instead of swallowing cleanup failure. Source gate stays
 false; that status surface and native token/provider readiness remain unfinished.
 Twenty selected registration/root/pump cases pass, focused analysis clean.
+
+## Narrow pinned SDK audio ownership patch, inactive
+
+To avoid treating a fire-and-forget audio stop as ownership proof, retained exact
+LiveKit2.13.2 source/license locally with per-file upstream hashes and a path
+override. No version/range update. The narrow Android patch serializes explicit
+external-Telecom ownership with all mode/focus/routing operations, latches external
+ownership before native stop, and acknowledges actual completion/error on the
+main channel. Pending start/config/route operations stop applying while external.
+Release confirms stop and does not restart SDK audio. Native source compilation
+of this patched SDK/dependency graph has NOT run; it remains unvalidated native
+source, not a resolved compatibility proof.
+
+Dart prepares acknowledged ownership before manual SDK mode and uses the shared
+controller's release callback after capture/peer cleanup; failed release returns
+false into existing call quarantine. Root/native rollout stays false. Thirty-seven
+selected audio/controller/host/media/SDK-pin tests pass and focused analysis clean.
+iOS return from external audio ownership to ordinary foreground mode still needs
+ordering integration with CallKit termination. Full native candidate review and
+physical routing/audio acceptance remain mandatory before selecting either path.

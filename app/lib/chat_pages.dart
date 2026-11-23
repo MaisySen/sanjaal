@@ -634,10 +634,12 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
+  late final String _conversationId;
+  bool _identityRetired = false;
   late final Session _session;
   late final String? _owner;
   late final int _sessionGeneration;
-  bool get _active=>identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
+  bool get _active=>!_identityRetired && id == _conversationId && identical(widget.session,_session) && _owner!=null && widget.session.user?['public_id']==_owner && widget.session.generation==_sessionGeneration;
   void _accountChanged(){
     if(_active || !mounted)return;
     _closed=true;timer?.cancel();_wakeVisible();_retireDraftDialog();
@@ -672,6 +674,10 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   @override
   void didUpdateWidget(ChatPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!_identityRetired && (id != _conversationId || !identical(widget.session, _session))) {
+      _identityRetired = true;
+      _accountChanged();
+    }
     if (!identical(oldWidget.convo, widget.convo) || !identical(oldWidget.session, widget.session)) {
       ++_groupInfoVersion;
       _groupView = null;
@@ -701,6 +707,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
   @override
   void initState() {
     super.initState();
+    _conversationId=id;
     _session=widget.session;_owner=widget.session.user?['public_id'] as String?;_sessionGeneration=widget.session.generation;
     widget.session.addListener(_accountChanged);
     input.addListener(_composerChanged);
@@ -1194,7 +1201,7 @@ class _ChatPageState extends State<ChatPage> with MediaVisibility<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_('This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
+    if(!_active)return Scaffold(appBar:ReviewedAppBar(title:Text(t_('Chat'))),body:Padding(padding:const EdgeInsets.all(20),child:Text(t_(_identityRetired ? 'This conversation changed. Close it and open the chat again.' : 'This chat belongs to another signed-in session. Close it and sign in again to continue.'))));
     final myId = widget.session.user?['public_id'];
     final conversation = _groupView?['public_id'] == id ? _groupView! : widget.convo;
     final group = conversation['type'] == 'group';

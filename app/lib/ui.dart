@@ -274,6 +274,7 @@ const _ne = <String, String>{
   'Could not verify the saved group. Nothing was created. Try again.': 'सुरक्षित समूह जाँच्न सकिएन। केही बनाइएको छैन। फेरि प्रयास गर्नुहोस्।',
   'Saved groups need the member-check server update. Your draft is still here.': 'सुरक्षित समूहका लागि सदस्य जाँच्ने सर्भर अद्यावधिक चाहिन्छ। तपाईंको मस्यौदा यहीँ छ।',
 
+  'This conversation changed. Close it and open the chat again.': 'यो कुराकानी परिवर्तन भएको छ। यसलाई बन्द गरेर च्याट फेरि खोल्नुहोस्।',
   'This chat belongs to another signed-in session. Close it and sign in again to continue.': 'यो च्याट अर्को साइन-इन सत्रको हो। अगाडि बढ्न यसलाई बन्द गरेर फेरि साइन इन गर्नुहोस्।',
   'This private media link is not supported.': 'यो निजी मिडिया लिङ्क चल्दैन।',
   'This photo is unavailable.': 'यो तस्बिर उपलब्ध छैन।',

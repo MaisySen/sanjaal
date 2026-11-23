@@ -81,3 +81,33 @@ The dedicated contract passes save, dispose/reopen, explicit restore, removal,
 zero sends and all four capture names. Host tests pass 13 pixel-packet, four
 same-container process-driver and22screenshot-monitor checks. Native runtime
 execution and actual native pixels for this prepared harness remain unverified.
+
+
+## Conversation identity retirement follow-up
+
+A retained ChatPage state could previously receive a different conversation ID
+and keep the old composer/copy controls under that new identity. Two regressions
+failed before correction. The screen now permanently retires on a conversation
+or Session-object replacement, closes its dialog, clears private screen state
+and stops old read continuations. Switching the ID back cannot revive it. The
+localized explanation asks to close and reopen, not to sign in again for a
+conversation-only change. Existing saved text remains under the original key.
+Two same-state replacement cases cover an open saved-copy dialog and retained
+remove callback, no message sends and no read/write into the new conversation.
+The corrected English320x640/180% retired screen was rendered with real Roboto
+and inspected. Initial block-font fixture output was discarded.
+
+The exact c93043c normal sweep covered198files,2652passed/11skipped across26
+batches with unchanged lib/test/integration source hashes. It predates this
+retirement follow-up. Full analysis had zero errors,15warnings and193infos;
+all15warnings were internal SDK hooks in unchanged native-call contract tests,
+byte-identical to311e497. Skips were one discovery capture, one isolated server
+contract, one opt-in live API, one loopback-only helper and seven Impeller-only
+shader checks. The loopback helper passed separately with its required defines.
+Do not call this a fully green analyzer or a native/full-product acceptance.
+
+After retirement correction:22session tests,59chat retry/history/exit/media,
+36copy/visibility/connected tests and the dedicated loopback helper passed.
+The final selection reruns session/connected/language coverage after the copy
+change. Changed-source analysis has no errors/warnings and three existing infos.
+No native execution, public source push, build or release occurred.

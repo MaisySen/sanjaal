@@ -53,3 +53,16 @@ an expired unowned End. Actual platform active-call state remains unwired.
 - https://github.com/livekit-examples/flutter-callkit/blob/main/README.md
 
 Installed package source, not generic current examples, owns native hook compatibility: firebase_messaging15.2.10, livekit_client2.13.2, flutter_webrtc1.6.3. No store compliance claim or guaranteed delivery claim follows from this work.
+
+## Secure restored-login binding
+
+Session now exposes an opaque native call login lease only after authenticated
+identity verification and outside loading/authentication/account-recovery gates.
+It is stored alongside refresh credentials in secure storage, not preferences.
+Ordinary refresh-token rotation and a process restore retain it; a successful new
+password/social grant clears it before token persistence, including a same-owner
+replacement. Logout clears it, and non-UUID fixture identities cannot enable it.
+Failed secure metadata persistence leaves native wake readiness disabled without
+blocking ordinary sign-in. Existing session generation checks still reject late
+work. This supplies a real credential-lifecycle binding, but no root/native bridge
+uses it yet; secure-storage mocks are not Keychain/Keystore restart proof.

@@ -178,6 +178,12 @@ class Session extends ChangeNotifier {
   Future<void>? _refreshingAccess;
   int _sessionEpoch = 0;
   int get generation => _sessionEpoch;
+  String? _nativeCallLease;
+  /// Exposed only after verified identity restoration, never at login start or
+  /// during account recovery. This is an opaque login binding, not a token.
+  String? get nativeCallLease => !loading && !authenticating &&
+      !recoveringAccount && !accountViewNeedsRefresh && user != null
+      ? _nativeCallLease : null;
   // Root account UI may be recreated only after the replacement identity has
   // loaded, never at login-start while the prior access token is still present.
   int _accountViewGeneration = -1;
@@ -385,6 +391,11 @@ class Session extends ChangeNotifier {
     try {
       await _writeCredentials(() async {
         _checkSession(epoch);
+        if (form['grant_type'] != 'refresh_token') {
+          _nativeCallLease = null;
+          await RefreshStore.clearCallLease();
+          _checkSession(epoch);
+        }
         if (rt != null) {
           await RefreshStore.write(rt);
           _checkSession(epoch);
@@ -595,6 +606,18 @@ class Session extends ChangeNotifier {
         (features != null && features is! Map<String, dynamic>)){
       throw ApiError('Could not restore your sign-in. Try again.');
     }
+    String? lease;
+    // Native wake readiness must never prevent ordinary account recovery.
+    // A storage failure leaves native actions disabled for this process.
+    try {
+      await _writeCredentials(() async {
+        _checkSession(epoch);
+        lease = await RefreshStore.callLease(identity['public_id'] as String);
+        _checkSession(epoch);
+      });
+    } catch (_) { lease = null; }
+    _checkSession(epoch);
+    _nativeCallLease = lease;
     user = identity;
     _accountViewGeneration = epoch;
     pollsEnabled = (j['features'] as Map?)?['polls'] == true;
@@ -646,6 +669,7 @@ class Session extends ChangeNotifier {
 
   Future<void> _clear() async {
     _sessionEpoch++;
+    _nativeCallLease = null;
     restoreError=null;
     _authenticatingEpoch=null;
     _recoveringAccountEpoch=null;

@@ -18,6 +18,7 @@ class CallController extends ChangeNotifier {
     required this.video,
     this._callId,
     this.startCamera = true,
+    this.endRemoteOnSetupFailure = true,
     this.beforeConnect,
     this.beforeRelease,
     this.afterRelease,
@@ -34,6 +35,7 @@ class CallController extends ChangeNotifier {
   final bool video;
   /// System incoming answers must never start a camera in the background.
   final bool startCamera;
+  final bool endRemoteOnSetupFailure;
   final Future<void> Function()? beforeConnect;
   final Future<void> Function()? beforeRelease;
   final Future<void> Function()? afterRelease;
@@ -114,7 +116,7 @@ class CallController extends ChangeNotifier {
         video: video && startCamera,
       );
       if (!connected) {
-        _endCall();
+        if (endRemoteOnSetupFailure) _endCall();
         await _disconnectSafely();
         return;
       }
@@ -124,7 +126,7 @@ class CallController extends ChangeNotifier {
         _changed();
       }
     } on ApiError catch (error) {
-      _endCall();
+      if (endRemoteOnSetupFailure) _endCall();
       await _disconnectSafely();
       if (active) {
         failed = true;
@@ -132,7 +134,7 @@ class CallController extends ChangeNotifier {
         _changed();
       }
     } catch (_) {
-      _endCall();
+      if (endRemoteOnSetupFailure) _endCall();
       await _disconnectSafely();
       if (active) {
         failed = true;

@@ -6,6 +6,15 @@ import 'package:sanjaal/call_controller.dart';
 import 'call_continuity_fakes.dart';
 
 void main() {
+  test('native setup failure leaves one remote End owner with coordinator', () async {
+    final session=CallFixtureSession(), media=FakeCallConnection()..failMicrophone=true;
+    final call=CallController(session:session,conversationId:'chat',title:'Member',video:false,
+      callId:'native-call',connection:media,endRemoteOnSetupFailure:false);
+    expect(await call.connected,false);
+    await call.close(endRemote:false);
+    expect(session.requests.where((r)=>r.path.endsWith('/action')),isEmpty);
+    call.dispose();
+  });
   test('system retirement precedes capture release even from ordinary foreground End', () async {
     final media=FakeCallConnection(), session=CallFixtureSession();
     final call=CallController(session:session,conversationId:'chat',title:'Member',video:false,

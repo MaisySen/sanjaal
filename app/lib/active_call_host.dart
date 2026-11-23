@@ -142,7 +142,7 @@ class ActiveCallHostState extends State<ActiveCallHost> {
         widget.session.user?['public_id'] != event.owner) { return null; }
     final call = CallController(session: widget.session,
       conversationId: event.conversation, title: 'Sanjaal call', video: event.video,
-      callId: event.call, startCamera: false,
+      callId: event.call, startCamera: false, endRemoteOnSetupFailure:false,
       beforeConnect: NativeCallAudioPolicy.prepare,
       beforeRelease: () async {
         final retired=await const MethodChannel('au.fintex.sanjaal/incoming-calls').invokeMethod<bool>('complete', {

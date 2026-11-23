@@ -16,11 +16,11 @@ void main() {
     for (final font in [
       (
         'Roboto',
-        '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
+        '${Platform.environment['FLUTTER_ROOT'] ?? '/tmp/sj-flutter-sdk'}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
       ),
       (
         'MaterialIcons',
-        '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+        '${Platform.environment['FLUTTER_ROOT'] ?? '/tmp/sj-flutter-sdk'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
       ),
       ('NotoDev', 'assets/fonts/NotoSansDevanagari.ttf'),
     ]) {
@@ -145,4 +145,93 @@ void main() {
       await t.pumpWidget(const SizedBox());
     },
   );
+  for (final invalidation in ['expired', 'background-return', 'same-account', 'other-account', 'not-ringing', 'malformed', 'wrong-kind']) {
+    testWidgets('home ignores $invalidation incoming snapshot', (t) async {
+      final h = CallHarness();
+      final reply = Completer<dynamic>();
+      h.session.respond = (method, path, body) async {
+        if (path == '/calls/incoming') return reply.future;
+        return {'data': [], 'unread_messages': 0};
+      };
+      await h.mount(t, screen: HomeShell(session: h.session));
+      await t.pump(const Duration(seconds: 5));
+      expect(h.session.requests.where((r) => r.path == '/calls/incoming').length, 1);
+      if (invalidation == 'background-return') {
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        await t.pump();
+        t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await t.pump();
+      }
+      if (invalidation == 'same-account') h.session.replace();
+      if (invalidation == 'other-account') h.session.replace(owner: 'replacement');
+      final call = <String, dynamic>{
+        'public_id': 'incoming', 'conversation_id': 'chat', 'title': 'Synthetic caller',
+        'caller': {'username': 'fixture'},
+        'kind': invalidation == 'wrong-kind' ? 'unexpected' : 'voice',
+        'status': invalidation == 'not-ringing' ? 'ended' : 'ringing',
+        'ring_expires_at': invalidation == 'malformed' ? 'unknown' : DateTime.now().toUtc()
+            .add(Duration(minutes: invalidation == 'expired' ? -1 : 1)).toIso8601String(),
+      };
+      reply.complete({'data': [call]});
+      await t.pumpAndSettle();
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(h.natives, isEmpty);
+      expect(t.takeException(), isNull);
+      await t.pumpWidget(const SizedBox());
+    });
+  }
+  testWidgets('home presents a current live incoming call once', (t) async {
+    final h = CallHarness();
+    h.session.respond = (method, path, body) async {
+      if (path == '/calls/incoming') return {'data': [{
+        'public_id': 'incoming', 'conversation_id': 'chat', 'title': 'Synthetic caller',
+        'caller': {'username': 'fixture'}, 'kind': 'voice', 'status': 'ringing',
+        'ring_expires_at': DateTime.now().toUtc().add(const Duration(minutes: 1)).toIso8601String(),
+      }]};
+      return {'data': [], 'unread_messages': 0};
+    };
+    await h.mount(t, screen: HomeShell(session: h.session));
+    await t.pump(const Duration(seconds: 5));
+    await t.pumpAndSettle();
+    expect(find.byType(IncomingCallPage), findsOneWidget);
+    expect(h.natives, isEmpty);
+    await t.pump(const Duration(seconds: 5));
+    expect(h.session.requests.where((r) => r.path == '/calls/incoming').length, 1);
+    await h.screenshot(t, 'incoming_current_snapshot');
+    await t.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('home reconciles a fresh poll after dropping pre-background response', (t) async {
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final h = CallHarness();
+    final oldReply = Completer<dynamic>();
+    var reads = 0;
+    final current = {'data': [{
+      'public_id': 'fresh', 'conversation_id': 'chat', 'title': 'Synthetic caller',
+      'caller': {'username': 'fixture'}, 'kind': 'video', 'status': 'ringing',
+      'ring_expires_at': DateTime.now().toUtc().add(const Duration(minutes: 1)).toIso8601String(),
+    }]};
+    h.session.respond = (method, path, body) async {
+      if (path == '/calls/incoming') return ++reads == 1 ? oldReply.future : current;
+      return {'data': [], 'unread_messages': 0};
+    };
+    await h.mount(t, screen: HomeShell(session: h.session));
+    await t.pump(const Duration(seconds: 5));
+    expect(reads, 1);
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump();
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pump();
+    oldReply.complete({'data': [{...(current['data'] as List).single as Map<String, dynamic>, 'public_id': 'retired-snapshot'}]});
+    await t.pump();
+    await t.pump();
+    await t.pump(const Duration(seconds: 5));
+    await t.pumpAndSettle();
+    expect(reads, 2);
+    expect(find.byType(IncomingCallPage), findsOneWidget);
+    expect(t.widget<IncomingCallPage>(find.byType(IncomingCallPage)).call['public_id'], 'fresh');
+    expect(h.natives, isEmpty);
+    await t.pumpWidget(const SizedBox());
+  });
+
 }

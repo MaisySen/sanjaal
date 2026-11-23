@@ -302,6 +302,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _reelRevision = 0;
   int _storyRevision = 0;
   bool _foreground = true;
+  int _foregroundRevision = 0;
   final _visited = <int>{0};
   Timer? _poll;
   Timer? _ring;
@@ -324,6 +325,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final foreground = state == AppLifecycleState.resumed;
     if (_foreground == foreground || !mounted) return;
+    _foregroundRevision++;
     setState(() => _foreground = foreground);
     if (foreground) {
       _refreshUnread();
@@ -340,16 +342,40 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   Future<void> _checkIncoming() async {
     if (_ringing || !mounted || !_foreground || ActiveCallHost.busy(context)) return;
+    final session = widget.session;
+    final owner = session.user?['public_id'];
+    if (owner == null) return;
+    final generation = session.generation;
+    final foregroundRevision = _foregroundRevision;
     _ringing = true;
     try {
-      final j = await widget.session.call('GET', '/calls/incoming') as Map<String, dynamic>;
-      final list = (j['data'] as List).cast<Map<String, dynamic>>();
-      if (list.isEmpty || !mounted || !_foreground || ActiveCallHost.busy(context)) return;
-      if (list.first['public_id'] == _lastCall) return;
-      _lastCall = list.first['public_id'] as String;
+      final value = await session.call('GET', '/calls/incoming');
+      // A response from before backgrounding or a replacement login cannot
+      // start ringing on the current screen, even after foreground return.
+      if (!mounted || !_foreground || foregroundRevision != _foregroundRevision ||
+          !identical(widget.session, session) || session.generation != generation ||
+          session.user?['public_id'] != owner || ActiveCallHost.busy(context)) {
+        return;
+      }
+      if (value is! Map || value['data'] is! List) return;
+      final list = value['data'] as List;
+      if (list.isEmpty || list.first is! Map) return;
+      final call = Map<String, dynamic>.from(list.first as Map);
+      final id = call['public_id'];
+      final conversation = call['conversation_id'];
+      final deadline = call['ring_expires_at'] is String
+          ? DateTime.tryParse(call['ring_expires_at'] as String) : null;
+      if (id is! String || id.isEmpty || conversation is! String || conversation.isEmpty ||
+          !const ['voice', 'video'].contains(call['kind']) || call['status'] != 'ringing' ||
+          deadline == null || !deadline.isAfter(DateTime.now()) || id == _lastCall) {
+        return;
+      }
+      _lastCall = id;
       HapticFeedback.heavyImpact();
-      await Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => IncomingCallPage(session: widget.session, call: list.first)));
+      await Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true,
+          builder: (_) => IncomingCallPage(session: session, call: call)));
     } catch (_) {
+      // The next foreground poll reconciles transient or malformed responses.
     } finally {
       _ringing = false;
     }

@@ -34,6 +34,25 @@ ios-push-client-preparation.md, story-replies-candidate.md and lifecycle records
 Live snapshot provenance: privately retained11:15 authenticated compatibility
 read, auth/me200, conversations200empty. No new live verification is asserted.
 
+## November 23 foreground call reconciliation and deletion branch qualification
+
+After recipient-bound notification source4e50bb3, the HomeShell foreground call
+consumer now rejects delayed snapshots across background-return or replacement
+login, expired/absent ring deadlines, non-ringing states and unknown call kinds.
+A later fresh poll can still present a current call. Seven synthetic invalidation
+cases reproduced presentation before the fix; ordinary incoming and active-call
+continuity remain covered. This does not add OS background wake, FCM call delivery,
+CallKit/Android call-service integration or real two-device acceptance.
+
+Account deletion is an additional integration/completion gap. Current integrated
+Settings opens an email draft only. Separate preserved default-off request/status
+and read-only planning source exists at account-deletion-private-regressions669470a
+(public source aec4501), including bounded media inventory. It is not integrated
+here, deployed or activated, and supplies no erasure worker or remote-identity
+removal. Reviewed retention/processing notices, completion mechanism and provider
+scope are still unresolved. Do not duplicate that intermediate implementation or
+claim email handoff equals completed deletion.
+
 ## Navigation and capture correction, November 22, 2026
 
 The integrated reference review reproduced a narrow-phone navigation problem:

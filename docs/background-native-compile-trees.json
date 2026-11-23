@@ -1,9 +1,9 @@
 {
-  "source_commit": "54a6d39abff58824c3e85fe5c3ec1ebe5f610562",
+  "source_commit": "4d597125cd4b204015bc8af098ada62fb8184855",
   "proof": "complete native compilation only, not OS runtime or phone acceptance",
   "trees": {
     "app/lib": "0ccb504742c10195e4aa2c8cbd6f11fb45b7df78",
-    "app/ios": "2e12792a2b701adf3601ab119dff3c2bec31e224",
+    "app/ios": "3c63aad8ad731e5b6600ce3164ea71ca64ce79a9",
     "app/android": "bb7a27de86e6b68ef7bf871d8dc77e3628869c8f",
     "app/vendor": "4d7431f07cc03d4e7c5dcc27a206e8934a7e4795",
     "app/pubspec.yaml": "46f005ae2f0c380f209947f344a3c7365f334c1e",
